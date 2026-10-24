@@ -161,7 +161,10 @@ Deno.test({
         await Deno.writeTextFile(keyFile, bobKey.private, { mode: 0o600 });
         await Deno.writeTextFile(`${keyFile}.pub`, `${bobKey.public}\n`);
 
+        // ssh-copy-id stages its work under ~/.ssh: a home of the test's own, whatever the machine's.
+        await Deno.mkdir(join(tmp, '.ssh'), { mode: 0o700, recursive: true });
         const copy = await new Deno.Command('sshpass', {
+          env: { HOME: tmp },
           args: [
             '-p',
             'hunter2',
