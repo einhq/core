@@ -149,6 +149,14 @@ const linksTo = async (run: Run, name: string): Promise<boolean> => {
   }
 };
 
+/** Refuses a name the deployment provides: its module runs, whatever is installed. */
+const refuseDeployed = async (run: Run, name: string): Promise<void> => {
+  const deployed = join(run.deployment, name);
+  if (await run.cmd.sys.vfs.exists(run.cmd.access, join(deployed, 'mod.json'))) {
+    throw new InstallError(`'${name}' is one of the deployment's modules (${deployed}), which runs instead`);
+  }
+};
+
 /** The installed modules that depend on `name`, with the range each accepts. */
 const dependentsOf = async (run: Run, name: string): Promise<[string, string][]> =>
   [...(await readManifests(run.cmd.sys.vfs, run.cmd.access, run.modules)).values()]
@@ -162,20 +170,19 @@ const dependentsOf = async (run: Run, name: string): Promise<[string, string][]>
 const installTarget = async (run: Run, target: InstallTarget, near?: Repository): Promise<InstalledModule | undefined> => {
   const { cmd } = run;
   const vfs = cmd.sys.vfs;
-  if (run.missing) {
-    const name = target.kind === 'name' ? target.name : moduleNameOf(target.repository);
-    if (await vfs.exists(cmd.access, join(run.modules, name, 'mod.json'))) {
-      await say(run, `${name} is installed; left as it is`);
-      return undefined;
-    }
+  // The module it is named for, which the repository's mod.json confirms once it is fetched.
+  const expected = target.kind === 'name' ? target.name : moduleNameOf(target.repository);
+  if (run.missing && await vfs.exists(cmd.access, join(run.modules, expected, 'mod.json'))) {
+    await say(run, `${expected} is installed; left as it is`);
+    return undefined;
   }
+  await refuseDeployed(run, expected);
   const { repository, refs } = await locate(run, target, near);
   const resolved = resolveRef(refs, target.ref);
   if (!resolved) {
     throw new InstallError(target.ref ? `${repository.repository} has no branch or tag '${target.ref}'` : `${repository.repository} has no default branch`);
   }
 
-  const expected = target.kind === 'name' ? target.name : moduleNameOf(repository);
   const current = await readInstallRecord(vfs, cmd.access, join(run.store, expected));
   if (!run.force && current?.repository === repository.repository && current.commit === resolved.commit && await linksTo(run, expected)) {
     await say(run, `${expected} is installed at ${short(resolved.commit)} (${resolved.ref}) already`);
@@ -206,8 +213,7 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository)
     if (target.kind === 'name' && name !== target.name) throw new InstallError(`${repository.repository} holds the module '${name}', not '${target.name}'`);
     if (run.visiting.has(name)) throw new InstallError(`'${name}' depends on itself, through ${[...run.visiting].join(' -> ')}`);
 
-    const deployed = join(run.deployment, name);
-    if (await vfs.exists(cmd.access, join(deployed, 'mod.json'))) throw new InstallError(`'${name}' is one of the deployment's modules (${deployed}), which runs instead`);
+    await refuseDeployed(run, name);
 
     const installedPath = join(run.store, name);
     const linkPath = join(run.modules, name);

@@ -23,6 +23,8 @@ type FakeRepository = {
 /** A forge of a few organisations, each repository a branch or two and tags over whole trees. */
 export class FakeForge {
   readonly repositories = new Map<string, FakeRepository>();
+  /** The archives fetched, as `owner/name@commit`. */
+  readonly archives: string[] = [];
   private server?: Deno.HttpServer<Deno.NetAddr>;
   private counter = 0;
 
@@ -72,6 +74,7 @@ export class FakeForge {
       const repository = this.repositories.get(`${archive[1]}/${archive[2]}`);
       const files = repository?.commits.get(archive[3]);
       if (!repository || !files || !allowed(repository)) return new Response('Not found', { status: 404 });
+      this.archives.push(`${archive[1]}/${archive[2]}@${archive[3]}`);
       return new Response(tarball(archive[2], files));
     }
 

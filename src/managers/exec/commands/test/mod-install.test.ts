@@ -146,6 +146,8 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       }
       assertEquals(await client.execJson<string[]>('ls $MOD_INSTALL_PATH'), ['base', 'fan', 'greet']);
       assertEquals(await hidden('$MOD_INSTALL_PATH'), []);
+      // The deployment's name is refused before anything is fetched.
+      assertEquals(forge.archives.filter((archive) => archive.startsWith('acme/module-kept@')), []);
     });
 
     await t.step("a private repository is read with its host's token", async () => {
