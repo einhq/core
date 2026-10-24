@@ -36,6 +36,7 @@ coverage
 /files
 /files-volatile
 /files-tmp
+/modules-installed
 ssh_host_key*
 
 old/

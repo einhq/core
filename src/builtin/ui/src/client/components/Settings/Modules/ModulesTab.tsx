@@ -1,5 +1,5 @@
-import { Alert, Box, Button, Paper, Stack } from '@mantine/core';
-import { IconAlertTriangle, IconChevronLeft } from '@tabler/icons-react';
+import { ActionIcon, Alert, Box, Button, Paper, Stack, Tooltip } from '@mantine/core';
+import { IconAlertTriangle, IconChevronLeft, IconPackageImport } from '@tabler/icons-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useElementWidth } from '../../../hooks/useElementWidth.ts';
@@ -11,6 +11,7 @@ import { PageLoader } from '../../Layout/PageLoader.tsx';
 import { fillWindow, PaneScroll, SPLIT_MIN_WIDTH } from '../ListDetail.tsx';
 import { byState, ModuleList, moduleState } from './ModuleList.tsx';
 import { ModulePanel } from './ModulePanel.tsx';
+import { PublishedModules } from './PublishedModules.tsx';
 
 /** The history state of a module opened from the list where they take turns, so going back to the list pops it. */
 const OPENED = { modulesOpened: true };
@@ -24,11 +25,13 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * page's own scroll, and opening a module is a step in the history that Back undoes.
  *
  * The open module is the URL's `module` and its panel's tab is `section`, so either can be linked
- * to; side by side, nothing named shows the first. The list is asked fresh rather than reused from the docs' kept answer: a
- * `mod setup` since then changes whether a module works.
+ * to; side by side, nothing named shows the first. `published=1` opens the published modules
+ * instead, which the button beside the filter does. The list is asked fresh rather than reused
+ * from the docs' kept answer: a `mod setup` since then changes whether a module works, and an
+ * install or a removal here asks it again.
  */
 export function ModulesTab() {
-  const { data: modules, loading, error } = useModuleReference({ fresh: true });
+  const { data: modules, loading, error, refetch } = useModuleReference({ fresh: true });
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
   const narrow = width < SPLIT_MIN_WIDTH;
   // On a phone the panel is no box: its sections use the page's width.
@@ -41,7 +44,8 @@ export function ModulesTab() {
   const detailRef = useRef<HTMLDivElement>(null);
   const aloneRef = useRef<HTMLDivElement>(null);
 
-  const named = params.get('module');
+  const published = params.get('published') === '1';
+  const named = published ? null : params.get('module');
   const section = params.get('section');
   const firstLoad = loading && !modules;
   const opened = wasOpened(location.state);
@@ -49,23 +53,24 @@ export function ModulesTab() {
   const activeOnly = active === 'true';
   // A module that does not work, opened from elsewhere, is listed while it is open, so the list marks it.
   const listed = all.filter((module) => !activeOnly || moduleState(module) === 'active' || module.name === named);
-  const selected = all.find((module) => module.name === named) ?? (narrow ? undefined : listed[0]);
+  const selected = published ? undefined : all.find((module) => module.name === named) ?? (narrow ? undefined : listed[0]);
 
   // Opening a module from the list where they take turns is pushed; anything else replaces, and
   // keeps the opened mark, so the way back still pops to the list. The panel's tab carries over
   // from one module to the next.
-  const go = (name: string | null, push = false, tab = section) => {
+  const go = (name: string | null, push = false, tab = section, showPublished = false) => {
     const next = new URLSearchParams({ tab: 'modules' });
-    if (name) next.set('module', name);
-    if (tab && tab !== 'about') next.set('section', tab);
-    setParams(next, push ? { state: OPENED } : { replace: true, state: opened && name ? OPENED : null });
+    if (showPublished) next.set('published', '1');
+    else if (name) next.set('module', name);
+    if (!showPublished && tab && tab !== 'about') next.set('section', tab);
+    setParams(next, push ? { state: OPENED } : { replace: true, state: opened && (name || showPublished) ? OPENED : null });
   };
   const backToList = () => (opened ? navigate(-1) : go(null));
 
-  const detailAlone = narrow && (firstLoad ? named !== null : selected !== undefined);
+  const detailAlone = narrow && (published || (firstLoad ? named !== null : selected !== undefined));
 
   // When the open module changes, its panel starts at its top.
-  const shown = selected?.name ?? '';
+  const shown = published ? '\0published' : selected?.name ?? '';
   const lastShown = useRef(shown);
   useLayoutEffect(() => {
     if (lastShown.current === shown) return;
@@ -90,6 +95,13 @@ export function ModulesTab() {
       filter={filter}
       onFilter={setFilter}
       loading={firstLoad}
+      action={
+        <Tooltip label='Published modules'>
+          <ActionIcon size='input-sm' aria-label='Published modules' disabled={published} onClick={() => go(null, narrow, section, true)}>
+            <IconPackageImport size={18} />
+          </ActionIcon>
+        </Tooltip>
+      }
       scrolls={!narrow}
       activeOnly={activeOnly}
       onActiveOnly={(next) => setActive(next ? 'true' : 'false')}
@@ -100,7 +112,11 @@ export function ModulesTab() {
     <Paper withBorder={!flat} bg={flat ? 'transparent' : undefined} radius='md' className='mrx-settings-detail'>
       <PaneScroll scrolls={!narrow} viewportRef={detailRef}>
         <Box p={flat ? 0 : narrow ? 'md' : 'lg'}>
-          {firstLoad ? <PageLoader label='Loading modules…' /> : selected
+          {published
+            ? <PublishedModules installed={all} onInstalled={refetch} onOpenModule={(name) => go(name)} />
+            : firstLoad
+            ? <PageLoader label='Loading modules…' />
+            : selected
             ? (
               <ModulePanel
                 key={selected.name}
@@ -109,9 +125,14 @@ export function ModulesTab() {
                 onOpenModule={(name) => go(name)}
                 section={section}
                 onSection={(next) => go(selected.name, false, next)}
+                onChanged={refetch}
+                onRemoved={() => {
+                  refetch();
+                  backToList();
+                }}
               />
             )
-            : <EmptyState title='No module to show'>Pick a module in the list.</EmptyState>}
+            : <EmptyState title='No module to show'>Pick a module in the list, or add one of the published ones.</EmptyState>}
         </Box>
       </PaneScroll>
     </Paper>

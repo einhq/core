@@ -1,6 +1,6 @@
 /**
  * system-info — which instance this is and what it runs: host, core's version, the
- * module API, the commit, PostgreSQL's and Deno's versions, and uptime.
+ * module API, the commit and each module's, PostgreSQL's and Deno's versions, and uptime.
  *
  * The question it answers is usually "am I in production or on my laptop", or "is my change on
  * it yet", which nobody asks until something is confusing.
@@ -8,6 +8,8 @@
 
 import { join } from '@std/path';
 import type { SystemInfo } from '../../../../lib/api/system.ts';
+import { MOD_INSTALL_PATH, MOD_PATH } from '../../../../lib/paths.ts';
+import { readInstallRecord } from '../../../../modules/install.ts';
 import { MODULE_API_VERSION } from '../../../../modules/mod.ts';
 import { REPO_ROOT } from '../../../../modules/repo.ts';
 import type { Command } from '../../command.ts';
@@ -74,6 +76,30 @@ const readBuild = async (): Promise<Build | undefined> => {
 
 let build: Promise<Build | undefined> | undefined;
 
+/** The commit of each module running from what `mod install` installed, as its install record has it. */
+const installedCommits = async (cmd: Command): Promise<Record<string, string>> => {
+  const modulesPath = cmd.env.MOD_PATH || MOD_PATH;
+  const store = cmd.env.MOD_INSTALL_PATH || MOD_INSTALL_PATH;
+  const commits: Record<string, string> = {};
+  try {
+    for (const entry of await cmd.sys.vfs.children(cmd.access, modulesPath, { readlink: true })) {
+      if (entry.node.props.softlink !== join(store, entry.name)) continue;
+      const record = await readInstallRecord(cmd.sys.vfs, cmd.access, join(store, entry.name));
+      if (record) commits[entry.name] = record.commit.slice(0, 9);
+    }
+  } catch {
+    // No modules directory.
+  }
+  return commits;
+};
+
+/** The build with every module that runs: the tree's, and the installed ones. */
+const withInstalled = (build: Build | undefined, installed: Record<string, string>): Build | undefined => {
+  if (!build || Object.keys(installed).length === 0) return build;
+  const modules = Object.fromEntries(Object.entries({ ...build.modules, ...installed }).sort(([a], [b]) => a.localeCompare(b)));
+  return { ...build, modules };
+};
+
 /** `SHOW server_version`: `17.5`, or `17.5 (Debian 17.5-1.pgdg120+1)` as a distribution builds it. */
 const databaseVersion = async (cmd: Command): Promise<string | undefined> => {
   if (!cmd.sys.pgPool) return undefined;
@@ -112,7 +138,8 @@ export const readSystemInfo = (): SystemInfo => {
 
 export const systemInfo = async (cmd: Command): CmdReturn => {
   build ??= readBuild();
-  const [commit, database] = await Promise.all([build, databaseVersion(cmd)]);
+  const [tree, installed, database] = await Promise.all([build, installedCommits(cmd), databaseVersion(cmd)]);
+  const commit = withInstalled(tree, installed);
   const info: SystemInfo = { ...readSystemInfo(), ...(commit ? { build: commit } : {}), ...(database ? { database } : {}) };
 
   if (cmd.json) {

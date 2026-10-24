@@ -1,5 +1,6 @@
 import { Avatar, Badge, Switch, Text } from '@mantine/core';
 import { IconPuzzle } from '@tabler/icons-react';
+import type { ReactNode } from 'react';
 import type { ModuleEntry } from '@ein/api';
 import { matchesText } from '../../../lib/text-match.ts';
 import { ListFrame, ListRow } from '../ListDetail.tsx';
@@ -48,6 +49,8 @@ type ModuleListProps = {
   filter: string;
   onFilter: (next: string) => void;
   loading: boolean;
+  /** Beside the filter: the button that opens the published modules. */
+  action?: ReactNode;
   /** Beside the open module: the rows scroll between the filter and the footer. */
   scrolls: boolean;
   activeOnly: boolean;
@@ -57,9 +60,9 @@ type ModuleListProps = {
 /**
  * The installed modules, narrowed by the filter, each opening its panel: its description under its
  * name, and at its right its version, or a badge when it does not work. The switch at the foot
- * leaves out the ones that do not.
+ * leaves out the ones that do not; `action`, beside the filter, opens the published ones.
  */
-export function ModuleList({ modules, selected, onSelect, filter, onFilter, loading, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
+export function ModuleList({ modules, selected, onSelect, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
   const shown = modules.filter((module) => matchesText([module.name, module.description], filter));
   return (
     <ListFrame
@@ -67,6 +70,7 @@ export function ModuleList({ modules, selected, onSelect, filter, onFilter, load
       filter={filter}
       onFilter={onFilter}
       loading={loading}
+      action={action}
       scrolls={scrolls}
       rows={shown.map((module) => (
         <ListRow

@@ -94,6 +94,36 @@ config set CFG_CPU_SLOTS 4  # administrators only, for system settings
 config unset CFG_CPU_SLOTS  # back to the default
 ```
 
+## Modules
+
+The **[Modules](/settings?tab=modules)** tab lists the installed modules: what
+each one brings, whether it works, and what it needs. The button beside the
+filter opens the **published modules** — the module repositories of the places
+the **Module sources** setting names, such as `https://github.com/einhq` — with
+each one's version, and whether it is installed. An administrator installs one
+with **Install**, which brings the modules it needs along with it, and gets
+**Update** where a newer version is published than the one installed. A module
+installed this way says where it came from in its panel, where it can be
+updated or removed too. Its pages appear once the page is reloaded.
+
+Installed modules are kept in a folder of their own beside EiN, not inside it,
+so they stay when EiN is upgraded — as long as the installation keeps that
+folder on its own disk, which the standard installation does. A module that
+comes with the installation itself cannot be installed over; it is updated with
+the installation.
+
+A source on a forge that is not public, such as a Forgejo on the home network,
+needs an access token: **Tokens for module sources** takes one per host, as
+`forge.example:3000=token`, and each is sent to its own host only. The same is
+there in the terminal:
+
+```
+mod search                  # the published modules, and what is installed of them
+mod install archive         # by name, from the first source that has it
+mod install https://github.com/einhq/module-archive@main
+mod remove archive
+```
+
 ## Users, groups and permissions
 
 Administrators also get three more tabs on the Settings page, where accounts

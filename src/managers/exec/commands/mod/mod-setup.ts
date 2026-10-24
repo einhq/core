@@ -73,7 +73,11 @@ export const modSetup = async (cmd: Command): CmdReturn => {
   return code;
 };
 
-const setupOne = async (cmd: Command, name: string): Promise<number> => {
+/**
+ * Set up one module, without rebuilding the modules' pages, which the caller does once for all it
+ * sets up. Records how it went; 0 when it went through.
+ */
+export const setupOne = async (cmd: Command, name: string): Promise<number> => {
   // This module's bins are about to become findable. `$PATH` lookups are memoised with a short
   // TTL, and negative answers are memoised too, so drop them rather than make the caller wait it
   // out for a command that exists now.

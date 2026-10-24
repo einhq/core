@@ -115,8 +115,10 @@ import { completeSubcommand } from './completion/completion-subcommand.ts';
 import { completeUser } from './completion/completion-user.ts';
 import { completion } from './completion/completion.ts';
 import { modInfo } from './mod/mod-info.ts';
+import { modInstall } from './mod/mod-install.ts';
 import { modList } from './mod/mod-list.ts';
 import { modRemove } from './mod/mod-remove.ts';
+import { modSearch } from './mod/mod-search.ts';
 import { modCache } from './mod/mod-cache.ts';
 import { modSetup } from './mod/mod-setup.ts';
 import { mod } from './mod/mod.ts';
@@ -333,9 +335,11 @@ export const COMMAND_NAMES: CmdFunction[] = [
   mod,
   modInfo,
   modCache,
+  modInstall,
   modSetup,
   modList,
   modRemove,
+  modSearch,
 
   // Service management
   service,

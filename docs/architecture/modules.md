@@ -4,13 +4,16 @@ Part of [EiN Architecture](../architecture.md), which holds the core: topology, 
 
 Modules extend EiN with domain-specific commands, services, and pipelines. They are designed to have no hard dependency on core internals. Every `mod.json` field is described in [the manifest reference](module-manifest.md).
 
-**Each module is its own repository** (`ein/module-<name>`), and core names none of them. A
-deployment chooses its modules and mounts them at `DEV_MODULES_PATH`, which boot links into
-`/usr/modules` and sets up (`04_modules.sh`); the image carries none. For development a checkout's
-`modules/<name>` holds module checkouts, which this repository ignores: the workspace, the test
-tiers, `check:bins` and `ui-build` take whatever is there, and with nothing there core's own tests
-still run. `system-info` says each module's commit beside core's, from the deployment's
-`src/build.json` or from the checkouts' git.
+**Each module is its own repository** (`ein/module-<name>`), and core names none of them; the
+image carries none. A module reaches an instance in one of two ways, and boot links both into
+`/usr/modules` and sets them up (`04_modules.sh`): the deployment mounts a folder of module
+checkouts at `DEV_MODULES_PATH`, or the administrator installs one from its repository with
+`mod install`, into the folder mounted at `/var/lib/modules` ([below](#installing-a-module-from-its-repository)).
+For development a checkout's `modules/<name>` holds module checkouts, which this repository
+ignores: the workspace, the test tiers, `check:bins` and `ui-build` take whatever is there, and
+with nothing there core's own tests still run. `system-info` says each module's commit beside
+core's, from the deployment's `src/build.json`, the checkouts' git or an installed module's
+record.
 
 ```
 modules/<name>/
@@ -190,13 +193,13 @@ setup.
 
 **Modules reach each other through exports.** A module's public interface is its `exports`: `./<name>` → a file in the module, imported elsewhere as `@<module>/<name>` (`@ems/client`, `@assistant/api`). A module made of several areas, as archive is, names an export after its area too — `./people/genealogy`, imported as `@archive/people/genealogy` — and its private aliases the same way (`@archive/media/face-cluster`). A dependent may import it only if it lists the provider in `dependencies`; nothing else in the provider — its other `lib/` files, its private aliases — is reachable. `imports` is what the module itself uses: private aliases into its own files, named after the module, and external packages; never a path into another module. The rule is one function, [resolve.ts](../../src/modules/resolve.ts) — own `imports`, then own `exports`, then a declared dependency's `exports`, then core's base map — shared by the loader, `deno task sync:modules` and the boundary test, so what type-checks, what runs and what the test allows cannot disagree. Running another module's commands is a dependency too: the boundary test reads command words out of `execute(...)` strings, pipeline `command:` lines and shell scripts and requires the owning module in `dependencies` (core's `search` asks every `search-*` command on PATH, which needs no dependency since core declares none); `dependencies` must form no cycle. `mod info <name>` lists a module's exports and the installed modules that depend on it. In TypeScript it also counts a string that starts with another module's hyphenated command name, since commands are often assembled in a variable before they run.
 
-**Only a module's `#!ts` runs.** A `#!ts` command is imported into the EiN process and runs with all of its permissions — the process environment, the VFS as the administrator, the host's files — so the shell runs one only from under `MOD_PATH` (`/usr/modules`), which only the administrator writes: the image's modules, the mounted dev modules linked there, or what `mod` installs. The path is the constant, not the caller's `$MOD_PATH`. A `#!ts` file anywhere else, a user's home included, is refused with exit code 126 before it is imported, whoever runs it (ein/core#549); a user's own commands are bash scripts, which run under their own access.
+**Only a module's `#!ts` runs.** A `#!ts` command is imported into the EiN process and runs with all of its permissions — the process environment, the VFS as the administrator, the host's files — so the shell runs one only from under `MOD_PATH` (`/usr/modules`), which only the administrator writes: the deployment's modules linked there, or what `mod install` installed. The path is the constant, not the caller's `$MOD_PATH`. A `#!ts` file anywhere else, a user's home included, is refused with exit code 126 before it is imported, whoever runs it (ein/core#549); a user's own commands are bash scripts, which run under their own access.
 
 **A bin resolves its own imports.** A `#!ts` command lives in the VFS, which Deno cannot import from, so it is staged as a copy and dynamically imported. The copy's specifiers would resolve against the import map the _process_ started with, which a module cannot add an entry to once it is installed, and there is no per-directory scope to hang one on because the copy is not in the module. [ts-command-loader.ts](../../src/managers/shell/ts-command-loader.ts) resolves them before staging, by the module rule: package targets become `jsr:`/`npm:` URLs, which Deno resolves with no import map at all, and file targets — the module's own, or a dependency's export read from the _installed_ dependency's manifest — become staged copies; a specifier the rule does not claim is left alone so core's base map still supplies `@ein/client`. Each file is rewritten with **its own module's** manifest whichever bin reached it, so a provider's private aliases are its own business, and a file stages to one copy per process whichever dependent got there first — `EmsError` is one class, so `instanceof` holds across modules. Relative imports are staged recursively; type-only imports are erased before the module runs, so they are left as written. The copies are `blob:` URLs in the process's memory, never files: nothing on disk can be read or replaced by another process or left behind for the next one. A copy is keyed by its VFS path and rewritten body, which embeds the URLs of its imports, so an unchanged file keeps its URL and Deno's module cache keeps hitting, while an edited lib gives every file that reaches it a new URL; it also means value imports cannot form a cycle, and one is refused with the files that form it. Importing a module that is not a dependency, or a path it does not export, fails to load with a message naming both. `mod cache` stages every bin and runs `deno cache` over the `jsr:`/`npm:`/`http(s):` specifiers the staging collected, so a first run does not resolve over the network inside a pipeline step.
 
 **Type-checking resolves the same way.** Each module is a Deno workspace member (`"workspace": ["./modules/*"]`), so everything under `modules/<name>/` — bins, `lib/`, tests — resolves against `modules/<name>/deno.jsonc` before core's map. That file is generated from the module's `mod.json` by `deno task sync:modules` — the module rule projected into an import map, with each dependency's exports at `../<dep>/…`, the one place that assumes modules sit side by side — and kept honest by a step in [module-boundary.test.ts](../../src/modules/test/module-boundary.test.ts); the manifest is the single source. `deno task check:bins` strips the shebang beside each original, i.e. inside the member, so a bin now type-checks against its own manifest rather than against whatever alias core happened to carry. A member map only _adds_ to the root map, which is why this works where an earlier attempt at a generated standalone map per module did not: `@ein/client` drags core's whole graph in behind it, and re-resolving `pg`/`ssh2` under a synthetic map collapsed their npm types into a cascade of implicit-any errors from inside `src/`.
 
-**Running a module command costs what it costs once.** Everything above happens per bin per process, not per invocation. Two caches sit in front of it, because a module command used to spend far more time being found and prepared than doing its work — measured quiescent in production, `person-faces` cost ~232 ms by name against ~64 ms by absolute path, and a bin that only prints a line cost ~115 ms. [command-lookup.ts](../../src/managers/shell/command-lookup.ts) resolves a name on `$PATH` with one point lookup per entry rather than `exists(dir)` plus a full `children(dir)` listing, and memoises the result — negative answers too, since a miss on an early entry is most of the work when the bin lives in the ninth. It is TTL-bounded (`COMMAND_LOOKUP_TTL_MS`, 5 s) rather than event-invalidated because `/usr/modules/<name>` are softlinks into a filesystem mount of the host's `modules/`, so a bin added or removed on the host emits no VFS event to subscribe to; `mod setup`/`mod remove` clear it outright. [ts-command-loader.ts](../../src/managers/shell/ts-command-loader.ts) then keeps the imported `CmdFunction` against the bin's mtime and size, both of which come off the `vfs.get` the shell already does for the execute check — so a hit skips reading the bin, its `mod.json`, hashing and rewriting the graph, and the `import()`. Editing a **bin** still takes effect immediately; editing a module's `lib/` or `mod.json` takes effect when a bin that reaches it is next staged — when the bin changes, after `mod setup`, or in a new process — because the loaded command is kept against the bin's node alone.
+**Running a module command costs what it costs once.** Everything above happens per bin per process, not per invocation. Two caches sit in front of it, because a module command used to spend far more time being found and prepared than doing its work — measured quiescent in production, `person-faces` cost ~232 ms by name against ~64 ms by absolute path, and a bin that only prints a line cost ~115 ms. [command-lookup.ts](../../src/managers/shell/command-lookup.ts) resolves a name on `$PATH` with one point lookup per entry rather than `exists(dir)` plus a full `children(dir)` listing, and memoises the result — negative answers too, since a miss on an early entry is most of the work when the bin lives in the ninth. It is TTL-bounded (`COMMAND_LOOKUP_TTL_MS`, 5 s) rather than event-invalidated because `/usr/modules/<name>` are softlinks into filesystem mounts of the host's folders, so a bin added or removed on the host emits no VFS event to subscribe to; `mod setup`/`mod remove` clear it outright. [ts-command-loader.ts](../../src/managers/shell/ts-command-loader.ts) then keeps the imported `CmdFunction` against the bin's mtime and size, both of which come off the `vfs.get` the shell already does for the execute check — so a hit skips reading the bin, its `mod.json`, hashing and rewriting the graph, and the `import()`. Editing a **bin** still takes effect immediately; editing a module's `lib/` or `mod.json` takes effect when a bin that reaches it is next staged — when the bin changes, after `mod setup`, or in a new process — because the loaded command is kept against the bin's node alone.
 
 **Contributions.** What a module adds to core's own machinery is found by a command's name, chosen by a setting, or declared in `mod.json`; never written into core. `mod setup` validates and registers it in memory ([src/lib/contributions/](../../src/lib/contributions/)), as it does settings; `mod remove` drops it; the test harness registers what its modules declare. The shapes are in [src/lib/contributions/types.ts](../../src/lib/contributions/types.ts) (the `ModuleManifest` fields); a type or name is owned by the first module to claim it.
 
@@ -212,3 +215,65 @@ setup.
 **Describing what a module brings.** A command describes itself (`CmdSpec`) and a setting where it is registered (`config.options`), but a node type is a free-form string and an environment variable is read wherever it is needed, so neither has a location of its own. A module describes its node types in `nodeTypes` (`{ type, label, category, description, root? }`) and the environment variables it reads, other than its settings, in `environment` (`{ key, kind, description, default? }`), the same shapes core uses for its own ([src/lib/reference/](../../src/lib/reference/)). Apart from completion (above), nothing registers them: `docs node-types` and `docs env` read the installed manifests at each call, so the documentation follows whatever is in `/usr/modules`. A malformed entry is a warning at `mod setup` (`checkReference`), like a malformed setting.
 
 **Validation.** `mod setup` checks `coreApi` against `MODULE_API_VERSION`, every entry in `dependencies`, that `exports` and `imports` stay inside the module and every export exists, that the module is installed under its own name, and the shape and containment of `ui.routes` before touching anything, and refuses rather than half-installing — setup puts bins on PATH and starts services the moment it runs. `ui-build` additionally verifies that the route directory holds a page and that the pages import nothing they may not.
+
+## Installing a module from its repository
+
+`mod install <name | https://host/owner/module-name>[@ref]`
+([mod-install.ts](../../src/managers/exec/commands/mod/mod-install.ts)) fetches a module and sets
+it up. The image has no git, so the fetching is plain HTTP that GitHub, Forgejo and Gitea all
+answer ([forge.ts](../../src/modules/forge.ts)): the ref — a branch, a tag, a commit, or the default
+branch when none is given — is resolved from git's own ref advertisement
+(`<repository>.git/info/refs?service=git-upload-pack`), and the tree at that commit is the forge's
+`/archive/<commit>.tar.gz`. It is unpacked through the VFS into `.staging-<id>` beside the
+installed modules ([install.ts](../../src/modules/install.ts)), with each file's mode, so a bin
+stays executable, then checked, renamed into place and linked as `/usr/modules/<name>` →
+`/var/lib/modules/<name>`. A module replaced is renamed aside first and removed after, so the name
+always holds one whole tree. `.install.json` in the module records the repository, the ref, the
+commit and when; `mod list` answers it as `installed`, and `system-info` takes its commit.
+
+**Where it lives.** `/var/lib/modules` is a filesystem mount, read-write, of the folder
+`MODULE_INSTALL_PATH` names (`/modules-installed` in the container). A deployment mounts a folder
+of the host there — `make container-run` does, `MODULE_INSTALL_PATH ?= ./modules-installed` — so
+the installs outlive the container: a new image, a `podman run --replace`, even a new database,
+since boot links whatever is in the folder at every start. Without the mount the folder is the
+container's own and the installs go with it. Hidden entries are not modules, so a staging tree an
+interrupted install left is never linked.
+
+**At boot.** A deployment that wants modules without anyone installing them names them in
+`INSTALL_MODULES` (names or addresses, separated by spaces; `make container-run INSTALL_MODULES=…`).
+Boot runs `mod install --missing --no-setup` with them after linking: `--missing` leaves a module
+installed already as it is, at whatever version, without asking its forge, so a boot is no update,
+and `--no-setup` leaves setting up to the `mod setup --all` after it and starting services to the
+last boot script, which runs once this boot's settings are written. A forge that does not answer
+costs that module, not the boot.
+
+**Where to look.** `CFG_MODULE_SOURCES` lists organisations on GitHub, Forgejo or Gitea, in order
+(`https://github.com/einhq` by default); each repository named `module-<name>` there is a
+published module. `mod install <name>` takes the first source that has `module-<name>`.
+`mod search [words]` ([mod-search.ts](../../src/managers/exec/commands/mod/mod-search.ts)) lists
+them all, asking every source at once, with each default branch's `mod.json` version and
+`coreApi` and its commit, and names a source that does not answer; the Modules tab of the
+settings page shows the same with Install and Update. `CFG_MODULE_SOURCES_KEY` holds tokens for
+private sources as `host=token`, and a token is sent to its own host only, so an address on a
+command line cannot carry one elsewhere.
+
+**Before anything is replaced** a module must pass what `mod setup` would refuse it for: `coreApi`
+against this core, its exports and its pages. It must be no deployment's: a name the deployment
+mounts at `DEV_MODULES_PATH` runs from there, `mod install` refuses it, and boot says so when the
+folder holds one too. Something else at `/usr/modules/<name>` — not a link into the folder, or a
+dangling one — is refused as well.
+
+**Dependencies.** One that is not installed is installed first, from the module's own
+organisation (`module-<dependency>` beside it) and else from the sources, and must then satisfy
+the range; one installed at a version outside the range refuses the install and says
+`mod install <dependency>` updates it.
+
+**Updates and dependents.** `mod install` of an installed module is its update; the same commit
+again is left alone (`--force` fetches it anyway). Every installed module that depends on it must
+accept the new version, or nothing changes; `--force` updates anyway. After the swap the module is
+set up and its services restarted — on a first install, started — and every module depending on
+an updated one, however indirectly, is set up again and its running services restarted, so none
+keeps running the code that was replaced. The modules' pages are rebuilt once at the end.
+
+**Removing.** `mod remove` of an installed module removes its tree from the folder with its link.
+One the deployment provides loses only its link, and boot links it again.

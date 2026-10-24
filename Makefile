@@ -85,6 +85,15 @@ ENV_FILE         ?=
 # The modules the deployment runs: a directory with one module checkout per subdirectory, mounted
 # read-only at /modules-dev, which boot links into /usr/modules and sets up.
 MODULES_PATH     ?= $(PWD)/modules
+# Where `mod install` puts the modules it fetches from their repositories, mounted read-write at
+# /modules-installed. A host directory, like the storage tiers: inside the container the installs
+# would go with the next `podman run --replace`, a new image included. A module also in
+# MODULES_PATH runs from there.
+MODULE_INSTALL_PATH ?= ./modules-installed
+# Modules boot installs into MODULE_INSTALL_PATH when they are not there, by name or repository
+# address, separated by spaces: `INSTALL_MODULES='archive assistant'`. One installed already is
+# left as it is; `mod install` or the settings page updates it.
+INSTALL_MODULES  ?=
 # Extra flags for the `deno run` that starts the server. Empty leaves the image's own CMD
 # alone; setting it overrides the command, so the flags land between `deno run -A` and the
 # entrypoint. Meant for diagnosis, one run at a time:
@@ -131,8 +140,8 @@ container-build: ## Build the EiN container image
 # The comment lives here rather than inside the recipe because a `#` line between backslash
 # continuations is handed to the SHELL, not read by make, and comments out the rest of the
 # command.
-container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: its modules)
-	@mkdir -p $(FILE_ROOT_PATH) $(VOLATILE_FILE_ROOT_PATH) $(FILE_TMP_PATH)
+container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: its modules; MODULE_INSTALL_PATH: what mod install installs)
+	@mkdir -p $(FILE_ROOT_PATH) $(VOLATILE_FILE_ROOT_PATH) $(FILE_TMP_PATH) $(MODULE_INSTALL_PATH)
 	podman run --replace -d \
 		--name $(CONTAINER_NAME) \
 		--restart $(CONTAINER_RESTART) \
@@ -146,9 +155,11 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		-e VOLATILE_FILE_ROOT_PATH=/files-volatile \
 		-e FILE_TMP_PATH=/files-tmp \
 		-e DEV_MODULES_PATH=/modules-dev \
+		-e MODULE_INSTALL_PATH=/modules-installed \
 		-e DOCS_PATH=/docs-dev \
 		-e TZ=$(TZ) \
 		$(if $(ENV_FILE),--env-file $(ENV_FILE),) \
+		$(if $(INSTALL_MODULES),-e INSTALL_MODULES='$(INSTALL_MODULES)',) \
 		$(if $(LOG_LEVEL),-e LOG_LEVEL=$(LOG_LEVEL),) \
 		$(if $(LOG_MODULES),-e LOG_MODULES=$(LOG_MODULES),) \
 		-v $(FILE_ROOT_PATH):/files \
@@ -156,6 +167,7 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		-v $(FILE_TMP_PATH):/files-tmp \
 		-v $(OLD_PATH):/old \
 		-v $(MODULES_PATH):/modules-dev:ro \
+		-v $(MODULE_INSTALL_PATH):/modules-installed \
 		-v $(PWD)/src/builtin/ui/ui:/app/src/builtin/ui/ui:ro \
 		-v $(PWD)/docs/user:/docs-dev:ro \
 		$(IMAGE_NAME) $(DENO_CMD)

@@ -33,6 +33,7 @@
     "jsr:@std/semver@^1.0.5": "1.0.8",
     "jsr:@std/streams@^1.0.17": "1.2.0",
     "jsr:@std/streams@^1.2.0": "1.2.0",
+    "jsr:@std/tar@~0.1.10": "0.1.10",
     "jsr:@std/ulid@1": "1.0.0",
     "jsr:@std/yaml@*": "1.0.12",
     "jsr:@std/yaml@^1.0.11": "1.0.12",
@@ -203,6 +204,12 @@
       "integrity": "256b934254778f2bf45f5713b934209ff29e9b4b7fd4ec095219966813758c5f",
       "dependencies": [
         "jsr:@std/bytes"
+      ]
+    },
+    "@std/tar@0.1.10": {
+      "integrity": "6bf907f3a4bc8bfef42973ba132d946756a6161ef6b914a9e1c06debe664db17",
+      "dependencies": [
+        "jsr:@std/streams@^1.0.17"
       ]
     },
     "@std/ulid@1.0.0": {
@@ -2163,6 +2170,7 @@
       "jsr:@std/path@^1.1.3",
       "jsr:@std/semver@^1.0.5",
       "jsr:@std/streams@^1.0.17",
+      "jsr:@std/tar@~0.1.10",
       "jsr:@std/ulid@1",
       "jsr:@std/yaml@^1.0.11",
       "jsr:@vef/color-me@^1.0.3",

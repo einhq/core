@@ -274,6 +274,29 @@ export const CORE_OPTIONS: ConfigOption[] = [
     emptyMeans: 'by words alone',
   },
 
+  /* Modules — where `mod search`, `mod install` and the Modules settings find the published ones. */
+  {
+    key: 'CFG_MODULE_SOURCES',
+    scope: 'system',
+    type: 'string',
+    default: 'https://github.com/einhq',
+    label: 'Module sources',
+    description:
+      "Where published modules are looked for: organisations on GitHub, Forgejo or Gitea, as their addresses separated by spaces, such as https://github.com/einhq. Each repository named module-<name> in them is a module. A module installed by name comes from the first source that has it, and a module's dependencies from its own organisation first.",
+    group: 'Modules',
+    emptyMeans: 'none: modules are installed by their repository address',
+  },
+  {
+    key: 'CFG_MODULE_SOURCES_KEY',
+    scope: 'system',
+    type: 'secret',
+    default: '',
+    label: 'Tokens for module sources',
+    description:
+      'Access tokens for module sources that are not public, as host=token separated by spaces, such as forge.example:3000=… github.com=…. Each token is sent to its own host only.',
+    group: 'Modules',
+  },
+
   /* Network — neither of these can restart its own service from here. */
   {
     key: 'CFG_HTTP_PORT',

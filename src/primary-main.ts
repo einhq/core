@@ -160,6 +160,11 @@ async function main() {
     env: settingsFromEnv(),
   });
 
+  // Where `mod install` puts modules. A deployment mounts a folder of the host here so the
+  // installs outlive the container; without one the folder is the container's own.
+  const moduleInstallPath = Deno.env.get('MODULE_INSTALL_PATH') || resolve(Deno.cwd(), './modules-installed');
+  await Deno.mkdir(moduleInstallPath, { recursive: true });
+
   // Run init scripts
   await boot(systemShell, {
     mode: 'primary',
@@ -171,6 +176,8 @@ async function main() {
         resolve(Deno.cwd(), './files'),
       EXTERNAL_FILE_TMP_PATH: Deno.env.get('FILE_TMP_PATH') || '/tmp',
       EXTERNAL_DEV_MODULES_PATH: Deno.env.get('DEV_MODULES_PATH') || resolve(Deno.cwd(), './modules'),
+      EXTERNAL_MODULE_INSTALL_PATH: moduleInstallPath,
+      INSTALL_MODULES: Deno.env.get('INSTALL_MODULES') ?? '',
       EXTERNAL_DOCS_PATH: Deno.env.get('DOCS_PATH') || resolve(Deno.cwd(), './docs/user'),
       // Every CFG_* the container was launched with, forwarded wholesale.
       //

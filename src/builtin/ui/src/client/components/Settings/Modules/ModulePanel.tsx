@@ -1,19 +1,21 @@
-import { Alert, Anchor, Badge, Box, Button, Loader, Stack, Table, Tabs, Text } from '@mantine/core';
-import { IconAlertTriangle, IconBook2 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import { Alert, Anchor, Badge, Box, Button, Group, Loader, Stack, Table, Tabs, Text } from '@mantine/core';
+import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DOCS_MODULES_PATH } from '@ein/paths';
-import type { ModuleEntry, NodeTypeReference, ServiceEntry } from '@ein/api';
+import type { ModuleEntry, ModuleInstallResult, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useConfig } from '../../../hooks/useConfig.ts';
 import { useDocs } from '../../../hooks/useDocs.ts';
 import { useCommandReference, useNodeTypeReference } from '../../../hooks/useReference.ts';
 import { usePolledCommand } from '../../../hooks/useSystem.ts';
 import { formatCount, formatUptime } from '../../../lib/format.ts';
+import { shq } from '../../../lib/shquote.ts';
+import { execCommand } from '../../../signals/shell-client.ts';
 import { DocView } from '../../Docs/DocView.tsx';
 import { moduleRoute } from '../../Docs/reference.tsx';
 import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
-import { Note, PanelHeader } from '../Accounts/PanelParts.tsx';
+import { Done, Note, PanelHeader, PanelSection, useInlineConfirm } from '../Accounts/PanelParts.tsx';
 import { ModuleCommands } from './ModuleCommands.tsx';
 import { ModuleAvatar, moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
@@ -40,17 +42,21 @@ type ModulePanelProps = {
   /** The tab asked for; one this module has nothing for shows About. */
   section: string | null;
   onSection: (section: string) => void;
+  /** After it was updated, so the list is asked again. */
+  onChanged: () => void;
+  /** After it was removed. */
+  onRemoved: () => void;
 };
 
 /**
  * One installed module: its name, version, where it is installed, when it was set up and its state,
- * why its setup failed, and a link to its full
- * reference; under that a tab each for the guide's introduction, what it needs and what needs it,
+ * why its setup failed, which repository and commit `mod install` fetched it from, with Update and
+ * Remove for the administrator, and a link to its full reference; under that a tab each for the guide's introduction, what it needs and what needs it,
  * and what it brings — services with their state now, pages, commands, settings and node types.
  * A tab is drawn only when the module has something for it, with how many. Commands and settings
  * open in place, a command to its help and a setting to its control.
  */
-export function ModulePanel({ module, modules, onOpenModule, section, onSection }: ModulePanelProps) {
+export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, onRemoved }: ModulePanelProps) {
   const state = moduleState(module);
   const admin = useAccessIds()?.admin === true;
   const { data: commands, loading: commandsLoading } = useCommandReference();
@@ -100,6 +106,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection 
           <Text span ff='monospace' size='sm'>mod setup {module.name}</Text> sets it up.
         </Note>
       )}
+      {module.installed && <Installed module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} onRemoved={onRemoved} />}
       <Box>
         <Button component={Link} to={moduleRoute(module.name)} variant='default' size='xs' leftSection={<IconBook2 size={16} />}>Reference and guide</Button>
       </Box>
@@ -144,6 +151,87 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection 
         </Tabs.Panel>
       </Tabs>
     </Stack>
+  );
+}
+
+type InstalledProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boolean; onChanged: () => void; onRemoved: () => void };
+
+/**
+ * Where `mod install` fetched the module from, and for the administrator, Update — the newest
+ * commit of the branch it was installed from, or the same tag or commit again — and Remove, which
+ * asks first and says what goes with it.
+ */
+function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledProps) {
+  const record = module.installed!;
+  const [busy, setBusy] = useState<'update' | 'remove' | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const confirm = useInlineConfirm();
+
+  const update = async () => {
+    setBusy('update');
+    setProblem(null);
+    setDone(null);
+    try {
+      const target = record.ref === record.commit ? record.repository : `${record.repository}@${record.ref}`;
+      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}`);
+      setDone(result.installed.some((each) => each.name === module.name) ? 'Updated' : 'Up to date');
+      onChanged();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async () => {
+    setBusy('remove');
+    setProblem(null);
+    try {
+      await execCommand(`mod remove --force ${shq(module.name)}`);
+      onRemoved();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : String(err));
+      setBusy(null);
+    }
+  };
+
+  return (
+    <PanelSection
+      title='Installed from its repository'
+      lead={
+        <>
+          <Anchor href={record.repository} target='_blank' rel='noreferrer' size='sm' style={{ overflowWrap: 'anywhere' }}>{record.repository}</Anchor> at{' '}
+          <Text span ff='monospace' size='sm'>{record.commit.slice(0, 9)}</Text>
+          {record.ref !== record.commit && ` (${record.ref})`}
+          {record.at && `, ${new Date(record.at).toLocaleString()}`}
+        </>
+      }
+      error={problem}
+      onDismiss={() => setProblem(null)}
+    >
+      {admin && !confirm.open && (
+        <Group gap='xs'>
+          <Button size='xs' variant='default' leftSection={<IconRefresh size={16} />} loading={busy === 'update'} disabled={busy !== null} onClick={update}>Update</Button>
+          <Button ref={confirm.opener} size='xs' variant='light' color='red' leftSection={<IconTrash size={16} />} disabled={busy !== null} onClick={confirm.show}>
+            Remove
+          </Button>
+          {done && <Done>{done}</Done>}
+        </Group>
+      )}
+      {admin && confirm.open && (
+        <Stack gap='xs'>
+          <Text size='sm'>
+            Removing {module.name} stops its services and takes its commands, pages and files away. What it made in the archive stays.
+            {usedBy.length > 0 && ` ${usedBy.map((entry) => entry.name).join(', ')} ${usedBy.length > 1 ? 'need' : 'needs'} it and will not work without it.`}
+          </Text>
+          <Group gap='xs'>
+            <Button size='xs' color='red' loading={busy === 'remove'} onClick={remove} data-autofocus>Remove {module.name}</Button>
+            <Button size='xs' variant='default' disabled={busy === 'remove'} onClick={confirm.cancel}>Cancel</Button>
+          </Group>
+        </Stack>
+      )}
+    </PanelSection>
   );
 }
 

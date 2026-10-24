@@ -1,4 +1,4 @@
-import { DOCS_MODULES_PATH, MOD_PATH, WWW_PATH } from '../../../../lib/paths.ts';
+import { DOCS_MODULES_PATH, MOD_INSTALL_PATH, MOD_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { parseArgs } from '../../../../lib/args/mod.ts';
@@ -222,7 +222,17 @@ export const modRemove = async (cmd: Command): CmdReturn => {
     // While the module directory is still there: it says what setup did.
     await undoModuleSetup(cmd, modulePath, manifest.name);
 
-    await cmd.sys.vfs.unlink(ADMIN_ACCESS, modulePath, cmd.env.MOD_PATH, { recursive: true });
+    // A linked module goes with its link; one `mod install` installed, with its tree too. The
+    // deployment's stays where the deployment mounts it, and boot links it again.
+    const modulesPath = cmd.env.MOD_PATH || MOD_PATH;
+    const link = (await cmd.sys.vfs.get(ADMIN_ACCESS, modulePath, { follow: false })).props.softlink;
+    if (typeof link === 'string') {
+      await cmd.sys.vfs.unlink(ADMIN_ACCESS, modulePath, modulesPath, { readlink: true });
+      const store = cmd.env.MOD_INSTALL_PATH || MOD_INSTALL_PATH;
+      if (link === join(store, name)) await cmd.sys.vfs.unlink(ADMIN_ACCESS, link, store, { recursive: true });
+    } else {
+      await cmd.sys.vfs.unlink(ADMIN_ACCESS, modulePath, modulesPath, { recursive: true });
+    }
 
     await rebuildModulePages(cmd);
 

@@ -1,2 +1,4 @@
 # The image is core alone: a deployment mounts its modules at DEV_MODULES_PATH.
 modules
+# What `mod install` installed is the deployment's too, mounted at MODULE_INSTALL_PATH.
+modules-installed

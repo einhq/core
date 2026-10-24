@@ -61,7 +61,21 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     key: 'DEV_MODULES_PATH',
     kind: 'deployment',
     default: './modules',
-    description: 'Development only: a modules checkout mounted read-only at /tmp/dev-modules, so modules run from source. In a shell the same name is that tree path.',
+    description:
+      "The deployment's modules: a folder of module checkouts mounted read-only at /tmp/dev-modules and linked into /usr/modules. A name here wins over an installed module of the same name. In a shell the same name is that tree path.",
+  },
+  {
+    key: 'MODULE_INSTALL_PATH',
+    kind: 'deployment',
+    default: './modules-installed',
+    description:
+      'Host directory `mod install` puts modules in, mounted read-write at /var/lib/modules. A folder of the host mounted into the container keeps the installed modules when the container is replaced.',
+  },
+  {
+    key: 'INSTALL_MODULES',
+    kind: 'deployment',
+    description:
+      'Modules boot installs with `mod install` when they are not installed: names or repository addresses, separated by spaces. One installed already is left as it is; `mod install` and the settings page update it.',
   },
   {
     key: 'TZ',
@@ -143,6 +157,7 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   { key: 'EXTERNAL_FILE_TMP_PATH', kind: 'system', description: 'FILE_TMP_PATH as boot received it.' },
   { key: 'EXTERNAL_DOCS_PATH', kind: 'system', description: 'DOCS_PATH as boot received it: what is mounted at /usr/docs/guide.' },
   { key: 'EXTERNAL_DEV_MODULES_PATH', kind: 'system', description: 'DEV_MODULES_PATH as boot received it.' },
+  { key: 'EXTERNAL_MODULE_INSTALL_PATH', kind: 'system', description: 'MODULE_INSTALL_PATH as boot received it.' },
 
   // Option: export to change how a command behaves in this shell.
   {
@@ -201,12 +216,13 @@ export const PATH_DESCRIPTIONS: Record<string, string> = {
   POOLS_PATH: 'Job pools.',
   PIPELINES_PATH: 'Pipeline definitions and running instances.',
   WWW_PATH: 'Web pages served over HTTP.',
+  MOD_INSTALL_PATH: 'The modules `mod install` installed, each linked into /usr/modules.',
   USR_PATH: 'Code and read-only payload.',
   BIN_PATH: 'Built-in commands.',
   LIB_PATH: "Core's other files: its shell commands, its services and the web interface.",
   MOD_PATH: 'Installed modules.',
   DOCS_PATH: 'This documentation.',
   TEMP_PATH: 'Temporary nodes.',
-  DEV_MODULES_PATH: 'Development only: the mounted modules checkout.',
+  DEV_MODULES_PATH: "The deployment's modules, mounted read-only.",
   VAR_DIRS: 'The directories under /var, as names separated by spaces, for boot scripts to loop over.',
 };

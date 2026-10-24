@@ -1,5 +1,6 @@
 import { join } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { readInstallRecord } from '../../../../modules/install.ts';
 import { readModJson } from '../../../../modules/mod.ts';
 import { moduleSetupOf } from '../../../../modules/setup-state.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
@@ -39,6 +40,7 @@ export const modList = async (cmd: Command): CmdReturn => {
         const manifest = await readModJson(cmd.sys.vfs, cmd.access, modulePath);
         if (!manifest) continue;
         const name = manifest.name || dir.name;
+        const installed = await readInstallRecord(cmd.sys.vfs, cmd.access, modulePath);
         modules.push({
           name,
           version: manifest.version || null,
@@ -52,6 +54,7 @@ export const modList = async (cmd: Command): CmdReturn => {
           services: await namesIn(cmd, join(modulePath, 'services')),
           routes: Object.keys(manifest.ui?.routes ?? {}).sort(),
           setup: moduleSetupOf(name),
+          ...(installed ? { installed } : {}),
         });
       }
       await cmd.writeJSON(modules);
@@ -90,6 +93,8 @@ export const modList = async (cmd: Command): CmdReturn => {
           await cmd.write(`  Problem: ${problem}\n`);
         }
         await cmd.write(`  Path: ${modulePath}\n`);
+        const installed = await readInstallRecord(cmd.sys.vfs, cmd.access, modulePath);
+        if (installed) await cmd.write(`  Installed from: ${installed.repository} at ${installed.commit.slice(0, 9)} (${installed.ref})\n`);
 
         const lines: [string, string[]][] = [
           ['Commands', await namesIn(cmd, join(modulePath, 'bin'), NODE_TYPE_FILE)],

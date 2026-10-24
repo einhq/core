@@ -1146,7 +1146,7 @@ which is its own leaf so it can be imported without dragging core's graph behind
 /archive   albums/  people/  locations/  devices/  tracks/  tags/
 /home      <user>/ — staging, .chats/, .config, .bash_history, .password
 /etc       bashrc  layout  environment  config  groups/  files/  init/  services/
-/var       logs/{system,metrics,services/}  sessions/  queues/  pools/  pipelines/  www/
+/var       logs/{system,metrics,services/}  sessions/  queues/  pools/  pipelines/  www/  lib/modules/
 /usr       bin/  lib/{core,ui}/  modules/  docs/
 /dev       null  events  pipeline-events
 /tmp       scratch (a file left a day is swept), dev-modules/
@@ -1159,6 +1159,11 @@ from the code plus a reimport, which is what the split is for — before it, `/a
 `/etc/layout` carries the table above as `export` lines (`pathExports()`), with the host's storage
 tier roots, for shells opened after boot: `/etc/bashrc` sources it, and `09_env.sh` rewrites it
 whole at boot whenever it differs, so it never holds a variable core no longer exports.
+
+`/var/lib/modules` holds the modules `mod install` installed: a filesystem mount of the
+deployment's folder for them (`MODULE_INSTALL_PATH`), so they are kept outside the store and the
+image, each linked into `/usr/modules` as the deployment's own are from `/tmp/dev-modules`
+([Module System](architecture/modules.md#installing-a-module-from-its-repository)).
 
 Every `/var` directory is created eagerly by `00_mount.sh`. They used to appear lazily —
 `/queues` and `/pools` when the pipeline engine first started, `/www` when a module was set up —

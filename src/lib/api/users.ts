@@ -243,6 +243,62 @@ export type ModuleEntry = {
   routes: string[];
   /** Its last `mod setup` in this process; absent when it has not been set up since EiN started. */
   setup?: ModuleSetup;
+  /** Where `mod install` fetched it from; absent for a module the deployment provides. */
+  installed?: ModuleInstall;
+};
+
+/** Where `mod install` fetched a module from, as it records it beside the module (`.install.json`). */
+export type ModuleInstall = {
+  /** The repository: `https://github.com/einhq/module-archive`. */
+  repository: string;
+  /** The branch, tag or commit it was asked for, or the default branch. */
+  ref: string;
+  /** The commit it is, in full. */
+  commit: string;
+  /** When, as an ISO time. */
+  at: string;
+};
+
+/** `mod install`: what it installed or updated, dependencies first, and what it could not. */
+export type ModuleInstallResult = {
+  ok: boolean;
+  installed: InstalledModule[];
+  /** Why each argument it could not install failed, one line each. */
+  failed: string[];
+};
+
+/** One module `mod install` put in place. */
+export type InstalledModule = ModuleInstall & {
+  name: string;
+  version: string | null;
+  /** Whether it replaced an installed one. */
+  updated: boolean;
+};
+
+/** `mod search`: the published modules, the `module-*` repositories of each `CFG_MODULE_SOURCES` entry, and the sources that did not answer. */
+export type ModuleSearch = {
+  modules: PublishedModule[];
+  failed: { source: string; reason: string }[];
+};
+
+/** One published module, as its repository has it on its default branch. */
+export type PublishedModule = {
+  /** The module's name: its repository's without `module-`. */
+  name: string;
+  /** What `mod install` takes: `https://github.com/einhq/module-archive`. */
+  repository: string;
+  /** The `CFG_MODULE_SOURCES` entry it was found in. */
+  source: string;
+  description: string;
+  /** Its default branch. */
+  branch: string;
+  /** The default branch's commit, in full; absent when its refs could not be read. */
+  commit?: string;
+  /** Its `mod.json`'s; absent when it has none that can be read. */
+  version?: string;
+  coreApi?: string;
+  /** Whether this core provides the module API its `coreApi` asks for; absent when it names none. */
+  compatible?: boolean;
 };
 
 /** How a module's last `mod setup` went. */

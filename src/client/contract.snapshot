@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.2.0
+MODULE_API_VERSION 0.2.1
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -260,7 +260,7 @@ src/builtin/ui/src/client/hooks/mod.ts MEDIA_KINDS f07881348eb9
 src/builtin/ui/src/client/hooks/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/hooks/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
 src/builtin/ui/src/client/hooks/mod.ts MediaSelection ff560ac39d6f
-src/builtin/ui/src/client/hooks/mod.ts ModuleReference 5767b7c7c8ee commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/builtin/ui/src/client/hooks/mod.ts ModuleReference e505cc039116 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
 src/builtin/ui/src/client/hooks/mod.ts NodeOps 676f0d28b992 busy=b0a603736b4f,chmod=779fd88674bd,chown=94007c3dcd24,clearError=6252419979ec,copy=661dbd3af7d7,error=badebb2f202e,mkdir=c865cd0655b1,move=00eae30f0715,paste=2e9f7b9bdea3,remove=9cf2fd9bf814,rename=55211b61d380
 src/builtin/ui/src/client/hooks/mod.ts NodeStat 2c362fa56de3 node=ae3e4484800b,share=dc3632e25c60
 src/builtin/ui/src/client/hooks/mod.ts NodeTreeState 8db99b3ecc71 data=55269c8cf46b,entriesOf=358d8701ea41,entryAt=7ec53474eabc,error=badebb2f202e,loading=6ab16fe49a65,openDirs=2d8c56c57d33,reload=95c493fecf4c,tree=4897387a0a27
@@ -1019,6 +1019,7 @@ src/lib/api/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f7
 src/lib/api/mod.ts HeldShareLink 77320111b197 expiresAt=7f1dc30637cf,id=752fa5797ebe,path=3fd20668ef6e,title=f6007128d157,type=e22be5ee8605
 src/lib/api/mod.ts HostMetrics 6023e1d9e8d1 cpu=d761f389d5c7,lag=df22a4b0150c,memory=52d077815122,sampled=f8c4a3271656
 src/lib/api/mod.ts INSTANCE_STATUSES ce7dcbd0ac95
+src/lib/api/mod.ts InstalledModule 5cad0480c24d
 src/lib/api/mod.ts InstancePage adafceca68cf items=677a45bdcefd,nextCursor=99657b6f99c0
 src/lib/api/mod.ts InstanceStatus 928a9b0ac247
 src/lib/api/mod.ts Kind 86e54873a4c8
@@ -1032,7 +1033,10 @@ src/lib/api/mod.ts LogLine 4eba4fe221cb extra=60751f7008e8,level=1fb3f1f81f7c,me
 src/lib/api/mod.ts LogStat 154da2a900f6 retention=35412828e732,routingKeys=11a47683d8fc,size=5d025bf53508
 src/lib/api/mod.ts MembershipChanged 74e9ebd9fa69 action=57ec527970ff,group=fa0113d0351a,user=f5dd46b51dfb
 src/lib/api/mod.ts MetricPoint 148c3764d23d at=8cd35eed1400,value=8dd8911155c9
-src/lib/api/mod.ts ModuleEntry 5767b7c7c8ee commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/lib/api/mod.ts ModuleEntry e505cc039116 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/lib/api/mod.ts ModuleInstall efda086a5998 at=f9e6ea108483,commit=ff520a93c1b2,ref=5bab60719c93,repository=b87f65f27efe
+src/lib/api/mod.ts ModuleInstallResult ada7b9c3e3b0 failed=a1c764bbd71a,installed=420e5c6cdcef,ok=23e6985ecee8
+src/lib/api/mod.ts ModuleSearch d398b651cd14 failed=5c344902269d,modules=bf3d2fbeff73
 src/lib/api/mod.ts ModuleSetup fe19b5504218 at=8cd35eed1400,ok=23e6985ecee8,problems=8893d997c20b
 src/lib/api/mod.ts MvAnswer d3c776c77f0d failed=d44eace00090,moved=2989b701e1c7,ok=23e6985ecee8,relinked=2337f90e5c1f
 src/lib/api/mod.ts NewsEntry f7a39200258c at=8cd35eed1400,by=f96a8d5ce49c,icon=91a07d7cb04f,path=c29ab32b39f5,route=66a673b16b8a,source=0c6e4d4f274b,title=f6007128d157
@@ -1063,6 +1067,7 @@ src/lib/api/mod.ts PositionShape 28a3ba6871f5 lat=ab04728f0de4,lng=7ef8fe750a12,
 src/lib/api/mod.ts PrimaryGroupSet d2a7b58d1bd5 newGid=07f04aba80bc,oldGid=47a68257dc5a,primaryGroup=f223461e33b6,username=02356e67b2c7
 src/lib/api/mod.ts ProcessEntry d13fb00b8b79 args=3d90c35b349d,cwd=fb782f68dd39,foreground=883e22b5086c,label=995d88c00ff2,name=6d0c36381511,origin=1effd6aae38e,pid=ec0ff4b14805,service=8f8407357b77,startedAt=4e4642f81a31,tty=6de472af68af,uid=d8def3ee020e,user=f5dd46b51dfb
 src/lib/api/mod.ts Provided e14fad881e1e
+src/lib/api/mod.ts PublishedModule 2782a1b218cb branch=70f96d1f0a0c,commit=9b0dafbfb592,compatible=ccf87e54b076,coreApi=0e19443e1c1b,description=c4833b0d92ac,name=6d0c36381511,repository=b87f65f27efe,source=0c6e4d4f274b,version=b3cf6f09d5d6
 src/lib/api/mod.ts QueueDead 03d6b34abacf
 src/lib/api/mod.ts QueueDeadEntry 7e1a0c912f12 attempts=e412f70b5f1e,deadAt=854c7ad50fb4
 src/lib/api/mod.ts QueueEntry cd02a2e85f48 createdAt=3fab28d6de66,data=a84f1433fe25,id=68a9430f9688,routingKey=0aaab78acdde
@@ -1154,6 +1159,7 @@ src/lib/paths.ts LIB_PATH 629098147f14
 src/lib/paths.ts LINKS_PATH 629098147f14
 src/lib/paths.ts LOGS_PATH 629098147f14
 src/lib/paths.ts METRICS_PATH 629098147f14
+src/lib/paths.ts MOD_INSTALL_PATH 629098147f14
 src/lib/paths.ts MOD_PATH 629098147f14
 src/lib/paths.ts NEXT_LINK_NAME 837eeb6796ed
 src/lib/paths.ts NON_MEMBER_LINK_NAMES 2816f21e0dc4

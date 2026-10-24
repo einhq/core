@@ -112,9 +112,16 @@ export const PIPELINE_DEFINITIONS_PATH = `${PIPELINES_PATH}/definitions`;
 export const PIPELINE_INSTANCES_PATH = `${PIPELINES_PATH}/instances`;
 /** Served by the http-server service; `mod setup` links each module's `ui/` in. */
 export const WWW_PATH = `${VAR_PATH}/www`;
+/**
+ * Where `mod install` puts modules, one directory each, linked into `MOD_PATH` from here. Boot
+ * mounts the instance's `MODULE_INSTALL_PATH` folder here, read-write, so the installs live outside
+ * the store and the image: a folder of the host's keeps them across a new container.
+ */
+export const MOD_INSTALL_PATH = `${VAR_PATH}/lib/modules`;
 
 /** Created by `01_var.sh`, in `ls /var` order. */
 export const VAR_DIRS = [
+  MOD_INSTALL_PATH,
   LOGS_PATH,
   PIPELINE_DEFINITIONS_PATH,
   PIPELINE_INSTANCES_PATH,
@@ -196,6 +203,7 @@ export const pathEnv = (): Record<string, string> => ({
   POOLS_PATH,
   PIPELINES_PATH,
   WWW_PATH,
+  MOD_INSTALL_PATH,
 
   USR_PATH,
   BIN_PATH,

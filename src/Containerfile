@@ -1,7 +1,9 @@
 # EiN container
 #
 # The primary instance: Deno, core and the UI. Nothing else. The modules are the deployment's:
-# it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any). Every media tool and every
+# it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any), and `mod install`
+# puts the ones it fetches in MODULE_INSTALL_PATH, a folder of the host's mounted read-write so they
+# outlive the container (unmounted, /app/modules-installed, gone with it). Every media tool and every
 # model — exiftool, ImageMagick, ffmpeg, the CUDA stack, captioning, transcription, embeddings,
 # faces, voices, fingerprints, document text, the renditions and the transcodes — lives in EMS
 # (ein/ems), a service of its own that EiN reaches over HTTP at CFG_EMS_URL
@@ -18,6 +20,7 @@
 #              -e POSTGRES_URL=postgres://ein:ein@host.containers.internal:5432/ein \
 #              -e CFG_EMS_URL=http://host.containers.internal:8181 -e CFG_EMS_KEY=… \
 #              -v ./files:/files \
+#              -e MODULE_INSTALL_PATH=/modules-installed -v ./modules-installed:/modules-installed \
 #              ein
 #
 # No GPU is passed to this container: the card is EMS's.
@@ -34,7 +37,7 @@ COPY Makefile Makefile
 
 # The shell asserts `x` on a bin as the calling user, and the mount of core's files takes its mode
 # from this stat. A bin that reached the checkout as 644 would then run for admin only.
-RUN chmod +x src/builtin/core/bin/* && mkdir -p modules
+RUN chmod +x src/builtin/core/bin/* && mkdir -p modules modules-installed
 
 RUN deno cache src/primary-main.ts
 

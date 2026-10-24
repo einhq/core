@@ -33,8 +33,9 @@ export type SystemInfo = {
   /** The module API core provides, which every module's `coreApi` range is checked against. */
   api: string;
   /**
-   * The commit the running tree is, and its date (ISO 8601), and each module checkout's commit by
-   * name (`-dirty` when it had uncommitted changes). Absent when nothing says.
+   * The commit the running tree is, and its date (ISO 8601), and each module's commit by name: a
+   * checkout's (`-dirty` when it had uncommitted changes), or the one `mod install` fetched.
+   * Absent when nothing says.
    */
   build?: { commit: string; date: string; modules?: Record<string, string> };
   /** PostgreSQL's server version. Absent without a database, or when it does not answer. */

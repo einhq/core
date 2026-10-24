@@ -25,6 +25,16 @@ deno task test         # the fast in-memory tests
 PostgreSQL is a service of its own (`ein/db`); `POSTGRES_URL` defaults to
 `postgres://ein:ein@localhost:5432/ein`. The image is Deno and nothing else: `make container-build` and `make container-run`, with EMS reached at `CFG_EMS_URL`.
 
-Modules are repositories of their own (`ein/module-<name>`): to develop or run one against this
-core, check it out as `modules/<name>`. Core names no module; which ones a deployment runs is the
-deployment's choice.
+Modules are repositories of their own (`ein/module-<name>`), published as
+`https://github.com/einhq/module-<name>`. A running EiN installs them itself, into the folder
+`make container-run` mounts as `MODULE_INSTALL_PATH` (`./modules-installed` unless set), which
+keeps them when the container is replaced:
+
+```bash
+mod search             # in EiN's shell: the published modules
+mod install archive    # with what it needs; Settings → Modules does the same
+```
+
+To develop one against this core, check it out as `modules/<name>` instead: those are mounted as
+the deployment's own modules and win over an installed one of the same name. Core names no
+module; which ones a deployment runs is the deployment's choice.
