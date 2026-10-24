@@ -1,0 +1,199 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": [
+      "esnext",
+      "dom",
+      "deno.ns",
+      "deno.unstable"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "@types/react"
+  },
+  "unstable": [
+    "temporal"
+  ],
+  "lint": {
+    "rules": {
+      "exclude": [
+        "require-await",
+        "no-explicit-any"
+      ]
+    }
+  },
+  "fmt": {
+    "lineWidth": 175,
+    "indentWidth": 2,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "imports": {
+    /* EiN packages */
+    "@ein/bash-executor": "jsr:@ein/bash-executor@^3.0.0",
+
+    /* JSR */
+    "@std/yaml": "jsr:@std/yaml@^1.0.11",
+    "@vef/color-me": "jsr:@vef/color-me@^1.0.3",
+    "@noble/hashes": "jsr:@noble/hashes@^2.0.1",
+    "@std/assert": "jsr:@std/assert@^1.0.16",
+    "@std/cli": "jsr:@std/cli@^1.0.24",
+    "@std/crypto": "jsr:@std/crypto@^1.0.5",
+    "@std/encoding": "jsr:@std/encoding@^1.0.10",
+    "@std/fmt": "jsr:@std/fmt@^1.0.9",
+    "@std/fs": "jsr:@std/fs@^1.0.22",
+    "@std/http": "jsr:@std/http@^1.0.22",
+    "@std/jsonc": "jsr:@std/jsonc@^1.0.2",
+    "@std/path": "jsr:@std/path@^1.1.3",
+    "@std/semver": "jsr:@std/semver@^1.0.5",
+    "@std/streams": "jsr:@std/streams@^1.0.17",
+    "@std/ulid": "jsr:@std/ulid@^1.0.0",
+    // Streaming ZIP writer for GET /archive/<token>. Chosen over hand-rolling the format
+    // because a media archive routinely passes 4 GB, so ZIP64 is not optional, and over a
+    // tar because the browsers downloading it are the ones that open zip on a double click.
+    "@zip-js/zip-js": "jsr:@zip-js/zip-js@^2.8.60",
+
+    /* NPM */
+    "pg": "npm:pg@^8.16.3",
+    "@types/pg": "npm:@types/pg@^8.16",
+    "lowlight": "npm:lowlight@^3.1.0",
+    // Pinned exactly, not caret: this is the content-sniffing path for every upload, and 0.x
+    // minors here change detection behaviour (the order of magic signatures decides whether
+    // ftypheic beats the generic 4-byte ftyp/mp4 match). See src/lib/media/mime.ts.
+    "mime-bytes": "npm:mime-bytes@0.30.0",
+    // Dev-only npm tooling does NOT belong here: `deno bundle --node-modules-dir=auto`
+    // installs everything in this map, so it would be downloaded by every UI build. It lives
+    // in a config of its own, outside this repository.
+    // Pinned exactly, not caret: @mantine/core's peer dependency on @mantine/hooks is an
+    // exact pin, so a caret range can drift hooks to a version core rejects.
+    "@mantine/charts": "npm:@mantine/charts@9.6.2",
+    "@mantine/core": "npm:@mantine/core@9.6.2",
+    "@mantine/dates": "npm:@mantine/dates@9.6.2",
+    "@mantine/dropzone": "npm:@mantine/dropzone@9.6.2",
+    "@mantine/hooks": "npm:@mantine/hooks@9.6.2",
+    // @mantine/dates' peer dependency. Listed explicitly rather than left to peer resolution,
+    // so the bundle cannot depend on how Deno happens to hoist it.
+    // The shared code editor (components/CodeEditor). CodeMirror 6, not Monaco: no web workers,
+    // no JS-imported CSS, no icon font, ~300KB. Languages are
+    // imported statically because `deno bundle` here does no code splitting.
+    "codemirror": "npm:codemirror@^6.0.2",
+    "@codemirror/state": "npm:@codemirror/state@^6.5.0",
+    "@codemirror/view": "npm:@codemirror/view@^6.36.0",
+    "@codemirror/commands": "npm:@codemirror/commands@^6.7.0",
+    "@codemirror/language": "npm:@codemirror/language@^6.11.0",
+    "@codemirror/lang-json": "npm:@codemirror/lang-json@^6.0.1",
+    "@codemirror/lang-javascript": "npm:@codemirror/lang-javascript@^6.2.2",
+    "@codemirror/lang-yaml": "npm:@codemirror/lang-yaml@^6.1.2",
+    "@codemirror/lang-markdown": "npm:@codemirror/lang-markdown@^6.3.0",
+    "@codemirror/lang-html": "npm:@codemirror/lang-html@^6.4.9",
+    "@codemirror/lang-css": "npm:@codemirror/lang-css@^6.3.0",
+    "@codemirror/lang-xml": "npm:@codemirror/lang-xml@^6.1.0",
+    "@codemirror/legacy-modes": "npm:@codemirror/legacy-modes@^6.4.2",
+    "@codemirror/theme-one-dark": "npm:@codemirror/theme-one-dark@^6.1.2",
+    "dayjs": "npm:dayjs@^1.11.13",
+    // @mantine/charts' peer dependency (the chat's chart card), listed for the same reason.
+    // ~460 KB minified on every page load: the bundle does no code splitting.
+    "recharts": "npm:recharts@^3.10.1",
+    // Mantine documents drag-and-drop against this (the maintained react-beautiful-dnd fork);
+    // 18.x is the React 19 line. Used by the bulk set-time dialog, which is nothing but a
+    // reorderable list — hand-rolled HTML5 dragging would lose keyboard reordering.
+    "@hello-pangea/dnd": "npm:@hello-pangea/dnd@^18.0.1",
+    "@preact/signals-react": "npm:@preact/signals-react@^3.6.1",
+    "@tabler/icons-react": "npm:@tabler/icons-react@^3.36.0",
+    // The same icons as SVG files, never imported: the UI bundle copies them beside the
+    // app so configuration can name any icon (src/builtin/ui/src/bundle/bundle.ts).
+    // Kept at the version icons-react resolves to, so the two sets draw alike.
+    "@tabler/icons": "npm:@tabler/icons@3.36.0",
+    "@types/react": "npm:@types/react@^19.2.7",
+    "@types/leaflet": "npm:@types/leaflet@^1.9.20",
+    "@xterm/addon-fit": "npm:@xterm/addon-fit@^0.10.0",
+    // Exact companions to xterm 5.5. The HTTP terminal registry uses these to
+    // retain and serialize terminal state while a browser is disconnected.
+    "@xterm/addon-serialize": "npm:@xterm/addon-serialize@0.13.0",
+    "@xterm/headless": "npm:@xterm/headless@5.5.0",
+    "@xterm/xterm": "npm:@xterm/xterm@^5.5.0",
+    "leaflet": "npm:leaflet@^1.9.4",
+    "react": "npm:react@^19.2.3",
+    "react-dom": "npm:react-dom@^19.2.3",
+    "react-router-dom": "npm:react-router-dom@^7.12.0",
+    "react-markdown": "npm:react-markdown@^10.1.0",
+    "remark-breaks": "npm:remark-breaks@^4.0.0",
+    "remark-gfm": "npm:remark-gfm@^4.0.1",
+    "rehype-sanitize": "npm:rehype-sanitize@^6.0.0",
+
+    "ssh2": "jsr:@ein/ssh2-ts@1.1.1",
+
+    /* Local */
+    // The published module contract. Modules import this and nothing else from core;
+    // @ein/exec is core's own internals and is off-limits to modules (asserted by
+    // src/modules/test/module-boundary.test.ts).
+    "@ein/client": "./src/client/mod.ts",
+    "@ein/testing": "./src/client/testing.ts",
+    "@ein/exec": "./src/managers/exec/mod.ts",
+    // The VFS root layout. Its own alias rather than a re-export through
+    // @ein/client because browser code and #!ts bins both need it and that
+    // entry point drags in the whole of core; src/lib/paths.ts imports nothing.
+    "@ein/paths": "./src/lib/paths.ts",
+    "@ein/ssh": "./src/lib/ssh/mod.ts",
+    // What core's commands answer with, as types: the `JSON_OUTPUT=1` side of the command API.
+    // A leaf like @ein/paths — src/lib/api/ imports only other import-free files — so the
+    // browser and module bins can import it without type-checking core.
+    "@ein/api": "./src/lib/api/mod.ts",
+
+    "@lezer/highlight": "npm:@lezer/highlight@^1.2.3",
+
+    // The browser shell (`src/builtin/ui`). The kit is `@ein/ui/*`, the name module pages import it
+    // by and the shell does too; the `@ui/*` aliases are its server-side files, which its commands
+    // (`ui-build`, `ui-nav`, `ui-icons`) import.
+    "@ein/ui/components": "./src/builtin/ui/src/client/components/mod.ts",
+    "@ein/ui/hooks": "./src/builtin/ui/src/client/hooks/mod.ts",
+    "@ein/ui/lib": "./src/builtin/ui/src/client/lib/mod.ts",
+    "@ein/ui/signals": "./src/builtin/ui/src/client/signals/mod.ts",
+    "@ein/ui/theme": "./src/builtin/ui/src/client/theme/mod.ts",
+    "@ui/module-build": "./src/builtin/ui/lib/module-build.ts",
+    "@ui/nav": "./src/builtin/ui/lib/nav.ts",
+    "@ui/shared": "./src/builtin/ui/lib/shared.ts",
+    "@ui/ui-cache": "./src/builtin/ui/lib/ui-cache.ts"
+  },
+  // Deno's 24-hour hold on newly published versions, minus our own @ein
+  // packages: a fix released in ssh2-ts is wanted here as soon as it is out.
+  "minimumDependencyAge": { "age": "P1D", "exclude": ["jsr:@ein/*"] },
+
+  // Every module is a workspace member, so the files under `modules/<name>/` resolve against that
+  // module's own `deno.jsonc` — generated from its `mod.json` by `deno task sync:modules` — before
+  // falling back to the map above. That is why no `@archive/*`, `@assistant/*` or `@ems/*` alias
+  // appears here: a module owns its private aliases, exactly as it does at runtime
+  // (src/managers/shell/ts-command-loader.ts). A member map only *adds* to this one, so
+  // @ein/client, pg and ssh2 keep resolving here for module code too.
+  //
+  // A module that declares no imports needs no config; the glob skips it. Core's files under
+  // `src/builtin/` resolve against this map.
+  "workspace": ["./modules/*"],
+  "tasks": {
+    "test": "deno test --allow-all --parallel src/ modules/",
+    "test:one": "deno test --allow-all",
+    "test:check": "deno test --no-run src/ modules/",
+    // PG tier needs a running postgres (make db); container tier runs inside the EiN image (make container-test)
+    "test:pg": "EIN_TEST_PG=postgres://ein:ein@localhost:5432/ein deno test --allow-all --parallel src/ modules/",
+    "test:coverage": "deno test --allow-all --parallel src/ modules/ --coverage=coverage/ --clean",
+    "coverage:report": "deno coverage coverage/ --include='src/'",
+    "coverage:lcov": "deno coverage coverage/ --lcov --output=coverage.lcov",
+    "coverage:html": "deno coverage coverage/ --lcov --output=coverage.lcov && genhtml coverage.lcov -o coverage_html",
+    // `check` covers core plus the published module contract. The other tasks cover source that
+    // no normal entry point reaches: generated module bins and the UI's pages.
+    // #!ts bins are not importable as-is (the shebang makes them invalid TS) — it strips line 1
+    // beside each original and checks that. Nothing else reaches them.
+    "check": "deno check src/primary-main.ts src/client/mod.ts && deno task check:bins && deno task check:ui",
+    "check:bins": "deno run -A scripts/check-module-bins.ts",
+    "check:ui": "deno run -A scripts/check-ui.ts",
+    "contract:snapshot": "deno run -A scripts/contract.ts",
+    // Rewrites every modules/<name>/deno.jsonc from that module's mod.json. Run it after editing a
+    // manifest's imports; the fast tier fails if the two have drifted.
+    "sync:modules": "deno run -A scripts/sync-module-configs.ts",
+    "lint": "deno lint src/ modules/",
+    "dev": "deno run -A src/primary-main.ts",
+    "dev-w": "deno run --watch -A src/primary-main.ts",
+    "bundle-ui-w": "deno run -A src/builtin/ui/src/bundle/bundle.ts --dev",
+    "bundle-ui": "deno run -A src/builtin/ui/src/bundle/bundle.ts"
+  }
+}

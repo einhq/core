@@ -1,0 +1,18 @@
+#!ts
+import type { CmdReturn, Command } from '@ein/client';
+
+const helloTs = async (cmd: Command): CmdReturn => {
+  if (cmd.json) {
+    await cmd.writeJSON({ hello: 'typescript' });
+  } else {
+    await cmd.write('hello from typescript\n');
+  }
+  return 0;
+};
+
+helloTs.spec = {
+  name: 'hello-ts',
+  description: 'fixture typescript command',
+};
+
+export default helloTs;

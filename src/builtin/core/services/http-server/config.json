@@ -1,0 +1,4 @@
+{
+  "description": "Serves the web UI and the WebSocket API",
+  "restartPolicy": "on-failure"
+}

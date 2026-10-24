@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- EiN's mark, as EinMark draws it: one einstein hat cut into its eight kites, teal to orange.
+       The raster icons beside it are rendered from this file. -->
+  <defs>
+    <linearGradient id="mark" gradientUnits="userSpaceOnUse" x1="-1" y1="-1.9" x2="2.6" y2="2.6">
+      <stop offset=".04" stop-color="#38d9a9" />
+      <stop offset=".2" stop-color="#22b8cf" />
+      <stop offset=".36" stop-color="#339af0" />
+      <stop offset=".54" stop-color="#da77f2" />
+      <stop offset=".7" stop-color="#f06595" />
+      <stop offset=".86" stop-color="#ffa94d" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(32 32) scale(8.8) translate(-1.5 -.433)">
+    <polygon points="0,0 -1.5,-.866 -1,-1.732 1,-1.732 1.5,-.866 3,-1.732 4.5,-.866 4,0 3,0 3,1.732 1.5,2.598 1,1.732 0,1.732" fill="url(#mark)" />
+    <polygon points="0,0 -1.5,-.866 -1,-1.732 0,-1.732" fill="#fff" fill-opacity=".24" />
+    <polygon points="0,0 0,-1.732 1,-1.732 1.5,-.866" fill="#fff" fill-opacity=".12" />
+    <polygon points="0,0 1.5,-.866 2,0 1.5,.866" fill="#101217" fill-opacity=".1" />
+    <polygon points="3,-1.732 3,0 2,0 1.5,-.866" fill="#101217" fill-opacity=".1" />
+    <polygon points="3,-1.732 4.5,-.866 4,0 3,0" fill="#101217" fill-opacity=".2" />
+    <polygon points="3,1.732 1.5,.866 2,0 3,0" fill="#fff" fill-opacity=".21" />
+    <polygon points="3,1.732 1.5,2.598 1,1.732 1.5,.866" fill="#fff" fill-opacity=".12" />
+    <polygon points="0,0 1.5,.866 1,1.732 0,1.732" fill="#101217" fill-opacity=".2" />
+    <g fill="none" stroke="#fff" stroke-linejoin="round">
+      <g stroke-opacity=".38" stroke-width=".06">
+        <polygon points="0,0 -1.5,-.866 -1,-1.732 0,-1.732" />
+        <polygon points="0,0 0,-1.732 1,-1.732 1.5,-.866" />
+        <polygon points="0,0 1.5,-.866 2,0 1.5,.866" />
+        <polygon points="3,-1.732 3,0 2,0 1.5,-.866" />
+        <polygon points="3,-1.732 4.5,-.866 4,0 3,0" />
+        <polygon points="3,1.732 1.5,.866 2,0 3,0" />
+        <polygon points="3,1.732 1.5,2.598 1,1.732 1.5,.866" />
+        <polygon points="0,0 1.5,.866 1,1.732 0,1.732" />
+      </g>
+      <polygon points="0,0 -1.5,-.866 -1,-1.732 1,-1.732 1.5,-.866 3,-1.732 4.5,-.866 4,0 3,0 3,1.732 1.5,2.598 1,1.732 0,1.732" stroke-opacity=".35" stroke-width=".14" />
+    </g>
+  </g>
+</svg>

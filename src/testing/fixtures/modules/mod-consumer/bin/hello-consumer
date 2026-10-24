@@ -1,0 +1,21 @@
+#!ts
+/**
+ * Imports another module's public interface: `@mod-fixture/greeting` is mod-fixture's
+ * `./greeting` export, reachable because this module lists mod-fixture in `dependencies`. Nothing
+ * in this manifest says where mod-fixture's file is — the loader reads that from the installed
+ * module.
+ */
+import type { CmdReturn, Command } from '@ein/client';
+import { greeting } from '@mod-fixture/greeting';
+
+const helloConsumer = async (cmd: Command): CmdReturn => {
+  await cmd.writeJSON({ greeting: greeting('consumer') });
+  return 0;
+};
+
+helloConsumer.spec = {
+  name: 'hello-consumer',
+  description: "fixture command importing another module's export",
+};
+
+export default helloConsumer;

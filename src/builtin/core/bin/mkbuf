@@ -1,0 +1,11 @@
+#!bash
+# `--rest` and nothing declared: every argument is mknode's, and this only adds the description
+# and the help that `arg` renders from it — a command with no declarations has neither, and is
+# invisible to anything that reads a spec (see `arg`'s JSON help).
+arg --desc "Create a buffer node"
+arg --effect write
+arg --rest
+arg --example "mkbuf /tmp/exempelbuffert"
+arg --returns "nothing; the buffer node is created."
+arg --export
+mknode -t buffer "$@"

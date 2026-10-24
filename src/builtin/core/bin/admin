@@ -1,0 +1,11 @@
+#!bash
+# user-elevate for this terminal alone, under a short name. The arguments stay user-elevate's, so
+# `admin --off` leaves it again and `admin --session` elevates the whole sign-in.
+arg --desc "Become the administrator in this terminal, for a member of the sudo group (user-elevate)"
+arg --effect write
+arg --rest
+arg --example "admin"
+arg --example "admin --off"
+arg --returns "nothing; this terminal acts as the administrator until admin --off or signing out."
+arg --export
+user-elevate "$@"

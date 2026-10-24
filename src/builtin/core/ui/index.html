@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EiN Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      overflow: hidden;
+    }
+    #status {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 8px 16px;
+      background: #252526;
+      border-bottom: 1px solid #3e3e42;
+      display: flex;
+      align-items: center;
+      z-index: 1000;
+      font-size: 12px;
+    }
+    #status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      background: #ccc;
+    }
+    #status-indicator.connected {
+      background: #0dbc79;
+    }
+    #status-indicator.disconnected {
+      background: #cd3131;
+    }
+    #terminal-container {
+      position: fixed;
+      top: 32px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 8px;
+    }
+    </style>
+  </head>
+  <body>
+    <div id="status">
+      <div id="status-indicator"></div>
+      <span id="status-text">Connecting...</span>
+    </div>
+    <div id="terminal-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script>
+    const term = new Terminal({
+      cursorBlink: true,
+      convertEol: true,
+      fontSize: 14,
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      theme: {
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        cursor: '#d4d4d4',
+        black: '#000000',
+        red: '#cd3131',
+        green: '#0dbc79',
+        yellow: '#e5e510',
+        blue: '#2472c8',
+        magenta: '#bc3fbc',
+        cyan: '#11a8cd',
+        white: '#e5e5e5',
+        brightBlack: '#666666',
+        brightRed: '#f14c4c',
+        brightGreen: '#23d18b',
+        brightYellow: '#f5f543',
+        brightBlue: '#3b8eea',
+        brightMagenta: '#d670d6',
+        brightCyan: '#29b8db',
+        brightWhite: '#e5e5e5',
+      },
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal-container'));
+    fitAddon.fit();
+
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    let ws = null;
+    let reconnectTimer = null;
+
+    function setStatus(connected, text) {
+      statusIndicator.className = connected ? 'connected' : 'disconnected';
+      statusText.textContent = text;
+    }
+
+    function connect() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/__shell?mode=interactive`);
+
+      ws.onopen = () => {
+        setStatus(true, 'Connected');
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      };
+
+      ws.onmessage = (event) => {
+        const data = event.data;
+        if (typeof data === 'string' && data.startsWith('{')) {
+          try {
+            const msg = JSON.parse(data);
+            if (msg.type === 'pwd') {
+              return;
+            }
+          } catch (e) {
+            // Not JSON, treat as terminal output
+          }
+        }
+        term.write(data);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
+
+      ws.onclose = () => {
+        setStatus(false, 'Disconnected - reconnecting in 2s...');
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+    }
+
+    term.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
+
+    let resizeTimeout;
+    function handleResize() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        fitAddon.fit();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        }
+      }, 100);
+    }
+    window.addEventListener('resize', handleResize);
+
+    connect();
+    term.focus();
+    </script>
+  </body>
+</html>

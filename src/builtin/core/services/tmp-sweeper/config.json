@@ -1,0 +1,5 @@
+{
+  "description": "Removes files left in /tmp once they are older than the retention",
+  "restartPolicy": "on-failure",
+  "workClass": "background"
+}

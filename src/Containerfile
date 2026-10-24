@@ -1,0 +1,48 @@
+# EiN container
+#
+# The primary instance: Deno, core and the UI. Nothing else. The modules are the deployment's:
+# it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any). Every media tool and every
+# model — exiftool, ImageMagick, ffmpeg, the CUDA stack, captioning, transcription, embeddings,
+# faces, voices, fingerprints, document text, the renditions and the transcodes — lives in EMS
+# (ein/ems), a service of its own that EiN reaches over HTTP at CFG_EMS_URL
+# and that mounts the same /files, /old, /files-volatile and /files-tmp. See
+# docs/architecture.md, "The ems module".
+#
+# Build:
+#   podman build -t ein -f src/Containerfile .
+#
+# Run:
+#   podman run --rm \
+#              -p 8080:8080 \
+#              -p 2222:2222 \
+#              -e POSTGRES_URL=postgres://ein:ein@host.containers.internal:5432/ein \
+#              -e CFG_EMS_URL=http://host.containers.internal:8181 -e CFG_EMS_KEY=… \
+#              -v ./files:/files \
+#              ein
+#
+# No GPU is passed to this container: the card is EMS's.
+
+FROM docker.io/denoland/deno:debian-2.9.6
+
+WORKDIR /app
+
+COPY src src
+COPY docs docs
+COPY deno.jsonc deno.jsonc
+COPY deno.lock deno.lock
+COPY Makefile Makefile
+
+# The shell asserts `x` on a bin as the calling user, and the mount of core's files takes its mode
+# from this stat. A bin that reached the checkout as 644 would then run for admin only.
+RUN chmod +x src/builtin/core/bin/* && mkdir -p modules
+
+RUN deno cache src/primary-main.ts
+
+ENV POSTGRES_URL=postgres://ein:ein@postgres:5432/ein
+ENV CFG_HTTP_PORT=8080
+ENV FILE_ROOT_PATH=/files
+
+EXPOSE 8080
+EXPOSE 2222
+
+CMD ["deno", "run", "-A", "src/primary-main.ts"]

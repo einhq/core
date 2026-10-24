@@ -1,0 +1,10 @@
+#!bash
+arg --desc "Create an empty text file node (what touch does elsewhere)"
+arg --effect write
+arg '<target>' path "VFS path for the new file"
+arg --example "mkfile /home/exempel/anteckning.txt"
+arg --returns "nothing; an empty text file node is created."
+arg --export
+
+name=$(basename "$TARGET")
+mknode -p -t file --as "name=$name" --as "mimetype=text/plain" --an "size=0" "$TARGET"

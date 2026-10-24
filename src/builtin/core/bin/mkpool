@@ -1,0 +1,24 @@
+#!bash
+arg --desc "Create a pool node"
+arg --effect write
+arg '<target>' path "VFS path for the pool node"
+arg -a --aging-seconds string "Queue age per aging step (0 disables aging)"
+arg -b --aging-boost string "Effective-priority points per aging step"
+arg -m --aging-max string "Total aging cap; keep below the gap between priority lanes"
+arg -l --lease-ms string "Default lease duration in ms"
+arg -n --max-attempts string "Default attempts before a job fails"
+arg --export
+
+AGING_SECONDS=${AGING_SECONDS:-0}
+AGING_BOOST=${AGING_BOOST:-1}
+AGING_MAX=${AGING_MAX:-0}
+LEASE_MS=${LEASE_MS:-60000}
+MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
+
+mknode -t pool \
+  --an "agingSeconds=$AGING_SECONDS" \
+  --an "agingBoost=$AGING_BOOST" \
+  --an "agingMax=$AGING_MAX" \
+  --an "leaseMs=$LEASE_MS" \
+  --an "maxAttempts=$MAX_ATTEMPTS" \
+  "$TARGET"

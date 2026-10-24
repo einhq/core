@@ -1,0 +1,256 @@
+import { DOCS_MODULES_PATH, MOD_PATH, WWW_PATH } from '../../../../lib/paths.ts';
+import { join } from '@std/path';
+import { toText } from '@std/streams/to-text';
+import { parseArgs } from '../../../../lib/args/mod.ts';
+import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { readModJson } from '../../../../modules/mod.ts';
+import { parsePipeline } from '../../../pipeline/mod.ts';
+import { clearCommandLookupCache } from '../../../shell/command-lookup.ts';
+import { clearTsCommandCache } from '../../../shell/ts-command-loader.ts';
+import { unregisterConfigOptions } from '../../../../lib/config/registry.ts';
+import { unregisterContributions } from '../../../../lib/contributions/registry.ts';
+import { forgetModuleSetup } from '../../../../modules/setup-state.ts';
+import { NodeNotFoundError } from '../../../../vfs/mod.ts';
+import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
+import type { Command } from '../../command.ts';
+import { CmdReturn } from '../../types.ts';
+import { buildPathExportLine } from './path-line.ts';
+import { unlinkModuleFiles } from './module-links.ts';
+import { rebuildModulePages } from './module-pages.ts';
+
+/**
+ * Reverse the side effects of `mod setup` (bashrc PATH line, services,
+ * pipeline definitions, /www symlink). Scans the still-present module
+ * directory, mirroring mod-setup. Best-effort: a failure on one effect logs a
+ * warning but never aborts removal.
+ */
+const undoModuleSetup = async (cmd: Command, modulePath: string, manifestName: string): Promise<void> => {
+  // This module's bins are about to stop existing, and a memoised `$PATH` resolution may still
+  // point at one. The loaded `#!ts` commands go with it, so no removed module's code stays
+  // runnable.
+  clearCommandLookupCache();
+  clearTsCommandCache();
+
+  // The settings it owned. Values already written for them stay in
+  // /etc/config: reinstalling the module should find its settings as they were,
+  // and a stray export of a name nothing reads costs nothing.
+  const removedOptions = unregisterConfigOptions(manifestName);
+  if (removedOptions.length > 0 && !cmd.json) {
+    await cmd.write(`  Unregistered settings: ${removedOptions.join(', ')}\n`);
+  }
+
+  // What it contributed. Its indexes stay: dropping one is DDL on a table that may be
+  // large, and an unused index costs only its upkeep, while a reinstall would rebuild it.
+  if (unregisterContributions(manifestName) && !cmd.json) await cmd.write(`  Unregistered contributions\n`);
+  forgetModuleSetup(manifestName);
+
+  // 1. Remove bin/ from PATH in /etc/bashrc
+  const binPath = join(modulePath, 'bin');
+  if (await cmd.sys.vfs.exists(cmd.access, binPath)) {
+    const rcPath = join(cmd.env.ETC_PATH, 'bashrc');
+    const exportLine = buildPathExportLine(binPath);
+    try {
+      const handle = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'r' });
+      let content: string;
+      try {
+        content = await toText(handle.readable);
+      } finally {
+        await handle.close();
+      }
+      if (content.includes(exportLine)) {
+        const filtered = content.split('\n').filter((line) => line !== exportLine).join('\n');
+        const wh = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'w' });
+        try {
+          await wh.write(new TextEncoder().encode(filtered));
+        } finally {
+          await wh.close();
+        }
+        if (!cmd.json) await cmd.write(`  Removed ${binPath} from PATH\n`);
+      }
+    } catch (err) {
+      await cmd.writeError(`  failed to update bashrc: ${(err as Error).message}\n`);
+    }
+  }
+
+  // 2. Stop, disable and remove services
+  const servicesPath = join(modulePath, 'services');
+  if (await cmd.sys.vfs.exists(cmd.access, servicesPath)) {
+    const children = await cmd.sys.vfs.children(cmd.access, servicesPath);
+    for (const child of children) {
+      const serviceName = child.name;
+      await cmd.execute(`service stop ${serviceName}`); // ignore: may not be running
+      await cmd.execute(`service disable ${serviceName}`); // ignore: may not be enabled
+      const res = await cmd.execute(`service remove ${serviceName}`);
+      if (res.code === 0) {
+        if (!cmd.json) await cmd.write(`  Removed service '${serviceName}'\n`);
+      } else {
+        await cmd.writeError(`  failed to remove service ${serviceName}: ${res.stderr}`);
+      }
+      // A single-script service has a wrapper directory under /etc/service-scripts/<name>.
+      if (child.node.type !== NODE_TYPE_DIRECTORY) {
+        await cmd.execute(`rm -rf ${join(cmd.env.ETC_PATH, 'service-scripts', serviceName)}`);
+      }
+    }
+  }
+
+  // 3. Undefine pipelines
+  const pipelinesDir = join(modulePath, 'pipelines');
+  if (await cmd.sys.vfs.exists(cmd.access, pipelinesDir)) {
+    const children = await cmd.sys.vfs.children(cmd.access, pipelinesDir);
+    for (const child of children) {
+      if (!child.name.endsWith('.yaml') && !child.name.endsWith('.yml')) continue;
+      const yamlPath = join(pipelinesDir, child.name);
+      try {
+        const handle = await cmd.sys.vfs.open(cmd.access, yamlPath, { mode: 'r' });
+        let yamlContent: string;
+        try {
+          yamlContent = await toText(handle.readable);
+        } finally {
+          await handle.close();
+        }
+        const def = parsePipeline(yamlContent);
+        const res = await cmd.execute(`pipeline undefine ${def.name}`);
+        if (res.code === 0) {
+          if (!cmd.json) await cmd.write(`  Undefined pipeline '${def.name}'\n`);
+        }
+      } catch (err) {
+        await cmd.writeError(`  failed to undefine pipeline ${child.name}: ${(err as Error).message}\n`);
+      }
+    }
+  }
+
+  // 4. Remove the /www UI symlink
+  const uiPath = join(modulePath, 'ui');
+  if (await cmd.sys.vfs.exists(cmd.access, uiPath)) {
+    const wwwPath = cmd.env.WWW_PATH || WWW_PATH;
+    const linkPath = join(wwwPath, manifestName);
+    if (await cmd.sys.vfs.exists(ADMIN_ACCESS, linkPath, { follow: false })) {
+      try {
+        await cmd.sys.vfs.unlink(cmd.access, linkPath, wwwPath, { readlink: true });
+        if (!cmd.json) await cmd.write(`  Unlinked UI at ${linkPath}\n`);
+      } catch (err) {
+        await cmd.writeError(`  failed to unlink UI: ${(err as Error).message}\n`);
+      }
+    }
+  }
+
+  // 5. Remove its navigation entries and its settings
+  await unlinkModuleFiles(cmd, manifestName, modulePath);
+
+  // 6. Remove the /docs/modules docs symlink
+  const docsPath = join(modulePath, 'docs');
+  if (await cmd.sys.vfs.exists(cmd.access, docsPath)) {
+    const docsModulesPath = DOCS_MODULES_PATH;
+    const linkPath = join(docsModulesPath, manifestName);
+    if (await cmd.sys.vfs.exists(ADMIN_ACCESS, linkPath, { follow: false })) {
+      try {
+        await cmd.sys.vfs.unlink(cmd.access, linkPath, docsModulesPath, { readlink: true });
+        if (!cmd.json) await cmd.write(`  Unlinked docs at ${linkPath}\n`);
+      } catch (err) {
+        await cmd.writeError(`  failed to unlink docs: ${(err as Error).message}\n`);
+      }
+    }
+  }
+};
+
+export const modRemove = async (cmd: Command): CmdReturn => {
+  const flags = parseArgs(cmd.args, {
+    boolean: ['force'],
+    alias: { f: 'force' },
+  });
+
+  const name = flags._[0] as string;
+
+  if (!name) {
+    await cmd.writeError('mod-remove: module name required\n');
+    await cmd.writeError('Usage: mod-remove <name> [--force]\n');
+    return 1;
+  }
+
+  const modulePath = join(cmd.env.MOD_PATH || MOD_PATH, name);
+
+  try {
+    const node = await cmd.sys.vfs.get(cmd.access, modulePath);
+
+    if (node.type !== NODE_TYPE_DIRECTORY) {
+      await cmd.writeError(`mod-remove: ${name} is not a directory\n`);
+      return 1;
+    }
+
+    const manifest = await readModJson(cmd.sys.vfs, cmd.access, modulePath);
+
+    if (!manifest) {
+      await cmd.writeError(`mod-remove: ${name} is not a module (no mod.json found)\n`);
+      return 1;
+    }
+
+    if (!flags.force) {
+      const answer = await cmd.prompt(`Remove module '${manifest.name}' (${manifest.version})? (y/N) `);
+      if (answer.toLowerCase() !== 'y') {
+        if (cmd.json) {
+          await cmd.writeJSON({ ok: true, removed: false });
+        } else {
+          await cmd.write('Cancelled\n');
+        }
+        return 0;
+      }
+    }
+
+    const uninstallScriptPath = `${modulePath}/uninstall.sh`;
+    try {
+      await cmd.sys.vfs.get(cmd.access, uninstallScriptPath);
+
+      if (!cmd.json) await cmd.write('Running uninstall script...\n');
+
+      const res = await cmd.execute(`[ -e ${uninstallScriptPath} ] && ${uninstallScriptPath}`);
+
+      if (res.code === 0) {
+        if (!cmd.json) await cmd.writeLn(res.stdout);
+      } else {
+        throw new Error(res.stderr);
+      }
+
+      if (!cmd.json) await cmd.write('Uninstall script completed successfully\n');
+    } catch (err) {
+      if (err instanceof NodeNotFoundError) {
+        if (!cmd.json) await cmd.write('No uninstall.sh found, skipping\n');
+      } else {
+        throw err;
+      }
+    }
+
+    // While the module directory is still there: it says what setup did.
+    await undoModuleSetup(cmd, modulePath, manifest.name);
+
+    await cmd.sys.vfs.unlink(ADMIN_ACCESS, modulePath, cmd.env.MOD_PATH, { recursive: true });
+
+    await rebuildModulePages(cmd);
+
+    if (cmd.json) {
+      await cmd.writeJSON({ ok: true, removed: true });
+    } else {
+      await cmd.write(`Module '${name}' removed successfully\n`);
+    }
+    return 0;
+  } catch (err) {
+    await cmd.writeError(`mod-remove: ${(err as Error).message}\n`);
+    return 1;
+  }
+};
+
+modRemove.spec = {
+  name: 'mod-remove',
+  admin: true,
+  effect: 'write' as const,
+  description: 'Uninstall a module',
+  args: [
+    {
+      name: 'name',
+      type: 'string' as const,
+      description: 'Module name',
+    },
+  ],
+  flags: [
+    { name: 'force', type: 'bool' as const, description: 'Skip confirmation prompt' },
+  ],
+};

@@ -1,0 +1,101 @@
+{
+  "sections": [
+    {
+      "id": "main",
+      "order": 10
+    },
+    {
+      "id": "explore",
+      "label": "Explore",
+      "order": 20
+    },
+    {
+      "id": "browse",
+      "label": "Browse",
+      "order": 30
+    },
+    {
+      "id": "system",
+      "label": "System",
+      "order": 40
+    }
+  ],
+  "sidebar": [
+    {
+      "id": "ui.home",
+      "section": "main",
+      "label": "Home",
+      "icon": "home",
+      "to": "/",
+      "order": 10
+    },
+    {
+      "id": "ui.nodes",
+      "admin": true,
+      "section": "system",
+      "label": "Nodes",
+      "icon": "folders",
+      "to": "/system/nodes",
+      "order": 10
+    },
+    {
+      "id": "ui.dashboard",
+      "admin": true,
+      "section": "system",
+      "label": "Dashboard",
+      "icon": "dashboard",
+      "to": "/system",
+      "order": 20
+    },
+    {
+      "id": "ui.settings",
+      "signedIn": true,
+      "section": "system",
+      "label": "Settings",
+      "icon": "settings",
+      "to": "/settings",
+      "order": 30
+    },
+    {
+      "id": "ui.stats",
+      "section": "system",
+      "label": "Statistics",
+      "icon": "chart-bar",
+      "to": "/stats",
+      "order": 40
+    },
+    {
+      "id": "ui.docs",
+      "section": "system",
+      "label": "Documentation",
+      "icon": "book",
+      "to": "/docs",
+      "order": 50
+    },
+    {
+      "id": "ui.search",
+      "section": "explore",
+      "label": "Search",
+      "icon": "search",
+      "to": "/search",
+      "order": 10
+    }
+  ],
+  "topbar": [
+    {
+      "id": "ui.create",
+      "signedIn": true,
+      "title": "Create",
+      "label": "Create New",
+      "icon": "plus",
+      "order": 20
+    },
+    {
+      "id": "ui.account",
+      "signedIn": true,
+      "title": "Account",
+      "icon": "user",
+      "order": 1000
+    }
+  ]
+}

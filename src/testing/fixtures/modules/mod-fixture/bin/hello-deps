@@ -1,0 +1,23 @@
+#!ts
+/**
+ * Proves the module's own imports resolve without core knowing about them.
+ *
+ * Neither `@fixture/greeting` nor this relative import appears in core's deno.jsonc — the first
+ * comes from the fixture's mod.json `imports`, the second used to be unresolvable because the
+ * staged copy does not sit next to the original. If either regresses, this command fails to load.
+ */
+import type { CmdReturn, Command } from '@ein/client';
+import { greeting } from '@fixture/greeting';
+import { greeting as relativeGreeting } from '../lib/greeting.ts';
+
+const helloDeps = async (cmd: Command): CmdReturn => {
+  await cmd.writeJSON({ alias: greeting('alias'), relative: relativeGreeting('relative') });
+  return 0;
+};
+
+helloDeps.spec = {
+  name: 'hello-deps',
+  description: 'fixture command exercising manifest-declared and relative imports',
+};
+
+export default helloDeps;

@@ -1,0 +1,5 @@
+{
+  "description": "Removes links that would dangle after a node is deleted",
+  "restartPolicy": "on-failure",
+  "workClass": "background"
+}

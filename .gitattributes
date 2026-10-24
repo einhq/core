@@ -1,0 +1,28 @@
+# Source is text, always. Without this git classifies a file by sniffing it, and a
+# single stray control byte — a NUL written as a raw byte instead of \0, say — makes
+# git call the whole file binary: no diff, no blame, and grep walks past it. That
+# happened silently to four files before it was noticed. `diff` is the attribute that
+# forces the text treatment (`text` only governs line-ending normalisation, which is
+# already a no-op here — every tracked file is LF).
+*.ts    text diff
+*.tsx   text diff
+*.js    text diff
+*.jsx   text diff
+*.json  text diff
+*.jsonc text diff
+*.md    text diff
+*.sh    text diff
+*.py    text diff
+*.css   text diff
+*.html  text diff
+*.sql   text diff
+*.yml   text diff
+*.yaml  text diff
+
+# Assets that really are binary.
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.woff2 binary
+*.avif  binary
+*.webp  binary

@@ -1,0 +1,2 @@
+# The image is core alone: a deployment mounts its modules at DEV_MODULES_PATH.
+modules

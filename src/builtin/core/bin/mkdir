@@ -1,0 +1,9 @@
+#!bash
+# As mkbuf: the arguments, including -p, stay mknode's. Declaring them here would consume them.
+arg --desc "Create a directory node (-p to create parents)"
+arg --effect write
+arg --rest
+arg --example "mkdir -p /archive/albums/Nytt_Exempelalbum/files"
+arg --returns "nothing; the directory is created."
+arg --export
+mknode -t directory "$@"

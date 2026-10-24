@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Primary",
+      "type": "deno",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "src/primary-main.ts",
+      "env": {}
+    },
+    {
+      "name": "Debug Primary (lock tracing)",
+      "type": "deno",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "src/primary-main.ts",
+      "env": { "DEBUG_LOCKS": "1" }
+    }
+  ]
+}

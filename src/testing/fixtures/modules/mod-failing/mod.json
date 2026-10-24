@@ -1,0 +1,5 @@
+{
+  "name": "mod-failing",
+  "version": "0.1.0",
+  "description": "module contract fixture whose service registration fails"
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Matches events against pipeline triggers and runs the resulting steps",
+  "restartPolicy": "on-failure",
+  "stopTimeout": 960000,
+  "workClass": "background"
+}

@@ -1,0 +1,50 @@
+#!bash
+arg --desc "Manage active web UI"
+arg --effect read
+arg --writes command set
+arg '<command>' string "Command: list, active, set, reset"
+arg '[<name>]' string "UI name to set as default"
+arg --export
+
+if [ "$COMMAND" = "list" ]; then
+  active=$(www active)
+  for entry in $(ls "$WWW_PATH"); do
+    if [ "$entry" != "default" ]; then
+      if [ "$entry" = "$active" ]; then
+        echo "* $entry"
+      else
+        echo "  $entry"
+      fi
+    fi
+  done
+elif [ "$COMMAND" = "active" ]; then
+  if [ ! -e "$WWW_PATH/default" ]; then
+    echo "no active ui set" >&2
+    exit 1
+  fi
+
+  active=$(JSON_OUTPUT=1 props -L "$WWW_PATH/default" | jq -r '.softlink')
+  basename "$active"
+elif [ "$COMMAND" = "set" ]; then
+  if [ -z "$NAME" ]; then
+    echo "Usage: www set <name>" >&2
+    exit 1
+  fi
+  if [ ! -e "$WWW_PATH/$NAME" ]; then
+    echo "UI not found: $NAME" >&2
+    exit 1
+  fi
+  rm "$WWW_PATH/default"
+  ln -s "$WWW_PATH/$NAME" "$WWW_PATH/default"
+  echo "Default UI set to: $NAME"
+elif [ "$COMMAND" = "reset" ]; then
+  # The browser shell where it is built; the terminal page otherwise, and for whoever sets it.
+  if [ -e "$WWW_PATH/ui" ]; then
+    www set ui
+  else
+    www set core
+  fi
+else
+  echo "Unknown command: $COMMAND" >&2
+  exit 1
+fi

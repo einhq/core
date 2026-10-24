@@ -1,0 +1,3567 @@
+/**
+ * The shell's global stylesheet.
+ *
+ * Mantine's components are styled in the theme object (theme.ts). What is here is
+ * what a JS theme cannot express — @font-face, keyframes, the reduced-motion
+ * switch — and the `mrx-*` classes the shell, the kit and module pages put on
+ * their elements, including the overrides of Mantine and Leaflet parts that the
+ * theme object and the `style` prop cannot reach (pseudo-elements, nested parts).
+ *
+ * Fonts are self-hosted, from /public/fonts beside the bundle; the bundler leaves
+ * those root-absolute url()s alone.
+ */
+
+/* Inter — variable weight, latin + latin-ext (Swedish å/ä/ö are in latin). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/public/fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+/* The side drawer (the chat, or whatever else is open in it) is one resizable
+ * AppShell aside. On desktop AppShell reserves its width, so opening it always
+ * pushes the page; on mobile the framework presents the aside below the
+ * ordinary application header. Beside the page it has a hairline on its left;
+ * where it takes the whole width it has neither that nor the shadow. */
+.mrx-drawer-aside {
+  background: var(--mrx-surface-base);
+  border-inline-start: 1px solid var(--mrx-hairline);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, .18);
+}
+
+/* The page's top-left corner, where the sidebar meets the top bar, is rounded: a quarter circle's
+ * surround in the chrome's colour hangs off the sidebar's top right, over the page, which scrolls
+ * under it. It moves with the sidebar, and has no width while the sidebar takes none of the page's
+ * room (`--app-shell-navbar-offset` is 0): hidden, or a phone's menu over the page. */
+.mrx-shell-navbar::after {
+  --mrx-shell-corner: var(--mantine-radius-md);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: min(var(--mrx-shell-corner), var(--app-shell-navbar-offset, 0px));
+  height: var(--mrx-shell-corner);
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--mrx-shell-corner) - .5px), var(--mrx-surface-chrome) calc(var(--mrx-shell-corner) + .5px));
+  pointer-events: none;
+}
+
+/* The page in the shell's main (Layout): an `md` gutter, unless its route is drawn edge to
+ * edge (`fullBleed`). Content that runs to the edge anyway cancels `--mrx-page-gutter`. */
+.mrx-page {
+  --mrx-page-gutter: 0rem;
+  padding: var(--mrx-page-gutter);
+}
+
+.mrx-page[data-gutter] {
+  --mrx-page-gutter: var(--mantine-spacing-md);
+}
+
+/* Another page cross-fades in (`lib/page-crossfade.ts`): the browser's fade between a still of
+ * the old page and the live new one, at the shell's pace. The top bar and the sidebar are the
+ * same in both, so only what changed is seen to fade. The old and new images inherit the group's
+ * timing. */
+::view-transition-group(root) {
+  animation-duration: var(--mrx-dur-base);
+  animation-timing-function: var(--mrx-ease);
+}
+
+/* An assistant reply in Markdown: the drawer's small text, and the gaps of a
+ * chat bubble rather than a document's. */
+.mrx-chat-markdown {
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mrx-chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.mrx-chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.mrx-chat-markdown :is(p, ul, ol, table, pre, blockquote) {
+  margin-block: 0 var(--mantine-spacing-xs);
+}
+
+.mrx-chat-markdown :is(ul, ol) {
+  padding-inline-start: 1.25rem;
+}
+
+.mrx-chat-markdown li {
+  margin-block: 0;
+}
+
+.mrx-chat-markdown :is(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--mantine-font-size-sm);
+  margin-block: var(--mantine-spacing-xs) 4px;
+}
+
+.mrx-chat-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: var(--mantine-font-size-xs);
+}
+
+/*
+ * A turn's timeline sits in a drawer bubble: items closer than Mantine's page spacing, a thin grey
+ * line, and plain dots — the bullet is only a holder for the coloured dot (or a loader).
+ */
+.mrx-chat-timeline .mantine-Timeline-item:not(:first-of-type) {
+  margin-top: var(--mantine-spacing-sm);
+}
+
+/* A lighter grey than Mantine's, which vanishes on the drawer; it reaches the next dot and no further. */
+.mrx-chat-timeline .mantine-Timeline-item {
+  --item-border-color: var(--mantine-color-dark-3);
+}
+
+.mrx-chat-timeline .mantine-Timeline-item::before {
+  bottom: calc(var(--mantine-spacing-sm) * -1);
+}
+
+.mrx-chat-timeline .mantine-Timeline-itemBullet {
+  border: 0;
+  background: transparent;
+  top: 3px;
+}
+
+.mrx-chat-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* The robot that starts a turn: wider than the bullet's slot, centred on the line by the slot's flex. */
+.mrx-chat-start {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--mantine-color-marine-8);
+  color: var(--mantine-color-marine-1);
+}
+
+.mrx-chat-timeline .mrx-chat-timeline-start {
+  min-height: 18px;
+}
+
+.mrx-drawer-resize-handle {
+  position: absolute;
+  z-index: 2;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 10px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* Set on <html> while the side drawer covers the page (`Layout`): the page holds still under it. */
+html.mrx-page-covered {
+  overflow: hidden;
+}
+
+@media (max-width: 61.999em) {
+  .mrx-drawer-aside {
+    border-inline-start: none;
+    box-shadow: none;
+  }
+
+  .mrx-drawer-resize-handle {
+    display: none;
+  }
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/public/fonts/inter-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Mochiy Pop One — the wordmark only. */
+@font-face {
+  font-family: 'Mochiy Pop One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/public/fonts/mochiy-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122;
+}
+
+/* Special Elite (Apache-2.0) — a typewriter face, as `--mrx-font-typewriter`. */
+@font-face {
+  font-family: 'Special Elite';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/public/fonts/special-elite-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Special Elite';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/public/fonts/special-elite-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --mrx-font-typewriter: 'Special Elite', 'Courier New', Courier, monospace;
+}
+
+/* A shared photographic identity band for a detail page. The explicit cover remains a foreground object while a
+ * larger rendition gives the title and page controls their visual context. */
+.mrx-entity-header {
+  position: relative;
+  min-height: clamp(250px, 31cqw, 360px);
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  background: linear-gradient(135deg, var(--mantine-color-marine-9), var(--mrx-surface-raised));
+}
+
+/* The band every listing and tool page opens with. It names the page and holds its controls, with
+ * room above the title for the field's edge, and no taller: the page is below it, and on a listing
+ * the page is what was asked for. */
+.mrx-entity-header[data-flow-content='true'] {
+  min-height: clamp(128px, 13vw, 184px);
+}
+
+/* The Year view stands its year, histogram and slider in the band, and keeps the room for them. */
+.mrx-entity-header[data-flow-content='true'][data-has-top] {
+  min-height: clamp(182px, 22.4vw, 280px);
+}
+
+/* A band, page bar or pane over the einstein-hat field (`HatField`), on the chrome's own ground. */
+.mrx-pattern[data-pattern] {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--mrx-surface-chrome);
+}
+
+/* The field fills its band behind the content: over a cover photo and its shade. It is a layer of
+ * its own, so that animating its tiles does not make Chrome draw the title and controls around it
+ * with plainer anti-aliasing until the animation ends. */
+.mrx-hat-field {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* A tile turns and scales about its own middle. */
+.mrx-hat-tile {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+/* The field's entrances (`hatEntrance`). Each ends on the tile as it is drawn at rest. */
+@keyframes mrx-hat-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes mrx-hat-fill-in {
+  from {
+    fill-opacity: 0;
+  }
+
+  to {
+    fill-opacity: var(--mrx-hat-fill);
+  }
+}
+
+@keyframes mrx-hat-fall {
+  from {
+    opacity: 0;
+    transform: translateY(var(--mrx-hat-drop));
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-slide {
+  from {
+    transform: translateX(var(--mrx-hat-slide));
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-fade {
+  from {
+    opacity: 0;
+    transform: scale(.7);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-grow {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-pop {
+  from {
+    opacity: 0;
+    transform: scale(.2);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-snap {
+  from {
+    opacity: 0;
+    transform: rotate(-60deg) scale(.4);
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mrx-hat-appear {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mrx-hat-flash {
+  0% {
+    opacity: 0;
+  }
+
+  40% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* One tile of the field, lit for a moment (`HatField`). */
+.mrx-hat-glint {
+  opacity: 0;
+  animation: mrx-hat-glint 5.2s ease-in-out forwards;
+}
+
+@keyframes mrx-hat-glint {
+  45% {
+    opacity: 1;
+  }
+}
+
+/* Over a cover photo the hats are an edge, not a veil: lines along the left of the band, fading
+ * out a third of the way across, so the picture is seen whole and still sits in the pattern every
+ * other header has. */
+.mrx-hat-field[data-kind='cover'] {
+  -webkit-mask-image: linear-gradient(to right, #000 8%, transparent 45%);
+  mask-image: linear-gradient(to right, #000 8%, transparent 45%);
+}
+
+.mrx-hat-field[data-kind='cover'] path {
+  stroke-width: 1.5;
+}
+
+/* A split header gives its left to a wedge of the field, which darkens towards its own foot as a band
+ * does; its ground hides the cover under it. */
+.mrx-hat-ground {
+  fill: var(--mrx-surface-chrome);
+}
+
+/* Without a cover the field darkens its own tiles towards the band's foot, so it needs no shade. */
+.mrx-entity-header[data-pattern]:not([data-has-cover='true']) .mrx-entity-header-shade {
+  display: none;
+}
+
+/* Without a photograph the gradient is a useful identity band, but should not
+ * spend the same vertical space as an image somebody can actually look at. A
+ * listing-height header keeps its own height with or without one. */
+.mrx-entity-header[data-has-cover='false']:not([data-flow-content]) {
+  min-height: 220px;
+}
+
+.mrx-entity-header-background,
+.mrx-entity-header-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mrx-entity-header-background {
+  z-index: -2;
+  object-fit: cover;
+}
+
+/* Part of the picture, under the field: light at the top, where the photo is meant to be seen, and
+ * deep enough at the foot for the title and controls. */
+.mrx-entity-header-shade {
+  z-index: -2;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mrx-surface-chrome) 8%, transparent),
+    color-mix(in srgb, var(--mrx-surface-chrome) 30%, transparent) 35%,
+    color-mix(in srgb, var(--mrx-surface-chrome) 66%, transparent) 70%,
+    color-mix(in srgb, var(--mrx-surface-chrome) 88%, transparent)
+  );
+}
+
+/* The band's inset at the sides and foot: the page body's own padding, so the header's controls,
+ * tabs and edge line up with what is below them. */
+.mrx-entity-header,
+.mrx-entity-header-frame,
+.mrx-page-bar {
+  --mrx-header-inset: var(--mantine-spacing-md);
+}
+
+.mrx-entity-header-content {
+  min-height: inherit;
+  padding: clamp(16px, 3cqw, 32px) var(--mrx-header-inset) var(--mrx-header-inset);
+}
+
+/* Stuck at its last row (`data-row`), the header fades what is above the row, which has gone under
+ * the app header but for its last few pixels — and the avatar, which stands beside a controls row. */
+.mrx-entity-header-content,
+.mrx-entity-header-copy > *,
+.mrx-entity-header-avatar,
+.mrx-entity-header-actions {
+  transition: opacity var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+/* The stuck header's start: the page's name at the left of its last row, cut off after 28
+ * characters. Stuck, it slides in from the left edge as the row's content makes it the room
+ * (`--mrx-header-start`, measured), in the same time, so it reads as pushing the tabs aside; and
+ * slides back out as they return. Its box stays over the row's start while the title is hidden,
+ * so only the title takes the pointer. */
+.mrx-entity-header-start {
+  position: absolute;
+  top: var(--mrx-header-row-top, 0px);
+  left: var(--mrx-header-inset);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  max-width: min(28ch, 32cqw);
+  height: var(--mrx-header-row-height, auto);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mrx-entity-header-start-title {
+  min-width: 0;
+  color: white;
+  font-weight: 600;
+  pointer-events: auto;
+  visibility: hidden;
+  transform: translateX(-100%);
+  transition: transform var(--mrx-dur-base) var(--mrx-ease), visibility 0s var(--mrx-dur-base);
+}
+
+.mrx-entity-header[data-stuck] .mrx-entity-header-start-title {
+  visibility: visible;
+  transform: none;
+  transition: transform var(--mrx-dur-base) var(--mrx-ease), visibility 0s;
+}
+
+.mrx-entity-header .mrx-header-tabs,
+.mrx-entity-header-controls {
+  transition: padding-inline-start var(--mrx-dur-base) var(--mrx-ease);
+}
+
+.mrx-entity-header[data-stuck] .mrx-header-tabs {
+  padding-inline-start: calc(var(--mrx-header-inset) + var(--mrx-header-start, 0px));
+}
+
+.mrx-entity-header[data-stuck] .mrx-entity-header-controls {
+  padding-inline-start: var(--mrx-header-start, 0px);
+}
+
+/* A phone's row has no room to spare, and the reader knows which page they scrolled down. */
+@container (max-width: 720px) {
+  .mrx-entity-header-start-title {
+    display: none;
+  }
+}
+
+/* The stuck header's end: ⋮ with every action, at the right of its last row, which leaves it the
+ * room (`--mrx-header-end`, measured). Hidden until the header is stuck. */
+.mrx-entity-header-end {
+  position: absolute;
+  top: var(--mrx-header-row-top, 0px);
+  right: var(--mrx-header-inset);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  height: var(--mrx-header-row-height, auto);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--mrx-dur-fast) var(--mrx-ease), visibility var(--mrx-dur-fast);
+}
+
+.mrx-entity-header[data-stuck] .mrx-entity-header-end {
+  visibility: visible;
+  opacity: 1;
+}
+
+.mrx-entity-header[data-stuck] :is(.mrx-entity-header-controls, .mrx-entity-header-copy > h1) {
+  padding-inline-end: var(--mrx-header-end, 0px);
+}
+
+.mrx-entity-header[data-stuck] .mrx-header-tabs {
+  padding-inline-end: calc(var(--mrx-header-inset) + var(--mrx-header-end, 0px));
+}
+
+.mrx-entity-header[data-stuck] :is(.mrx-entity-header-actions, .mrx-entity-header-avatar, .mrx-entity-header-top),
+.mrx-entity-header[data-stuck][data-row='controls'] .mrx-entity-header-copy > :not(.mrx-entity-header-controls),
+.mrx-entity-header[data-stuck][data-row='tabs'] .mrx-entity-header-content {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mrx-entity-header-avatar {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .35));
+}
+
+.mrx-entity-header-avatar .mantine-Avatar-root,
+.mrx-entity-header-art-avatar {
+  border: 2px solid rgba(255, 255, 255, .72);
+}
+
+/* A cover drawn rather than photographed — a location's map — framed like the
+ * avatar it stands in for. */
+.mrx-entity-header-art-avatar {
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  background: var(--mrx-surface-raised);
+}
+
+.mrx-entity-header-actions {
+  position: absolute;
+  top: clamp(16px, 3cqw, 32px);
+  right: var(--mrx-header-inset);
+  z-index: 1;
+}
+
+.mrx-entity-header-copy {
+  flex: 1;
+  min-width: 0;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+
+.mrx-entity-header-copy a {
+  color: var(--mantine-color-blue-1);
+}
+
+.mrx-entity-header-controls {
+  margin-top: var(--mantine-spacing-xs);
+}
+
+/* With a top slot the copy runs the header's full height: the slot centres at
+   its top and pushes the title and controls down to the foot, where they sit
+   on every other header. */
+.mrx-entity-header[data-has-top] .mrx-entity-header-copy {
+  align-self: stretch;
+}
+
+.mrx-entity-header-top {
+  align-self: center;
+  max-width: 100%;
+  margin-bottom: auto;
+  padding-bottom: var(--mantine-spacing-md);
+}
+
+/* Between the shade and the content, inset like the content and running down
+   to the bottom edge, where an edge slot's track is. Its top follows the header
+   up under the app header (`--mrx-header-hidden`), so what it draws shrinks
+   into what still shows. */
+.mrx-entity-header-backdrop {
+  position: absolute;
+  inset: max(clamp(16px, 3cqw, 32px), calc(var(--mrx-header-hidden, 0px) + var(--mantine-spacing-xs))) var(--mrx-header-inset) 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* In front of the backdrop. A narrow header already positions the content. */
+.mrx-entity-header[data-has-backdrop] .mrx-entity-header-content {
+  z-index: 1;
+}
+
+@container (min-width: 521px) {
+  .mrx-entity-header[data-has-backdrop] .mrx-entity-header-content {
+    position: relative;
+  }
+}
+
+/* The frame is a container as the header is, so the header inside it measures
+   its width-relative sizes against the same width. */
+.mrx-entity-header-frame {
+  container-type: inline-size;
+}
+
+.mrx-entity-header-edge {
+  --mrx-header-edge-overlap: 8px;
+  position: relative;
+  z-index: 1;
+  margin-top: calc(var(--mrx-header-edge-overlap) * -1);
+  padding-inline: var(--mrx-header-inset);
+  padding-bottom: var(--mantine-spacing-lg);
+}
+
+/* A page's header, scrolled down, stays on screen as its last row (`EntityDetailHeader`): it
+ * sticks with its top `--mrx-header-above` over the app header's foot, so the title goes on under
+ * the app header and the row — the tabs, the controls or the title — stays, with as much band
+ * above it as below. Over the page, under the app header and its menus. */
+.mrx-entity-header[data-sticky],
+.mrx-entity-header-frame[data-sticky] {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 0px) - var(--mrx-header-above, 0px));
+  z-index: calc(var(--mantine-z-index-app) - 1);
+}
+
+/* An edge hangs half below its header, over the page, which then scrolls under it. Its slider's
+ * labels hang below the slider's own box, so the edge keeps room for them. */
+.mrx-entity-header-frame[data-sticky] {
+  background: var(--mrx-surface-base);
+}
+
+.mrx-entity-header-frame[data-sticky] .mrx-entity-header-edge {
+  padding-bottom: var(--mantine-spacing-xl);
+}
+
+.mrx-entity-header-controls > * {
+  flex-wrap: wrap;
+}
+
+/* The header's icons sit straight on the artwork, light or dark: a white glyph with a dark rim
+ * and a soft shadow reads on either, and a dark veil answers the pointer. A pressed toggle
+ * (filled) keeps its fill. */
+.mrx-entity-header .mantine-ActionIcon-root:not([data-variant='filled']),
+.mrx-page-bar .mantine-ActionIcon-root:not([data-variant='filled']) {
+  color: white;
+  background: transparent;
+}
+
+.mrx-entity-header .mantine-ActionIcon-root:not([data-variant='filled']):hover,
+.mrx-page-bar .mantine-ActionIcon-root:not([data-variant='filled']):hover {
+  background: rgb(0 0 0 / .25);
+}
+
+.mrx-entity-header .mantine-ActionIcon-root svg,
+.mrx-page-bar .mantine-ActionIcon-root svg {
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / .9)) drop-shadow(0 1px 3px rgb(0 0 0 / .6));
+}
+
+/* PageBar: the header's pattern as a single line, title left and controls
+ * right, for the chat and the nodes explorer, whose bodies want the height. Same inline
+ * padding as the header's content, so titles line up across pages. */
+.mrx-page-bar {
+  flex-shrink: 0;
+  container-type: inline-size;
+}
+
+/* Without a pattern the bar is a plain band a shade lighter than the page. */
+.mrx-page-bar:not([data-pattern]) {
+  background: var(--mrx-surface-overlay);
+}
+
+.mrx-page-bar-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--mantine-spacing-lg);
+  row-gap: var(--mantine-spacing-xs);
+  min-height: 56px;
+  padding: var(--mantine-spacing-xs) var(--mrx-header-inset);
+}
+
+.mrx-page-bar-title {
+  flex: 0 0 auto;
+  color: white;
+  font-size: var(--mantine-font-size-xl);
+  line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+
+.mrx-page-bar-controls {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-xs);
+  min-width: 0;
+}
+
+/* Dialog: the header band over the field in the colour of what the dialog is about, the body, and
+ * the buttons at the foot over a grey field fading out upward. Only the body scrolls, between the
+ * band and the bar, with the page's kind of scrollbar (`.mrx-dialog-scrollbar`).
+ *
+ * `--mrx-dialog-band` is a header's height, which every close button is set in the middle of. A
+ * disabled control's fill is Mantine's dark[6], which is the dialog's own ground: a step above it
+ * instead, so a submit button that cannot be pressed yet is still seen to be one. A red button —
+ * Delete, Discard — is the red white text reads on, as the pattern's own buttons are (`Dialog`). */
+.mrx-dialog {
+  --mrx-dialog-pad: var(--mantine-spacing-xl);
+  --mrx-dialog-band: 80px;
+  --mantine-color-disabled: var(--mrx-surface-overlay);
+  --mantine-color-red-filled: var(--mantine-color-red-8);
+  --mantine-color-red-filled-hover: var(--mantine-color-red-9);
+}
+
+.mrx-dialog[data-phone] {
+  --mrx-dialog-pad: var(--mantine-spacing-md);
+}
+
+/* A `screen` dialog is the height its offsets leave, not its content's: the body scrolls in it. */
+.mrx-dialog[data-screen]:not([data-full-screen]) .mantine-Modal-content {
+  height: calc(100dvh - var(--modal-y-offset) * 2);
+}
+
+/* A floating dialog's edge against the dimmed page: a hairline a few steps lighter than anything
+ * in it, inside its shadow. A full-screen one is the page. */
+.mrx-dialog:not([data-full-screen]) .mantine-Modal-content {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mrx-text-primary) 22%, transparent), var(--mantine-shadow-xl);
+}
+
+.mrx-dialog-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  min-height: var(--mrx-dialog-band);
+  padding: var(--mantine-spacing-md) calc(var(--mrx-dialog-pad) - 8px) var(--mantine-spacing-md) var(--mrx-dialog-pad);
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--mrx-surface-chrome);
+}
+
+/* The kind's icon in a glassy tile of its accent (`--mrx-dialog-accent`), over the field. */
+.mrx-dialog-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--mrx-dialog-accent) 50%, transparent);
+  border-radius: var(--mantine-radius-md);
+  color: color-mix(in srgb, var(--mrx-dialog-accent) 40%, white);
+  background: color-mix(in srgb, var(--mrx-dialog-accent) 22%, rgba(7, 10, 16, .6));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+  backdrop-filter: blur(6px);
+}
+
+.mrx-dialog-heading {
+  flex: 1;
+  min-width: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+
+/* Over Mantine's own title style, which is a line-height of 1 at the body's size. */
+.mrx-dialog-header .mrx-dialog-title {
+  color: white;
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.mrx-dialog-subtitle {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--mrx-text-secondary);
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.mrx-dialog-aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+}
+
+/* At the top, in the middle of a header's height whatever the header holds below it: every close
+ * button in the same place. */
+.mrx-dialog-header .mrx-dialog-close {
+  flex: none;
+  align-self: flex-start;
+  margin-top: calc((var(--mrx-dialog-band) - 2 * var(--mantine-spacing-md) - var(--cb-size-lg)) / 2);
+  color: white;
+}
+
+.mrx-dialog-header .mrx-dialog-close:hover {
+  background: rgba(255, 255, 255, .1);
+}
+
+/* A hero band (About's): taller, what it holds standing at its foot. */
+.mrx-dialog-header[data-hero] {
+  min-height: 168px;
+  align-items: flex-end;
+  padding-bottom: var(--mrx-dialog-pad);
+}
+
+@media (min-width: 62em) {
+  .mrx-dialog-header[data-hero] {
+    min-height: 136px;
+  }
+}
+
+.mrx-dialog-hero {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The dialog's name, for a screen reader, under a hero that shows its own. */
+.mrx-dialog-header .mrx-dialog-unseen-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The body and its scrollbar. The body is what scrolls, drawing no scrollbar of its own. */
+.mrx-dialog-frame {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mrx-dialog-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--mantine-spacing-lg);
+  min-height: 0;
+  padding: var(--mrx-dialog-pad);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.mrx-dialog-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* The body takes the keyboard when nothing in it does, to scroll by the keys: a quiet ring inside its
+ * edge, in the dialog's colour, rather than the browser's white one. */
+.mrx-dialog-body:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--mantine-primary-color-filled) 60%, transparent);
+  outline-offset: -2px;
+}
+
+/* From the header's foot to the bar's top (its `bottom` follows the bar), over the bar's own field. */
+.mrx-dialog-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+}
+
+/* What scrolls inside a dialog on its own (an editor, a list in a box) has a slim bar in the
+ * thumb's colour rather than the browser's own. No weight of its own, so whatever hides its bar
+ * (a Mantine ScrollArea, `.mrx-no-scrollbar`) still does. */
+:where(.mrx-dialog-body *) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--mrx-text-primary) 30%, transparent) transparent;
+}
+
+.mrx-dialog-body[data-bleed] {
+  gap: 0;
+  padding: 0;
+}
+
+/* What the body holds keeps its height and the body scrolls; a box that clips its overflow, as the
+ * bar does, would otherwise give way. One that is to fill the body says so (`flex: 1`). */
+.mrx-dialog-body > *,
+.mrx-dialog-body > .mrx-dialog-form > * {
+  flex-shrink: 0;
+}
+
+/* The chosen one of a dialog's choice cards, which Mantine marks only by its dot: outlined in the
+ * dialog's colour, on a tint of it. */
+.mrx-dialog .mantine-RadioCard-card[data-checked] {
+  border-color: var(--mantine-primary-color-filled);
+  background: color-mix(in srgb, var(--mantine-primary-color-filled) 10%, transparent);
+}
+
+/* A form in a dialog's body lays its children out as the body's own, so its actions are still the bar. */
+.mrx-dialog-form {
+  display: contents;
+}
+
+.mrx-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-xs);
+}
+
+.mrx-dialog-actions > .mrx-hat-field {
+  display: none;
+}
+
+.mrx-dialog-hint {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin-right: auto;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.4;
+}
+
+/* The bar: across the dialog's foot (out of the body's padding), at the bottom of a full-screen
+ * dialog however short its body, and over what scrolls under it, at the foot of the body's scroll.
+ * A sticky box keeps inside the padding of what scrolls, so its offset takes the padding back. Its ground darkens a little
+ * towards the foot, and the hats are only a hint, gone by its top. */
+.mrx-dialog-body > .mrx-dialog-actions,
+.mrx-dialog-body > .mrx-dialog-form > .mrx-dialog-actions {
+  position: sticky;
+  bottom: calc(var(--mrx-dialog-pad) * -1);
+  z-index: 2;
+  margin: auto calc(var(--mrx-dialog-pad) * -1) calc(var(--mrx-dialog-pad) * -1);
+  padding: var(--mantine-spacing-lg) var(--mrx-dialog-pad) max(var(--mantine-spacing-md), env(safe-area-inset-bottom));
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(180deg, var(--mrx-dialog-ground), color-mix(in srgb, var(--mrx-dialog-ground) 70%, var(--mrx-surface-chrome)));
+}
+
+.mrx-dialog-body[data-bleed] > .mrx-dialog-actions {
+  bottom: 0;
+  margin: 0;
+}
+
+.mrx-dialog-body > .mrx-dialog-actions > .mrx-hat-field,
+.mrx-dialog-body > .mrx-dialog-form > .mrx-dialog-actions > .mrx-hat-field {
+  display: block;
+  opacity: .4;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 85%);
+  mask-image: linear-gradient(to top, #000, transparent 85%);
+}
+
+/* On a phone the controls are larger to touch, and a field's text is 16 px, below which a phone's
+ * browser zooms in on the field it is typed in. The bar's buttons share its width. Each scale is
+ * the component's own variables, so a control's `size` still picks a step on it. */
+.mrx-dialog[data-phone] .mantine-Button-root {
+  --button-height-xs: 36px;
+  --button-height-sm: 44px;
+  --button-height-md: 48px;
+  --button-height-compact-xs: 30px;
+  --button-height-compact-sm: 34px;
+}
+
+.mrx-dialog[data-phone] .mantine-Input-wrapper {
+  --input-height-xs: 38px;
+  --input-height-sm: 44px;
+  --input-height-md: 48px;
+}
+
+.mrx-dialog[data-phone] .mantine-Input-input {
+  font-size: 16px;
+}
+
+.mrx-dialog[data-phone] .mantine-Checkbox-root {
+  --checkbox-size-xs: 20px;
+  --checkbox-size-sm: 24px;
+}
+
+.mrx-dialog[data-phone] .mantine-Radio-root {
+  --radio-size-xs: 20px;
+  --radio-size-sm: 24px;
+}
+
+.mrx-dialog[data-phone] .mantine-SegmentedControl-root {
+  --sc-padding-xs: 6px 10px;
+  --sc-padding-sm: 8px 14px;
+}
+
+.mrx-dialog[data-phone] .mrx-dialog-close {
+  --cb-size-lg: 44px;
+  --cb-icon-size: 56%;
+}
+
+.mrx-dialog[data-phone] .mantine-ActionIcon-root {
+  --ai-size-sm: 32px;
+  --ai-size-md: 36px;
+}
+
+.mrx-dialog[data-phone] .mrx-dialog-actions > .mantine-Button-root {
+  flex: 1 1 0;
+}
+
+.mrx-dialog[data-phone] .mrx-dialog-hint {
+  flex-basis: 100%;
+}
+
+/* A form's fields (`FormFields`): one to a row, a `half` one beside the next, and a map to the right
+ * of the others, down all their rows (`--mrx-form-map-rows`, the count of them) and one more that
+ * takes what the map is taller by, so the others stay packed at the top. A form too narrow for two
+ * columns stacks them all. */
+.mrx-form {
+  container-type: inline-size;
+}
+
+.mrx-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mantine-spacing-md);
+}
+
+.mrx-form-field {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.mrx-form-field[data-half] {
+  grid-column: auto;
+}
+
+.mrx-form-fields[data-map] {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-rows: repeat(var(--mrx-form-map-rows), auto) 1fr;
+}
+
+.mrx-form-fields[data-map] > .mrx-form-field {
+  grid-column: 1;
+}
+
+.mrx-form-fields[data-map] > .mrx-form-field[data-map] {
+  display: flex;
+  flex-direction: column;
+  grid-column: 2;
+  grid-row: 1 / -1;
+}
+
+@container (max-width: 34rem) {
+  .mrx-form-fields[data-map] {
+    grid-template-rows: none;
+  }
+
+  .mrx-form-field[data-half],
+  .mrx-form-fields[data-map] > .mrx-form-field,
+  .mrx-form-fields[data-map] > .mrx-form-field[data-map] {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+/* The map page's search: the box and the years as one control floating over the
+ * foot of the map, a hairline between them, the map faintly through it. The box
+ * and the years' pill lose their own fill and border to the panel's. The same gap
+ * below it as beside it on a phone, and enough to clear the attribution line. */
+.mrx-map-search {
+  --mrx-map-search-gap: 22px;
+
+  position: absolute;
+  left: 50%;
+  bottom: var(--mrx-map-search-gap);
+  width: min(560px, calc(100% - 2 * var(--mrx-map-search-gap)));
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mantine-color-dark-6) 82%, transparent);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(6px);
+}
+
+.mrx-map-search .mantine-Input-input {
+  border-color: transparent;
+  background: transparent;
+}
+
+.mrx-map-search-divider {
+  height: 1px;
+  margin-inline: var(--mantine-spacing-sm);
+  background: var(--mantine-color-dark-4);
+}
+
+.mrx-map-search .mrx-map-years {
+  border: none;
+  background: transparent;
+}
+
+/* The map's type menu and style picker, stacked in its top-right corner as the
+ * map's own buttons: the search panel's translucent dark surface, a hairline
+ * and the soft shadow Leaflet's restyled controls wear. Filled with the accent while the type narrows the map. */
+.mrx-map-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.mantine-ActionIcon-root.mrx-map-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--mrx-hairline);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mrx-surface-raised) 82%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+  color: var(--mrx-text-primary);
+  backdrop-filter: blur(6px);
+}
+
+.mantine-ActionIcon-root.mrx-map-button:hover {
+  background: color-mix(in srgb, var(--mrx-surface-overlay) 88%, transparent);
+}
+
+.mantine-ActionIcon-root.mrx-map-button[data-active] {
+  border-color: var(--mrx-accent);
+  background: var(--mrx-accent-strong);
+  color: white;
+}
+
+/* The map page's loading mark, in the corner its buttons leave free and in their
+ * surface, so it reads as the map's own rather than the search's. */
+.mrx-map-loading {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--mrx-hairline);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mrx-surface-raised) 82%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+/* A base layer in the map's style picker: one tile of where the map is looking,
+ * the layer's tile sets stacked as the map stacks them, ringed in the accent
+ * when it is the one showing. */
+.mrx-map-style {
+  position: relative;
+  overflow: hidden;
+  width: 88px;
+  height: 88px;
+  border: 2px solid transparent;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mrx-surface-sunken);
+}
+
+.mrx-map-style:hover {
+  border-color: var(--mrx-hairline);
+}
+
+.mrx-map-style[data-selected] {
+  border-color: var(--mrx-accent);
+}
+
+.mrx-map-style img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The years: first year, slider, last year, on the map search's lower line. */
+.mrx-map-years {
+  height: 40px;
+  padding-inline: var(--mantine-spacing-sm);
+}
+
+/* HeaderDescription: the start of an entity's description, one short line over the cover, all of it
+ * in a dialog. */
+.mrx-header-description {
+  max-width: min(100%, 24rem);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mrx-header-description[data-clamped] {
+  cursor: pointer;
+}
+
+/* HeaderChoice: the full control, or its icon button — in a filter bar once the bar has folded
+ * its choices (`data-collapsed`), elsewhere on a phone (below). */
+.mrx-header-narrow {
+  display: none;
+}
+
+.mrx-header-filter-bar[data-collapsed] .mrx-header-wide {
+  display: none;
+}
+
+.mrx-header-filter-bar[data-collapsed] .mrx-header-narrow {
+  display: flex;
+}
+
+/* One line at any width: the box shrinks, and the choices fold rather than wrap. The choices
+ * keep their own width, which is what `HeaderFilterBar` measures. */
+.mrx-header-filter-bar {
+  display: flex;
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+}
+
+.mrx-header-filter-bar-input {
+  flex: 0 1 480px;
+  min-width: 0;
+}
+
+.mrx-header-filter-bar-input[data-wide] {
+  display: flex;
+  flex: 1 1 520px;
+  align-items: flex-start;
+  gap: var(--mantine-spacing-xs);
+}
+
+.mrx-header-filter-bar-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-xs);
+  margin-left: auto;
+}
+
+/* A header with tabs: the content keeps the header's height, less the tab row
+ * standing on its bottom edge. */
+.mrx-entity-header[data-has-tabs] {
+  display: flex;
+  flex-direction: column;
+}
+
+.mrx-entity-header[data-has-tabs] .mrx-entity-header-content {
+  flex: 1 0 auto;
+  min-height: 0;
+  padding-bottom: var(--mantine-spacing-md);
+}
+
+/* The page's tabs on a header's bottom edge, lined up with its content. The
+ * others are light grey glass over the dark shade; the selected one is the
+ * page's own surface, so it opens into the panel below like a folder's tab.
+ * The list's own rule is the edge. */
+.mrx-header-tabs {
+  position: relative;
+  z-index: 1;
+  padding-inline: var(--mrx-header-inset);
+}
+
+/* The tabs take what the row's controls leave them, and scroll sideways past it. */
+.mrx-header-tabs-list {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The tabs stand on the band's bottom edge; the controls keep the inset they have under a title. */
+.mrx-header-tabs-controls {
+  flex: 0 0 auto;
+  margin-bottom: var(--mrx-header-inset);
+}
+
+.mrx-header-tabs .mantine-Tabs-list {
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mrx-header-tabs .mantine-Tabs-list::before {
+  display: none;
+}
+
+.mrx-header-tabs .mantine-Tabs-list .mantine-Tabs-tab {
+  color: white;
+  background: rgba(255, 255, 255, .2);
+  backdrop-filter: blur(8px);
+  padding: 10px var(--mantine-spacing-lg);
+  font-size: var(--mantine-font-size-md);
+  border: 0;
+  border-radius: var(--mantine-radius-md) var(--mantine-radius-md) 0 0;
+  transition: color var(--mrx-dur-fast) var(--mrx-ease), background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-header-tabs .mantine-Tabs-list .mantine-Tabs-tabSection svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mrx-header-tabs .mantine-Tabs-list .mantine-Tabs-tab:hover:not([data-active]) {
+  color: white;
+  background: rgba(255, 255, 255, .3);
+}
+
+.mrx-header-tabs .mantine-Tabs-list .mantine-Tabs-tab[data-active] {
+  color: var(--mantine-color-text);
+  background: var(--mrx-surface-base);
+  backdrop-filter: none;
+}
+
+@media (min-width: 88em) {
+  .mrx-header-filter-bar-input[data-wide] {
+    max-width: 720px;
+  }
+}
+
+@container (max-width: 520px) {
+  .mrx-entity-header-content {
+    position: absolute;
+    inset: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .mrx-entity-header[data-flow-content='true'] .mrx-entity-header-content,
+  .mrx-entity-header[data-has-tabs] .mrx-entity-header-content {
+    position: relative;
+    inset: auto;
+  }
+
+  /* In flow, a header with more to say than its height grows from the top; the
+     title must then start below the corner's actions button, not under it. */
+  .mrx-entity-header[data-has-tabs] .mrx-entity-header-content {
+    padding-top: calc(clamp(16px, 3cqw, 32px) + 44px + var(--mantine-spacing-xs));
+  }
+
+  .mrx-entity-header-avatar {
+    display: none;
+  }
+
+  .mrx-entity-header-copy {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .mrx-entity-header-copy h1 {
+    font-size: var(--mantine-font-size-xl);
+  }
+
+  /* A title long enough to reach the corner wraps before its ⋮ rather than running under it. */
+  .mrx-entity-header[data-has-actions] .mrx-entity-header-copy > h1 {
+    padding-inline-end: calc(44px + var(--mantine-spacing-sm));
+  }
+
+  /* A page header's line about the page (Media's "Photos, videos, …") is the first thing a phone
+     gives up; an entity's subtitle (a person's dates) stays. */
+  .mrx-entity-header:not([data-has-cover]) .mrx-entity-header-subtitle {
+    display: none;
+  }
+
+  .mrx-entity-header .mantine-ActionIcon-root {
+    width: 44px;
+    height: 44px;
+  }
+
+  .mrx-entity-header .mantine-ActionIcon-root svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* A filter bar folds its own choices, by whether they fit. */
+  .mrx-header-wide:not(.mrx-header-filter-bar *) {
+    display: none;
+  }
+
+  .mrx-header-narrow:not(.mrx-header-filter-bar *) {
+    display: flex;
+  }
+
+  /* The box takes all the line the folded choices leave. */
+  .mrx-header-filter-bar-input,
+  .mrx-header-filter-bar-input[data-wide] {
+    flex: 1 1 auto;
+  }
+}
+
+@container (max-width: 520px) {
+  .mrx-page-bar-content,
+  .mrx-page-bar-controls {
+    flex-wrap: nowrap;
+  }
+
+  .mrx-page-bar-content {
+    column-gap: var(--mantine-spacing-sm);
+  }
+}
+
+@media (max-width: 520px) {
+  /* A header menu opens down and the floating one up; either way a long one
+     (Search's kinds and sorts) scrolls inside the screen rather than off it. */
+  .mrx-entity-header-menu-dropdown {
+    min-width: 200px;
+    max-height: calc(100dvh - 160px);
+    overflow-y: auto;
+  }
+
+  .mrx-entity-header-menu-dropdown .mantine-Menu-item {
+    min-height: 48px;
+    padding-inline: var(--mantine-spacing-md);
+    font-size: var(--mantine-font-size-md);
+  }
+
+  .mrx-entity-header-menu-dropdown .mantine-Menu-itemSection svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  /* `clip`, not `hidden`. With `html` scrolling (below), body's overflow is not
+   * handed to the viewport, and `hidden` on one axis turns the other into `auto`:
+   * body would be a scroll container that never scrolls, and every sticky element
+   * on the page (a timeline's floating date) would stick to it and scroll away.
+   * `clip` cuts the sideways overflow without making a scroll container. */
+  overflow-x: clip;
+  background-color: var(--mrx-surface-base);
+}
+
+/* The page scrolls on `html`, and the browser draws no scrollbar for it: one that comes and goes
+ * with the page's length, a dialog's scroll lock or a time rail changes the width of the page and
+ * of the top bar. The shell draws the page's scrollbar instead (`.mrx-page-scrollbar`). */
+html {
+  scroll-behavior: smooth;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* A modal's scroll lock puts `overflow: hidden` on body, which with `html` scrolling does not
+ * reach the viewport; while a lock is on, `html` stops scrolling too. */
+html:has(> body[data-scroll-locked]) {
+  overflow-y: hidden;
+}
+
+/* The app's scrollbar (`bindScrollbar`): a thumb in a track that takes no width, so nothing moves
+ * when it comes or goes, there while there is anything to scroll. The page's and a dialog's are
+ * this; a Mantine ScrollArea's is drawn to match (below). */
+.mrx-scrollbar {
+  width: 12px;
+  touch-action: none;
+  visibility: hidden;
+}
+
+.mrx-scrollbar[data-scrollable] {
+  visibility: visible;
+}
+
+.mrx-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mrx-text-primary) 30%, transparent);
+  transition: width var(--mrx-dur-fast) var(--mrx-ease), background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-scrollbar:hover .mrx-scrollbar-thumb,
+.mrx-scrollbar[data-dragging] .mrx-scrollbar-thumb {
+  width: 8px;
+  background: color-mix(in srgb, var(--mrx-text-primary) 50%, transparent);
+}
+
+/* By touch what scrolls is dragged, not its bar: the thumb only shows while it scrolls. */
+@media (pointer: coarse) {
+  .mrx-scrollbar {
+    pointer-events: none;
+  }
+
+  .mrx-scrollbar-thumb {
+    opacity: 0;
+    transition: opacity var(--mrx-dur-slow) var(--mrx-ease);
+  }
+
+  .mrx-scrollbar[data-scrolling] .mrx-scrollbar-thumb {
+    opacity: 1;
+    transition-duration: 0s;
+  }
+}
+
+/* A Mantine ScrollArea's bar (a list in a dialog, a dropdown) as the app's: the same thumb, no track. */
+.mantine-ScrollArea-scrollbar {
+  padding: 3px;
+}
+
+.mantine-ScrollArea-scrollbar:hover {
+  background-color: transparent;
+}
+
+.mantine-ScrollArea-thumb {
+  background-color: color-mix(in srgb, var(--mrx-text-primary) 30%, transparent);
+}
+
+.mantine-ScrollArea-scrollbar:hover > .mantine-ScrollArea-thumb {
+  background-color: color-mix(in srgb, var(--mrx-text-primary) 50%, transparent);
+}
+
+/* The page's (PageScrollbar): over the page's right edge, from the app header to the foot of the
+ * window, beside the side drawer when it is open. Not beside a time rail: `.mrx-railed` is on
+ * <html> while a viewport-pinned rail is mounted (TimelineScrubber), and the rail, which shows the
+ * dates and seeks them, stands in for it. Above the page's sticky header, under the side drawer
+ * that covers a phone's page. */
+.mrx-page-scrollbar {
+  position: fixed;
+  top: var(--app-shell-header-height, 0px);
+  bottom: 0;
+  right: var(--app-shell-aside-offset, 0px);
+  z-index: var(--mantine-z-index-app);
+}
+
+html.mrx-railed .mrx-page-scrollbar {
+  display: none;
+}
+
+/* A box that scrolls on its own (ScrollBox): the frame sizes it, the viewport fills the frame and
+ * scrolls drawing no scrollbar, and the app's is over the frame's right edge. */
+.mrx-scroll-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mrx-scroll-box-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+
+.mrx-scroll-box-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.mrx-scroll-box-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+}
+
+/* A list that scrolls inside something of its own beside a time rail, like the map's cluster
+ * popup, hides its scrollbar: the rail is the useful one, and two bars side by side, one inert,
+ * read as a mistake. */
+.mrx-no-scrollbar {
+  scrollbar-width: none;
+}
+
+.mrx-no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* --------------------------------------------------------------------- map */
+/*
+ * Leaflet stacks its own world from z-index 200 (tile pane) to 1000 (controls),
+ * and `.leaflet-container` is positioned without a z-index of its own — so those
+ * numbers escape into the page and compete with everything else. A Mantine modal
+ * sits at 200, so one opened from a map marker would land *behind* the map.
+ *
+ * Isolating the container gives Leaflet a stacking context to be internally
+ * consistent inside, without changing anything about how it lays out. The map
+ * then participates in the page as one flat layer, and any overlay above it wins
+ * on document order — which is what every other component already assumes.
+ */
+.leaflet-container {
+  isolation: isolate;
+}
+
+/* Leaflet's zoom buttons (where a map keeps them) and layer switcher in the app's dark chrome rather
+ * than Leaflet's white: the raised surface, a hairline and a soft shadow, the
+ * surface the header's own buttons stand on. On every map, not just /map. */
+.leaflet-container .leaflet-bar,
+.leaflet-container .leaflet-control-layers {
+  overflow: hidden;
+  border: 1px solid var(--mrx-hairline);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mrx-surface-raised);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+  color: var(--mrx-text-primary);
+}
+
+.leaflet-container .leaflet-bar a {
+  width: 34px;
+  height: 34px;
+  border-bottom-color: var(--mrx-hairline);
+  background: transparent;
+  color: var(--mrx-text-primary);
+  font: 500 20px/34px var(--mantine-font-family);
+}
+
+.leaflet-container .leaflet-bar a:hover,
+.leaflet-container .leaflet-bar a:focus-visible {
+  background: var(--mrx-surface-overlay);
+  color: white;
+}
+
+.leaflet-container .leaflet-bar a.leaflet-disabled {
+  background: transparent;
+  color: var(--mrx-text-tertiary);
+}
+
+/* Tabler's stack icon in the primary text colour, for Leaflet's dark-on-white PNG. */
+.leaflet-container .leaflet-control-layers-toggle {
+  width: 44px;
+  height: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c9c9c9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4l-8 4l8 4l8 -4l-8 -4'/%3E%3Cpath d='M4 12l8 4l8 -4'/%3E%3Cpath d='M4 16l8 4l8 -4'/%3E%3C/svg%3E");
+  background-size: 24px 24px;
+}
+
+.leaflet-container .leaflet-control-layers-expanded {
+  padding: 6px 12px 6px 8px;
+  font: var(--mantine-font-size-sm) / 1.6 var(--mantine-font-family);
+}
+
+.leaflet-container .leaflet-control-layers label {
+  cursor: pointer;
+}
+
+.leaflet-container .leaflet-control-layers-selector {
+  accent-color: var(--mrx-accent);
+}
+
+.leaflet-container .leaflet-control-layers-separator {
+  border-top-color: var(--mrx-hairline);
+}
+
+.leaflet-touch .leaflet-bar,
+.leaflet-touch .leaflet-control-layers {
+  border: 1px solid var(--mrx-hairline);
+}
+
+.leaflet-touch .leaflet-bar a {
+  width: 34px;
+  height: 34px;
+  line-height: 34px;
+}
+
+/* ---------------------------------------------------------------- terminal */
+/* Guake-style dropdown. Not a Mantine component, so it is styled here. */
+.terminal-pane {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50vh;
+  background: color-mix(in srgb, var(--mrx-surface-chrome) 97%, transparent);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--mantine-shadow-lg);
+
+  /* Closed: delay visibility until the slide finishes. */
+  transform: translateY(-100%);
+  transition: transform var(--mrx-dur-slow) ease-in, height var(--mrx-dur-slow) ease-in-out, visibility 0s var(--mrx-dur-slow);
+  visibility: hidden;
+}
+
+.terminal-pane.open {
+  transform: translateY(0);
+  transition: transform var(--mrx-dur-slow) var(--mrx-ease), height var(--mrx-dur-slow) ease-in-out, visibility 0s;
+  visibility: visible;
+}
+
+.terminal-pane.maximized {
+  height: 100vh;
+}
+
+.terminal-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.terminal-tab-content {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.terminal-tab-content .mantine-Dropzone-root,
+.terminal-tab-content .mantine-Dropzone-inner {
+  height: 100%;
+  width: 100%;
+}
+
+/* Files are dropped on the whole terminal, which reaches the pane's edges: none of a Dropzone's own
+ * padding, dashed border or rounding. */
+.terminal-tab-content .mantine-Dropzone-root {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.terminal-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The text keeps a little off the pane's edges; the fit addon counts this padding out. None on the
+ * right, where xterm already keeps a scrollbar's gutter free of text, and the scrollbar, set against
+ * the padding's outer edge, stays at the pane's. */
+.terminal-container .xterm {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 8px 0 8px 8px;
+}
+
+.terminal-container .xterm-viewport {
+  background-color: transparent !important;
+  scrollbar-width: none;
+}
+
+.terminal-container .xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.terminal-container .xterm-screen {
+  height: 100%;
+}
+
+/* The scrollback's bar (`TerminalInstance`), the app's kind: down xterm's right edge, over its own
+ * layers, the highest of which is at 10. */
+.terminal-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 11;
+  cursor: default;
+}
+
+/* The tab bar, the pane's foot: the hats of a dialog's foot, as faint and fading out upward. */
+.terminal-tab-bar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--mrx-surface-chrome);
+  border-top: 1px solid var(--mrx-hairline);
+}
+
+.terminal-tab-bar > .mrx-hat-field {
+  opacity: .4;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 85%);
+  mask-image: linear-gradient(to top, #000, transparent 85%);
+}
+
+/* A sidebar's foot, behind what is over it: the hats of a dialog's foot, as faint and fading out
+ * upward, on a ground that darkens a little towards the bottom. The sidebar is its stacking context. */
+.mrx-sidebar-foot {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 140px;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--mrx-surface-chrome) 30%, transparent));
+}
+
+.mrx-sidebar-foot > .mrx-hat-field {
+  opacity: .4;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 85%);
+  mask-image: linear-gradient(to top, #000, transparent 85%);
+}
+
+@media (max-width: 768px) {
+  .terminal-pane {
+    height: 60vh;
+  }
+}
+
+/**
+ * Hover affordance for list rows that are buttons rather than Mantine controls
+ * (search results, suggestion lists). A class rather than a style prop: Mantine's
+ * `style` is a plain CSSProperties object, so a nested '&:hover' in it is dropped.
+ */
+.mrx-hover-row {
+  transition: background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-hover-row:hover {
+  background-color: var(--mrx-surface-raised);
+}
+
+/**
+ * The header's brand block spans the sidebar plus the main area's padding, so the
+ * search box that follows it starts exactly on the page content's left edge and
+ * keeps that line when the sidebar collapses. Both widths come from AppShell's own
+ * variables — the header is inside the shell, so it inherits them, and there is no
+ * second copy of the geometry to keep in sync.
+ *
+ * Only from `sm` up: below the breakpoint the navbar is a drawer, but the variable
+ * still reports its full width, which would push the action buttons off-screen.
+ */
+.mrx-header-brand {
+  flex: none;
+}
+
+/* Tabs with an icon on a phone: every tab but the selected one is its icon
+ * alone, so a page's tabs fit on one line instead of wrapping to three. The
+ * label is hidden visually, not removed, so it still names the tab. Tabs
+ * without a left icon (the chat's conversation tabs) are left as they are. */
+@media (max-width: 47.99em) {
+  .mantine-Tabs-tab:has(> .mantine-Tabs-tabSection[data-position='left']):not([data-active]) > .mantine-Tabs-tabLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mantine-Tabs-tab:has(> .mantine-Tabs-tabSection[data-position='left']):not([data-active]) > .mantine-Tabs-tabSection {
+    margin-inline-end: 0;
+  }
+
+  /* Share the line evenly rather than packing left, with less padding than
+   * Mantine's, and scroll sideways only when even that is too wide. */
+  .mantine-Tabs-list:has(> .mantine-Tabs-tab > .mantine-Tabs-tabSection[data-position='left']) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mantine-Tabs-tab:has(> .mantine-Tabs-tabSection[data-position='left']) {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding-inline: 6px;
+  }
+
+  .mantine-Tabs-tab:has(> .mantine-Tabs-tabSection[data-position='left']) .mantine-Tabs-tabSection svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* The top bar's create and account menus on a phone: rows a finger can hit,
+ * text and icons to match. The width comes from AppHeader. */
+@media (max-width: 47.99em) {
+  .mrx-topbar-menu .mantine-Menu-item {
+    min-height: 48px;
+    font-size: var(--mantine-font-size-md);
+  }
+
+  .mrx-topbar-menu .mantine-Menu-label {
+    font-size: var(--mantine-font-size-sm);
+  }
+
+  .mrx-topbar-menu .mantine-Menu-itemSection svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* From the header's `md` padding to the sidebar's edge, whichever page is open; it follows a
+ * collapse. */
+@media (min-width: 48em) {
+  .mrx-header-brand {
+    width: calc(var(--app-shell-navbar-width, 240px) - var(--mantine-spacing-md));
+    transition: width var(--mrx-dur-base) var(--mrx-ease);
+  }
+}
+
+/**
+ * Media tile hover.
+ *
+ * An accent ring plus a small brightness lift, deliberately not a transform: with a
+ * 3px gutter a scaling tile overlaps its neighbours and the grid stops feeling
+ * solid. The ring is inset so it costs no layout.
+ */
+.mrx-tile {
+  transition: box-shadow var(--mrx-dur-fast) var(--mrx-ease), filter var(--mrx-dur-fast) var(--mrx-ease);
+  /**
+   * A long press on a phone starts a selection, so it must not also raise iOS's
+   * selection callout or the platform's grey tap flash over the picture. The image
+   * itself is already `draggable={false}`.
+   */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/**
+ * Only where there is a real pointer. A tap leaves `:hover` stuck on the last tile
+ * touched, so on a phone these would light one tile at random and leave it lit.
+ */
+@media (hover: hover) {
+  .mrx-tile:hover {
+    box-shadow: inset 0 0 0 2px var(--mrx-accent);
+    filter: brightness(1.08);
+  }
+}
+
+.mrx-tile:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--mrx-accent);
+}
+
+/**
+ * A selected tile is inset rather than scaled — same reason as the hover ring above: at
+ * a tight gutter a growing tile overlaps its neighbours. The picture shrinks a few px
+ * inside its slot and the accent fills the gap, so selection reads without moving
+ * anything else on the page.
+ */
+.mrx-tile[data-selected] {
+  box-shadow: inset 0 0 0 3px var(--mrx-accent);
+  background: var(--mrx-accent);
+}
+
+.mrx-tile[data-selected] img {
+  padding: 3px;
+  transform: scale(0.94);
+  transition: transform var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+/**
+ * The page's keyboard cursor (`MediaGrid`'s `focusPath`): a ring with a light inner edge, so it
+ * reads apart from a selected tile's solid one and from the hover ring.
+ */
+.mrx-tile[data-focused] {
+  box-shadow: inset 0 0 0 2px var(--mrx-accent), inset 0 0 0 4px rgba(255, 255, 255, 0.75);
+}
+
+/** The checkbox is an affordance, not chrome: it is revealed, never simply present. */
+.mrx-tile-check {
+  opacity: 0;
+  transition: opacity var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+/**
+ * What reveals it with a pointer. Keyboard focus goes in here too rather than beside
+ * the picking rule below: tabbing through a grid happens on the same machines that
+ * have a mouse, and `:focus-within` on a touch screen would leave a dot behind on the
+ * tile whose lightbox was just closed.
+ */
+@media (hover: hover) {
+  .mrx-tile:hover .mrx-tile-check,
+  .mrx-tile:focus-within .mrx-tile-check {
+    opacity: 1;
+  }
+}
+
+/**
+ * Picking mode, both pointer kinds. Once anything is selected a plain click toggles
+ * instead of opening the picture, so every tile wears the dot that says so — without
+ * it the grid changes what a click means and gives no sign of having done it.
+ *
+ * On a touch screen this is the *only* thing that reveals the dot; a long press is
+ * what gets the grid into the mode in the first place (`MediaTile.tsx`).
+ */
+.mrx-tile[data-selecting] .mrx-tile-check,
+.mrx-tile[data-selected] .mrx-tile-check {
+  opacity: 1;
+}
+
+/**
+ * Full-bleed grid on a phone.
+ *
+ * The pictures are the content, and 16px of page gutter either side of a 390px
+ * screen is 8% of it spent on nothing. This cancels the page's gutter using the
+ * variable `.mrx-page` sets, so there is no second copy of the number, and it is opt-in
+ * per grid (`MediaGrid`'s `bleed`) because the map popup's grid must stay inside its
+ * panel. Only the pictures take it — the breadcrumbs, the title and the date headers
+ * keep the padding and stay readable.
+ *
+ * An entity page (an album) is drawn edge to edge so its cover can run to the edges,
+ * and pads its body itself; it declares that padding as `--mrx-body-padding` on the
+ * body so the grid inside cancels the right amount.
+ *
+ * The mobile time rail deliberately overlays this full width: its large grip is
+ * temporary chrome over the pictures, not a permanent empty gutter beside them.
+ */
+@media (max-width: 48em) {
+  .mrx-grid-bleed {
+    margin-inline: calc(-1 * var(--mrx-body-padding, var(--mrx-page-gutter, var(--mantine-spacing-md))));
+  }
+}
+
+/* ------------------------------------------------------------ nodes explorer */
+/* The pane with the keyboard sits on the raised surface, the same as its active
+   tab and address bar, so the three read as one lighter block; the other pane
+   stays on the page. `--mrx-pane-bg` is what the sticky column header paints. */
+.mrx-node-pane {
+  --mrx-pane-bg: var(--mrx-surface-base);
+  background: var(--mrx-pane-bg);
+  transition: background-color var(--mrx-dur-fast) var(--mrx-ease), box-shadow var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-node-pane[data-focused] {
+  --mrx-pane-bg: var(--mrx-surface-raised);
+}
+
+/* The selection is the cursor: the arrow keys move it, so the focus outline
+   Mantine draws on the focused row would only mark the same row twice. */
+.mrx-node-tree .mantine-Tree-node:focus-visible > .mantine-Tree-label,
+.mrx-node-tree .mantine-Tree-node[data-focus-ring]:focus > .mantine-Tree-label {
+  outline: none;
+}
+
+/* Mantine's selected grey is one step off the surface and vanishes on the
+   raised one. The accent, dimmer in the pane without the keyboard, as a file
+   manager marks an inactive window's selection. */
+.mrx-node-tree .mantine-Tree-label[data-selected] {
+  background-color: color-mix(in srgb, var(--mrx-accent) 22%, transparent);
+}
+
+.mrx-node-pane[data-focused] .mrx-node-tree .mantine-Tree-label[data-selected] {
+  background-color: color-mix(in srgb, var(--mrx-accent-strong) 45%, transparent);
+}
+
+/* The explorer's tabs on the page bar's edge, each strip over its column
+   (`columns.ts`). As the other pages' header tabs: the others light glass over
+   the shade, the active one the surface of what it opens into — a pane's
+   address bar, raised, or the tool pane, on the page — but a line shorter, since
+   a tab here is a location and there can be many. Which pane has the keyboard is
+   told by its lighter surface, not by its tab. */
+.mrx-header-tabs[data-flush] {
+  padding-inline: 0;
+  padding-top: 4px;
+}
+
+.mrx-nodes-tabs {
+  --mrx-tab-surface: var(--mrx-surface-raised);
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding-inline: 4px;
+  container-type: inline-size;
+}
+
+.mrx-nodes-tabs[data-tools] {
+  --mrx-tab-surface: var(--mrx-surface-base);
+}
+
+.mrx-nodes-tabs-scroll {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* New tab and close pane, on the bar's ground beside the tabs. */
+.mrx-nodes-tabs .mantine-ActionIcon-root {
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.mrx-nodes-tabs .mrx-nodes-new-tab {
+  margin-left: 2px;
+}
+
+/* A tab named by a location in the explorer: one height, and one width past
+   which the name ends in an ellipsis. */
+.mrx-nodes-tab {
+  flex-shrink: 0;
+  max-width: 220px;
+  min-height: 36px;
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--mantine-radius-sm) var(--mantine-radius-sm) 0 0;
+}
+
+.mrx-nodes-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--mantine-font-size-md);
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mrx-nodes-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  color: white;
+  background: rgba(255, 255, 255, .2);
+  backdrop-filter: blur(8px);
+  transition: color var(--mrx-dur-fast) var(--mrx-ease), background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-nodes-tab:hover:not([data-active]) {
+  background: rgba(255, 255, 255, .3);
+}
+
+.mrx-nodes-tab[data-active] {
+  color: var(--mantine-color-text);
+  background: var(--mrx-tab-surface);
+  backdrop-filter: none;
+}
+
+.mrx-nodes-tab .mantine-CloseButton-root {
+  color: inherit;
+}
+
+/* The last tab of a pane has no close button to fill its right side. */
+.mrx-nodes-tab:not(:has(.mantine-CloseButton-root)) {
+  padding-right: 14px;
+}
+
+.mrx-nodes-tabs[data-tools] .mrx-nodes-tab {
+  gap: 5px;
+  padding-inline: 10px;
+}
+
+.mrx-nodes-tab svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+/* The tools' names take more width than the tool pane usually has: the
+   chosen tool is named, the others are icons with their name as the title,
+   until the pane is wide enough for every name. */
+@container (max-width: 520px) {
+  .mrx-nodes-tabs[data-tools] .mrx-nodes-tab:not([data-active]) .mrx-nodes-tab-label {
+    display: none;
+  }
+}
+
+/* A details column's edge: a hairline shows where it can be dragged. */
+.mrx-column-resizer::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 3px;
+  width: 1px;
+  background: var(--mrx-hairline);
+}
+
+.mrx-column-resizer:hover::after {
+  left: 2px;
+  width: 2px;
+  background: var(--mrx-accent);
+}
+
+/* A tool's found file: a row that shows it in a new tab. */
+.mrx-nodes-found {
+  display: block;
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mrx-nodes-found:hover {
+  background: var(--mrx-surface-raised);
+}
+
+/* ------------------------------------------------------------ date dividers */
+/**
+ * The date heading over each day of a media timeline. Left-aligned on a desktop, where
+ * the eye scans down the margin; centred on a phone, where the grid runs edge to edge
+ * and a label hugging the left edge reads as stuck to it.
+ *
+ * The whole-day checkbox is only rendered once every picture of the day is selected.
+ * On a desktop it simply sits in the row and nudges the date right when it appears —
+ * no gutter is held for it. On a phone it and the count hang off the date's box
+ * instead, so neither the checkbox's arrival nor "37" turning into "37 / 37" shifts
+ * the centred date: what is centred is the date alone.
+ *
+ * The floating date, the copy of the day's heading that stays pinned while its day
+ * scrolls past, follows the same alignment so it lands over the heading it stands for.
+ */
+.mrx-date-divider {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Left-aligned, the pill hangs its padding into the margin so its text starts
+ * where the divider's did. */
+.mrx-floating-date > [data-floating-date] {
+  margin-left: calc(-1 * var(--mantine-spacing-sm));
+}
+
+.mrx-date-divider-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+}
+
+@media (max-width: 48em) {
+  .mrx-date-divider {
+    justify-content: center;
+  }
+
+  .mrx-floating-date {
+    text-align: center;
+  }
+
+  .mrx-floating-date > [data-floating-date] {
+    margin-left: 0;
+  }
+
+  /* A step up on a phone, where the date is read at arm's length over edge-to-edge
+   * pictures. The divider and its floating copy grow alike, so the handover between
+   * them stays in place. Two classes, to outrank Mantine's own size on the Text. */
+  .mrx-date-divider .mrx-date-divider-text,
+  .mrx-floating-date > [data-floating-date] {
+    font-size: var(--mantine-font-size-md);
+    line-height: var(--mantine-line-height-md);
+  }
+
+  .mrx-floating-date > [data-floating-date] {
+    padding-inline: var(--mantine-spacing-md);
+  }
+
+  .mrx-date-divider .mrx-date-divider-count {
+    font-size: var(--mantine-font-size-sm);
+  }
+
+  .mrx-date-divider-check {
+    position: absolute;
+    right: calc(100% + var(--mantine-spacing-sm));
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .mrx-date-divider-count {
+    position: absolute;
+    left: calc(100% + var(--mantine-spacing-sm));
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+  }
+}
+
+/* ------------------------------------------------------------- face crops */
+/**
+ * Picking one face out of a cluster, the same affordance as a media tile: the
+ * checkbox appears on hover and stays once used.
+ *
+ * The crop takes a ring rather than growing — these sit in a tight wrapped row,
+ * and a crop that scaled would push the rest of the row around while the
+ * reviewer is still deciding which ones to tick.
+ */
+.mrx-face-check {
+  opacity: 0;
+  transition: opacity var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-face-pick:hover .mrx-face-check,
+.mrx-face-pick:focus-within .mrx-face-check,
+.mrx-face-pick[data-selected] .mrx-face-check {
+  opacity: 1;
+}
+
+/* No hover on a touch screen, so the checkbox would never appear. */
+@media (hover: none) {
+  .mrx-face-check {
+    opacity: 1;
+  }
+}
+
+.mrx-face-crop {
+  transition: box-shadow var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-face-crop[data-selected] {
+  box-shadow: 0 0 0 3px var(--mrx-accent);
+}
+
+/* -------------------------------------------------------- global timeline */
+/* The page's rail runs down to the foot of the screen, clear of the home indicator; the round
+ * back-to-top button (`.mrx-to-top`) hides while it is up, since dragging the handle to the top does
+ * the same. While a header's controls float at the foot (`.mrx-floating`), the rail ends above
+ * their row, where back to top is back. The rail overlays content but only the handle receives
+ * input, so it neither narrows the media grid nor blocks clicks on media beside the handle. */
+.mrx-scrubber {
+  --mrx-scrubber-bottom: env(safe-area-inset-bottom, 0px);
+  --mrx-scrubber-rail-width: 44px;
+  --mrx-scrubber-handle-width: 20px;
+  --mrx-scrubber-handle-height: 32px;
+  --mrx-scrubber-handle-half: 16px;
+  --mrx-scrubber-grip-size: 16px;
+  --mrx-scrubber-label-gap: 8px;
+}
+
+html.mrx-floating .mrx-scrubber {
+  --mrx-scrubber-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mantine-spacing-md) + var(--mrx-floating-size) + var(--mantine-spacing-xs));
+}
+
+/* On a phone the visible grip grows inside a wider geometry rail. */
+@media (max-width: 47.999em) {
+  .mrx-scrubber {
+    --mrx-scrubber-rail-width: 64px;
+    --mrx-scrubber-handle-width: 60px;
+    --mrx-scrubber-handle-height: 56px;
+    --mrx-scrubber-handle-half: 28px;
+    --mrx-scrubber-grip-size: 28px;
+    --mrx-scrubber-label-gap: 20px;
+  }
+}
+
+/**
+ * The browser does its own scroll anchoring when content changes above the
+ * viewport, and the hook does too — deliberately, and with a row it chose. Both
+ * at once fight each other and leave the reader off the row the hook kept. The
+ * hook wins, because it knows which row the reader was on and Chrome only guesses.
+ */
+.mrx-timeline-feed {
+  overflow-anchor: none;
+}
+
+.mrx-timeline-group {
+  /* Narrower on a phone, where the gutter is a fifth of the screen. A date range
+     wraps to two lines at either width, so only single dates pay for it. */
+  --mrx-date-col: 58px;
+  --mrx-entry-col: 520px;
+  /* --mrx-bullet is set from the component, so the bulletSize prop stays the one source. */
+  --mrx-row-width: calc(var(--mrx-date-col) + var(--mrx-bullet) + var(--mrx-entry-col));
+}
+
+/**
+ * The date sits in Mantine's `opposite` slot, left of the bullet — and using
+ * that slot at all switches the row to a grid whose columns Mantine sets to
+ * `1fr auto 1fr`. An even split would give a date like "24 Jun" as much room as
+ * the entry itself, so the first column is pinned narrow here.
+ *
+ * The connector line then has to be told where the bullet went: Mantine draws it
+ * at 50% of the row, which is only the bullet's position under its own even
+ * split. Both derive from `--mrx-date-col`, so the two cannot drift apart.
+ *
+ * This has to be CSS rather than the theme object or a `style` prop: the line is
+ * a ::before, and the custom property is set on the pseudo-element itself, so
+ * nothing set on the element can win. Selectors carry an extra class over
+ * Mantine's so the outcome does not depend on stylesheet order. The classes are
+ * our own, passed through Timeline's `classNames`, not Mantine's internals.
+ */
+.mrx-timeline[data-opposite] .mrx-timeline-row {
+  grid-template-columns: var(--mrx-date-col) auto minmax(0, 1fr);
+}
+
+.mrx-timeline[data-opposite] .mrx-timeline-row::before {
+  --timeline-line-start: calc(var(--mrx-date-col) + var(--mrx-bullet) / 2 - var(--tl-line-width) / 2);
+}
+
+/**
+ * From `sm` up the entry column is a fixed width and the three columns are
+ * centred as a group, which is the only way this block *can* be centred: its
+ * right edge is ragged (a birthday is three words, an album has a description),
+ * so narrowing the page container just moves a left-aligned block around. Fixing
+ * the column also keeps every date in the gutter on the same vertical line —
+ * each row is its own grid, so an auto-sized column would set its own width per
+ * row and the dates would stagger.
+ *
+ * Below `sm` there is no space to centre anything into: the entry column takes
+ * what is left and the block starts at the edge.
+ */
+@media (min-width: 48em) {
+  .mrx-timeline-group {
+    --mrx-date-col: 76px;
+  }
+
+  .mrx-timeline[data-opposite] .mrx-timeline-row {
+    grid-template-columns: var(--mrx-date-col) auto var(--mrx-entry-col);
+    justify-content: center;
+  }
+
+  .mrx-timeline[data-opposite] .mrx-timeline-row::before {
+    --timeline-line-start: calc(
+      (100% - var(--mrx-row-width)) / 2 + var(--mrx-date-col) + var(--mrx-bullet) / 2 - var(--tl-line-width) / 2
+    );
+  }
+
+  /* The month header sits above the block and starts where its dates do. */
+  .mrx-timeline-heading {
+    width: var(--mrx-row-width);
+    margin-inline: auto;
+  }
+}
+
+/**
+ * Tighter than Mantine's row gap (`xl`): a decade holds a few hundred birthdays,
+ * and at that gap most of the scrolling would be the gaps between them.
+ */
+.mrx-timeline .mrx-timeline-row:not(:first-of-type) {
+  margin-top: var(--mantine-spacing-md);
+}
+
+/*
+ * The lightbox is driven by keys and gestures, not by tabbing through its buttons. Chrome shows
+ * a button's focus ring again once any key is pressed after a tap or click, so the arrow keys
+ * (and phones) would leave a ring on whichever button was used last.
+ */
+[data-lightbox-media-path] button:focus-visible {
+  outline: none;
+}
+
+/* --------------------------------------------------------------- animation */
+@keyframes mrx-slide-in-right {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes mrx-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Alternating, restrained motion for stills in the slideshow. */
+@keyframes mrx-ken-burns-a {
+  from {
+    transform: scale(1.005) translate3d(-0.6%, -0.35%, 0);
+  }
+
+  to {
+    transform: scale(1.08) translate3d(0.8%, 0.5%, 0);
+  }
+}
+
+@keyframes mrx-ken-burns-b {
+  from {
+    transform: scale(1.005) translate3d(0.6%, 0.35%, 0);
+  }
+
+  to {
+    transform: scale(1.08) translate3d(-0.8%, -0.5%, 0);
+  }
+}
+
+/* The lightbox's details panel beside the picture on a desktop. Its width opens from nothing, so
+ * the picture makes room as the panel, anchored to its left edge, slides in from the right. */
+.mrx-lightbox-side {
+  flex: none;
+  /* A row, so the panel inside stretches to the full height as it did when it was the row's child. */
+  display: flex;
+  width: var(--mrx-lightbox-side-w);
+  overflow: hidden;
+}
+
+/* Toggled over an open picture: an even curve rather than the snappy control ease, which covers
+ * half the way in a few frames and reads as instant for something this large. Not as the lightbox
+ * opens (`data-instant`), where the picture zooms in to the room the panel leaves. */
+.mrx-lightbox-side:not([data-instant]) {
+  transition: width calc(var(--mrx-dur-slow) * 1.4) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@starting-style {
+  .mrx-lightbox-side:not([data-instant]) {
+    width: 0;
+  }
+}
+
+.mrx-lightbox-side[data-closing] {
+  width: 0;
+}
+
+.mrx-lightbox-ken-burns {
+  will-change: transform;
+  /* Duration and delay are set on the element: both are derived from the
+     viewer's slides-per-second setting, so a longer dwell gets a longer pan
+     rather than a pan that finishes early and then sits still. This is only the
+     fallback for an element that somehow renders without them. */
+  animation-duration: 6s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.mrx-lightbox-ken-burns-a {
+  animation-name: mrx-ken-burns-a;
+}
+
+.mrx-lightbox-ken-burns-b {
+  animation-name: mrx-ken-burns-b;
+}
+
+/**
+ * One lever for reduced motion: collapse the duration tokens and everything
+ * driven by them stops. Loaders (`data-mrx-spinner`) keep running (they show that
+ * something is under way, and a frozen one reads as a hang) but slow down.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mrx-dur-fast: 1ms;
+    --mrx-dur-base: 1ms;
+    --mrx-dur-slow: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  [data-mrx-spinner] {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* Highlighted code in the documentation (`HighlightedCode`): CodeMirror's parsers, drawn as
+ * spans. Colours after GitHub's, which read on both backgrounds at this size. */
+.mrx-code {
+  --mrx-code-bg: var(--mantine-color-gray-0);
+  --mrx-tok-command: #0550ae;
+  --mrx-tok-keyword: #cf222e;
+  --mrx-tok-string: #0a3069;
+  --mrx-tok-comment: #6e7781;
+  --mrx-tok-number: #0550ae;
+  --mrx-tok-variable: #953800;
+  --mrx-tok-definition: #116329;
+  --mrx-tok-flag: #8250df;
+  --mrx-tok-property: #116329;
+  --mrx-tok-type: #953800;
+  --mrx-tok-operator: #cf222e;
+
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+[data-mantine-color-scheme='dark'] .mrx-code {
+  --mrx-code-bg: var(--mantine-color-dark-8);
+  --mrx-tok-command: #79c0ff;
+  --mrx-tok-keyword: #ff7b72;
+  --mrx-tok-string: #a5d6ff;
+  --mrx-tok-comment: #8b949e;
+  --mrx-tok-number: #79c0ff;
+  --mrx-tok-variable: #ffa657;
+  --mrx-tok-definition: #7ee787;
+  --mrx-tok-flag: #d2a8ff;
+  --mrx-tok-property: #7ee787;
+  --mrx-tok-type: #ffa657;
+  --mrx-tok-operator: #ff7b72;
+}
+
+.mrx-code-block {
+  margin: 0 0 var(--mantine-spacing-sm);
+  padding: 8px 12px;
+  overflow-x: auto;
+  white-space: pre;
+  background: var(--mrx-code-bg);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mrx-code-block > code {
+  padding: 0;
+  font: inherit;
+  background: none;
+}
+
+.mrx-code-inline {
+  padding: 1px 4px;
+  background: var(--mrx-code-bg);
+  border-radius: var(--mantine-radius-xs);
+}
+
+.mrx-tok-command {
+  color: var(--mrx-tok-command);
+  font-weight: 600;
+}
+.mrx-tok-keyword {
+  color: var(--mrx-tok-keyword);
+}
+.mrx-tok-string {
+  color: var(--mrx-tok-string);
+}
+.mrx-tok-comment {
+  color: var(--mrx-tok-comment);
+  font-style: italic;
+}
+.mrx-tok-number {
+  color: var(--mrx-tok-number);
+}
+.mrx-tok-variable {
+  color: var(--mrx-tok-variable);
+}
+.mrx-tok-definition {
+  color: var(--mrx-tok-definition);
+}
+.mrx-tok-flag {
+  color: var(--mrx-tok-flag);
+}
+.mrx-tok-property {
+  color: var(--mrx-tok-property);
+}
+.mrx-tok-type {
+  color: var(--mrx-tok-type);
+}
+.mrx-tok-operator {
+  color: var(--mrx-tok-operator);
+}
+.mrx-tok-heading {
+  font-weight: 600;
+}
+.mrx-tok-meta {
+  color: var(--mrx-tok-comment);
+}
+
+/* Anything a docs link can point at stops below the app's fixed header and the page header's
+ * stuck row, not under them. */
+.mrx-docs-target {
+  scroll-margin-top: calc(var(--app-shell-header-height, 0px) + var(--mrx-stuck-header-height, 0px) + 16px);
+}
+
+/* A reference entry the page was opened at (`/docs/commands#cmd-ls`) is marked, briefly:
+ * `useScrollToHash` sets the attribute once the entry exists, which `:target` cannot see. */
+.mrx-docs-target[data-targeted] {
+  animation: mrx-docs-target 2.4s ease-out;
+  border-radius: var(--mantine-radius-sm);
+}
+
+/* No closing keyframe: the mark fades into the entry's own background, a card's raised surface
+ * as much as a section's none. */
+@keyframes mrx-docs-target {
+  0%,
+  30% {
+    background: var(--mantine-color-violet-light);
+  }
+}
+
+/* `HeaderToggle` at full width: a switch and its label on the same sunken
+ * track, radius and 36px height as the SegmentedControl it sits beside. */
+.mrx-header-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px 0 4px;
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mrx-surface-sunken);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.mrx-header-toggle .mantine-Switch-label {
+  color: var(--mantine-color-text);
+  padding-inline: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* `EmptyState`'s picture: four hats in outline, one of them lit with the accent. */
+.mrx-empty-state-art {
+  width: 72px;
+  height: 66px;
+  margin-bottom: var(--mantine-spacing-xs);
+}
+
+.mrx-empty-state-art polygon {
+  fill: none;
+  stroke: var(--mrx-text-tertiary);
+  stroke-width: 0.09;
+  stroke-linejoin: round;
+}
+
+.mrx-empty-state-art polygon[data-lit] {
+  fill: var(--mrx-accent);
+  fill-opacity: 0.35;
+  stroke: var(--mrx-accent);
+}
+
+/* `RouteProblem`: on a page it fills the frame below the header, centred; in a dialog or the
+ * drawer it is the surface's content. */
+.mrx-route-problem {
+  padding: var(--mantine-spacing-xl) var(--mantine-spacing-md);
+}
+
+.mrx-route-problem[data-page] {
+  min-height: calc(100dvh - var(--app-shell-header-offset, 0rem) - 2 * var(--mrx-page-gutter, 0rem));
+}
+
+.mrx-route-problem-detail {
+  max-width: min(560px, 100%);
+  max-height: 160px;
+  overflow: auto;
+  text-align: start;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Its picture: a patch of the tiling in outline, fading out from a dashed hole, and the hat that
+ * left it lying below, in the mark's colours — red for an error. It drops out of the hole once,
+ * as the patch, first in those colours too, bursts outward and leaves its outline. */
+.mrx-missing-tile {
+  width: 260px;
+  max-width: 64vw;
+  margin-bottom: var(--mantine-spacing-xs);
+  overflow: visible;
+}
+
+.mrx-route-problem:not([data-page]) .mrx-missing-tile {
+  width: 140px;
+}
+
+.mrx-missing-tile polygon {
+  fill: none;
+  stroke: var(--mrx-text-tertiary);
+  stroke-width: 0.06;
+  stroke-linejoin: round;
+}
+
+.mrx-missing-tile .mrx-missing-tile-hole {
+  fill: var(--mrx-surface-sunken);
+  stroke-dasharray: 0.14 0.12;
+}
+
+/* Edged in the page's colour, so the lines it lies across stop short of it. */
+.mrx-missing-tile .mrx-missing-tile-hat {
+  stroke: var(--mrx-surface-base);
+  stroke-width: 0.2;
+  paint-order: stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: translate(1.7px, 5.1px) rotate(24deg);
+  animation: mrx-missing-tile-fall 900ms cubic-bezier(0.5, 0, 0.75, 0.6) 200ms both;
+}
+
+@keyframes mrx-missing-tile-fall {
+  from {
+    transform: translate(0, 0) rotate(0);
+  }
+
+  82% {
+    transform: translate(1.7px, 5.1px) rotate(30deg);
+  }
+
+  to {
+    transform: translate(1.7px, 5.1px) rotate(24deg);
+  }
+}
+
+/* A coloured hat of the patch, over its outline: it flies out from the hole, turning and shrinking,
+ * and is gone. Edged in the page's colour so the hats read apart while they are still in place. */
+.mrx-missing-tile .mrx-missing-tile-burst {
+  stroke: var(--mrx-surface-base);
+  stroke-width: 0.05;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: mrx-missing-tile-burst 1100ms cubic-bezier(0.2, 0.6, 0.3, 1) var(--mrx-burst-delay) both;
+}
+
+@keyframes mrx-missing-tile-burst {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(var(--mrx-burst-x), var(--mrx-burst-y)) rotate(var(--mrx-burst-turn)) scale(0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mrx-missing-tile .mrx-missing-tile-hat {
+    animation: none;
+  }
+
+  .mrx-missing-tile .mrx-missing-tile-burst {
+    display: none;
+  }
+}
+
+/* `HatRunLoader`, what every Mantine Loader draws: as tall as the loader's size and as wide as the
+ * hat, its outline faint in the text's colour and a third of it lit, running round. */
+.mrx-hat-run {
+  display: inline-block;
+  flex: none;
+  width: calc(var(--loader-size) * 1.34);
+  height: var(--loader-size);
+}
+
+.mrx-hat-run > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.mrx-hat-run [data-track] {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.3;
+  stroke-width: 0.3;
+  stroke-linejoin: round;
+}
+
+.mrx-hat-run [data-run] {
+  fill: none;
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 0.33 0.67;
+  animation: mrx-hat-run 1.6s linear infinite;
+}
+
+@keyframes mrx-hat-run {
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* `PageLoader`'s hat: the outline faint, and its kites lit in turn, each fading as the next lights. */
+.mrx-hat-loader {
+  width: 64px;
+  height: 48px;
+}
+
+.mrx-hat-loader > polygon {
+  fill: none;
+  stroke: var(--mrx-text-tertiary);
+  stroke-opacity: 0.4;
+  stroke-width: 0.14;
+  stroke-linejoin: round;
+}
+
+.mrx-hat-loader [data-kite] {
+  animation: mrx-hat-loader-run linear infinite;
+}
+
+@keyframes mrx-hat-loader-run {
+  from {
+    opacity: 1;
+  }
+
+  45%,
+  to {
+    opacity: 0.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mrx-hat-loader [data-kite] {
+    animation: none;
+  }
+}
+
+/* The Search landing's sections: one line of items. On a touch screen it is swiped sideways,
+ * without a scrollbar, snapping to items so a flick stops on one; with a mouse, which has no
+ * sideways swipe, it shows only the items that fit whole (ExploreRow marks the rest). */
+.mrx-explore-row {
+  display: flex;
+  gap: var(--mantine-spacing-md);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.mrx-explore-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mrx-explore-row > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+@media (hover: hover) {
+  .mrx-explore-row {
+    overflow-x: clip;
+  }
+
+  .mrx-explore-row > [data-beyond] {
+    visibility: hidden;
+  }
+}
+
+/* Home: its sections answer to the room they have, the sidebar's width taken into account, so the
+ * news and events columns stand side by side only where both fit. */
+.mrx-home {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.mrx-home-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-lg);
+}
+
+@container (min-width: 700px) {
+  .mrx-home-content {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    gap: var(--mantine-spacing-xl);
+  }
+}
+
+/* Home's On this day: the entries in one line, swiped or scrolled sideways without a scrollbar. */
+.mrx-home-onthisday {
+  display: flex;
+  gap: var(--mantine-spacing-md);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 2px 2px var(--mantine-spacing-xs);
+}
+
+.mrx-home-onthisday::-webkit-scrollbar {
+  display: none;
+}
+
+.mrx-home-onthisday > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+/* A recent search: its button and the cross that forgets it, as one pill. */
+.mrx-recent-search .mantine-CloseButton-root {
+  opacity: 0.6;
+}
+
+.mrx-recent-search:hover .mantine-CloseButton-root {
+  opacity: 1;
+}
+
+/* The command palette's rows: the one the arrows are on is lit like a hovered menu item. */
+.mrx-palette .mantine-Modal-body {
+  padding: 0;
+}
+
+.mrx-palette-list {
+  border-top: 1px solid var(--mrx-hairline);
+}
+
+.mrx-palette-item {
+  display: block;
+  width: 100%;
+  padding: 8px var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-sm);
+}
+
+/* A tint of the text rather than a surface: the list stands on the overlay surface itself. */
+.mrx-palette-item[data-active] {
+  background: color-mix(in srgb, var(--mrx-text-primary) 9%, transparent);
+}
+
+/* The finder's foot line: under the rows, and held at the bottom of a list that scrolls. */
+.mrx-finder-hint {
+  border-top: 1px solid var(--mrx-hairline);
+  position: sticky;
+  bottom: 0;
+  background: inherit;
+}
+
+/* Toasts (`notify`): centred near the foot of the screen, above dialogs, the lightbox and a selection bar, clear of the
+ * phone's home indicator. */
+.mrx-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: min(440px, calc(100vw - 32px));
+}
+
+.mrx-toast {
+  box-shadow: var(--mantine-shadow-lg);
+  animation: mrx-toast-in var(--mrx-dur-slow) var(--mrx-ease);
+}
+
+@keyframes mrx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* The band `useLasso` draws, fixed over the page and moved by a transform; nothing is selected as text while it is out. */
+.mrx-lasso {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 300;
+  pointer-events: none;
+  border: 1px solid var(--mrx-accent);
+  background: color-mix(in srgb, var(--mrx-accent) 14%, transparent);
+  border-radius: 2px;
+}
+
+.mrx-lassoing {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * A favourite's heart, the lock of what keeps its own sharing and the grid's badge for the tile (a
+ * match score, a doubt), side by side in the tile's lower-left corner where the check and the other
+ * badges are not.
+ */
+.mrx-tile-marks {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* The shadow is the icons', not the row's: a filter on the row would keep a badge's blur from reaching the picture. */
+.mrx-tile-star,
+.mrx-tile-lock {
+  display: flex;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+}
+
+.mrx-tile-star {
+  color: var(--mantine-color-red-5);
+}
+
+.mrx-tile-lock {
+  color: white;
+}
+
+/* The pill of a tile's badge in the marks row; it shrinks, so a `truncate`d one ellipsizes on a narrow tile. */
+.mrx-tile-badge {
+  min-width: 0;
+  border-radius: var(--mantine-radius-xl);
+  background: color-mix(in srgb, var(--mrx-surface-raised) 90%, transparent);
+  box-shadow: var(--mantine-shadow-sm);
+  backdrop-filter: blur(8px);
+}
+
+/* A row to pick from in a picker dialog (an album to add to, a person to name): lit on hover. */
+.mrx-pick-row {
+  display: block;
+  width: 100%;
+  padding: 6px var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mrx-pick-row:hover:not(:disabled) {
+  background: var(--mrx-surface-overlay);
+}
+
+/* `HatIdenticon`: the hats in outline with one filled, in the colour given, and the initials over them. */
+.mrx-hat-identicon {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+
+.mrx-hat-identicon svg {
+  width: 70%;
+  height: 70%;
+}
+
+.mrx-hat-identicon polygon {
+  fill: none;
+  stroke: currentColor;
+  stroke-opacity: 0.45;
+  stroke-width: 0.07;
+  stroke-linejoin: round;
+}
+
+.mrx-hat-identicon polygon[data-lit] {
+  fill: currentColor;
+  fill-opacity: 0.22;
+  stroke-opacity: 0.8;
+}
+
+/* The About dialog's body, in one column; from md the modules stand beside the rest, which takes
+ * the slack below the services when the modules run longer. */
+.mrx-about-body {
+  display: grid;
+  gap: var(--mantine-spacing-lg);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'intro' 'tiles' 'modules' 'services' 'facts';
+}
+
+/* In the dialog the facts are in its bar. */
+.mrx-about-body[data-in-dialog] {
+  grid-template-areas: 'intro' 'tiles' 'modules' 'services';
+}
+
+@media (min-width: 62em) {
+  .mrx-about-body {
+    column-gap: var(--mantine-spacing-xl);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: 'intro modules' 'tiles modules' 'services modules' 'facts facts';
+  }
+
+  .mrx-about-body[data-in-dialog] {
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: 'intro modules' 'tiles modules' 'services modules';
+  }
+}
+
+/* A module's hat on the About dialog: a small tile, so its outlines are drawn heavier to read. */
+.mrx-about-module-hat .mrx-hat-identicon polygon {
+  stroke-width: 0.16;
+  stroke-opacity: 0.6;
+}
+
+.mrx-about-module-hat .mrx-hat-identicon polygon[data-lit] {
+  fill-opacity: 0.4;
+  stroke-opacity: 1;
+}
+
+.mrx-hat-identicon-initials {
+  position: absolute;
+  font-weight: 700;
+  font-size: clamp(14px, 22cqmin, 44px);
+  letter-spacing: 0.02em;
+  color: var(--mrx-text-primary);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+}
+
+/* A phone's media grid takes two-finger gestures for itself (pinch changes the pictures per row);
+ * one finger still scrolls either way. */
+.mrx-grid-pinch {
+  touch-action: pan-x pan-y;
+}
+
+/* Back to top (`BackToTop`), the round button in the lower right of the page, clear of the home
+ * indicator. It keeps to the page beside the side drawer, and goes under the drawer where it covers
+ * the page, as the page's scrollbar does. A selection's action bar has the foot of the screen to
+ * itself while it is up, and a page's time rail (`.mrx-railed`) takes its place — unless a header's
+ * controls float (`.mrx-floating`): then it stands at the end of their row, under the rail. A phone's
+ * thumb gets it, and whatever floats beside it, larger (`--mrx-floating-size`). All of them are the
+ * same glass (`--mrx-floating-bg`), which the page shows through. */
+:root {
+  --mrx-floating-size: 44px;
+  --mrx-floating-bg: color-mix(in srgb, var(--mrx-surface-raised) 82%, transparent);
+}
+
+@media (max-width: 47.99em) {
+  :root {
+    --mrx-floating-size: 52px;
+  }
+}
+
+.mrx-to-top {
+  --ai-size: var(--mrx-floating-size);
+  position: fixed;
+  right: calc(var(--app-shell-aside-offset, 0px) + var(--mantine-spacing-md));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mantine-spacing-md));
+  z-index: var(--mantine-z-index-app);
+  box-shadow: var(--mantine-shadow-lg);
+}
+
+body:has(.mantine-ActionBar-root) .mrx-to-top,
+html.mrx-railed:not(.mrx-floating) .mrx-to-top {
+  display: none;
+}
+
+/* Plain: the page shows through it, as through the map's buttons. */
+.mantine-ActionIcon-root.mrx-to-top {
+  border: 1px solid var(--mrx-hairline);
+  background: var(--mrx-floating-bg);
+  color: var(--mrx-text-primary);
+  backdrop-filter: blur(6px);
+}
+
+/* Only where there is a pointer to hover: a touch screen keeps a tapped button "hovered", and it
+ * would stay the more solid colour. */
+@media (hover: hover) {
+  .mantine-ActionIcon-root.mrx-to-top:hover,
+  .mrx-floating-controls .mantine-ActionIcon-root:not(.mantine-Input-section *):hover {
+    background: color-mix(in srgb, var(--mrx-surface-overlay) 88%, transparent);
+  }
+}
+
+/* A page header's controls floating over the page's foot on a phone (`FloatingControls`): on the
+ * line of back to top, up to its left, and as round and plain as it — the box a pill, the choices
+ * round buttons. It keeps clear of a phone's sidebar rail on the left. A container, so the
+ * controls fold as they do in a phone's header. */
+.mrx-floating-controls {
+  position: fixed;
+  left: calc(var(--app-shell-navbar-offset, 0px) + var(--mantine-spacing-md));
+  right: calc(var(--app-shell-aside-offset, 0px) + var(--mantine-spacing-md));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mantine-spacing-md));
+  z-index: var(--mantine-z-index-app);
+  container-type: inline-size;
+}
+
+/* Back to top's room at the row's end, which the box takes while it has the keyboard
+ * (`data-typing`). On the row rather than the box, whose transition is the rise's. */
+.mrx-floating-controls-row {
+  padding-right: calc(var(--mrx-floating-size) + var(--mantine-spacing-xs));
+  transition: padding-right var(--mrx-dur-base) var(--mrx-ease);
+}
+
+.mrx-floating-controls[data-typing] .mrx-floating-controls-row {
+  padding-right: 0;
+}
+
+/* Around a filter or search box (`data-floating-box`), whatever stands after it — a button beside
+ * it, the choices — stands over the row's end out of the flow, each at its measured place
+ * (`data-floating-end`, `--mrx-floating-end`), and the box keeps their room by a margin
+ * (`--mrx-floating-ends-width`), so that typing can hand it the room by animating the margin away
+ * while they sink as they rose. The box stands at the row's end, so folded to its button
+ * (`data-folded`) it joins them, and unfolding grows it to the left. */
+.mrx-floating-controls .mrx-header-filter-bar {
+  position: relative;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.mrx-floating-controls .mrx-header-filter-bar-input {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  margin-right: var(--mrx-floating-ends-width, 0px);
+  transition: margin-right var(--mrx-dur-base) var(--mrx-ease);
+}
+
+.mrx-floating-controls [data-floating-box] {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  transition: max-width var(--mrx-dur-base) var(--mrx-ease);
+}
+
+/* The magnifier keeps one place, folded or not: the middle of a button's width. Folded it covers
+ * the whole button, so a tap on it goes through to the box. */
+.mrx-floating-controls .mrx-header-filter-bar-input .mantine-Input-section[data-position='left'] {
+  width: var(--mrx-floating-size);
+  color: var(--mrx-text-primary);
+  pointer-events: none;
+}
+
+/* As large as the choices' icons, which it stands among folded. */
+.mrx-floating-controls .mrx-header-filter-bar-input .mantine-Input-section[data-position='left'] svg {
+  width: 24px;
+  height: 24px;
+}
+
+.mrx-floating-controls .mrx-header-filter-bar-input :is(.mantine-Input-input, .mantine-PillsInput-input) {
+  padding-inline-start: var(--mrx-floating-size);
+}
+
+.mrx-floating-controls[data-folded] [data-floating-box] {
+  max-width: var(--mrx-floating-size);
+}
+
+.mrx-floating-controls[data-folded] .mrx-header-filter-bar-input :is(.mantine-Input-input, .mantine-PillsInput-input) {
+  padding-inline-end: 0;
+  color: transparent;
+}
+
+.mrx-floating-controls[data-folded] .mrx-header-filter-bar-input .mantine-Input-section[data-position='right'] {
+  visibility: hidden;
+}
+
+.mrx-floating-controls[data-folded] .mrx-header-filter-bar-input input::placeholder {
+  color: transparent;
+}
+
+.mrx-floating-controls [data-floating-end] {
+  position: absolute;
+  right: var(--mrx-floating-end, 0px);
+  bottom: 0;
+  transition: transform var(--mrx-dur-base) var(--mrx-ease), opacity var(--mrx-dur-base) var(--mrx-ease), visibility 0s;
+}
+
+.mrx-floating-controls[data-typing] .mrx-header-filter-bar-input {
+  margin-right: 0;
+}
+
+.mrx-floating-controls[data-typing] [data-floating-end] {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(calc(100% + var(--mantine-spacing-md)));
+  transition: transform var(--mrx-dur-base) var(--mrx-ease), opacity var(--mrx-dur-base) var(--mrx-ease), visibility 0s var(--mrx-dur-base);
+}
+
+/* The choices' buttons, not the box's own (its commit arrow, a clear button). */
+.mrx-floating-controls :is(.mantine-Input-input, .mantine-PillsInput-input),
+.mrx-floating-controls .mantine-ActionIcon-root:not(.mantine-Input-section *) {
+  border: 1px solid var(--mrx-hairline);
+  background: var(--mrx-floating-bg);
+  color: var(--mrx-text-primary);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--mantine-shadow-lg);
+}
+
+/* Half its height, so one line is a pill; chips that wrap to more keep round ends. */
+.mrx-floating-controls :is(.mantine-Input-input, .mantine-PillsInput-input) {
+  min-height: var(--mrx-floating-size);
+  border-radius: calc(var(--mrx-floating-size) / 2);
+  font-size: var(--mantine-font-size-lg);
+}
+
+.mrx-floating-controls .mantine-ActionIcon-root:not(.mantine-Input-section *) {
+  width: var(--mrx-floating-size);
+  height: var(--mrx-floating-size);
+  border-radius: 50%;
+}
+
+.mrx-floating-controls .mantine-ActionIcon-root:not(.mantine-Input-section *) svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* With tabs the header stays stuck at its tab row, which leaves the floating copy the controls. */
+.mrx-entity-header[data-float-controls][data-stuck] .mrx-header-tabs-controls {
+  visibility: hidden;
+}
+
+/* The Settings tabs that list entries beside the open one: Users, Groups and Modules (`ListDetail`).
+ * Side by side, the split takes the rest of
+ * the window below the tab's top row (`--mrx-settings-around`, measured), so the page does not
+ * scroll; the list's rows and the open entry's panel each scroll in their own `PaneScroll`. The
+ * open row wears the accent. */
+.mrx-settings-split {
+  display: grid;
+  /* Narrower beside a narrow main area, so the panel keeps room for its fields. */
+  grid-template-columns: clamp(240px, 32%, 320px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--mantine-spacing-lg);
+  /* In a window too short for that, it keeps room for a few rows and the page scrolls instead. */
+  height: max(420px, calc(100dvh - var(--mrx-settings-around, 0px)));
+}
+
+.mrx-settings-split > .mrx-settings-list,
+.mrx-settings-split > .mrx-settings-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mrx-settings-list-foot {
+  border-top: 1px solid var(--mrx-hairline);
+}
+
+/* A row is the colour of the list it is in, the raised box's or, on a phone where the list is no
+ * box (`data-flat`), the page's. `--mrx-row-bg` is the row's background as an opaque colour, for the
+ * rings that cut the presence dot and the faces out of what they overlap. */
+.mrx-settings-list {
+  --mrx-row-surface: var(--mrx-surface-raised);
+}
+
+.mrx-settings-list[data-flat] {
+  --mrx-row-surface: var(--mrx-surface-base);
+}
+
+.mrx-settings-row {
+  --mrx-row-bg: var(--mrx-row-surface);
+  display: block;
+  width: 100%;
+  padding: 8px var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mrx-row-bg);
+  transition: background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-settings-row:hover {
+  --mrx-row-bg: var(--mrx-surface-overlay);
+}
+
+.mrx-settings-row[aria-current='true'] {
+  --mrx-row-bg: color-mix(in srgb, var(--mrx-accent) 16%, var(--mrx-row-surface));
+  box-shadow: inset 3px 0 0 var(--mrx-accent);
+}
+
+/* Signed in now, on the corner of an account's picture in a list row. */
+.mrx-presence-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--mantine-color-teal-filled);
+  box-shadow: 0 0 0 2px var(--mrx-row-bg, var(--mrx-surface-raised));
+}
+
+/* A group row's first members, each picture over the edge of the one before, then how many more. */
+.mrx-face-pile {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.mrx-face-pile > * + * {
+  margin-inline-start: -6px;
+}
+
+.mrx-face-pile > :not(.mrx-face-pile-more) {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--mrx-row-bg, var(--mrx-surface-raised));
+}
+
+.mrx-face-pile > .mrx-face-pile-more {
+  margin-inline-start: 6px;
+}
+
+/* A table row that opens like an accordion (`ExpandRow`): the whole row toggles, its chevron turns
+ * to point down while open, and what it opened reads as part of it rather than as the next row. */
+.mrx-expand-row {
+  cursor: pointer;
+}
+
+.mrx-expand-chevron {
+  transition: transform var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-expand-row[data-open] .mrx-expand-chevron {
+  transform: rotate(90deg);
+}
+
+.mrx-expand-row[data-open] > td {
+  border-bottom-color: transparent;
+}
+
+.mrx-expand-body > td {
+  padding-top: 0;
+}
+
+/* The module pane's tables (`ModulePanel`): a badge keeps its whole word, where Mantine's would
+ * shrink to an ellipsis to give a long description column its width. */
+.mrx-module-table .mantine-Badge-root {
+  min-width: max-content;
+}
+
+/**
+ * `ShortcutLegend`: one line of keys at the foot of a column, over what scrolls under it. Each
+ * entry is a button, so it is drawn as one only on hover.
+ */
+.mrx-shortcut-legend {
+  padding: 6px var(--mantine-spacing-xs);
+  background: color-mix(in srgb, var(--mrx-surface-raised) 92%, transparent);
+  border-top: 1px solid var(--mrx-hairline);
+  backdrop-filter: blur(6px);
+}
+
+.mrx-shortcut-legend-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 22em;
+  padding: 2px 6px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mrx-shortcut-legend-entry:not(:disabled):hover {
+  background: var(--mrx-surface-overlay);
+}
+
+.mrx-shortcut-legend-hide {
+  margin-left: auto;
+  padding: 2px 6px;
+}

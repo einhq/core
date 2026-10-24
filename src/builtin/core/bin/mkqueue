@@ -1,0 +1,12 @@
+#!bash
+arg --desc "Create a queue node"
+arg --effect write
+arg '<target>' path "VFS path for the queue node"
+arg -k --routing-keys string "Comma-separated routing keys to bind to"
+arg --export
+
+if [ -n "$ROUTING_KEYS" ]; then
+  mknode -t queue --al "routingKeys=$ROUTING_KEYS" "$TARGET"
+else
+  mknode -t queue "$TARGET"
+fi

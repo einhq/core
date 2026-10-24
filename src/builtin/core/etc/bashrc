@@ -1,0 +1,16 @@
+#!bash
+
+alias la='ls -A'
+alias ll='ls -al'
+alias whoami='user whoami'
+alias id='user id'
+
+export HISTSIZE=1000
+
+# Configuration layers: the deployment's first, then the modules', the system's, and personal last,
+# so a personal setting wins. 10_config.sh adds these to an existing /etc/bashrc, which boot
+# never replaces.
+[ -r /etc/environment ] && source /etc/environment
+for f in /etc/config.d/*; do [ -r "$f" ] && source "$f"; done
+[ -r /etc/config ] && source /etc/config
+[ -n "$HOME" ] && [ -r "$HOME/.config" ] && source "$HOME/.config"

@@ -1,0 +1,13 @@
+#!bash
+arg --desc "Create a router node"
+arg --effect write
+arg '<target>' path "VFS path for the router node"
+arg -k --routing-key string "Routing key for fan-out broadcasting (required)"
+arg --export
+
+if [ -z "$ROUTING_KEY" ]; then
+  echo "routing key is required (-k/--routing-key)" >&2
+  exit 1
+fi
+
+mknode -t router --as "routingKey=$ROUTING_KEY" "$TARGET"

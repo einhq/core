@@ -1,0 +1,15 @@
+#!bash
+arg --desc "Create a log node"
+arg --effect write
+arg '<target>' path "VFS path for the log node"
+arg -k --routing-keys string "Comma-separated routing keys to bind to"
+arg -r --retention string "Retention policy (default: forever, e.g. 7 day, 100 entries)"
+arg --export
+
+RETENTION=${RETENTION:-forever}
+
+if [ -n "$ROUTING_KEYS" ]; then
+  mknode -t log --as "retention=$RETENTION" --al "routingKeys=$ROUTING_KEYS" "$TARGET"
+else
+  mknode -t log --as "retention=$RETENTION" "$TARGET"
+fi

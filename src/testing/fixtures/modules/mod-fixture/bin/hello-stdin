@@ -1,0 +1,15 @@
+#!ts
+import type { CmdReturn, Command } from '@ein/client';
+
+/** Greets each line of stdin as it comes. */
+const helloStdin = async (cmd: Command): CmdReturn => {
+  for await (const line of cmd.stdin.lines()) await cmd.write(`hello ${line}\n`);
+  return 0;
+};
+
+helloStdin.spec = {
+  name: 'hello-stdin',
+  description: 'fixture typescript command reading stdin',
+};
+
+export default helloStdin;
