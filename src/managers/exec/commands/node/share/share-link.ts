@@ -80,7 +80,8 @@ const mayManage = async (cmd: Command, link: ShareLinkAttrs): Promise<boolean> =
 };
 
 export const shareLink = async (cmd: Command): CmdReturn => {
-  const flags = parseArgs(cmd.args, { string: ['expires'], boolean: ['never', 'session'] });
+  // '_' keeps the arguments strings: a link id can be all digits, and as a number it loses them.
+  const flags = parseArgs(cmd.args, { string: ['expires', '_'], boolean: ['never', 'session'] });
   const [sub, arg] = flags._.map(String);
   const fail = async (message: string): Promise<number> => {
     await cmd.writeError(`share-link: ${message}\n`);

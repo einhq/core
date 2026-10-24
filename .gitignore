@@ -45,4 +45,5 @@ src/builtin/ui/ui/
 
 # Module checkouts, for developing and running modules against this core: each module is a
 # repository of its own, and which ones a deployment runs is the deployment's business.
-/modules/
+/modules/*
+!/modules/README.md
