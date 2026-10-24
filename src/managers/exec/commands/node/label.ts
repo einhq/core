@@ -157,7 +157,7 @@ const labelPrune = async (cmd: Command): Promise<number> => {
 
 export const label = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {});
-  const [sub, pathArg, ...labels] = flags._ as string[];
+  const [sub, pathArg, ...labels] = flags._;
 
   try {
     switch (sub) {

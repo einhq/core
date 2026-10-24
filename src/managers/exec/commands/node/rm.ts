@@ -15,7 +15,7 @@ export const rm = async (cmd: Command): CmdReturn => {
     },
   });
 
-  const paths = flags._ as string[];
+  const paths = flags._;
 
   if (paths.length === 0) {
     await cmd.writeError('rm: missing operand\n');

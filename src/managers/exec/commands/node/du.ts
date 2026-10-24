@@ -35,7 +35,7 @@ export const du = async (cmd: Command): CmdReturn => {
 
   if (await reportUnknownFlags(cmd, unknown)) return 1;
 
-  const paths = (flags._ as string[]).length > 0 ? flags._ as string[] : ['.'];
+  const paths = flags._.length > 0 ? flags._ : ['.'];
   const summarize = flags.summarize;
   const rows: DuEntry[] = [];
   let total = 0;

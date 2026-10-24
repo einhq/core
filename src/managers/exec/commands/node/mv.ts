@@ -21,7 +21,7 @@ export const mv = async (cmd: Command): CmdReturn => {
   });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
 
-  const args = flags._ as string[];
+  const args = flags._;
 
   if (args.length < 2) {
     await cmd.writeError('mv: missing file operand\n');

@@ -18,7 +18,7 @@ const relationLinkName = (label: string, targetPath: string): string => `${label
 
 export const relate = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { string: ['reverse'] });
-  const [aArg, bArg, label] = flags._ as string[];
+  const [aArg, bArg, label] = flags._;
 
   if (!aArg || !bArg || !label) {
     await cmd.writeError('Usage: relate <a> <b> <label> [--reverse <label>]\n');
@@ -82,7 +82,7 @@ relate.spec = {
 
 export const unrelate = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {});
-  const [aArg, bArg, label] = flags._ as string[];
+  const [aArg, bArg, label] = flags._;
 
   if (!aArg) {
     await cmd.writeError('Usage: unrelate <link-path> | unrelate <a> <b> <label>\n');

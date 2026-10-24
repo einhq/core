@@ -42,7 +42,7 @@ const shapeOf = (text: string): PositionShape | undefined => {
  */
 export const positionGet = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {});
-  const targets = (flags._ as string[]).map(String);
+  const targets = flags._;
   if (targets.length === 0) {
     await cmd.writeError('position-get: missing path\n');
     return 1;

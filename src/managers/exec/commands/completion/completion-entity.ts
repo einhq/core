@@ -169,7 +169,7 @@ const completeKind = async (cmd: Command, kind: EntityKind, query: string, limit
 export const completeEntity = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { string: ['kind', 'limit'], alias: { l: 'limit' } });
 
-  const query = (flags._ as string[]).join(' ').trim().toLowerCase();
+  const query = flags._.join(' ').trim().toLowerCase();
   if (!query) {
     await cmd.writeJSON({ results: [] } satisfies EntityCompleteResult);
     return 0;

@@ -129,16 +129,32 @@ const withNegatableBooleans = (options: ArgsOptions): ArgsOptions => {
 };
 
 /**
- * `@std/cli`'s parseArgs, with values attached to a short option understood and every declared
- * boolean negatable. Same signature — use this everywhere instead of importing `@std/cli` directly.
+ * Keep every positional a string: `@std/cli` turns one that looks like a number into a number, so
+ * `007` would arrive as `7`, `1e3` as `1000` and a 19-digit id rounded. A command that wants a
+ * number converts its own argument.
  */
-export const parseArgs = ((args: string[], options?: ArgsOptions) => {
-  const names = valueTakingNames(options);
-  return stdParseArgs(
-    splitAttachedValues(attachEmptyValues(args, names), valueTakingLetters(names)),
-    withNegatableBooleans(options),
-  );
-}) as typeof stdParseArgs;
+const withStringPositionals = (options: ArgsOptions): ArgsOptions => ({ ...options, string: [...list(options?.string), '_'] });
+
+/** `R` with `_` as `string[]`; a mapped type, since `Omit` would collapse `R`'s index signature. */
+type StringPositionals<R> = { [K in keyof R]: K extends '_' ? string[] : R[K] };
+
+/** Retype `f` to return `_` as `string[]`, keeping its generic signature. */
+const typedPositionals = <A extends unknown[], R>(f: (...args: A) => R) => f as unknown as (...args: A) => StringPositionals<R>;
+
+/**
+ * `@std/cli`'s parseArgs, with positionals kept strings, values attached to a short option
+ * understood and every declared boolean negatable. Same signature, except that `_` is `string[]` —
+ * use this everywhere instead of importing `@std/cli` directly.
+ */
+export const parseArgs = typedPositionals(
+  ((args: string[], options?: ArgsOptions) => {
+    const names = valueTakingNames(options);
+    return stdParseArgs(
+      splitAttachedValues(attachEmptyValues(args, names), valueTakingLetters(names)),
+      withNegatableBooleans(withStringPositionals(options)),
+    );
+  }) as typeof stdParseArgs,
+);
 
 /**
  * Collect the flags a caller passed that the command never declared, for

@@ -10,7 +10,7 @@ export const dirname = async (cmd: Command): CmdReturn => {
     boolean: ['z'],
   });
 
-  const paths = flags._ as string[];
+  const paths = flags._;
 
   if (paths.length === 0) {
     await cmd.writeError('dirname: missing operand\n');

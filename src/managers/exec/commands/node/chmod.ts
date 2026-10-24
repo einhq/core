@@ -7,15 +7,12 @@ import type { CmdReturn } from '../../types.ts';
 import { applySubtree } from './share/walk.ts';
 
 export const chmod = async (cmd: Command): CmdReturn => {
-  // Positionals stay strings: `040` read as a number is 40, not a mode.
   const flags = parseArgs(cmd.args, {
     boolean: ['L', 'r'],
-    string: ['_'],
   });
 
   const recursive = flags.r;
-  // `string: ['_']` types `_` as a single string, though it holds every positional.
-  const [flagsMode, ...pathArgs] = flags._ as unknown as string[];
+  const [flagsMode, ...pathArgs] = flags._;
   const paths = pathArgs.length > 0 ? pathArgs : ['.'];
 
   const resolveOpts = {

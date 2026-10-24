@@ -15,7 +15,8 @@ export const seq = async (cmd: Command): CmdReturn => {
     },
   });
 
-  const args = flags._.map((a) => parseFloat(String(a)));
+  // A blank operand is not 0, though `Number` reads it so.
+  const args = flags._.map((a) => a.trim() === '' ? NaN : Number(a));
 
   let first = 1;
   let increment = 1;

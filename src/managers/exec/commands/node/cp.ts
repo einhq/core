@@ -13,7 +13,7 @@ export const cp = async (cmd: Command): CmdReturn => {
     },
   });
 
-  const args = flags._ as string[];
+  const args = flags._;
 
   if (args.length < 2) {
     await cmd.writeError('cp: missing file operand\n');

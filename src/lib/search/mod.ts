@@ -996,7 +996,7 @@ export const search = async (cmd: Command): CmdReturn => {
     alias: { l: 'limit' },
   });
 
-  const rawQuery = (flags._ as string[]).join(' ').trim();
+  const rawQuery = flags._.join(' ').trim();
 
   // A date typed into the box is a time filter, not text to match. Lifted out
   // before anything else sees the query, and only when the caller did not give

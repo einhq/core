@@ -8,7 +8,7 @@ export const pipelineRemove = async (cmd: Command): CmdReturn => {
     boolean: ['f', 'force'],
     alias: { f: 'force' },
   });
-  const ids = flags._ as string[];
+  const ids = flags._;
 
   if (ids.length === 0) {
     await cmd.writeError('pipeline-remove: missing instance id\n');

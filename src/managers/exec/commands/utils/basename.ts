@@ -13,7 +13,7 @@ export const basename = async (cmd: Command): CmdReturn => {
     boolean: ['a', 'z'],
   });
 
-  const paths = flags._ as string[];
+  const paths = flags._;
   const suffix = flags.suffix ?? (flags._.length > 1 && !flags.multiple ? String(flags._[1]) : '');
 
   if (paths.length === 0) {

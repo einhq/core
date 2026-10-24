@@ -90,7 +90,7 @@ const commentRemove = async (cmd: Command, path: string, slug: string): Promise<
 
 export const comment = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { string: ['body', 'body-base64'] });
-  const [sub, pathArg, slugArg] = flags._ as string[];
+  const [sub, pathArg, slugArg] = flags._;
 
   if (!sub || !pathArg) {
     await cmd.writeError(`${USAGE}\n`);

@@ -16,7 +16,7 @@ export const poolWake = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, { unknown: collectUnknownFlags(unknown) });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
-  const kinds = (flags._ as string[]).filter(Boolean);
+  const kinds = flags._.filter(Boolean);
 
   const woken = endRests({ kinds: kinds.length > 0 ? kinds : undefined });
 

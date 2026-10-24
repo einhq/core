@@ -39,7 +39,7 @@ export const pipelineInstances = async (cmd: Command): CmdReturn => {
   const color = colorer(!cmd.tty);
   const instancesPath = instancesRoot(cmd);
   const prefix = instancesPath + '/';
-  const names = flags._ as string[];
+  const names = flags._;
 
   const limit = flags.limit === undefined ? DEFAULT_LIMIT : Number(flags.limit);
   if (!Number.isFinite(limit) || limit <= 0) {

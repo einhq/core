@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.1.2
+MODULE_API_VERSION 0.2.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -936,7 +936,7 @@ src/client/mod.ts lowerBound c1c917c55e2a
 src/client/mod.ts moduleOf c234fba4d06a
 src/client/mod.ts nodeOwnership 6bb3cf997713 @signature=b6249f4a5a3b,props=21035dcfe863
 src/client/mod.ts offsetOf 5cff3d3e8883
-src/client/mod.ts parseArgs e4dd0c811608
+src/client/mod.ts parseArgs 0a752fffac0f
 src/client/mod.ts parseCaptureTime 2c0bd41e9df1
 src/client/mod.ts periodBoundsUtc df19c46dcfeb
 src/client/mod.ts pointInPolygon a97e58cc3aec

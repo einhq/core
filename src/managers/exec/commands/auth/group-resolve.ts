@@ -5,8 +5,8 @@ import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
 export const groupResolve = async (cmd: Command): CmdReturn => {
-  // Arguments as typed, so `0` is an id rather than no argument; an id is told from a name below.
-  const flags = parseArgs(cmd.args, { string: ['_'] });
+  // `0` is an id, not a missing argument; an id is told from a name below.
+  const flags = parseArgs(cmd.args);
   const input = flags._[0] as string | undefined;
 
   if (!input) {

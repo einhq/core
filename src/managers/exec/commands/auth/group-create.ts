@@ -7,8 +7,7 @@ import type { CmdReturn } from '../../types.ts';
 
 export const groupCreate = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    // `_` too, so the name is checked as it was typed: a word of digits would arrive as a number.
-    string: ['_', 'gid', 'title', 'description'],
+    string: ['gid', 'title', 'description'],
   });
   const name = flags._[0] as string | undefined;
   const title = flags.title;

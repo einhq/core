@@ -2,7 +2,7 @@
   "name": "mod-fixture",
   "version": "0.1.0",
   "description": "fixture module for the module contract test suite",
-  "coreApi": "^0.1.0",
+  "coreApi": "^0.2.0",
   "roots": ["/archive/fixtures"],
   "exports": {
     "./greeting": "./lib/greeting.ts"

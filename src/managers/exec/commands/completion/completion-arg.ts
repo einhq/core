@@ -11,7 +11,7 @@ export const completeArg = async (cmd: Command): CmdReturn => {
     const flags = parseArgs(cmd.args, {
       string: ['word'],
     });
-    const positionalArgs = flags._ as string[];
+    const positionalArgs = flags._;
     const word = flags.word || '';
 
     const command = positionalArgs[0];

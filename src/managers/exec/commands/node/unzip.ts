@@ -291,7 +291,7 @@ export const unzip = async (cmd: Command): CmdReturn => {
   });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
 
-  const args = flags._ as string[];
+  const args = flags._;
   if (args.length !== 1) {
     await cmd.writeError('unzip: expected one archive\nUsage: unzip [-n | -o] [-d DIR] ARCHIVE\n');
     return 1;
