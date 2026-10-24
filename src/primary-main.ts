@@ -8,7 +8,7 @@ import { LOGS_PATH, SERVICES_PATH } from './lib/paths.ts';
 import { resolve } from '@std/path';
 import { Pool } from 'pg';
 import { registerPoolStats } from './lib/metrics/runtime.ts';
-import { PriorityPool } from './lib/pg/mod.ts';
+import { PriorityPool, updateExtensions } from './lib/pg/mod.ts';
 import { boot } from './init/boot.ts';
 import { SYSTEM_TIME_ZONE } from './lib/datetime/mod.ts';
 import { BufferManager } from './managers/buffer/mod.ts';
@@ -108,6 +108,10 @@ async function main() {
   });
   // As in `PriorityPool`: a connection lost while idle is reported here, never thrown.
   pgListenPool.on('error', (err: Error) => logger.warn('idle listen connection lost', { error: err.message }));
+
+  // A new PostgreSQL image brings new extension libraries; the database takes their SQL side here,
+  // before anything uses it.
+  await updateExtensions(POSTGRES_URL);
 
   // Create root VFS
   logger.info('Initializing VFS...');
