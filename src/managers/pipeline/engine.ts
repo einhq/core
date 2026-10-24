@@ -16,7 +16,8 @@ import { NODE_TYPE_POOL } from '../../vfs/types/pool.ts';
 import { NODE_TYPE_QUEUE } from '../../vfs/types/queue.ts';
 import type { QueueAttrs } from '../../vfs/types/queue.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
-import { type EventSubscription, type NodeChildEntry, type NodeEvent, type NodeEventType, vfsRoutingKey } from '../../vfs/types.ts';
+import { NodeVersionConflictError } from '../../vfs/errors.ts';
+import { type EventSubscription, type NodeAttrsUpdate, type NodeChildEntry, type NodeEvent, type NodeEventType, vfsRoutingKey } from '../../vfs/types.ts';
 import type { Node, NodeId, NodePath, NodeType } from '../../vfs/node.ts';
 import type { NodeQueryCursor } from '../../vfs/query.ts';
 import type { UserId } from '../../lib/mode/mod.ts';
@@ -840,15 +841,38 @@ export class PipelineEngine {
   /**
    * Add (or refresh) the pool job backing a delegated step. The dedup key is
    * the step path, so this is idempotent and the caller can re-run it freely.
+   *
+   * The step is read again once the job is in. `pipeline cancel` skips a step and then drops its
+   * job, without this engine's lock, so an advance that read the step `waiting`, or wrote it so
+   * before the cancel came, can add the job after the cancel dropped it. Whichever of the skip
+   * and this read comes second sees the other: a step found skipped here loses its job, and one
+   * not yet skipped has the cancel's drop still to come (ein/core#722).
    */
   private async addPoolJob(pool: string, stepPath: string, job: Omit<PoolJobInput, 'dedupKey'>): Promise<void> {
+    const poolPath = join(this.poolsRoot, pool);
     try {
-      await this.vfs.poolAdd(ADMIN_ACCESS, join(this.poolsRoot, pool), { ...job, dedupKey: stepPath });
+      await this.vfs.poolAdd(ADMIN_ACCESS, poolPath, { ...job, dedupKey: stepPath });
     } catch (err) {
       // Leaving the step 'waiting' is correct: the next advance retries the add,
       // and until then the step is visibly stuck rather than silently dropped.
       logger.error('failed to add pool job', { pool, step: stepPath, error: err });
+      return;
     }
+
+    let cancelled: boolean;
+    try {
+      cancelled = (await this.vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, stepPath)).attrs.status === 'skipped';
+    } catch {
+      cancelled = true; // Removed with its instance.
+    }
+    if (!cancelled) return;
+
+    try {
+      await this.vfs.poolCancel(ADMIN_ACCESS, poolPath, { dedupKey: stepPath });
+    } catch {
+      // Pool or job already gone — nothing to drop.
+    }
+    logger.info('pool job added for a step cancelled meanwhile, dropped', { pool, step: stepPath });
   }
 
   /** `pipeline.instance.completed` / `.failed`, naming the steps that failed. */
@@ -1954,9 +1978,7 @@ export class PipelineEngine {
     if (steps.length === 0) {
       if (Date.now() - instanceAttrs.startedAt < EMPTY_INSTANCE_GRACE_MS) return false;
 
-      await this.vfs.update<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath, {
-        attrs: { status: 'failed', completedAt: Date.now() },
-      });
+      if (!await this.writeInstanceIfStill(instancePath, instanceAttrs.status, { status: 'failed', completedAt: Date.now() })) return false;
       logger.error('pipeline instance never got its steps, failing it', { instance: instancePath });
       await this.emitLifecycle('failed', instancePath, instanceAttrs, new Map());
       return true;
@@ -2171,9 +2193,7 @@ export class PipelineEngine {
     // Determine instance final state
     if (!anyPending && !anyRunning && !anyQueued && !anyWaiting) {
       const finalStatus = anyFailed ? 'failed' : 'completed';
-      await this.vfs.update<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath, {
-        attrs: { status: finalStatus, completedAt: Date.now() },
-      });
+      if (!await this.writeInstanceIfStill(instancePath, instanceAttrs.status, { status: finalStatus, completedAt: Date.now() })) return false;
       logger.info('pipeline instance finished', { instance: instancePath, status: finalStatus });
       await this.emitLifecycle(finalStatus, instancePath, instanceAttrs, stepMap);
       return true;
@@ -2187,12 +2207,39 @@ export class PipelineEngine {
       // `executingSince` rides the same write: it is only meaningful while running, and
       // clearing it on the way back to queued is what stops a later advance reporting the
       // elapsed time of a run that has already ended.
-      await this.vfs.update<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath, {
-        attrs: { status: live, executingSince: live === 'running' ? Date.now() : undefined },
-      });
+      await this.writeInstanceIfStill(instancePath, instanceAttrs.status, { status: live, executingSince: live === 'running' ? Date.now() : undefined });
     }
 
     return false; // still has pending, queued or running work
+  }
+
+  /**
+   * Write the instance, as long as its status is still `read`, the one this advance decided on.
+   *
+   * `pipeline cancel` writes the instance without this engine's lock, so an advance that read it
+   * live can come to write after the cancel has. Unconditionally, the flip between `queued` and
+   * `running` would put the cancelled instance back to live, and the next advance, finding every
+   * step skipped, would finish it `completed` (ein/core#722). Whoever changed the status keeps
+   * it; their write's event brings the next advance, which reads what they wrote.
+   *
+   * `updateMany` for its `guard`, which it asks of the node under the lock it writes it under.
+   *
+   * @returns false, with nothing written, when the status had changed.
+   */
+  private async writeInstanceIfStill(
+    instancePath: string,
+    read: PipelineStatus,
+    attrs: NodeAttrsUpdate<PipelineInstanceAttrs>,
+  ): Promise<boolean> {
+    const [result] = await this.vfs.updateMany<PipelineInstanceAttrs>(ADMIN_ACCESS, [instancePath], {
+      attrs,
+      guard: (node) => {
+        if (node.attrs.status !== read) throw new NodeVersionConflictError(node.id);
+      },
+    });
+    if (result.status === 'fulfilled') return true;
+    if (result.reason instanceof NodeVersionConflictError) return false;
+    throw result.reason;
   }
 
   /**

@@ -160,7 +160,10 @@ async function cancelPoolJobs(cmd: Command, instancePath: string): Promise<void>
  * with this command. An advance writes a step live and then re-reads the
  * instance (`stepOutlivedInstance`): a step it writes after the loop below has
  * read it is therefore one it sees cancelled and takes back itself
- * (ein/core#483).
+ * (ein/core#483). The steps go before their pool jobs for the same reason: an
+ * advance re-reads the step after adding its job, and drops a job it added
+ * after the drop below. The advance writes the instance itself only while its
+ * status is the one it read, so it never writes over `cancelled` (ein/core#722).
  */
 export async function cancelInstance(cmd: Command, instancePath: string): Promise<void> {
   await cmd.sys.vfs.update<PipelineInstanceAttrs>(cmd.access, instancePath, {

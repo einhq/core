@@ -52,10 +52,7 @@ export class NodeTransactionError extends NodeError {
 
 export class NodeVersionConflictError extends NodeError {
   constructor(nodeId: string) {
-    super(
-      `Version conflict for node: ${nodeId}. Node was modified by another operation.`,
-      'NODE_VERSION_CONFLICT',
-    );
+    super(`version conflict for node ${nodeId}: it was changed by another write`, 'NODE_VERSION_CONFLICT');
     this.name = 'NodeVersionConflictError';
   }
 }

@@ -149,19 +149,19 @@ Deno.test({
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { status: 'waiting', startedAt: undefined } });
     });
 
-    await t.step('completed instances move from running to completed', async () => {
+    await t.step('a cancelled instance leaves the live counts for cancelled', async () => {
+      // The cancel has written the instance by the time it answers, and an advance still
+      // working from what it read before cannot write over it (ein/core#722), so there is
+      // nothing to wait for.
       const cancelled = await client.exec(`pipeline cancel ovw/${instanceId}`);
       assertEquals(cancelled.success, true, `cancel failed: ${JSON.stringify(cancelled)}`);
-
-      await waitFor(async () => {
-        const row = (await overview()).instances.byPipeline.find((r) => r.pipeline === 'ovw');
-        return row?.running === 0;
-      }, 'instance to leave running');
 
       const data = await overview();
       const row = data.instances.byPipeline.find((r) => r.pipeline === 'ovw');
       assertEquals(row?.total, 1);
       assertEquals(row?.cancelled, 1);
+      assertEquals(row?.running, 0);
+      assertEquals(row?.queued, 0);
       assertEquals(data.active.some((a) => a.pipeline === 'ovw'), false);
       // Cancelling finalises the step and drops its pool job with it.
       assertEquals(await nobodyReady(), 0);

@@ -1,15 +1,17 @@
 /**
  * A cancel that lands inside an advance does not leave a live step under a
- * cancelled instance (ein/core#483).
+ * cancelled instance (ein/core#483), nor a live instance or a pool job behind
+ * it (ein/core#722).
  *
  * `pipeline cancel` does not take the engine's per-instance lock. An advance
  * that has already read a step `pending` goes on to write it `waiting` (pooled)
  * or `queued` (inline) — after the cancel has skipped it — and nothing would
- * ever finish it.
+ * ever finish it. One that has read the instance live goes on to write its
+ * status, and one that has read a step `waiting` restores its pool job.
  *
- * The step's own condition is the cancel: it runs after the advance has read
- * the step and before it writes it, which is exactly the losing interleaving,
- * every time.
+ * A step's own condition is the cancel: it runs after the advance has read
+ * the instance and its steps and before it writes anything from them, which is
+ * exactly the losing interleaving, every time.
  */
 
 import { PIPELINE_INSTANCES_PATH, POOLS_PATH } from '../../../lib/paths.ts';
@@ -110,6 +112,69 @@ Deno.test({
 
       assertEquals((await vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, join(instancePath, 'steps', 'work'))).attrs.status, 'skipped');
       assertEquals((await vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs.status, 'cancelled');
+    });
+
+    await t.step('a cancelled instance is not put back to live, nor its pool job restored', async () => {
+      // `gate` and `hold` park in the pool, and `abort` waits on `gate` with the cancel for its
+      // condition. The advance that runs it read the instance `running` and `hold` `waiting`, so
+      // after the cancel it goes on to flip the instance `queued` and, `abort` coming first, to
+      // find `hold`'s job gone and add it back.
+      const name = 'race-revive';
+      await client.exec(`mkfile /work/${name}.yaml`);
+      await writeFile(
+        `/work/${name}.yaml`,
+        [
+          `name: ${name}`,
+          'trigger:',
+          '  event: updated',
+          '  nodeType: file',
+          '  match:',
+          `    mimetype: application/x-${name}`,
+          'steps:',
+          '  abort:',
+          '    command: race-never',
+          '    dependsOn: [gate]',
+          `    condition: pipeline cancel ${name}/$(cat /tmp/race/${name}); exit 1`,
+          '  gate:',
+          '    command: race-never',
+          '    pool: racepool',
+          '  hold:',
+          '    command: race-never',
+          '    pool: racepool',
+        ].join('\n'),
+      );
+      assertEquals((await client.exec(`pipeline define /work/${name}.yaml`)).success, true);
+
+      await client.exec(`mknode -t file --as "name=${name}.bin" --as "mimetype=application/x-${name}" /work/${name}.bin`);
+      const id = (await vfs.get(ADMIN_ACCESS, `/work/${name}.bin`)).id;
+      await client.exec(`echo ${id} > /tmp/race/${name}`);
+      await client.exec(`chmod 644 /work/${name}.bin`);
+
+      const instancePath = join(PIPELINE_INSTANCES_PATH, name, id);
+      const step = (stepName: string) => join(instancePath, 'steps', stepName);
+      const status = async (path: string) => (await vfs.get<PipelineInstanceAttrs | PipelineStepAttrs>(ADMIN_ACCESS, path)).attrs.status;
+
+      await waitFor(async () => await status(step('gate')) === 'waiting' && await status(step('hold')) === 'waiting', 'both pooled steps to wait');
+
+      // As a worker would on claiming it: the next advance takes the instance to running.
+      await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, step('hold'), { attrs: { status: 'running', startedAt: Date.now() } });
+      await waitFor(async () => await status(instancePath) === 'running', 'the instance to run');
+
+      // One write, so the advance that runs `abort` reads both: the instance still `running`, `hold` back to `waiting`.
+      const written = await vfs.updateEach<PipelineStepAttrs>(ADMIN_ACCESS, [
+        { ref: step('hold'), attrs: { status: 'waiting', startedAt: undefined } },
+        { ref: step('gate'), attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0 } },
+      ]);
+      assertEquals(written.map((result) => result.status), ['fulfilled', 'fulfilled']);
+
+      await waitFor(async () => await status(step('abort')) === 'skipped', 'the cancel to run');
+      // Let the advance that lost the race finish its writes, and the advance after it.
+      await new Promise((r) => setTimeout(r, 500));
+
+      assertEquals(await status(instancePath), 'cancelled');
+      assertEquals(await status(step('hold')), 'skipped');
+      const jobs = await vfs.poolJobs(ADMIN_ACCESS, POOL, { state: ['ready', 'claimed'], dedupKey: step('hold') });
+      assertEquals(jobs.length, 0);
     });
   } finally {
     client.close();

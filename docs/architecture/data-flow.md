@@ -816,9 +816,12 @@ Management commands:
   queued again under kinds no worker may offer any more. `mod setup` undefines a pipeline its
   module no longer ships. Finished instances are left to the prune.
 - `pipeline cancel <id>` — set a running instance's status cancelled, then mark its steps
-  skipped. It runs outside the engine's per-instance lock, so an advance re-reads the
-  instance after writing a step `waiting`/`queued` and skips the step itself if the cancel
-  got there first.
+  skipped and drop their pool jobs. It runs outside the engine's per-instance lock, so an
+  advance re-reads the instance after writing a step `waiting`/`queued` and skips the step
+  itself if the cancel got there first; re-reads the step after adding its pool job and drops
+  the job if the step was skipped meanwhile; and writes the instance's status only while it is
+  still the one the advance read (`updateMany`'s `guard`), so the cancel's `cancelled` is never
+  written over.
 - `pipeline restart <id>` — resume a failed/cancelled instance by re-queuing only its
   failed steps (distinct from `rerun`, which replaces from the definition).
 
