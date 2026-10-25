@@ -108,7 +108,10 @@ after every face node and crop has been processed, including a zero-face result,
 update derives `media.faces.completed`. `media-face-transfer` starts from this fact, so legacy
 manual-tag transfer sees final face geometry and is independently visible and retryable without
 holding the detection job open. Transcription of video and audio starts from `metadata.extracted`,
-and `media.transcript.generated` (the transcript gaining `transcribedAt`) starts their voices.
+and `media.transcript.generated` (the transcript gaining `transcribedAt`) starts their voices. A
+video's `media.faces.completed` is derived only on the write that sets `facesAt`; on a video whose
+voices came first it ties them to the faces (`media-speaker-faces`), and a face of such a video
+changing person is `media.speakers.face-changed`, which decides its voices again.
 
 The transcode term needs its own read because `media-transcode` writes under
 `thumbnails/` next to the poster frames: a video with still frames and no transcode has
