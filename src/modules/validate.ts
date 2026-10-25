@@ -180,6 +180,9 @@ export const checkReference = (manifest: ModuleManifest): ValidationResult => {
     if (!doc?.type || typeof doc.type !== 'string') warnings.push(`${manifest.name}: a node type needs a type`);
     else if (!doc.label || !doc.description) warnings.push(`${manifest.name}: node type '${doc.type}' needs a label and a description`);
     else if (!NODE_TYPE_CATEGORIES.has(doc.category)) warnings.push(`${manifest.name}: node type '${doc.type}': category must be content, structure or system`);
+    else if (doc.searchable !== undefined && typeof doc.searchable !== 'boolean') warnings.push(`${manifest.name}: node type '${doc.type}': searchable must be true or false`);
+    else if (doc.searchable && doc.root === undefined) warnings.push(`${manifest.name}: node type '${doc.type}': a searchable type needs a root`);
+    else if (doc.plural !== undefined && (typeof doc.plural !== 'string' || !doc.plural)) warnings.push(`${manifest.name}: node type '${doc.type}': plural must be a name`);
   }
   for (const doc of manifest.environment ?? []) {
     if (!doc?.key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(doc.key)) warnings.push(`${manifest.name}: invalid environment key '${doc?.key}'`);

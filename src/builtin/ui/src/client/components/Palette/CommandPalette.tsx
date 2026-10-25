@@ -46,7 +46,7 @@ export function CommandPalette() {
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
         onKeyDown={finder.onKeyDown}
-        placeholder='Search, or go to a page, person or album…'
+        placeholder='Search, or go to a page…'
         size='lg'
         variant='unstyled'
         px='md'

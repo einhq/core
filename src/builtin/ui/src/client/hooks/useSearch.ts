@@ -10,7 +10,7 @@ import { type ScrollRoot, usePrependHold } from './usePrependHold.ts';
 // The vocabulary itself lives in lib/, so the URL codec can use it without importing this
 // file and, through it, the WebSocket client. Re-exported so `@ein/ui/hooks` stays the one place
 // components import search types from.
-export { ENTITY_KIND_FILTERS, ENTITY_KINDS, FILE_KINDS, MEDIA_KIND_FILTERS, MEDIA_KINDS, SEARCH_KINDS, SEARCH_SORTS } from '../lib/search-filters.ts';
+export { ENTITY_KINDS, FILE_KINDS, MEDIA_KIND_FILTERS, MEDIA_KINDS, SEARCH_KINDS, SEARCH_SORTS } from '../lib/search-filters.ts';
 export type { MediaKindFilter, SearchFilters, SearchKind, SearchRegion, SearchSort } from '../lib/search-filters.ts';
 
 import type { SearchFilters } from '../lib/search-filters.ts';

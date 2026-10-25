@@ -24,6 +24,13 @@ export type NodeTypeDoc = {
    * what an `@` completes to.
    */
   root?: string;
+  /**
+   * The Search page finds nodes of this type and offers it as a choice of what to show. Needs a
+   * `root`, and a type the `search` command knows (`--kind`).
+   */
+  searchable?: boolean;
+  /** What a reader calls several of them — "People"; the label with an `s` when not given. */
+  plural?: string;
 };
 
 /**

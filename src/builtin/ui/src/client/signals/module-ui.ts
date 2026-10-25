@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals-react';
 import { uiRuntime } from '@ui/shared';
-import type { ModuleRoute, UiManifest } from '@ui/ui-cache';
+import type { ModuleRoute, SearchableKind, UiManifest } from '@ui/ui-cache';
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
 import { type DataRouter, type Location, matchPath, matchRoutes, type NavigationType, type RouteObject, type To } from 'react-router-dom';
@@ -69,6 +69,16 @@ export const openRoute = (type: string, path: string): string | null => {
     .replaceAll('{parent}', encodeURIComponent(segments.at(-2) ?? ''));
 };
 
+/**
+ * The node types the Search page finds, from every module's `nodeTypes` marked `searchable`, in
+ * module order: what it searches for and offers as choices of what to show. Filled when the
+ * manifest is read; empty when no installed module has any.
+ */
+export const searchableKinds = signal<SearchableKind[]>([]);
+
+/** The paths the installed modules route, as they write them (`/media`, `/people/:name`); filled when the manifest is read. */
+export const moduleRoutePaths = signal<ReadonlySet<string>>(new Set());
+
 let manifestPromise: Promise<UiManifest | null> | null = null;
 
 /**
@@ -85,6 +95,8 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
       // rebuilds them at every boot, so this is a shell deployed without restarting EiN.
       const runtime = uiRuntime().id;
       if (manifest) nodeRoutes.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.open ?? {}));
+      if (manifest) moduleRoutePaths.value = new Set(Object.values(manifest.modules).flatMap((entry) => entry.routes.map((route) => route.path)));
+      if (manifest) searchableKinds.value = Object.values(manifest.modules).flatMap((entry) => entry.search ?? []);
       if (manifest && manifest.runtime !== runtime) {
         console.warn(`module bundles were built for UI runtime ${manifest.runtime}, this shell is ${runtime}: run ui-build --all`);
       }

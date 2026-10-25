@@ -14,23 +14,23 @@ adds to the machinery core already has.
 
 ## At a glance
 
-| Field               | Group     | In one line                                                      | Acts at       |
-| ------------------- | --------- | ---------------------------------------------------------------- | ------------- |
-| `name`              | identity  | the module's name; also its alias prefix (`@archive/…`)          | always        |
-| `version`           | identity  | its semver version, which dependents' ranges are checked against | `mod setup`   |
-| `description`       | identity  | one sentence for `mod list` and the docs                         | display       |
-| `author`, `license` | identity  | free text                                                        | display       |
-| `coreApi`           | identity  | the range of core's module contract it is written against        | `mod setup`   |
-| `exports`           | code      | the files other modules may import                               | load / check  |
-| `imports`           | code      | its own private aliases and external packages                    | load / check  |
-| `dependencies`      | code      | modules it needs: their exports and commands                     | `mod setup`   |
-| `config.options`    | settings  | the settings it owns, shown on the settings page                 | `mod setup`   |
-| `environment`       | reference | environment variables it reads, documented                       | docs          |
-| `nodeTypes`         | reference | the node types it defines, documented; what an `@` completes to  | docs, runtime |
-| `roots`             | archive   | directories under `/archive` its content lives in                | `mod setup`   |
-| `indexes`           | archive   | database indexes on node attrs it queries                        | `mod setup`   |
-| `ui.routes`         | browser   | its pages, by route                                              | `ui-build`    |
-| `ui.open`           | browser   | which route opens a node of a type                               | `ui-build`    |
+| Field               | Group     | In one line                                                                               | Acts at                   |
+| ------------------- | --------- | ----------------------------------------------------------------------------------------- | ------------------------- |
+| `name`              | identity  | the module's name; also its alias prefix (`@archive/…`)                                   | always                    |
+| `version`           | identity  | its semver version, which dependents' ranges are checked against                          | `mod setup`               |
+| `description`       | identity  | one sentence for `mod list` and the docs                                                  | display                   |
+| `author`, `license` | identity  | free text                                                                                 | display                   |
+| `coreApi`           | identity  | the range of core's module contract it is written against                                 | `mod setup`               |
+| `exports`           | code      | the files other modules may import                                                        | load / check              |
+| `imports`           | code      | its own private aliases and external packages                                             | load / check              |
+| `dependencies`      | code      | modules it needs: their exports and commands                                              | `mod setup`               |
+| `config.options`    | settings  | the settings it owns, shown on the settings page                                          | `mod setup`               |
+| `environment`       | reference | environment variables it reads, documented                                                | docs                      |
+| `nodeTypes`         | reference | the node types it defines, documented; what an `@` completes to and the Search page finds | docs, runtime, `ui-build` |
+| `roots`             | archive   | directories under `/archive` its content lives in                                         | `mod setup`               |
+| `indexes`           | archive   | database indexes on node attrs it queries                                                 | `mod setup`               |
+| `ui.routes`         | browser   | its pages, by route                                                                       | `ui-build`                |
+| `ui.open`           | browser   | which route opens a node of a type                                                        | `ui-build`                |
 
 "Acts at" says when the field matters. `mod setup` runs for every module at each boot, in
 dependency order, so a `mod setup` field takes effect on the next deploy. "Runtime" means core
@@ -219,6 +219,16 @@ Typing `@ann` lists the names of nodes of every such type directly under its roo
 ([contributions/registry.ts](../../src/lib/contributions/registry.ts)); a type is the first
 module's to claim it. `completion-entity` answers, listing each type's names and caching them for
 a few seconds, since it runs on every keystroke.
+
+A type with a root may also be `searchable`: the Search page finds its nodes and offers it as a
+choice of what to show, by its `plural` (the label with an `s` when there is none). `ui-build`
+carries these into the UI manifest as the module's `search`, in the order of `nodeTypes`, so
+without the module the page neither searches for its types nor names them; with fewer than two
+the choice is left out. The kind must be one the `search` command takes as `--kind`.
+
+```json
+{ "type": "person", "label": "Person", "category": "content", "root": "/archive/people", "searchable": true, "plural": "People", "description": "…" }
+```
 
 ## The archive
 

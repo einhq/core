@@ -20,18 +20,11 @@ export const MEDIA_KINDS: ReadonlySet<string> = new Set<SearchKind>(['photo', 'v
 /** The kinds that are files rather than the things holding them. */
 export const FILE_KINDS: readonly SearchKind[] = ['photo', 'video', 'audio', 'document'];
 
-/** The kinds a thing can be rather than a file: what the search page finds. */
+/**
+ * The kinds a thing can be rather than a file. Which of them the Search page finds is the
+ * installed modules' to say (`searchableKinds`).
+ */
 export const ENTITY_KINDS: readonly SearchKind[] = ['album', 'person', 'location', 'device', 'track'];
-
-/** The entity-type selector shared by Search and label result browsing. */
-export const ENTITY_KIND_FILTERS: readonly { value: string; label: string; kinds: readonly SearchKind[] }[] = [
-  { value: 'all', label: 'All', kinds: ENTITY_KINDS },
-  { value: 'album', label: 'Albums', kinds: ['album'] },
-  { value: 'person', label: 'People', kinds: ['person'] },
-  { value: 'location', label: 'Locations', kinds: ['location'] },
-  { value: 'device', label: 'Devices', kinds: ['device'] },
-  { value: 'track', label: 'Tracks', kinds: ['track'] },
-];
 
 /**
  * The media page's type filter, as one exclusive choice rather than a set of

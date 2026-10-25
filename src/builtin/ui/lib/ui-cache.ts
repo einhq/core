@@ -14,6 +14,9 @@ export const UI_MANIFEST_PATH = `${UI_CACHE_PATH}/manifest.json`;
  */
 export type ModuleRoute = { id: string; path: string };
 
+/** A node type the Search page finds, and what its choice of what to show is called: `{ kind: 'person', label: 'People' }`. */
+export type SearchableKind = { kind: string; label: string };
+
 /** One module in the manifest. */
 export type ModuleUi = {
   /** The bundle's URL (`/file/var/cache/ui/<module>/<hash>.js`). */
@@ -23,6 +26,8 @@ export type ModuleUi = {
   routes: ModuleRoute[];
   /** Which of its routes opens a node of a type (`mod.json` `ui.open`): `{ "person": "/people/{name}" }`. */
   open?: Record<string, string>;
+  /** Its node types the Search page finds (`mod.json` `nodeTypes` marked `searchable`), in their order. */
+  search?: SearchableKind[];
 };
 
 /** `/var/cache/ui/manifest.json`. */

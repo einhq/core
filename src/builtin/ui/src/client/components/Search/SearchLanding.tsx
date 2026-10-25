@@ -44,8 +44,8 @@ export function SearchLanding({ recent, onForget, onClear }: SearchLandingProps)
       {panels.map((panel) => <RoutePanel key={panel.id} path={panelRoute(panel)} />)}
 
       {recent.length === 0 && panels.length === 0 && (
-        <EmptyState title='Search the archive'>
-          <Text span size='sm'>Type a name, a location, a year or what is in the picture; @ picks a person, location, label or device.</Text>
+        <EmptyState title='Search for anything'>
+          <Text span size='sm'>Type a name, a year or a few words; @ picks something by name.</Text>
         </EmptyState>
       )}
     </Stack>

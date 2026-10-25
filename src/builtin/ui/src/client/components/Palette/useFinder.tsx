@@ -2,11 +2,11 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CommandFind } from '@ein/api';
-import { useEntityComplete } from '../../hooks/useMentionComplete.ts';
+import { type EntityCompleteKind, useEntityComplete } from '../../hooks/useMentionComplete.ts';
 import { paramsFromFilters } from '../../lib/search-params.ts';
 import { shq } from '../../lib/shquote.ts';
 import { matchesText } from '../../lib/text-match.ts';
-import { openRoute } from '../../signals/module-ui.ts';
+import { moduleRoutePaths, openRoute, searchableKinds } from '../../signals/module-ui.ts';
 import { runNavAction, uiNav } from '../../signals/nav.ts';
 import { execCommand } from '../../signals/shell-client.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
@@ -18,7 +18,6 @@ type FinderItem = { id: string; group: string; label: string; detail?: string; i
 /** What starts a query for commands rather than for the archive. */
 export const COMMAND_PREFIX = '>';
 
-const ENTITY_KINDS = ['album', 'person', 'location', 'device'] as const;
 /** How many commands a query lists, from the command index. */
 const COMMANDS = 6;
 
@@ -42,10 +41,11 @@ export type Finder = {
 /**
  * The finder behind the top bar's search box and the Mod+K dialog: one list over what the app can
  * reach. With nothing typed it lists the sidebar's pages and the top bar's actions. Typed words
- * give a search of the archive first, so Enter takes them to the Search page unless an arrow chose
- * another row, then one of the media, the pages and actions they match, and the albums, people,
- * locations and devices whose names match (`completion-entity`). A query starting with `>` lists
- * the commands that match it by meaning instead (`docs find`), each opening its reference.
+ * give a search first, so Enter takes them to the Search page unless an arrow chose another row,
+ * then one of the media when a module draws the Media page, the pages and actions they match, and
+ * the things of the kinds the Search page finds whose names match (`completion-entity`). A query
+ * starting with `>` lists the commands that match it by meaning instead (`docs find`), each
+ * opening its reference.
  *
  * `enabled` is whether the list is shown, so nothing is looked up for a closed one; `done` is
  * called before a row runs, for the host to close.
@@ -81,8 +81,13 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
     };
   }, [enabled, debouncedCommand]);
 
+  // The kinds the Search page finds are the ones worth going to by name.
+  const kinds = searchableKinds.value;
+  const entityKinds = useMemo(() => kinds.map((entry) => entry.kind as EntityCompleteKind), [kinds]);
+  const entityGroup = kinds.map((entry, index) => index === 0 ? entry.label : entry.label.toLowerCase()).join(', ');
   const entityQuery = enabled && !commandMode && words ? words : undefined;
-  const { hits: entities, loading: findingEntities } = useEntityComplete(entityQuery, ENTITY_KINDS);
+  const { hits: entities, loading: findingEntities } = useEntityComplete(entityQuery, entityKinds);
+  const media = moduleRoutePaths.value.has('/media');
 
   const items = useMemo((): FinderItem[] => {
     const after = (run: () => void) => () => {
@@ -137,18 +142,20 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
         icon: <TablerIcon name='search' size={18} />,
         run: after(() => navigate(`/search?${paramsFromFilters({ query: words })}`)),
       },
-      {
-        id: 'search:media',
-        group: 'Search',
-        label: `Pictures of "${words}"`,
-        icon: <TablerIcon name='photo-search' size={18} />,
-        run: after(() => navigate(`/media?q=${encodeURIComponent(words)}`)),
-      },
+      ...(media
+        ? [{
+          id: 'search:media',
+          group: 'Search',
+          label: `Pictures of "${words}"`,
+          icon: <TablerIcon name='photo-search' size={18} />,
+          run: after(() => navigate(`/media?q=${encodeURIComponent(words)}`)),
+        }]
+        : []),
     ];
     const listed = [...pages, ...actions].filter((item) => matchesText([item.label, item.detail], words));
     const found: FinderItem[] = entities.map((hit) => ({
       id: `entity:${hit.path}`,
-      group: 'Albums, people, locations',
+      group: entityGroup,
       label: hit.name,
       detail: hit.kind,
       icon: <EntityThumb hit={hit} />,
@@ -158,7 +165,7 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
       }),
     }));
     return [...searches, ...listed, ...found];
-  }, [words, commandMode, commandTooShort, commands, entities, uiNav.value, navigate]);
+  }, [words, commandMode, commandTooShort, commands, entities, entityGroup, media, uiNav.value, navigate]);
 
   // Typed words start on their first row, the search; with nothing typed Enter does nothing until an arrow picks a row.
   useEffect(() => setActive(words ? 0 : -1), [words]);

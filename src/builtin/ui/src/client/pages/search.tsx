@@ -21,26 +21,16 @@ import { useLocalStorage } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SearchFacetsResponse } from '@ein/api';
-import { execCommand, panelRoute, panelsOf } from '@ein/ui/signals';
+import { execCommand, panelRoute, panelsOf, searchableKinds } from '@ein/ui/signals';
 import { TAGS_ROOT } from '@ein/paths';
 import { useSearchParams } from 'react-router-dom';
-import {
-  buildSearchCommand,
-  ENTITY_KIND_FILTERS,
-  ENTITY_KINDS,
-  hasAnyFilter,
-  type SearchFilters,
-  useLoadMoreSentinel,
-  useNodeNames,
-  useSearch,
-  useSearchBox,
-} from '@ein/ui/hooks';
-import { filtersFromParams, type MentionKind, naturalSearchDetails, paramsFromFilters, splitSubject, textFromFilters } from '@ein/ui/lib';
+import { buildSearchCommand, hasAnyFilter, type SearchFilters, useLoadMoreSentinel, useNodeNames, useSearch, useSearchBox } from '@ein/ui/hooks';
+import { filtersFromParams, MENTION_KINDS, naturalSearchDetails, paramsFromFilters, SEARCH_KINDS, type SearchKind, splitSubject, textFromFilters } from '@ein/ui/lib';
 import { SearchLanding } from '../components/Search/SearchLanding.tsx';
 import { forgetSearch, type RecentSearch, recentSearchesFrom, rememberSearch } from '../lib/recent-searches.ts';
 
-/** What an `@` may resolve to here. An album is a result on this page, not a filter for it. */
-const MENTION_KINDS: readonly MentionKind[] = ['person', 'location', 'label', 'device'];
+/** A choice of what the page shows: every kind it finds, or one of them. */
+type KindFilter = { value: string; label: string; kinds: readonly SearchKind[] };
 
 /** Results per page, and how many skeleton cards stand in for the next one. */
 const PAGE_SIZE = 60;
@@ -54,24 +44,28 @@ const readRecent = (stored: string | undefined): RecentSearch[] => {
   }
 };
 
+/** The choice whose kinds are exactly these. */
+const kindFilterOf = (choices: readonly KindFilter[], kinds: readonly string[]): KindFilter | undefined =>
+  choices.find((entry) => entry.kinds.length === kinds.length && entry.kinds.every((kind) => kinds.includes(kind)));
+
 /** What a search asked for, in a few words: the box's text, then its years and kinds. */
-const searchLabel = (filters: SearchFilters, text: string): string => {
+const searchLabel = (filters: SearchFilters, text: string, choices: readonly KindFilter[]): string => {
   const years = filters.fromYear !== undefined && filters.toYear !== undefined && filters.fromYear !== filters.toYear
     ? `${filters.fromYear}–${filters.toYear}`
     : String(filters.fromYear ?? filters.toYear ?? '');
-  const kinds = filters.kinds?.length
-    ? (ENTITY_KIND_FILTERS.find((entry) => entry.kinds.length === filters.kinds!.length && entry.kinds.every((kind) => filters.kinds!.includes(kind)))?.label ?? '')
-    : '';
+  const kinds = filters.kinds?.length ? (kindFilterOf(choices, filters.kinds)?.label ?? '') : '';
   return [text, years, kinds].filter(Boolean).join(' · ');
 };
 
 /**
  * Search: the things that hold media, rather than the media itself.
  *
- * Albums, people, locations, devices and tracks — the entities a picture hangs off.
- * The pictures are on the Media page, which is the same query pointed at files;
- * splitting them is what lets each side have controls that suit it, instead of
- * one page whose filters are half-relevant whatever you are looking for.
+ * The kinds the installed modules mark `searchable` in their `nodeTypes` (`searchableKinds`) —
+ * with the archive, its albums, people, locations and devices: the entities a picture hangs off.
+ * The pictures are on the Media page, which is the same query pointed at files; splitting them
+ * is what lets each side have controls that suit it, instead of one page whose filters are
+ * half-relevant whatever you are looking for. The choice of what to show lists those kinds, and
+ * is left out when there is only one or none to choose.
  *
  * The box is the Media page's (`useSearchBox`): `@` picks an entity exactly, and the words are
  * read as natural language too — "album summer 2019" is the album kind, a word and a year —
@@ -89,13 +83,32 @@ export default function SearchPage() {
   // Nothing asked yet: the landing instead of a search for everything.
   const landing = !hasAnyFilter(filters);
 
-  // Entity kinds only. Left unset the command would search files too, and the
-  // grid here has no way to show one.
-  const searchKinds = filters.kinds?.length ? filters.kinds : [...ENTITY_KINDS];
-  const { results, loading, error, hasMore, loadMore, outcome } = useSearch({ ...filters, kinds: searchKinds, limit: PAGE_SIZE, enabled: !landing });
+  // What the installed modules have the page find, as far as the `search` command knows the kind.
+  const installed = searchableKinds.value;
+  const findable = useMemo(
+    () => installed.filter((entry): entry is { kind: SearchKind; label: string } => (SEARCH_KINDS as readonly string[]).includes(entry.kind)),
+    [installed],
+  );
+  const allKinds = useMemo(() => findable.map((entry) => entry.kind), [findable]);
+  const kindChoices = useMemo((): KindFilter[] => [
+    { value: 'all', label: 'All', kinds: allKinds },
+    ...findable.map((entry) => ({ value: entry.kind, label: entry.label, kinds: [entry.kind] })),
+  ], [findable, allKinds]);
+  // An `@` resolves to a label, or to a person, location or device the page finds; an album is a
+  // result here, not a filter for it.
+  const mentionKinds = useMemo(
+    () => MENTION_KINDS.filter((kind) => kind === 'label' || (kind !== 'album' && (allKinds as readonly string[]).includes(kind))),
+    [allKinds],
+  );
+
+  // Those kinds only. Left unset the command would search files too, and the grid here has no way
+  // to show one; with none installed there is nothing to search for.
+  const searchKinds = filters.kinds?.length ? filters.kinds : allKinds;
+  const searchable = searchKinds.length > 0;
+  const { results, loading, error, hasMore, loadMore, outcome } = useSearch({ ...filters, kinds: searchKinds, limit: PAGE_SIZE, enabled: !landing && searchable });
 
   // The labels the answer carries, from the same search counted instead of paged.
-  const facetCommand = landing ? null : `${buildSearchCommand({ ...filters, kinds: searchKinds }, 1)} --facets`;
+  const facetCommand = landing || !searchable ? null : `${buildSearchCommand({ ...filters, kinds: searchKinds }, 1)} --facets`;
   const [facets, setFacets] = useState<{ command: string; answer: SearchFacetsResponse } | null>(null);
   useEffect(() => {
     if (!facetCommand) return;
@@ -130,7 +143,7 @@ export default function SearchPage() {
   // its label; resolving later only relabels it.
   const [recent, setRecent] = useLocalStorage<RecentSearch[]>({ key: 'ein.search.recent', defaultValue: [], deserialize: readRecent });
   const paramsKey = paramsFromFilters(filters).toString();
-  const label = searchLabel(filters, textFromFilters(filters, (kind, value) => kind === 'label' ? value : nameOf(kind, value)).text);
+  const label = searchLabel(filters, textFromFilters(filters, (kind, value) => kind === 'label' ? value : nameOf(kind, value)).text, kindChoices);
   useEffect(() => {
     if (landing || loading || error || !label) return;
     setRecent((stored) => rememberSearch(stored, { params: paramsKey, label }));
@@ -139,13 +152,11 @@ export default function SearchPage() {
   const apply = useCallback((next: SearchFilters) => {
     setSearchParams(paramsFromFilters(next), { replace: true });
   }, [setSearchParams]);
-  const box = useSearchBox({ filters, apply, natural: { kinds: ENTITY_KINDS } });
+  const natural = useMemo(() => ({ kinds: allKinds }), [allKinds]);
+  const box = useSearchBox({ filters, apply, natural });
   const patch = box.patch;
 
-  const kindFilter = useMemo(() => {
-    const kinds = filters.kinds ?? [];
-    return ENTITY_KIND_FILTERS.find((entry) => entry.kinds.length === kinds.length && entry.kinds.every((kind) => kinds.includes(kind))) ?? ENTITY_KIND_FILTERS[0];
-  }, [filters.kinds]);
+  const kindFilter = useMemo(() => kindFilterOf(kindChoices, filters.kinds ?? []) ?? kindChoices[0], [kindChoices, filters.kinds]);
 
   const pagesAhead = hasMore && !error;
   const sentinelRef = useLoadMoreSentinel(pagesAhead, loading, loadMore);
@@ -165,7 +176,7 @@ export default function SearchPage() {
       <EntityDetailHeader
         title='Search'
         pattern='mixed'
-        subtitle={<Text size='sm' c='gray.2'>Search for anything by name, date or @mention</Text>}
+        subtitle={<Text size='sm' c='gray.2'>Search by name, date or @mention</Text>}
         flowContent
         controls={
           <HeaderFilterBar
@@ -180,11 +191,11 @@ export default function SearchPage() {
                     onMentionsChange={box.setMentions}
                     onCommit={box.commit}
                     filters={filters}
-                    kinds={MENTION_KINDS}
+                    kinds={mentionKinds}
                     size='md'
                     rightSection={box.parsing ? <Loader size={16} aria-label='Reading' /> : undefined}
                     pills={hasPills(filters) ? <SearchPills filters={filters} onPatch={patch} nameOf={nameOf} /> : undefined}
-                    placeholder='Search — "album summer 2019", or type @ for a person, location, label or device'
+                    placeholder='Search, or type @ to pick something by name'
                   />
                 </Box>
                 {filtered && (
@@ -199,16 +210,18 @@ export default function SearchPage() {
             }
           >
             <HeaderChoices>
-              <HeaderChoice
-                label='Show'
-                variant='segmented'
-                value={kindFilter.value}
-                onChange={(value) => {
-                  const chosen = ENTITY_KIND_FILTERS.find((entry) => entry.value === value) ?? ENTITY_KIND_FILTERS[0];
-                  patch({ kinds: chosen.value === 'all' ? undefined : [...chosen.kinds] });
-                }}
-                options={ENTITY_KIND_FILTERS.map((entry) => ({ value: entry.value, label: entry.label, icon: entityKindIcon(entry.value) }))}
-              />
+              {findable.length > 1 && (
+                <HeaderChoice
+                  label='Show'
+                  variant='segmented'
+                  value={kindFilter.value}
+                  onChange={(value) => {
+                    const chosen = kindChoices.find((entry) => entry.value === value) ?? kindChoices[0];
+                    patch({ kinds: chosen.value === 'all' ? undefined : [...chosen.kinds] });
+                  }}
+                  options={kindChoices.map((entry) => ({ value: entry.value, label: entry.label, icon: entityKindIcon(entry.value) }))}
+                />
+              )}
               <HeaderChoice
                 label='Sort'
                 value={filters.sort ?? 'score'}

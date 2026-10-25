@@ -63,6 +63,11 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
         imports: { [`@${name}/greet`]: './lib/greet.ts' },
         exports: { './api': './lib/api.ts' },
         ui: { routes: { ...routes, ...extra } },
+        nodeTypes: [
+          { type: 'thing', label: 'Thing', category: 'content', root: '/archive/things', searchable: true, description: 'A thing.' },
+          { type: 'gadget', label: 'Gadget', category: 'content', root: '/archive/gadgets', searchable: true, plural: 'Gizmos', description: 'A gadget.' },
+          { type: 'part', label: 'Part', category: 'content', root: '/archive/parts', description: 'Not searched for.' },
+        ],
       }),
     );
 
@@ -100,6 +105,10 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
       const node = await vfs.get(ADMIN_ACCESS, manifest.modules.uifix.url.replace(/^\/file/, ''));
       assertEquals(node.attrs.mimetype, 'text/javascript');
       assertEquals(node.attrs.immutable, true);
+    });
+
+    await t.step('lists the node types marked searchable, by their plural', () => {
+      assertEquals(manifest!.modules.uifix.search, [{ kind: 'thing', label: 'Things' }, { kind: 'gadget', label: 'Gizmos' }]);
     });
 
     await t.step('its CSS modules carry the module name', async () => {

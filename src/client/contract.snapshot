@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.2.1
+MODULE_API_VERSION 0.3.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -241,7 +241,6 @@ src/builtin/ui/src/client/hooks/mod.ts DocNode 9c5a6704ce0b children=1e0b96df17c
 src/builtin/ui/src/client/hooks/mod.ts DropTarget fc417d3f266a over=45cbed97c95d,props=f29eb0d1cca6
 src/builtin/ui/src/client/hooks/mod.ts DropTargetOptions 5695c94a1bf6 accept=c1bf13a06dd7,disabled=31a4a7656b0d,onDrop=473c70abbd2e
 src/builtin/ui/src/client/hooks/mod.ts ENTITY_KINDS e59c52657c7b
-src/builtin/ui/src/client/hooks/mod.ts ENTITY_KIND_FILTERS d7aff9bbae75
 src/builtin/ui/src/client/hooks/mod.ts EntityCompleteHit 24f2e0f3bf7d
 src/builtin/ui/src/client/hooks/mod.ts EntityCompleteKind 7de7195b38df
 src/builtin/ui/src/client/hooks/mod.ts EnvReference 9b737204ba9f
@@ -391,7 +390,6 @@ src/builtin/ui/src/client/lib/mod.ts DateGranularity 1b57974a9700
 src/builtin/ui/src/client/lib/mod.ts DatedAlbumAttrs e730e0f46f00 autoAlbum=1ab594aeb4b9,timeEnd=d9349e5d58b6,timeStart=03ab81ef701d
 src/builtin/ui/src/client/lib/mod.ts DetailNameOf 069241050dd2
 src/builtin/ui/src/client/lib/mod.ts ENTITY_KINDS e59c52657c7b
-src/builtin/ui/src/client/lib/mod.ts ENTITY_KIND_FILTERS d7aff9bbae75
 src/builtin/ui/src/client/lib/mod.ts ENTITY_KIND_STYLES 6a340e3c5812
 src/builtin/ui/src/client/lib/mod.ts EntityKind bea8bba4fbc5
 src/builtin/ui/src/client/lib/mod.ts EntityKindStyle 574c06517e1f color=a71a40934adf,icon=999ce76ad2a6,label=af04505f402e
@@ -711,6 +709,7 @@ src/builtin/ui/src/client/signals/mod.ts mediaRestored 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts mobileRailHidden 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts mobileSidebarRail 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts modulePatcher d2adf16b4e60
+src/builtin/ui/src/client/signals/mod.ts moduleRoutePaths 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts navigatePage c11992f92313
 src/builtin/ui/src/client/signals/mod.ts nextMediaIndex 6c74116902e7
 src/builtin/ui/src/client/signals/mod.ts nextTerminalTab df01802e180a
@@ -757,6 +756,7 @@ src/builtin/ui/src/client/signals/mod.ts retryFailed df01802e180a
 src/builtin/ui/src/client/signals/mod.ts revealNodeInNewTab c6a7aabc3791
 src/builtin/ui/src/client/signals/mod.ts routeBase a90ef74a89ee
 src/builtin/ui/src/client/signals/mod.ts runNavAction e82c8704d252
+src/builtin/ui/src/client/signals/mod.ts searchableKinds 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts setDrawerWidth 7e8a59842996
 src/builtin/ui/src/client/signals/mod.ts setNodesColumns 73bfb13ad9ed
 src/builtin/ui/src/client/signals/mod.ts setNodesCurrent bd59c3c6156a
@@ -1045,7 +1045,7 @@ src/lib/api/mod.ts NodeOwnership 0d8b9cf127d6 acl=7168135aef88,gid=65495816f804,
 src/lib/api/mod.ts NodePath 86e54873a4c8
 src/lib/api/mod.ts NodePosition ff209251b8da error=03c9a5b2b69b,name=c67d65ad40bc,path=3fd20668ef6e,position=8870c743784f,type=78a1710d1c03
 src/lib/api/mod.ts NodeTypeCategory 50c61cace6fe
-src/lib/api/mod.ts NodeTypeDoc 3ee29d933e37 category=4a108656163b,description=c4833b0d92ac,label=af04505f402e,root=838c9c8573b4,type=e22be5ee8605
+src/lib/api/mod.ts NodeTypeDoc cbf94b1f0f03 category=4a108656163b,description=c4833b0d92ac,label=af04505f402e,plural=4bc9f5e1b940,root=838c9c8573b4,searchable=8b4a5d52edac,type=e22be5ee8605
 src/lib/api/mod.ts NodeTypeGrowth 9651fab7cf8c months=96cfca46a8f0,total=08c7a0b849b7,totalBytes=d9605855ffba,type=e22be5ee8605,years=e9723bd38428
 src/lib/api/mod.ts NodeTypeReference 96e70a9a9255 category=51bd90ce51c5,count=56355d434a33,description=644be3c4d4da,label=995d88c00ff2,owner=e042e7caef36,type=e22be5ee8605
 src/lib/api/mod.ts OnThisDayEntry 0f79d809163e path=c29ab32b39f5,route=66a673b16b8a,source=0c6e4d4f274b,title=f6007128d157,year=2483b032582a
