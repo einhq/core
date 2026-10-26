@@ -274,50 +274,59 @@ export class PgPoolRegistry implements PoolRegistryIf {
     // nothing is written and the job is read back as it is: a crawl re-announces
     // waiting work over and over, and an update that changed nothing was still a
     // row version, WAL and a commit each time (ein/core#510).
-    const result = await this.pool.query<JobRow>(
-      `
-      WITH upsert AS (
-        INSERT INTO ${this.jobsTable}
-          (pool_id, kind, priority, eff_priority, requires, params, dedup_key, exclusive, max_attempts, available_at, attempts)
-        VALUES ($1::varchar, $2::text, $3::int, $3::int, $4::jsonb, $5::jsonb, $6::text, $7::text,
-                COALESCE($8::int, (SELECT max_attempts FROM ${this.poolsTable} WHERE id = $1::varchar)),
-                now() + ($9::bigint * interval '1 millisecond'), $10::int)
-        ON CONFLICT (pool_id, dedup_key) WHERE dedup_key IS NOT NULL AND state IN ('ready','claimed')
-        DO UPDATE SET priority = GREATEST(${this.jobsTable}.priority, EXCLUDED.priority),
-                      eff_priority = GREATEST(${this.jobsTable}.eff_priority, EXCLUDED.priority),
-                      available_at = LEAST(${this.jobsTable}.available_at, EXCLUDED.available_at)
-        WHERE ${this.jobsTable}.priority < EXCLUDED.priority
-           OR ${this.jobsTable}.eff_priority < EXCLUDED.priority
-           OR ${this.jobsTable}.available_at > EXCLUDED.available_at
-        RETURNING *
-      )
-      SELECT * FROM upsert
-      UNION ALL
-      SELECT * FROM ${this.jobsTable}
-       WHERE NOT EXISTS (SELECT 1 FROM upsert)
-         AND pool_id = $1::varchar AND dedup_key = $6::text AND state IN ('ready','claimed')
-      `,
-      [
-        id,
-        input.kind,
-        priority,
-        JSON.stringify(requires),
-        JSON.stringify(input.params ?? null),
-        input.dedupKey ?? null,
-        input.exclusive ?? null,
-        input.maxAttempts ?? null,
-        input.delayMs ?? 0,
-        Math.max(0, Math.floor(input.attempts ?? 0)),
-      ],
-    );
+    const upsert = () =>
+      this.pool.query<JobRow>(
+        `
+        WITH upsert AS (
+          INSERT INTO ${this.jobsTable}
+            (pool_id, kind, priority, eff_priority, requires, params, dedup_key, exclusive, max_attempts, available_at, attempts)
+          VALUES ($1::varchar, $2::text, $3::int, $3::int, $4::jsonb, $5::jsonb, $6::text, $7::text,
+                  COALESCE($8::int, (SELECT max_attempts FROM ${this.poolsTable} WHERE id = $1::varchar)),
+                  now() + ($9::bigint * interval '1 millisecond'), $10::int)
+          ON CONFLICT (pool_id, dedup_key) WHERE dedup_key IS NOT NULL AND state IN ('ready','claimed')
+          DO UPDATE SET priority = GREATEST(${this.jobsTable}.priority, EXCLUDED.priority),
+                        eff_priority = GREATEST(${this.jobsTable}.eff_priority, EXCLUDED.priority),
+                        available_at = LEAST(${this.jobsTable}.available_at, EXCLUDED.available_at)
+          WHERE ${this.jobsTable}.priority < EXCLUDED.priority
+             OR ${this.jobsTable}.eff_priority < EXCLUDED.priority
+             OR ${this.jobsTable}.available_at > EXCLUDED.available_at
+          RETURNING *
+        )
+        SELECT * FROM upsert
+        UNION ALL
+        SELECT * FROM ${this.jobsTable}
+         WHERE NOT EXISTS (SELECT 1 FROM upsert)
+           AND pool_id = $1::varchar AND dedup_key = $6::text AND state IN ('ready','claimed')
+        `,
+        [
+          id,
+          input.kind,
+          priority,
+          JSON.stringify(requires),
+          JSON.stringify(input.params ?? null),
+          input.dedupKey ?? null,
+          input.exclusive ?? null,
+          input.maxAttempts ?? null,
+          input.delayMs ?? 0,
+          Math.max(0, Math.floor(input.attempts ?? 0)),
+        ],
+      );
 
-    if (result.rows.length === 0) {
-      // The pool row is gone, so the max_attempts subquery yielded NULL and the
-      // NOT NULL constraint rejected the insert. Report it as a missing pool.
-      throw new Error(`no pool found: ${id}`);
+    // No row comes back in two cases. Without the pool row, the max_attempts subquery yields
+    // NULL and nothing is inserted. Or the add lost a race: another connection committed a live
+    // job with the same dedup key after this statement began, which the conflict check sees and
+    // the statement's snapshot, read by the fallback, does not. A new statement sees that job,
+    // or inserts if it has finished since (ein/core#739).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result = await upsert();
+      if (result.rows.length > 0) {
+        return toJob(result.rows[0]);
+      }
+      if (!(await this.exists(id))) {
+        throw new Error(`no pool found: ${id}`);
+      }
     }
-
-    return toJob(result.rows[0]);
+    throw new Error(`pool ${id}: the job for dedup key ${input.dedupKey} kept changing under the add`);
   }
 
   async claim(id: string, req: PoolClaimRequest, signal?: AbortSignal): Promise<PoolJob | null> {

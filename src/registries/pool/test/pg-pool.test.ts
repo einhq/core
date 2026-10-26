@@ -50,6 +50,28 @@ pgTest('PgPoolRegistry durability across re-instantiation', async () => {
   }
 });
 
+// A crawl announces one subject from several connections at once. The add that loses the race
+// on the dedup key resolves to the job the winner wrote, not to "no pool found" (ein/core#739).
+pgTest('PgPoolRegistry resolves concurrent adds of one dedup key to one job', async () => {
+  const ctx = pgTestContext();
+  const registry = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
+
+  try {
+    await registry.init();
+    await registry.touch('race', {});
+    for (let round = 0; round < 20; round++) {
+      const jobs = await Promise.all(
+        Array.from({ length: 8 }, () => registry.add('race', { kind: 'a', dedupKey: `subject-${round}` })),
+      );
+      assertEquals(new Set(jobs.map((job) => job.id)).size, 1);
+    }
+    assertEquals((await registry.counts('race')).total, 20);
+  } finally {
+    await registry.dispose();
+    await ctx.teardown();
+  }
+});
+
 pgTest('PgPoolRegistry purges a backlog in batches and banks every one', async () => {
   const ctx = pgTestContext();
   const registry = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
