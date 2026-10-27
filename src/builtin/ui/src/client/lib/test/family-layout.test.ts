@@ -16,6 +16,7 @@ type Spec = {
   partners?: string[];
   parentCount?: number;
   childCount?: number;
+  born?: string;
 };
 
 /** A graph from a terse description; counts default to what is actually drawn. */
@@ -30,6 +31,7 @@ const graphOf = (root: string, spec: Record<string, Spec>): FamilyGraph => {
       partners: (entry.partners ?? []).map((p) => ({ path: `/archive/people/${p}` })),
       parentCount: entry.parentCount ?? (entry.parents ?? []).length,
       childCount: entry.childCount ?? (entry.children ?? []).length,
+      ...(entry.born ? { born: entry.born } : {}),
     };
   }
   return { root: `/archive/people/${root}`, nodes };
@@ -222,5 +224,44 @@ Deno.test('family layout: no union bar between two people who are not partners',
   assertEquals(overlaps(layout), []);
   for (const union of layout.unions) {
     assert(union.key.includes(`/archive/people/anna`), `bar drawn between non-partners: ${union.key}`);
+  }
+});
+
+Deno.test('family layout: relatives reached sideways take their place among the rest', () => {
+  // mia's siblings, her mother's brother and both sets of grandparents: none of
+  // them is mia's ancestor or descendant, and each must still stand by its own
+  // family, with no family's lines crossing another's.
+  const layout = layoutFamily(graphOf('mia', {
+    gustav: { children: ['anna', 'nils'], partners: ['hedda'] },
+    hedda: { children: ['anna', 'nils'], partners: ['gustav'] },
+    karl: { children: ['erik'], partners: ['eva'] },
+    eva: { children: ['erik'], partners: ['karl'] },
+    nils: { parents: ['gustav', 'hedda'], born: '1952' },
+    anna: { parents: ['gustav', 'hedda'], children: ['mia', 'edvin', 'olle'], partners: ['erik'], born: '1950' },
+    erik: { parents: ['karl', 'eva'], children: ['mia', 'edvin', 'olle'], partners: ['anna'] },
+    olle: { parents: ['anna', 'erik'], born: '1982' },
+    mia: { parents: ['anna', 'erik'], born: '1975' },
+    edvin: { parents: ['anna', 'erik'], born: '1978' },
+  }));
+
+  assertEquals(overlaps(layout), []);
+  // Siblings in the order they were born, under the middle of their parents.
+  assert(centre(layout, 'mia') < centre(layout, 'edvin') && centre(layout, 'edvin') < centre(layout, 'olle'));
+  assert(Math.abs(centre(layout, 'edvin') - (centre(layout, 'anna') + centre(layout, 'erik')) / 2) < 1);
+  // Nils stands on his own parents' side of his sister's couple.
+  const gustavHedda = (centre(layout, 'gustav') + centre(layout, 'hedda')) / 2;
+  const karlEva = (centre(layout, 'karl') + centre(layout, 'eva')) / 2;
+  assert(Math.sign(centre(layout, 'nils') - centre(layout, 'erik')) === Math.sign(gustavHedda - karlEva));
+  // Each row's sibling bars, trunk included, run side by side, never over one another.
+  const spans = layout.families.map((family) => ({
+    y: family.siblingY,
+    from: Math.min(family.trunkX, ...family.children),
+    to: Math.max(family.trunkX, ...family.children),
+  }));
+  for (const a of spans) {
+    for (const b of spans) {
+      if (a === b || a.y !== b.y) continue;
+      assert(a.to < b.from || b.to < a.from, `sibling bars overlap: ${JSON.stringify([a, b])}`);
+    }
   }
 });

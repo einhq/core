@@ -11,12 +11,13 @@
  * rows, the person in the middle, ancestors above and descendants below, and a
  * couple side by side as one block their children hang from.
  *
- * Two passes, the classic ones — measure a subtree's width bottom-up, then location
- * it top-down — run twice from the person's own row: once downward through
- * children and once upward through parents. Because a parent edge always moves a
- * generation up and a child edge always moves one down, the two trees can only
- * ever meet on the row they both start from, which is what makes the whole
- * layout collision-free without a separation pass.
+ * It is a layered drawing, laid out whole every time the graph changes, so
+ * whatever was expanded — ancestors, their other children, cousins — takes its
+ * place among the rest instead of being hung beside it. Rows are generations;
+ * each row's couples are put in the order that crosses the fewest lines
+ * (`orderRows`), and then given the x that best centres every couple over their
+ * children and every child under their parents without two touching
+ * (`placeRows`).
  */
 
 /**
@@ -105,21 +106,31 @@ type FamilyLayout = {
   height: number;
 };
 
+/** Rounds of reordering a drawing's rows before it settles for the order with the fewest crossings. */
+const ORDER_ROUNDS = 24;
+/** Most rounds of placing the rows, and the largest move in pixels at which a round counts as settled. */
+const PLACE_ROUNDS = 400;
+const SETTLED = 0.01;
+/** How strongly a couple with no ties on the rows next to it stays where it is. */
+const LOOSE = 0.001;
+
 /** A person and the partners drawn beside them — the block children hang from. */
 type Unit = {
   key: string;
   members: string[];
   generation: number;
   width: number;
-  /** Left edge, filled in by the placement pass. */
+  /** Left edge, filled in by the placement. */
   x: number;
-  down: Unit[];
-  up: Unit[];
+  /** The units one row up holding a member's parent, and one row down holding a member's child. */
+  parents: Unit[];
+  children: Unit[];
 };
 
 const unitWidth = (members: number): number => members * CARD_WIDTH + (members - 1) * COUPLE_GAP;
 
-const centreOf = (unit: Unit): number => unit.x + unit.width / 2;
+/** How far right of its unit's left edge a member's card's middle is. */
+const memberOffset = (unit: Unit, path: string): number => unit.members.indexOf(path) * (CARD_WIDTH + COUPLE_GAP) + CARD_WIDTH / 2;
 
 /**
  * Which row each person sits on.
@@ -154,8 +165,8 @@ function generations(graph: FamilyGraph): Map<string, number> {
   }
 
   // Anything the walk never reached has no relation to the person the tree is
-  // about, so no row is more right than any other; it gets theirs and is parked
-  // to one side later. Without this such a node has no generation at all and is
+  // about, so no row is more right than any other; it gets theirs, at the end
+  // of it. Without this such a node has no generation at all and is
   // dropped from the drawing entirely.
   for (const path of Object.keys(graph.nodes)) {
     if (!generation.has(path)) generation.set(path, 0);
@@ -164,7 +175,10 @@ function generations(graph: FamilyGraph): Map<string, number> {
   return generation;
 }
 
-/** Couples, built root-first so the person the tree is about anchors their own. */
+/**
+ * Couples, built root-first so the person the tree is about anchors their own. Somebody with two
+ * partners or more on their row stands between them, so a bar can join them to each.
+ */
 function buildUnits(graph: FamilyGraph, generation: Map<string, number>): { units: Unit[]; unitOf: Map<string, Unit> } {
   const unitOf = new Map<string, Unit>();
   const units: Unit[] = [];
@@ -178,15 +192,17 @@ function buildUnits(graph: FamilyGraph, generation: Map<string, number>): { unit
     const own = generation.get(path);
     if (own === undefined) continue;
 
-    const members = [path];
+    const partners: string[] = [];
     for (const partner of graph.nodes[path].partners) {
       // A partner on another row is somebody's parent or child as well, and
       // that tie is the one that decides where they are drawn.
-      if (unitOf.has(partner.path) || generation.get(partner.path) !== own) continue;
-      members.push(partner.path);
+      if (unitOf.has(partner.path) || generation.get(partner.path) !== own || partners.includes(partner.path)) continue;
+      partners.push(partner.path);
     }
+    const half = Math.floor(partners.length / 2);
+    const members = [...partners.slice(0, half), path, ...partners.slice(half)];
 
-    const unit: Unit = { key: members[0], members, generation: own, width: unitWidth(members.length), x: 0, down: [], up: [] };
+    const unit: Unit = { key: path, members, generation: own, width: unitWidth(members.length), x: 0, parents: [], children: [] };
     for (const member of members) unitOf.set(member, unit);
     units.push(unit);
   }
@@ -194,96 +210,202 @@ function buildUnits(graph: FamilyGraph, generation: Map<string, number>): { unit
   return { units, unitOf };
 }
 
-/**
- * Turn the unit graph into two trees.
- *
- * A unit can descend from more than one drawn couple — a child of a first
- * marriage whose both households are on screen — and a tree needs exactly one
- * parent. The first one reached breadth-first wins the *placement*; the other
- * tie is still drawn, it just does not move anybody.
- *
- * Returns whatever neither walk reached, for the caller to park.
- */
-function link(rootUnit: Unit, units: Unit[], unitOf: Map<string, Unit>, graph: FamilyGraph): Unit[] {
-  const claimed = new Set<Unit>([rootUnit]);
-
-  const neighbours = (unit: Unit, dir: 'down' | 'up'): Unit[] => {
-    const found: Unit[] = [];
+/** Ties between units: a member's parent one row up. A parent on any other row is not drawn as descent. */
+function connect(units: Unit[], unitOf: Map<string, Unit>, graph: FamilyGraph): void {
+  for (const unit of units) {
     for (const member of unit.members) {
-      const node = graph.nodes[member];
-      if (!node) continue;
-      for (const path of dir === 'down' ? node.children : node.parents) {
-        const other = unitOf.get(path);
-        if (other && other !== unit && !found.includes(other)) found.push(other);
+      for (const parent of graph.nodes[member]?.parents ?? []) {
+        const above = unitOf.get(parent);
+        if (!above || above.generation !== unit.generation - 1 || unit.parents.includes(above)) continue;
+        unit.parents.push(above);
+        above.children.push(unit);
       }
     }
-    return found;
+  }
+}
+
+/**
+ * The units of each row in drawing order, top row first.
+ *
+ * A first order comes depth-first from the person the tree is about, which keeps every family's
+ * children together and in the order they were born. The classic barycentre sweeps then move each
+ * unit, down the rows and up again, towards the middle of the units it is tied to on the row
+ * before, and the order with the fewest crossing ties wins. A unit with no ties that way keeps
+ * its place, and those with equal pulls keep their order, so siblings stay in birth order.
+ */
+function orderRows(rootUnit: Unit, units: Unit[], graph: FamilyGraph): Unit[][] {
+  // The member somebody is the child in is the one whose birth orders the unit among its siblings.
+  const born = (unit: Unit): string => {
+    const child = unit.members.find((member) => (graph.nodes[member]?.parents.length ?? 0) > 0) ?? unit.members[0];
+    return graph.nodes[child]?.born ?? '\uffff';
   };
+  const byBirth = (a: Unit, b: Unit) => born(a).localeCompare(born(b)) || a.key.localeCompare(b.key);
 
-  for (const dir of ['down', 'up'] as const) {
-    let frontier = [rootUnit];
-    const seen = new Set<Unit>([rootUnit]);
+  const byRow = new Map<number, Unit[]>();
+  const seen = new Set<Unit>();
+  const visit = (unit: Unit) => {
+    if (seen.has(unit)) return;
+    seen.add(unit);
+    byRow.set(unit.generation, [...(byRow.get(unit.generation) ?? []), unit]);
+    for (const child of [...unit.children].sort(byBirth)) visit(child);
+    for (const parent of unit.parents) visit(parent);
+  };
+  visit(rootUnit);
+  for (const unit of units) visit(unit);
 
-    while (frontier.length > 0) {
-      const next: Unit[] = [];
-      for (const unit of frontier) {
-        for (const other of neighbours(unit, dir)) {
-          if (seen.has(other) || claimed.has(other)) continue;
-          seen.add(other);
-          claimed.add(other);
-          unit[dir].push(other);
-          next.push(other);
+  const rows = [...byRow.keys()].sort((a, b) => a - b).map((generation) => byRow.get(generation)!);
+  const index = new Map<Unit, number>();
+  const reindex = (row: Unit[]) => row.forEach((unit, i) => index.set(unit, i));
+  rows.forEach(reindex);
+
+  const crossings = (): number => {
+    let count = 0;
+    for (const row of rows) {
+      const ties = row.flatMap((unit) => unit.children.map((child) => [index.get(unit)!, index.get(child)!] as const));
+      for (let i = 0; i < ties.length; i++) {
+        for (let j = i + 1; j < ties.length; j++) {
+          if ((ties[i][0] - ties[j][0]) * (ties[i][1] - ties[j][1]) < 0) count++;
         }
       }
-      frontier = next;
+    }
+    return count;
+  };
+
+  const sweep = (row: Unit[], ties: (unit: Unit) => Unit[]) => {
+    const pulls = row.map((unit, i) => {
+      const others = ties(unit);
+      return { unit, i, at: others.length > 0 ? others.reduce((sum, other) => sum + index.get(other)!, 0) / others.length : null };
+    });
+    const moving = pulls.filter((pull) => pull.at !== null).sort((a, b) => a.at! - b.at! || a.i - b.i);
+    let next = 0;
+    pulls.forEach((pull, i) => {
+      if (pull.at !== null) row[i] = moving[next++].unit;
+    });
+    reindex(row);
+  };
+
+  let best = rows.map((row) => [...row]);
+  let fewest = crossings();
+  for (let round = 0; round < ORDER_ROUNDS && fewest > 0; round++) {
+    for (let r = 1; r < rows.length; r++) sweep(rows[r], (unit) => unit.parents);
+    for (let r = rows.length - 2; r >= 0; r--) sweep(rows[r], (unit) => unit.children);
+    const now = crossings();
+    if (now < fewest) {
+      fewest = now;
+      best = rows.map((row) => [...row]);
     }
   }
-
-  // Anything the two walks never reached is returned rather than attached. It
-  // cannot be hung off the root: a fragment on the root's *own* row would be
-  // laid out as one of its children, and the root is centred over its children,
-  // so the two would be drawn on top of each other. `person-graph` only ever
-  // answers with nodes reachable from its root, so this should stay empty — it
-  // is here so that a graph which somehow is not connected still draws every
-  // card instead of silently losing some.
-  return units.filter((unit) => !claimed.has(unit));
-}
-
-/** Subtree width: its own block, or everything below it, whichever is wider. */
-function measure(unit: Unit, dir: 'down' | 'up', widths: Map<Unit, number>): number {
-  const cached = widths.get(unit);
-  if (cached !== undefined) return cached;
-
-  const children = unit[dir];
-  const spread = children.reduce((sum, child) => sum + measure(child, dir, widths), 0) +
-    Math.max(0, children.length - 1) * UNIT_GAP;
-
-  const width = Math.max(unit.width, spread);
-  widths.set(unit, width);
-  return width;
+  return best;
 }
 
 /**
- * Give every unit an x, working outward from the root's row.
+ * Every unit's x, keeping each row in the order given.
  *
- * Both the block and the row beneath it are centred inside the subtree's box, so
- * a couple sits over the middle of their children whichever is wider.
+ * A unit is pulled to where its ties want it: each member who is somebody's child under the
+ * middle of their parents, and the parents of each child over that child. Each row then takes the
+ * positions nearest those wishes that keep its order with a gap between neighbours — isotonic
+ * regression once every unit is shifted by the room the ones before it need, solved by pooling
+ * adjacent violators. Sweeping down the rows and up again until nothing moves is coordinate
+ * descent on one convex sum of squares, so it settles on one balanced drawing.
  */
-function location(unit: Unit, dir: 'down' | 'up', left: number, widths: Map<Unit, number>): void {
-  const box = measure(unit, dir, widths);
-  unit.x = left + (box - unit.width) / 2;
+function placeRows(rows: Unit[][], unitOf: Map<string, Unit>, graph: FamilyGraph): void {
+  /** A person's parents drawn one row up, as their cards' middles. */
+  const parentsAbove = (path: string, generation: number): number[] =>
+    (graph.nodes[path]?.parents ?? []).flatMap((parent) => {
+      const unit = unitOf.get(parent);
+      return unit && unit.generation === generation - 1 ? [unit.x + memberOffset(unit, parent)] : [];
+    });
+  const trunk = (xs: number[]) => (Math.min(...xs) + Math.max(...xs)) / 2;
 
-  const children = unit[dir];
-  if (children.length === 0) return;
+  const wish = (unit: Unit): { x: number; weight: number } => {
+    let sum = 0;
+    let weight = 0;
+    for (const member of unit.members) {
+      const above = parentsAbove(member, unit.generation);
+      if (above.length === 0) continue;
+      sum += trunk(above) - memberOffset(unit, member);
+      weight++;
+    }
+    const seen = new Set<string>();
+    for (const member of unit.members) {
+      for (const child of graph.nodes[member]?.children ?? []) {
+        const below = unitOf.get(child);
+        if (!below || below.generation !== unit.generation + 1 || seen.has(child)) continue;
+        seen.add(child);
+        const mine = (graph.nodes[child]?.parents ?? []).filter((parent) => unitOf.get(parent) === unit);
+        const offset = trunk(mine.map((parent) => memberOffset(unit, parent)));
+        sum += below.x + memberOffset(below, child) - offset;
+        weight++;
+      }
+    }
+    return weight > 0 ? { x: sum / weight, weight } : { x: unit.x, weight: LOOSE };
+  };
 
-  const spread = children.reduce((sum, child) => sum + measure(child, dir, widths), 0) +
-    (children.length - 1) * UNIT_GAP;
+  const settle = (row: Unit[]): number => {
+    const room: number[] = [];
+    let used = 0;
+    for (const unit of row) {
+      room.push(used);
+      used += unit.width + UNIT_GAP;
+    }
+    const blocks: { sum: number; weight: number; count: number }[] = [];
+    row.forEach((unit, i) => {
+      const { x, weight } = wish(unit);
+      blocks.push({ sum: (x - room[i]) * weight, weight, count: 1 });
+      while (blocks.length > 1) {
+        const last = blocks[blocks.length - 1];
+        const before = blocks[blocks.length - 2];
+        if (before.sum / before.weight <= last.sum / last.weight) break;
+        blocks.pop();
+        before.sum += last.sum;
+        before.weight += last.weight;
+        before.count += last.count;
+      }
+    });
+    let moved = 0;
+    let i = 0;
+    for (const block of blocks) {
+      for (let k = 0; k < block.count; k++, i++) {
+        const x = block.sum / block.weight + room[i];
+        moved = Math.max(moved, Math.abs(x - row[i].x));
+        row[i].x = x;
+      }
+    }
+    return moved;
+  };
 
-  let cursor = left + (box - spread) / 2;
-  for (const child of children) {
-    location(child, dir, cursor, widths);
-    cursor += measure(child, dir, widths) + UNIT_GAP;
+  for (let round = 0; round < PLACE_ROUNDS; round++) {
+    let moved = 0;
+    for (const row of rows) moved = Math.max(moved, settle(row));
+    for (const row of [...rows].reverse()) moved = Math.max(moved, settle(row));
+    if (moved < SETTLED) break;
   }
+}
+
+/**
+ * A couple drawn the other way round when that brings their cards nearer their own parents: a
+ * daughter-in-law whose parents are drawn stands on their side of her husband, not across him.
+ */
+function faceParents(units: Unit[], unitOf: Map<string, Unit>, graph: FamilyGraph): boolean {
+  const reach = (unit: Unit): number =>
+    unit.members.reduce((sum, member) => {
+      const above = (graph.nodes[member]?.parents ?? []).flatMap((parent) => {
+        const owner = unitOf.get(parent);
+        return owner && owner.generation === unit.generation - 1 ? [owner.x + memberOffset(owner, parent)] : [];
+      });
+      if (above.length === 0) return sum;
+      return sum + Math.abs(unit.x + memberOffset(unit, member) - (Math.min(...above) + Math.max(...above)) / 2);
+    }, 0);
+
+  let turned = false;
+  for (const unit of units) {
+    if (unit.members.length !== 2) continue;
+    const before = reach(unit);
+    unit.members.reverse();
+    if (reach(unit) < before - 1) turned = true;
+    else unit.members.reverse();
+  }
+  return turned;
 }
 
 /**
@@ -381,40 +503,17 @@ export function layoutFamily(graph: FamilyGraph): FamilyLayout {
   const rootUnit = unitOf.get(graph.root);
   if (!rootUnit) return empty;
 
-  const stranded = link(rootUnit, units, unitOf, graph);
-
-  // Each direction is measured on its own, so a wide ancestry does not pay for
-  // a wide descent; the two are then aligned on the root's own centre.
-  const downWidths = new Map<Unit, number>();
-  const upWidths = new Map<Unit, number>();
-  location(rootUnit, 'down', 0, downWidths);
-  const anchor = centreOf(rootUnit);
-  location(rootUnit, 'up', anchor - measure(rootUnit, 'up', upWidths) / 2, upWidths);
-  // The upward pass moved the root; the downward tree was placed against where
-  // it used to be, so put it back and re-place it from the same anchor.
-  const settled = centreOf(rootUnit);
-  location(rootUnit, 'down', settled - measure(rootUnit, 'down', downWidths) / 2, downWidths);
-  location(rootUnit, 'up', settled - measure(rootUnit, 'up', upWidths) / 2, upWidths);
-
-  // Parked off to the right of everything placed, one column per row, so a
-  // stranded fragment is visible and cannot land on top of anybody.
-  if (stranded.length > 0) {
-    const right = Math.max(...units.filter((unit) => !stranded.includes(unit)).map((unit) => unit.x + unit.width));
-    const nextX = new Map<number, number>();
-    for (const unit of stranded) {
-      const x = nextX.get(unit.generation) ?? right + UNIT_GAP * 2;
-      unit.x = x;
-      nextX.set(unit.generation, x + unit.width + UNIT_GAP);
-    }
-  }
+  connect(units, unitOf, graph);
+  const order = orderRows(rootUnit, units, graph);
+  placeRows(order, unitOf, graph);
+  if (faceParents(units, unitOf, graph)) placeRows(order, unitOf, graph);
 
   const rows = [...new Set(units.map((unit) => unit.generation))];
   const topRow = Math.min(...rows);
   const y = (row: number) => PADDING + (row - topRow) * ROW_HEIGHT;
 
-  // Everything so far is relative to wherever the root landed, which can be
-  // negative; shifting once here is cheaper than threading an origin through
-  // both passes.
+  // The placement has no origin of its own: everything moves so the leftmost
+  // card starts at the padding.
   const originX = Math.min(...units.map((unit) => unit.x)) - PADDING;
 
   const cards = new Map<string, FamilyCard>();

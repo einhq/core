@@ -24,6 +24,12 @@ const WHEEL_ZOOM_PER_PIXEL = 0.002;
 const WHEEL_LINE_PIXELS = 16;
 /** How far a pointer moves before a press is a drag rather than a click. */
 const DRAG_THRESHOLD = 4;
+/** Two taps this close in time and place are a double tap. */
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_DISTANCE = 24;
+/** What a double tap multiplies the scale by, or divides it by with Shift. */
+const DOUBLE_TAP_ZOOM = 2;
+const ZOOM_ANIMATION_MS = 220;
 /** The inline box's border, which `border-box` takes out of the height it is given. */
 const VIEWPORT_BORDER = 2;
 const CORNER_RADIUS = 10;
@@ -197,7 +203,9 @@ type FamilyDrawingProps = FamilyTreeProps & {
  *
  * The drawing is moved with a transform rather than scrolled: one finger or the
  * mouse drags it, two fingers pinch it, and the wheel zooms it about the
- * cursor. A press that moves less than `DRAG_THRESHOLD` is a click, so a card's
+ * cursor. A double click or tap on the ground zooms in about that point, with
+ * Shift out, and at full zoom back to the whole family, as on a map; on a card
+ * it stays the card's. A press that moves less than `DRAG_THRESHOLD` is a click, so a card's
  * name and buttons still work; one that moves further swallows the click that
  * ends it. The listeners are native rather than React's: the wheel's must not
  * be passive, and React's events would also arrive from a card's menu, which is
@@ -235,6 +243,62 @@ function FamilyDrawing(
     const current = layoutRef.current;
     const min = current ? fitScaleFor(current, sizeRef.current) : MIN_FIT_SCALE;
     return Math.min(MAX_SCALE, Math.max(min, scale));
+  };
+
+  const animation = useRef<number | null>(null);
+  const stopAnimation = () => {
+    if (animation.current !== null) cancelAnimationFrame(animation.current);
+    animation.current = null;
+  };
+
+  /**
+   * Glide to `to`. Between two scales the point both views put at the same place on screen stays
+   * there throughout and the scale changes evenly in proportion, so a zoom about a point looks like
+   * one, not like a slide and a zoom at once.
+   */
+  const animateTo = (to: View, isFit = false) => {
+    stopAnimation();
+    const from = viewRef.current;
+    if (!from || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setView(to, isFit);
+      return;
+    }
+    const zooms = Math.abs(from.scale - to.scale) > 1e-6;
+    const fixedX = zooms ? from.x + from.scale * (to.x - from.x) / (from.scale - to.scale) : 0;
+    const fixedY = zooms ? from.y + from.scale * (to.y - from.y) / (from.scale - to.scale) : 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / ZOOM_ANIMATION_MS);
+      if (t === 1) {
+        animation.current = null;
+        setView(to, isFit);
+        return;
+      }
+      const e = 1 - (1 - t) ** 3;
+      if (zooms) {
+        const scale = from.scale * (to.scale / from.scale) ** e;
+        setView({ scale, x: fixedX - (fixedX - from.x) * scale / from.scale, y: fixedY - (fixedY - from.y) * scale / from.scale });
+      } else {
+        setView({ scale: from.scale, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+      }
+      animation.current = requestAnimationFrame(frame);
+    };
+    animation.current = requestAnimationFrame(frame);
+  };
+
+  /** A double tap at box point (`px`, `py`): in about it, with `out` out, and from full zoom back to the whole family. */
+  const zoomByTap = (px: number, py: number, out: boolean) => {
+    const current = viewRef.current;
+    const drawing = layoutRef.current;
+    if (!current || !drawing) return;
+    const size = sizeRef.current;
+    const whole = fitView(drawing, size);
+    const scale = out ? current.scale / DOUBLE_TAP_ZOOM : current.scale * DOUBLE_TAP_ZOOM;
+    if ((out && scale <= whole.scale) || (!out && current.scale >= MAX_SCALE - 1e-6)) {
+      animateTo(whole, true);
+      return;
+    }
+    animateTo(clampView(zoomedAbout(current, scaleWithin(scale), px, py), drawing, size));
   };
 
   /** A view the reader moved to, kept on the drawing. */
@@ -305,6 +369,9 @@ function FamilyDrawing(
     /** The view and the pointers' positions when the current gesture, or its latest change of fingers, began. */
     let gesture: { view: View; points: { x: number; y: number }[] } | null = null;
     let moved = false;
+    /** The most pointers down at once in the current gesture: a tap is one finger's. */
+    let most = 0;
+    let lastTap: { time: number; x: number; y: number } | null = null;
 
     const restart = () => {
       const current = viewRef.current;
@@ -313,8 +380,13 @@ function FamilyDrawing(
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (pointers.size === 0) moved = false;
+      stopAnimation();
+      if (pointers.size === 0) {
+        moved = false;
+        most = 0;
+      }
       pointers.set(event.pointerId, local(event));
+      most = Math.max(most, pointers.size);
       restart();
     };
 
@@ -359,6 +431,20 @@ function FamilyDrawing(
       setDragging(false);
       // The click a drag ends with comes before any timer; after it, a click is a click again.
       if (moved) setTimeout(() => (moved = false));
+
+      // A tap on a card's name or button is that control's, not the drawing's.
+      const onControl = event.target instanceof Element && event.target.closest('a, button, input, [role="button"]');
+      if (event.type !== 'pointerup' || moved || most !== 1 || onControl) {
+        lastTap = null;
+        return;
+      }
+      const tap = { time: event.timeStamp, ...local(event) };
+      if (lastTap && tap.time - lastTap.time < DOUBLE_TAP_MS && Math.hypot(tap.x - lastTap.x, tap.y - lastTap.y) < DOUBLE_TAP_DISTANCE) {
+        lastTap = null;
+        zoomByTap(tap.x, tap.y, event.shiftKey);
+        return;
+      }
+      lastTap = tap;
     };
 
     // Capturing, so the click that ends a drag never reaches the card it began on.
@@ -370,6 +456,7 @@ function FamilyDrawing(
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      stopAnimation();
       const current = viewRef.current;
       if (!current) return;
       const pixels = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PIXELS : 1);
@@ -393,6 +480,7 @@ function FamilyDrawing(
     viewport.addEventListener('dragstart', onDragStart);
     viewport.addEventListener('gesturestart', onGesture);
     return () => {
+      stopAnimation();
       viewport.removeEventListener('pointerdown', onPointerDown);
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerEnd);
@@ -540,7 +628,7 @@ function FamilyDrawing(
             color='dark'
             size={CONTROL_SIZE}
             disabled={fitted || (view !== null && sameView(view, fitView(layout, size)))}
-            onClick={() => setView(fitView(layout, size), true)}
+            onClick={() => animateTo(fitView(layout, size), true)}
             aria-label='Fit the whole family'
           >
             <IconZoomScan size={20} />
@@ -552,7 +640,7 @@ function FamilyDrawing(
               variant='filled'
               color='dark'
               size={CONTROL_SIZE}
-              onClick={() => setView(clampView(centredOn(rootCard, view?.scale ?? 1, size), layout, size))}
+              onClick={() => animateTo(clampView(centredOn(rootCard, view?.scale ?? 1, size), layout, size))}
               aria-label='Centre on this person'
             >
               <IconFocusCentered size={20} />
