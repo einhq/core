@@ -26,6 +26,7 @@ import { parseArgs } from '../../../../lib/args/mod.ts';
 import { type EntryPointCoverage, parsePipeline } from '../../../pipeline/mod.ts';
 import { poolWorkerStates } from '../../../pipeline/pool-worker.ts';
 import { unservableKinds } from '../../../pipeline/unservable.ts';
+import { readPoolStat } from '../pool/pool-reading.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { type Kind, kindConditions, NOT_DERIVED } from '../../../../lib/kinds/mod.ts';
@@ -56,7 +57,6 @@ import type { NodeVFS } from '../../../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
 import type { LogHandle } from '../../../../registries/log/log-handle.ts';
-import type { PoolStat } from '../../../../registries/pool/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -79,7 +79,7 @@ const tierRoots = (cmd: Command): TierRoots =>
     root.path !== '' && all.findIndex((other) => other.path === root.path) === index
   );
 
-/** Job counts for every pool, from the registry's own GROUP BY. */
+/** Job counts for every pool, from the reading `pool-stat` and `health` share. */
 const samplePools = async (cmd: Command): Promise<PoolsEntry | undefined> => {
   const poolsPath = cmd.env.POOLS_PATH || POOLS_PATH;
 
@@ -94,7 +94,7 @@ const samplePools = async (cmd: Command): Promise<PoolsEntry | undefined> => {
   const out: PoolsEntry = {};
   for (const entry of entries) {
     try {
-      const stat = await cmd.sys.vfs.stat(ADMIN_ACCESS, join(poolsPath, entry.name)) as unknown as PoolStat;
+      const stat = await readPoolStat(cmd.sys.vfs, ADMIN_ACCESS, join(poolsPath, entry.name));
 
       const byKind: Record<string, PoolCountsEntry> = {};
       for (const [kind, counts] of Object.entries(stat.byKind ?? {})) {

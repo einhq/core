@@ -16,6 +16,7 @@ import type { PoolStat } from '../../../../registries/pool/mod.ts';
 import { TRIGGER_POOL } from '../../../pipeline/mod.ts';
 import { poolWorkerStates } from '../../../pipeline/pool-worker.ts';
 import { unservableKinds } from '../../../pipeline/unservable.ts';
+import { readPoolStat } from './pool-reading.ts';
 import { fmtAge, fmtEta, HOUR, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -141,7 +142,7 @@ export const statAllPools = async (cmd: Command): Promise<PoolStatAnswer[]> => {
   const pools = await Promise.all(entries.map(async (entry) => {
     const path = join(poolsPath, entry.name);
     try {
-      return answer(path, await cmd.sys.vfs.stat(cmd.access, path) as PoolStat, window);
+      return answer(path, await readPoolStat(cmd.sys.vfs, cmd.access, path), window);
     } catch {
       return undefined; // not a pool, or unreadable
     }
