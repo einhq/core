@@ -40,6 +40,22 @@ const TEMPORARY_PAUSE_MAX_MS = 600_000;
  */
 const KIND_BOUNDARY_MAX_MS = 5 * 60_000;
 
+/**
+ * The rotation's turns: each group of `kinds` once, at the place of its first kind, and every
+ * kind in no group alone. Kinds a group names that the worker does not offer are left out of it.
+ */
+function turnsOf(kinds: string[], groups: string[][]): { name: string; kinds: string[] }[] {
+  const turns: { name: string; kinds: string[] }[] = [];
+  const placed = new Set<string>();
+  for (const kind of kinds) {
+    if (placed.has(kind)) continue;
+    const group = groups.find((g) => g.includes(kind))?.filter((k) => kinds.includes(k) && !placed.has(k)) ?? [kind];
+    for (const k of group) placed.add(k);
+    turns.push({ name: group.join('+'), kinds: group });
+  }
+  return turns;
+}
+
 type PoolWorkerOptions = {
   poolPath: string;
   /** Total capacity this worker offers, e.g. `{ vramMb: 15000 }`. */
@@ -64,6 +80,14 @@ type PoolWorkerOptions = {
    * a lower one. Priority orders jobs *within* a kind; the quantum decides between kinds.
    */
   kindQuantumMs?: number;
+  /**
+   * Kinds that share a turn of the rotation (`kindQuantumMs`): within it they take slots in
+   * turn, and a kind in no group has its turns alone. For backlogs whose models fit on the
+   * card together, so one turn feeds them at once instead of each in its own quarter-hour —
+   * the media service runs each family under its own lock, so different families infer side by
+   * side. A turn is named by its kinds joined with `+` (`currentKind`).
+   */
+  kindGroups?: string[][];
   leaseMs?: number;
   bashrcPath?: string;
 };
@@ -160,7 +184,11 @@ export class PoolWorker {
   private accumulatingFor: string | undefined;
   private readonly concurrency: number;
   private readonly kindQuantumMs: number;
-  /** Kind currently being drained, and when this batch started. */
+  /** The turns of the rotation, in order: a group's kinds, or one kind alone (`kindGroups`). */
+  private readonly turns: { name: string; kinds: string[] }[];
+  /** Where the next claim within each turn starts, by turn name. */
+  private turnCursor = new Map<string, number>();
+  /** Turn currently being drained (its name), and when this batch started. */
   private currentKind: string | undefined;
   private kindSince = 0;
   /** Kinds resting after a step said its service could not do it yet — see `TEMPORARY_PAUSE_MS`. */
@@ -181,8 +209,9 @@ export class PoolWorker {
     this.reserveKinds = opts.reserveKinds ?? [];
     this.reserveCapacity = { ...(opts.reserveCapacity ?? {}) };
     this.concurrency = Math.max(1, opts.concurrency ?? 1);
-    // Batching needs at least two kinds to rotate between; with one it is a no-op either way.
-    this.kindQuantumMs = this.kinds.length > 1 ? Math.max(0, opts.kindQuantumMs ?? 0) : 0;
+    this.turns = turnsOf(this.kinds, opts.kindGroups ?? []);
+    // Batching needs at least two turns to rotate between; with one it is a no-op either way.
+    this.kindQuantumMs = this.turns.length > 1 ? Math.max(0, opts.kindQuantumMs ?? 0) : 0;
     this.leaseMs = opts.leaseMs ?? 60_000;
     this.bashrcPath = opts.bashrcPath ?? '/etc/bashrc';
     this.owner = `${Deno.hostname()}:${Deno.pid}:${crypto.randomUUID().slice(0, 8)}`;
@@ -195,6 +224,7 @@ export class PoolWorker {
       pool: this.poolPath,
       capacity: this.capacity,
       kinds: this.kinds,
+      turns: this.turns.map((turn) => turn.name),
       concurrency: this.concurrency,
       kindQuantumMs: this.kindQuantumMs,
       reserveKinds: this.reserveKinds,
@@ -336,12 +366,40 @@ export class PoolWorker {
     });
   }
 
-  /** Kinds after `from` in declaration order, wrapping, excluding `from` itself. */
-  private kindsAfter(from: string | undefined): string[] {
-    if (from === undefined) return [...this.kinds];
-    const at = this.kinds.indexOf(from);
-    if (at < 0) return [...this.kinds];
-    return [...this.kinds.slice(at + 1), ...this.kinds.slice(0, at)];
+  /** Turns after `from` in order, wrapping, excluding `from` itself. */
+  private turnsAfter(from: string | undefined): string[] {
+    const names = this.turns.map((turn) => turn.name);
+    if (from === undefined) return names;
+    const at = names.indexOf(from);
+    if (at < 0) return names;
+    return [...names.slice(at + 1), ...names.slice(0, at)];
+  }
+
+  private kindsOfTurn(name: string): string[] {
+    return this.turns.find((turn) => turn.name === name)?.kinds ?? [name];
+  }
+
+  private turnOfKind(kind: string): string {
+    return this.turns.find((turn) => turn.kinds.includes(kind))?.name ?? kind;
+  }
+
+  /** A job of the turn's kinds, which take claims in turn, or null when none has one ready. */
+  private async tryClaimTurn(name: string): Promise<PoolJob | null> {
+    const kinds = this.kindsOfTurn(name);
+    const start = this.turnCursor.get(name) ?? 0;
+    for (let offset = 0; offset < kinds.length; offset++) {
+      const index = (start + offset) % kinds.length;
+      const job = await this.tryClaimKind(kinds[index]);
+      if (job) {
+        this.turnCursor.set(name, (index + 1) % kinds.length);
+        return job;
+      }
+    }
+    return null;
+  }
+
+  private isTurnPaused(name: string): boolean {
+    return this.kindsOfTurn(name).every((kind) => this.isPaused(kind));
   }
 
   /**
@@ -366,8 +424,8 @@ export class PoolWorker {
       // advertises only the new one. Park until the whole batch drains first —
       // for at most `KIND_BOUNDARY_MAX_MS`.
       if (this.holdAtBoundary()) return undefined;
-      for (const kind of this.kindsAfter(this.currentKind)) {
-        const job = await this.tryClaimKind(kind);
+      for (const kind of this.turnsAfter(this.currentKind)) {
+        const job = await this.tryClaimTurn(kind);
         if (job) {
           logger.info('kind quantum expired, rotating', {
             pool: this.poolPath,
@@ -386,16 +444,16 @@ export class PoolWorker {
     }
 
     if (this.currentKind !== undefined) {
-      const job = await this.tryClaimKind(this.currentKind);
+      const job = await this.tryClaimTurn(this.currentKind);
       if (job) return job;
       // The ready queue drained, but an earlier command of this kind has not.
       // Keep the family boundary intact until that last command settles — unless the kind is
       // resting, when there is nothing of it to wait for, or the wait has run its course.
-      if (!this.isPaused(this.currentKind) && this.holdAtBoundary()) return undefined;
+      if (!this.isTurnPaused(this.currentKind) && this.holdAtBoundary()) return undefined;
     }
 
-    for (const kind of this.kindsAfter(this.currentKind)) {
-      const job = await this.tryClaimKind(kind);
+    for (const kind of this.turnsAfter(this.currentKind)) {
+      const job = await this.tryClaimTurn(kind);
       if (job) {
         // Only a real rotation is worth a line. The first claim of a worker's life has no
         // previous kind, and logging that as "rotating" reads as churn that never happened.
@@ -412,7 +470,7 @@ export class PoolWorker {
     // batch. A resting kind wakes the park when its pause ends.
     const job = await this.parkedClaim(this.remaining);
     if (job) {
-      this.currentKind = job.kind;
+      this.currentKind = this.turnOfKind(job.kind);
       this.kindSince = Date.now();
     }
     return job;
@@ -420,7 +478,7 @@ export class PoolWorker {
 
   private hasCurrentKindInFlight(): boolean {
     return this.currentKind !== undefined &&
-      [...this.inFlight.values()].some(({ job }) => job.kind === this.currentKind);
+      [...this.inFlight.values()].some(({ job }) => this.kindsOfTurn(this.currentKind!).includes(job.kind));
   }
 
   /**

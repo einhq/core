@@ -150,3 +150,57 @@ Deno.test('an idle pool parks on all kinds and the first arrival sets the batch'
   assertEquals(job!.kind, 'gpu-describe');
   assertEquals(worker.currentKind, 'gpu-describe');
 });
+
+/** A worker over three kinds, two of which share their turns. */
+function makeGroupedWorker(available: Record<string, number>) {
+  let seq = 0;
+  const vfs = {
+    poolClaim(_access: unknown, _pool: string, req: ClaimStub): Promise<PoolJob | null> {
+      const kinds = req.kinds ?? Object.keys(available);
+      for (const kind of kinds) {
+        if ((available[kind] ?? 0) > 0) {
+          available[kind]--;
+          return Promise.resolve({ id: `job-${++seq}`, kind } as unknown as PoolJob);
+        }
+      }
+      return Promise.resolve(null);
+    },
+  };
+  const worker = new PoolWorker(
+    vfs as unknown as ConstructorParameters<typeof PoolWorker>[0],
+    {} as ConstructorParameters<typeof PoolWorker>[1],
+    { poolPath: '/pools/media', kinds: ['faces', 'embed-picture', 'transcribe'], kindGroups: [['faces', 'embed-picture']], kindQuantumMs: 1000 },
+  );
+  const internals = worker as unknown as Internals;
+  internals.abort = new AbortController();
+  return internals;
+}
+
+Deno.test('the kinds of a group take claims in turn within one turn of the rotation', async () => {
+  const worker = makeGroupedWorker({ faces: 5, 'embed-picture': 5, transcribe: 5 });
+  const kinds: string[] = [];
+  for (let i = 0; i < 4; i++) kinds.push((await worker.claimBatched())!.kind);
+  assertEquals(kinds, ['faces', 'embed-picture', 'faces', 'embed-picture']);
+  assertEquals(worker.currentKind, 'faces+embed-picture');
+});
+
+Deno.test('a group is one turn: the rotation passes from it to the next kind, and back', async () => {
+  const worker = makeGroupedWorker({ faces: 50, 'embed-picture': 50, transcribe: 5 });
+  await worker.claimBatched();
+  worker.kindSince = Date.now() - 5000;
+  worker.inFlight.clear();
+  assertEquals((await worker.claimBatched())!.kind, 'transcribe');
+  assertEquals(worker.currentKind, 'transcribe');
+  worker.kindSince = Date.now() - 5000;
+  worker.inFlight.clear();
+  assertEquals((await worker.claimBatched())!.kind === 'transcribe', false);
+  assertEquals(worker.currentKind, 'faces+embed-picture');
+});
+
+Deno.test('a command of the group in flight holds the boundary for the whole group', async () => {
+  const worker = makeGroupedWorker({ faces: 50, 'embed-picture': 50, transcribe: 5 });
+  const job = (await worker.claimBatched())!;
+  worker.inFlight.set(1, { job: { ...job, kind: 'embed-picture' } as PoolJob, abort: new AbortController() });
+  worker.kindSince = Date.now() - 5000;
+  assertEquals(await worker.claimBatched(), undefined);
+});
