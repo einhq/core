@@ -9,8 +9,8 @@ import type { CmdReturn } from '../../types.ts';
 
 export const pipelineWorker = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    string: ['concurrency', 'pool', 'capacity', 'kind', 'kind-group', 'reserve-capacity', 'reserve-kind', 'kind-quantum', 'lease'],
-    collect: ['capacity', 'kind', 'kind-group', 'reserve-capacity', 'reserve-kind'],
+    string: ['concurrency', 'pool', 'capacity', 'kind', 'reserve-capacity', 'reserve-kind', 'kind-quantum', 'lease'],
+    collect: ['capacity', 'kind', 'reserve-capacity', 'reserve-kind'],
     alias: { c: 'concurrency', p: 'pool' },
   });
 
@@ -43,10 +43,6 @@ export const pipelineWorker = async (cmd: Command): CmdReturn => {
     reserveKinds: (flags['reserve-kind'] as string[]).filter(Boolean),
     reserveCapacity,
     concurrency,
-    // `a+b+c` per group, groups apart by commas or in flags of their own; a group of one kind is
-    // no group.
-    kindGroups: (flags['kind-group'] as string[]).flatMap((value) => value.split(/[\s,]+/))
-      .map((group) => group.split('+').filter(Boolean)).filter((group) => group.length > 1),
     kindQuantumMs: flags['kind-quantum'] !== undefined ? Number(flags['kind-quantum']) : Number(cmd.env.CFG_PIPELINE_KIND_QUANTUM_MS) || undefined,
     leaseMs: flags.lease === undefined ? undefined : Number(flags.lease),
     bashrcPath: join(cmd.env.ETC_PATH || ETC_PATH, 'bashrc'),
@@ -83,12 +79,6 @@ pipelineWorker.spec = {
     { name: 'kind', type: 'string' as const, description: 'Only claim these job kinds (repeatable)' },
     { name: 'reserve-kind', type: 'string' as const, description: 'Prefer these kinds within reserved capacity (repeatable)' },
     { name: 'reserve-capacity', type: 'string' as const, description: 'Soft capacity reservation, key=number (repeatable)' },
-    {
-      name: 'kind-group',
-      type: 'string' as const,
-      description:
-        'Kinds that share a turn of the rotation, joined by + (faces+embed-picture); groups apart by commas, or repeat the flag. Their models fit on the card together',
-    },
     {
       name: 'kind-quantum',
       type: 'number' as const,
