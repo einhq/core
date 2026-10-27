@@ -9,6 +9,7 @@ type EngineInternals = {
   advanceLocks: Map<string, unknown>;
   creatingByPipeline: Map<string, number>;
   entryAdmissionPercent: number;
+  maxOpenInstances: number;
   triggerCursor: number;
   claimTriggerFairly(): Promise<PoolJob | null>;
 };
@@ -49,6 +50,8 @@ function fixture(percent: number, counts: Partial<Record<'normal-a' | 'normal-b'
     ['entry', definition('entry', true)],
   ]);
   engine.entryAdmissionPercent = percent;
+  // Small enough that the open instances each test sets up reach half of it, where load decides.
+  engine.maxOpenInstances = 4;
   return engine;
 }
 
@@ -103,6 +106,7 @@ Deno.test('one ready pipeline may borrow the otherwise idle admission ceiling', 
 
 Deno.test('in-progress trigger creation counts against pipeline admission load', async () => {
   const engine = fixture(0);
+  engine.maxOpenInstances = 0;
   engine.creatingByPipeline.set('normal-a', 1);
 
   assertEquals((await engine.claimTriggerFairly())!.kind, 'normal-b');
@@ -126,4 +130,18 @@ Deno.test('an empty entry reservation falls back to normal fair admission', asyn
   for (let i = 0; i < 2; i++) kinds.push((await engine.claimTriggerFairly())!.kind);
 
   assertEquals(kinds, ['normal-a', 'normal-b']);
+});
+
+Deno.test('below half the open-instance ceiling claims rotate whatever each pipeline holds', async () => {
+  const engine = fixture(0);
+  engine.maxOpenInstances = 100;
+  engine.advanceLocks = new Map([
+    ['/var/pipelines/instances/normal-a/a', {}],
+    ['/var/pipelines/instances/normal-a/b', {}],
+    ['/var/pipelines/instances/normal-a/c', {}],
+  ]);
+  const kinds: string[] = [];
+  for (let i = 0; i < 3; i++) kinds.push((await engine.claimTriggerFairly())!.kind);
+
+  assertEquals(kinds, ['normal-a', 'normal-b', 'entry']);
 });

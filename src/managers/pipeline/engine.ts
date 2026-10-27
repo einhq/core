@@ -129,6 +129,11 @@ const DEFAULT_MAX_OPEN_INSTANCES = 5000;
 const ADMISSION_KICK_MS = 60_000;
 /** How far past `maxOpenInstances` fair-share admission may go; see `gateClosed`. */
 const OPEN_INSTANCE_HARD_CAP_FACTOR = 2;
+/**
+ * Below this share of `maxOpenInstances` open, trigger claims ignore pipeline load and rotate;
+ * see `claimTriggerFairly`.
+ */
+const LOAD_ORDER_FROM = 0.5;
 
 /**
  * How long an instance may have no steps before that counts as a broken
@@ -1485,8 +1490,13 @@ export class PipelineEngine {
    *
    * So: count the open and currently-creating instances per pipeline, probe the
    * least-loaded pipelines first, and retain the round-robin cursor as the tie
-   * break between equal loads. A sole backlog may still borrow the full ceiling;
-   * as soon as another pipeline has ready work, its lower load gives it every
+   * break between equal loads. That ordering applies only once half the ceiling
+   * is open. Below it open slots are not what is scarce, the claim rate is, and
+   * least-loaded would hand nearly every claim to the pipelines whose instances
+   * finish at once (always at load 0), so a pipeline waiting on a slow pool is
+   * admitted a few times an hour while its pool worker idles (ein/core#734).
+   * There the cursor alone rotates, one claim per pipeline with work. A sole
+   * backlog may still borrow the full ceiling; as soon as another pipeline has ready work, its lower load gives it every
    * freed slot until the occupancy is balanced. The probes remain non-blocking:
    * `claim()` runs its `tryClaim` and returns that result directly when no
    * AbortSignal is passed, so omitting the signal is what makes these probes
@@ -1558,7 +1568,7 @@ export class PipelineEngine {
   ): Promise<{ job: PoolJob; nextCursor: number } | null> {
     if (kinds.length === 0 && !includeWildcard) return null;
 
-    const loads = this.pipelineAdmissionLoads(kinds);
+    const loads = this.advanceLocks.size >= this.maxOpenInstances * LOAD_ORDER_FROM ? this.pipelineAdmissionLoads(kinds) : new Map<string, number>();
     const length = kinds.length + (includeWildcard ? 1 : 0);
     const maxLoad = Math.max(0, ...loads.values());
     const candidates: Array<{ kind: string | null; index: number; load: number; turn: number }> = kinds.map((kind, index) => ({
