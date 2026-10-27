@@ -1,9 +1,10 @@
 import { ActionIcon, Box, Loader, Stack, Text, Tooltip } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconFocusCentered, IconMaximize, IconMinimize, IconZoomScan } from '@tabler/icons-react';
-import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CARD_HEIGHT, CARD_WIDTH, type DescentEdge, type FamilyGraph, layoutFamily } from '../../lib/family-layout.ts';
-import { FamilyTreeCard } from './FamilyTreeCard.tsx';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, layoutFamily } from '../../lib/family-layout.ts';
+import { layoutHatField } from '../../lib/hat-field.ts';
+import { type FamilyDirection, FamilyTreeCard } from './FamilyTreeCard.tsx';
 import { Dialog } from '../Surface/Dialog.tsx';
 
 /** How tall the drawing's box gets inline. Tall enough for five rows at full zoom. */
@@ -26,8 +27,8 @@ const DRAG_THRESHOLD = 4;
 /** The inline box's border, which `border-box` takes out of the height it is given. */
 const VIEWPORT_BORDER = 2;
 const CORNER_RADIUS = 10;
-/** The background's tile at full size; zoomed, it halves or doubles to stay within twice this. */
-const TILE = 32;
+/** How strongly the hat tiles behind the drawing are outlined: a texture, not a picture. */
+const HAT_GROUND_OPACITY = 0.07;
 /** The map's control: a filled dark button standing on the drawing. */
 const CONTROL_SIZE = 40;
 
@@ -67,48 +68,80 @@ const zoomedAbout = (view: View, scale: number, px: number, py: number): View =>
   y: py - (py - view.y) * scale / view.scale,
 });
 
+/** A bar's tooth: a vertical line from the bar at `y` to `end`, above it or below it. */
+type Tooth = { x: number; end: number };
+
 /**
- * A descent line as an SVG path: down out of the parent, across the gap, down
- * into the child.
+ * A horizontal bar at `y` with its teeth, as one SVG path.
  *
- * Right angles, softened at the two turns, and the horizontal run shared by
- * every line into the same row at the same `busY` — which is what makes a set of
- * siblings read as one family and a child's two parents as one couple, rather
- * than as unrelated lines converging. The radius shrinks to fit a short run, and
- * a child straight below its parent gets no turns.
+ * A tooth at either end of the bar turns into it round a corner; every other one meets it at a
+ * plain T, so no two curves ever cross. An end with teeth both above and below is a line straight
+ * through, and the bar meets it at a T as well. Teeth at one x (and a bar of no length) are straight
+ * lines through `y`.
  */
-const descentPath = ({ fromX, fromY, toX, toY, busY }: DescentEdge): string => {
-  const dx = toX - fromX;
-  const r = Math.min(CORNER_RADIUS, Math.abs(dx) / 2, busY - fromY, toY - busY);
-  if (r < 0.5) return `M ${fromX} ${fromY} V ${busY} H ${toX} V ${toY}`;
-  const sx = Math.sign(dx);
-  return `M ${fromX} ${fromY} V ${busY - r} Q ${fromX} ${busY} ${fromX + sx * r} ${busY} H ${toX - sx * r} Q ${toX} ${busY} ${toX} ${busY + r} V ${toY}`;
+const barPath = (y: number, teeth: Tooth[]): string => {
+  const left = Math.min(...teeth.map((tooth) => tooth.x));
+  const right = Math.max(...teeth.map((tooth) => tooth.x));
+  const at = (x: number) => teeth.filter((tooth) => Math.abs(tooth.x - x) < 0.5);
+  const turns = (x: number) => right - left >= 1 && at(x).length === 1;
+  const radius = (tooth: Tooth) => Math.min(CORNER_RADIUS, (right - left) / 2, Math.abs(tooth.end - y));
+
+  const parts: string[] = [];
+  for (const tooth of teeth) {
+    const end = Math.abs(tooth.x - left) < 0.5 ? left : Math.abs(tooth.x - right) < 0.5 ? right : null;
+    if (end === null || !turns(end)) {
+      parts.push(`M ${tooth.x} ${tooth.end} V ${y}`);
+      continue;
+    }
+    const r = radius(tooth);
+    const dy = Math.sign(tooth.end - y);
+    const dx = end === left ? 1 : -1;
+    parts.push(`M ${tooth.x} ${tooth.end} V ${y + dy * r} Q ${tooth.x} ${y} ${tooth.x + dx * r} ${y}`);
+  }
+  const from = turns(left) ? left + radius(at(left)[0]) : left;
+  const to = turns(right) ? right - radius(at(right)[0]) : right;
+  if (to > from) parts.push(`M ${from} ${y} H ${to}`);
+  return parts.join(' ');
 };
 
 /**
- * A faint square tiling that moves and scales with the drawing, as a map's
- * ground does. Zoomed far out, a tile at the drawing's scale would be a few
- * pixels of noise, so it doubles (or halves) to stay between one and two `TILE`s.
+ * A family's lines as one SVG path: the parents' stems into the couple bar, the trunk from its
+ * middle down to the sibling bar, and the drops into the children. The trunk is a tooth of both
+ * bars, so either bar turns into it where it is the bar's end.
  */
-const tileBackground = (view: View): CSSProperties => {
-  let size = TILE * view.scale;
-  while (size < TILE) size *= 2;
-  while (size >= TILE * 2) size /= 2;
-  const line = 'color-mix(in srgb, var(--mantine-color-default-border) 40%, transparent)';
-  return {
-    backgroundColor: 'var(--mrx-surface-base)',
-    backgroundImage: `linear-gradient(to right, ${line} 1px, transparent 1px), linear-gradient(to bottom, ${line} 1px, transparent 1px)`,
-    backgroundSize: `${size}px ${size}px`,
-    backgroundPosition: `${view.x % size}px ${view.y % size}px`,
-  };
+const familyPath = ({ parents, fromY, coupleY, trunkX, siblingY, children, toY }: FamilyLines): string => {
+  const trunkTop = coupleY ?? fromY;
+  return [
+    coupleY !== undefined ? barPath(coupleY, [...parents.map((x) => ({ x, end: fromY })), { x: trunkX, end: siblingY }]) : '',
+    barPath(siblingY, [{ x: trunkX, end: trunkTop }, ...children.map((x) => ({ x, end: toY }))]),
+  ].join(' ');
 };
+
+/**
+ * The ground behind the drawing: the hat tiling the page headers are cut from, outlined only and
+ * barely, so the box reads as a surface without the tiles competing with the cards. It stays put
+ * while the drawing is dragged over it, so it is laid out once per box size, not once per frame.
+ */
+const HatGround = memo(function HatGround({ width, height, seed }: { width: number; height: number; seed: string }) {
+  const tiles = useMemo(() => (width > 0 && height > 0 ? layoutHatField(width, height, seed, 'backdrop').tiles : []), [width, height, seed]);
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
+      <g fill='none' stroke='var(--mantine-color-text)' strokeWidth={1} opacity={HAT_GROUND_OPACITY}>
+        {tiles.map((tile, index) => <path key={index} d={tile.d} />)}
+      </g>
+    </svg>
+  );
+});
 
 export type FamilyTreeProps = {
   graph: FamilyGraph | null;
   loading: boolean;
-  expanded: ReadonlySet<string>;
-  expanding: string | null;
-  onExpand: (path: string) => void;
+  /** The cards each direction was expanded from: those stop offering to expand that way. */
+  expanded: Readonly<Record<FamilyDirection, ReadonlySet<string>>>;
+  /** The card and direction being fetched, so its bulge can say so. */
+  expanding: { path: string; direction: FamilyDirection } | null;
+  /** Pull in the generation above (`up`) or below (`down`) a card. */
+  onExpand: (path: string, direction: FamilyDirection) => void;
   /** Relation edits are an administrator action on a person's detail page. */
   editable?: boolean;
   onAddRelation: (path: string, kind: 'parent' | 'partner' | 'child') => void;
@@ -116,42 +149,38 @@ export type FamilyTreeProps = {
   emptyMessage?: string;
   /** Start zoomed so the whole family fits the box, instead of at full size centred on the person. */
   fit?: boolean;
-  /** Offer a button that opens the tree full screen. */
-  expandable?: boolean;
 };
 
 /**
- * The family, drawn — inline, and when `expandable`, full screen on request.
+ * The family, drawn — inline, and full screen on request.
  *
  * The full-screen view is a second drawing of the same graph in a dialog rather
  * than the inline one moved there: each keeps its own view, and closing the
  * dialog leaves the inline tree exactly as the reader left it.
  */
-export function FamilyTree({ expandable = false, ...props }: FamilyTreeProps) {
+export function FamilyTree(props: FamilyTreeProps) {
   const [screen, setScreen] = useState(false);
   const rootName = props.graph ? props.graph.nodes[props.graph.root]?.name : undefined;
 
   return (
     <>
-      <FamilyDrawing {...props} fill={false} onScreen={expandable ? () => setScreen(true) : undefined} />
-      {expandable && (
-        <Dialog
-          opened={screen}
-          onClose={() => setScreen(false)}
-          fullScreen
-          bleed
-          title={rootName ? `Family of ${rootName}` : 'Family'}
-          icon='sitemap'
-          pattern='person'
-        >
-          <FamilyDrawing {...props} fit fill onScreen={() => setScreen(false)} />
-        </Dialog>
-      )}
+      <FamilyDrawing {...props} fill={false} onScreen={() => setScreen(true)} />
+      <Dialog
+        opened={screen}
+        onClose={() => setScreen(false)}
+        fullScreen
+        bleed
+        title={rootName ? `Family of ${rootName}` : 'Family'}
+        icon='sitemap'
+        pattern='person'
+      >
+        <FamilyDrawing {...props} fit fill onScreen={() => setScreen(false)} />
+      </Dialog>
     </>
   );
 }
 
-type FamilyDrawingProps = Omit<FamilyTreeProps, 'expandable'> & {
+type FamilyDrawingProps = FamilyTreeProps & {
   /** Take the parent's whole height, edge to edge, rather than a box sized to the drawing. */
   fill: boolean;
   /** Given, a button in the corner calls it: into full screen inline, out of it when `fill`. */
@@ -229,29 +258,33 @@ function FamilyDrawing(
   // Before paint: a new person is shown fitted or centred on them; a resized
   // fitted drawing fits again; and a drawing that grew keeps the card the
   // reader expanded where it was on screen, rather than letting the new
-  // origin throw it somewhere else.
+  // origin throw it somewhere else, while the rest is laid out afresh round it.
   useLayoutEffect(() => {
     if (!layout || !root || size.width === 0 || size.height === 0 || layout.cards.length === 0) return;
     const previous = placedLayout.current;
     placedLayout.current = layout;
     const rootCard = layout.byPath[root];
 
+    const anchor = anchorPath.current;
+    anchorPath.current = null;
+
     if (placedFor.current !== root || !viewRef.current) {
       placedFor.current = root;
-      anchorPath.current = null;
       // A family that fits at full size is shown whole, wherever its person is in it.
       if (fit || !rootCard || fitScaleFor(layout, size) >= 1) setView(fitView(layout, size), fit);
       else setView(clampView(centredOn(rootCard, 1, size), layout, size));
       return;
     }
-    if (fittedRef.current) {
+    // A fitted drawing fits again, except round an expand: the card the reader
+    // pressed stays under their finger, and the view is theirs from then on.
+    if (fittedRef.current && !(anchor && previous !== layout)) {
       setView(fitView(layout, size), true);
       return;
     }
     let next = viewRef.current;
-    const anchor = anchorPath.current ?? root;
-    const before = previous?.byPath[anchor];
-    const after = layout.byPath[anchor];
+    const kept = anchor ?? root;
+    const before = previous?.byPath[kept];
+    const after = layout.byPath[kept];
     if (previous !== layout && before && after) {
       next = { ...next, x: next.x + (before.x - after.x) * next.scale, y: next.y + (before.y - after.y) * next.scale };
     }
@@ -378,10 +411,10 @@ function FamilyDrawing(
     return (
       <>
         <svg width={layout.width} height={layout.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
-          {/* One group's opacity, so where a couple's two lines run together they are no darker than one. */}
+          {/* One group's opacity, so where a family's lines meet they are no darker than one. */}
           <g opacity={0.55}>
-            {layout.descent.map((edge) => (
-              <path key={edge.key} d={descentPath(edge)} fill='none' stroke='var(--mantine-color-dimmed)' strokeWidth={1.5} strokeLinecap='round' />
+            {layout.families.map((family) => (
+              <path key={family.key} d={familyPath(family)} fill='none' stroke='var(--mantine-color-dimmed)' strokeWidth={1.5} strokeLinecap='round' />
             ))}
           </g>
           {layout.unions.map((union) => {
@@ -405,11 +438,11 @@ function FamilyDrawing(
           if (!node) {
             return null;
           }
-          // What the graph knows exists minus what is on screen. Expanding
-          // a card once answers both directions, so it stops offering.
-          const hidden = expanded.has(card.path)
-            ? { parents: 0, children: 0 }
-            : { parents: node.parentCount - node.parents.length, children: node.childCount - node.children.length };
+          // What the graph knows exists minus what is on screen. Once a
+          // direction is expanded it stops offering, even if a relation there
+          // could not be read.
+          const parents = expanded.up.has(card.path) ? 0 : node.parentCount - node.parents.length;
+          const children = expanded.down.has(card.path) ? 0 : node.childCount - node.children.length;
 
           return (
             <FamilyTreeCard
@@ -418,17 +451,16 @@ function FamilyDrawing(
               x={card.x}
               y={card.y}
               isRoot={card.path === graph.root}
-              moreParents={hidden.parents}
-              moreChildren={hidden.children}
-              busy={expanding === card.path}
-              onExpand={() => {
+              moreParents={parents}
+              moreChildren={children}
+              expanding={expanding?.path === card.path ? expanding.direction : null}
+              onExpand={(direction) => {
                 anchorPath.current = card.path;
-                onExpand(card.path);
+                onExpand(card.path, direction);
               }}
               editable={editable}
               onAddRelation={(kind) => onAddRelation(card.path, kind)}
-              onRemoveRelation={() =>
-                onRemoveRelation(card.path)}
+              onRemoveRelation={() => onRemoveRelation(card.path)}
             />
           );
         })}
@@ -466,9 +498,10 @@ function FamilyDrawing(
           touchAction: 'none',
           userSelect: 'none',
           cursor: dragging ? 'grabbing' : 'grab',
-          ...(view ? tileBackground(view) : { background: 'var(--mrx-surface-base)' }),
+          background: 'var(--mrx-surface-base)',
         }}
       >
+        <HatGround width={size.width} height={size.height} seed={`family:${graph.root}`} />
         {
           /* Hidden until the box is measured and the view placed: one frame at
             full size first would be a flash of a huge tree, then a jump. */

@@ -37,6 +37,12 @@ const graphOf = (root: string, spec: Record<string, Spec>): FamilyGraph => {
 
 const centre = (layout: ReturnType<typeof layoutFamily>, name: string): number => layout.byPath[`/archive/people/${name}`].x + CARD_WIDTH / 2;
 
+/** The families a person's card hangs from: their row, and a drop at their middle. */
+const familiesOf = (layout: ReturnType<typeof layoutFamily>, name: string) => {
+  const card = layout.byPath[`/archive/people/${name}`];
+  return layout.families.filter((family) => family.toY === card.y && family.children.includes(card.x + CARD_WIDTH / 2));
+};
+
 /** Every pair of cards sharing a row, checked for overlap. */
 const overlaps = (layout: ReturnType<typeof layoutFamily>): string[] => {
   const found: string[] = [];
@@ -103,17 +109,18 @@ Deno.test('family layout: a child hangs under the middle of its parents', () => 
   const childrenMiddle = (centre(layout, 'mia') + centre(layout, 'edvin')) / 2;
   assert(Math.abs(coupleMiddle - childrenMiddle) < 1, `couple at ${coupleMiddle}, children at ${childrenMiddle}`);
 
-  // A line from each parent: mia descends from anna *and* erik, and the two
-  // lines leave the middle of each parent's card and meet on the way to hers.
-  const toMia = layout.descent.filter((edge) => edge.key.endsWith(`>/archive/people/mia`));
-  assertEquals(toMia.map((edge) => edge.fromX).sort((a, b) => a - b), [centre(layout, 'anna'), centre(layout, 'erik')].sort((a, b) => a - b));
-  for (const edge of toMia) {
-    assertEquals(edge.toX, centre(layout, 'mia'));
-    // It runs downward, and turns between the two rows, where the other one does.
-    assert(edge.fromY < edge.toY);
-    assert(edge.busY > edge.fromY && edge.busY < edge.toY);
-    assertEquals(edge.busY, toMia[0].busY);
-  }
+  // One family: a stem from the middle of each parent's card to the couple
+  // bar, the trunk from its middle, and a drop into each child.
+  const sorted = (xs: number[]) => [...xs].sort((a, b) => a - b);
+  const theirs = familiesOf(layout, 'mia');
+  assertEquals(theirs.length, 1);
+  const [lines] = theirs;
+  assertEquals(lines.parents, sorted([centre(layout, 'anna'), centre(layout, 'erik')]));
+  assertEquals(lines.children, sorted([centre(layout, 'mia'), centre(layout, 'edvin')]));
+  assert(Math.abs(lines.trunkX - coupleMiddle) < 1);
+  // Downward, with the couple bar above the sibling bar, both between the rows.
+  assert(lines.coupleY !== undefined);
+  assert(lines.fromY < lines.coupleY && lines.coupleY < lines.siblingY && lines.siblingY < lines.toY);
 });
 
 Deno.test('family layout: a partnership carries its years', () => {
@@ -126,9 +133,11 @@ Deno.test('family layout: a partnership carries its years', () => {
 
 Deno.test('family layout: a single parent sources its own line', () => {
   const layout = layoutFamily(family());
-  const toJohn = layout.descent.filter((edge) => edge.key.endsWith(`>/archive/people/john`));
+  const toJohn = familiesOf(layout, 'john');
   assertEquals(toJohn.length, 1);
-  assert(Math.abs(toJohn[0].fromX - centre(layout, 'mia')) < 1);
+  assertEquals(toJohn[0].parents, [centre(layout, 'mia')]);
+  assertEquals(toJohn[0].trunkX, centre(layout, 'mia'));
+  assertEquals(toJohn[0].coupleY, undefined);
 });
 
 Deno.test('family layout: a person reached twice is drawn once, and it terminates', () => {
@@ -144,14 +153,16 @@ Deno.test('family layout: a person reached twice is drawn once, and it terminate
   assertEquals(layout.cards.filter((card) => card.path === `/archive/people/fred`).length, 1);
   assertEquals(overlaps(layout), []);
   // Both ties are still drawn even though only one of them placed him.
-  assertEquals(layout.descent.filter((edge) => edge.key.endsWith(`>/archive/people/fred`)).length, 2);
+  const toFred = familiesOf(layout, 'fred');
+  assertEquals(toFred.length, 1);
+  assertEquals(toFred[0].parents, [centre(layout, 'hans'), centre(layout, 'inga')].sort((a, b) => a - b));
 });
 
 Deno.test('family layout: a lone person is a drawing of one card', () => {
   const layout = layoutFamily(graphOf('solo', { solo: { parentCount: 2, childCount: 3 } }));
 
   assertEquals(layout.cards.length, 1);
-  assertEquals(layout.descent, []);
+  assertEquals(layout.families, []);
   assertEquals(layout.unions, []);
   assert(layout.width > CARD_WIDTH);
   assert(layout.height > 0);

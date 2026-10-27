@@ -9,6 +9,9 @@ import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
 const BULGE_HEIGHT = 15;
 const BULGE_WIDTH = 34;
 
+/** Which way a card's family is expanded: towards its parents or its children. */
+export type FamilyDirection = 'up' | 'down';
+
 /** `1948 – 2011`, `b. 1948`, `d. 2011`, or nothing. */
 export function lifeSpan(node: Pick<FamilyNode, 'born' | 'died'>): string | undefined {
   const born = node.born?.slice(0, 4);
@@ -28,11 +31,11 @@ export type FamilyTreeCardProps = {
   /** Parents exist that are not on screen. */
   moreParents: number;
   moreChildren: number;
-  /** Waiting on this card's own expand. */
-  busy: boolean;
+  /** Waiting on this card's own expand, that way. */
+  expanding: FamilyDirection | null;
   /** Relation controls are hidden for readers. */
   editable: boolean;
-  onExpand: () => void;
+  onExpand: (direction: FamilyDirection) => void;
   onAddRelation: (kind: 'parent' | 'partner' | 'child') => void;
   onRemoveRelation: () => void;
 };
@@ -49,7 +52,7 @@ export type FamilyTreeCardProps = {
  * buttons are also the answer to "is this branch finished".
  */
 export function FamilyTreeCard(
-  { node, x, y, isRoot, moreParents, moreChildren, busy, editable, onExpand, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
+  { node, x, y, isRoot, moreParents, moreChildren, expanding, editable, onExpand, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
 ) {
   const span = lifeSpan(node);
 
@@ -72,16 +75,8 @@ export function FamilyTreeCard(
         boxSizing: 'border-box',
       }}
     >
-      {moreParents > 0 && <ExpandBulge side='top' isRoot={isRoot} busy={busy} onClick={onExpand} label={`Show more family for ${node.name}`} />}
-      {moreChildren > 0 && (
-        <ExpandBulge
-          side='bottom'
-          isRoot={isRoot}
-          busy={busy}
-          onClick={onExpand}
-          label={moreParents > 0 ? `Show more descendants of ${node.name}` : `Show more family for ${node.name}`}
-        />
-      )}
+      {moreParents > 0 && <ExpandBulge side='top' isRoot={isRoot} busy={expanding === 'up'} onClick={() => onExpand('up')} label={`Show ${node.name}'s parents`} />}
+      {moreChildren > 0 && <ExpandBulge side='bottom' isRoot={isRoot} busy={expanding === 'down'} onClick={() => onExpand('down')} label={`Show ${node.name}'s children`} />}
 
       <Group wrap='nowrap' gap='xs' pr={6} align='center' h='100%'>
         {
@@ -116,7 +111,7 @@ export function FamilyTreeCard(
           {span && <Text fz={11} c='dimmed' mt={2}>{span}</Text>}
         </Stack>
 
-        {busy ? <Loader size='xs' /> : editable && (
+        {editable && (
           <Menu position='bottom-end' withinPortal>
             <Menu.Target>
               <ActionIcon size='sm' variant='subtle' color='gray' aria-label={`Edit ${node.name}'s relations`}>

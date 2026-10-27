@@ -41,7 +41,7 @@ Deno.test({
       const client = await harness.createShellClient();
       const dir = `${MOD_PATH}/docs-fixture`;
       await client.exec(`mkdir -p ${dir}/docs && echo '# Fixture' > ${dir}/docs/index.md`);
-      await client.exec(`echo '${JSON.stringify({ name: 'docs-fixture', version: '0.1.0', coreApi: '^0.3.0' })}' > ${dir}/mod.json`);
+      await client.exec(`echo '${JSON.stringify({ name: 'docs-fixture', version: '0.1.0', coreApi: '^0.4.0' })}' > ${dir}/mod.json`);
       await testCommands(client).shouldSucceed('mod setup docs-fixture');
 
       const link = await vfs.get(ADMIN_ACCESS, `${DOCS_MODULES_PATH}/docs-fixture`, { follow: false });

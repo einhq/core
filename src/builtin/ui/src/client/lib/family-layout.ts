@@ -52,7 +52,12 @@ const COUPLE_GAP = 40;
 /** Between neighbouring couples on the same row — wider than a couple's own gap, so a pair still reads as a pair. */
 const UNIT_GAP = 48;
 /** Vertical distance between one row's top and the next. */
-const ROW_HEIGHT = CARD_HEIGHT + 60;
+const ROW_HEIGHT = CARD_HEIGHT + 72;
+/**
+ * How far below the parents their couple bar runs, and above the children their sibling bar: clear
+ * of the expand bulges on the cards' edges, with a trunk between the two.
+ */
+const BAR_DROP = 24;
 /** Margin around the whole drawing, so the outermost cards are not flush to the edge. */
 const PADDING = 24;
 
@@ -65,14 +70,28 @@ type FamilyCard = {
 };
 
 /**
- * A parent-to-child line, from the middle of the parent's bottom edge to the
- * middle of the child's top edge.
- *
- * Every line into one child turns at the same `busY`, so a child of a drawn
- * couple gets a line from each parent that meet on the way down: the fork
- * reaches into both parents' cards as the siblings' lines reach into theirs.
+ * The lines from one set of parents to their children on one row, drawn the way a family chart
+ * draws them: a stem down from the middle of each parent's card to a couple bar between them, one
+ * trunk down from the bar's middle to a sibling bar, and a drop from that into each child. A lone
+ * parent has no couple bar, and their trunk starts at their own card. Drawn as one, a family's
+ * lines meet at T-junctions instead of each line turning on its own and running across the others.
  */
-export type DescentEdge = { key: string; fromX: number; fromY: number; toX: number; toY: number; busY: number };
+export type FamilyLines = {
+  key: string;
+  /** The middle of each parent's card, left to right. */
+  parents: number[];
+  /** The parents' bottom edge. */
+  fromY: number;
+  /** Where the couple bar runs, with two parents or more. */
+  coupleY?: number;
+  /** Where the trunk comes down: between the parents, or under the only one. */
+  trunkX: number;
+  siblingY: number;
+  /** The middle of each child's card, left to right. */
+  children: number[];
+  /** The children's top edge. */
+  toY: number;
+};
 
 /** The bar joining two partners, and the years the partnership ran: `from` over it, `to` under it. */
 type UnionEdge = { key: string; x1: number; x2: number; y: number; from?: string; to?: string };
@@ -80,7 +99,7 @@ type UnionEdge = { key: string; x1: number; x2: number; y: number; from?: string
 type FamilyLayout = {
   cards: FamilyCard[];
   byPath: Record<string, FamilyCard>;
-  descent: DescentEdge[];
+  families: FamilyLines[];
   unions: UnionEdge[];
   width: number;
   height: number;
@@ -301,38 +320,49 @@ function unionEdges(units: Unit[], graph: FamilyGraph, y: (generation: number) =
   return edges;
 }
 
-/** Parent-to-child lines, one per drawn parent. */
-function descentEdges(graph: FamilyGraph, cards: Map<string, FamilyCard>): DescentEdge[] {
-  const edges: DescentEdge[] = [];
+/**
+ * The families' lines: the children on a row grouped by which of their parents are drawn on one
+ * row above them. A child whose parents are on two different rows belongs to a family on each.
+ */
+function familyLines(graph: FamilyGraph, cards: Map<string, FamilyCard>): FamilyLines[] {
+  const families = new Map<string, { parents: FamilyCard[]; children: FamilyCard[] }>();
 
   for (const card of cards.values()) {
     const node = graph.nodes[card.path];
     if (!node) continue;
-
+    const byRow = new Map<number, FamilyCard[]>();
     for (const parent of node.parents) {
       const from = cards.get(parent);
       // A child drawn on or above its parent's row is not descent as this
       // chart reads it — it is the same tie seen from the other end, and
       // drawing it would put a line through the row between them.
       if (!from || from.generation >= card.generation) continue;
-
-      const fromY = from.y + CARD_HEIGHT;
-      const toY = card.y;
-
-      edges.push({
-        key: `${parent}>${card.path}`,
-        fromX: from.x + CARD_WIDTH / 2,
-        fromY,
-        toX: card.x + CARD_WIDTH / 2,
-        toY,
-        // Halfway down the gap: where the horizontal run between the two rows
-        // sits, so siblings share one bus instead of each drawing its own.
-        busY: fromY + (toY - fromY) / 2,
-      });
+      byRow.set(from.generation, [...(byRow.get(from.generation) ?? []), from]);
+    }
+    for (const parents of byRow.values()) {
+      parents.sort((a, b) => a.x - b.x);
+      const key = `${parents.map((parent) => parent.path).join('+')}>${card.generation}`;
+      const family = families.get(key);
+      if (family) family.children.push(card);
+      else families.set(key, { parents, children: [card] });
     }
   }
 
-  return edges;
+  return [...families].map(([key, { parents, children }]) => {
+    const xs = parents.map((parent) => parent.x + CARD_WIDTH / 2);
+    const fromY = parents[0].y + CARD_HEIGHT;
+    const toY = children[0].y;
+    return {
+      key,
+      parents: xs,
+      fromY,
+      ...(xs.length > 1 ? { coupleY: fromY + BAR_DROP } : {}),
+      trunkX: (xs[0] + xs[xs.length - 1]) / 2,
+      siblingY: toY - BAR_DROP,
+      children: children.map((child) => child.x + CARD_WIDTH / 2).sort((a, b) => a - b),
+      toY,
+    };
+  });
 }
 
 /**
@@ -343,7 +373,7 @@ function descentEdges(graph: FamilyGraph, cards: Map<string, FamilyCard>): Desce
  * guessing.
  */
 export function layoutFamily(graph: FamilyGraph): FamilyLayout {
-  const empty: FamilyLayout = { cards: [], byPath: {}, descent: [], unions: [], width: 0, height: 0 };
+  const empty: FamilyLayout = { cards: [], byPath: {}, families: [], unions: [], width: 0, height: 0 };
   if (!graph.nodes[graph.root]) return empty;
 
   const generation = generations(graph);
@@ -401,7 +431,7 @@ export function layoutFamily(graph: FamilyGraph): FamilyLayout {
   return {
     cards: [...cards.values()],
     byPath: Object.fromEntries(cards),
-    descent: descentEdges(graph, cards),
+    families: familyLines(graph, cards),
     unions: unionEdges(units, graph, y),
     width,
     height,
