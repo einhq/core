@@ -154,6 +154,8 @@ export class PoolWorker {
   private readonly reserveKinds: string[];
   private readonly reserveCapacity: Record<string, number>;
   private reserveCursor = 0;
+  /** Where the next unreserved claim among the reserved kinds starts — see `claimWithReservation`. */
+  private shareCursor = 0;
   /** Reserved kind whose next job is waiting for free capacity to add up — see `claimAccumulated`. */
   private accumulatingFor: string | undefined;
   private readonly concurrency: number;
@@ -496,7 +498,43 @@ export class PoolWorker {
       }
     }
 
+    if (this.reserveKinds.length > 0) {
+      const job = await this.claimShare();
+      if (job) return job;
+    }
     return await this.parkedClaim(this.remaining);
+  }
+
+  /**
+   * A claim outside the reserved share: the other kinds by priority, then the reserved kinds in
+   * turn. Every reserved kind in flight counts against the reserved share, so once the
+   * highest-priority one fills it the rotation above does not run; by priority alone that kind
+   * would then take every slot while it has work, and the other reserved kinds none — a crawl's
+   * stills before its transcodes, fingerprints and face assignments for hours (ein/core#734).
+   * In turn, each kind with work gets slots. Priority still orders the jobs within a kind, and
+   * the other kinds, entry work such as ingest, still come first. Null when nothing is ready,
+   * for the blocking claim to wait on.
+   */
+  private async claimShare(): Promise<PoolJob | null> {
+    const others = this.kinds.filter((kind) => !this.reserveKinds.includes(kind) && !this.isPaused(kind));
+    if (others.length > 0) {
+      const job = await this.vfs.poolClaim(ADMIN_ACCESS, this.poolPath, {
+        owner: this.owner,
+        offer: this.remaining,
+        kinds: others,
+        leaseMs: this.leaseMs,
+      });
+      if (job) return job;
+    }
+    for (let offset = 0; offset < this.reserveKinds.length; offset++) {
+      const index = (this.shareCursor + offset) % this.reserveKinds.length;
+      const job = await this.tryClaimKind(this.reserveKinds[index]);
+      if (job) {
+        this.shareCursor = (index + 1) % this.reserveKinds.length;
+        return job;
+      }
+    }
+    return null;
   }
 
   /**

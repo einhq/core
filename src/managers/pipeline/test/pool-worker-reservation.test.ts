@@ -107,7 +107,7 @@ Deno.test('normal priority fills capacity above the reserved boundary', async ()
   worker.remaining = { cpu: 3 };
 
   assertEquals((await worker.claimWithReservation())?.kind, 'ingest');
-  assertEquals(claims.map((claim) => claim.kinds), [['ingest', 'derive', 'fingerprint', 'transcode']]);
+  assertEquals(claims.map((claim) => claim.kinds), [['ingest']]);
 });
 
 Deno.test('downstream work gets the next compatible reserved slot', async () => {
@@ -130,7 +130,7 @@ Deno.test('unused reserved capacity remains work-conserving', async () => {
     ['derive'],
     ['fingerprint'],
     ['transcode'],
-    ['ingest', 'derive', 'fingerprint', 'transcode'],
+    ['ingest'],
   ]);
 });
 
@@ -299,6 +299,33 @@ Deno.test('a job refused for a reason capacity cannot fix is not held for', asyn
     ['fingerprint'],
     ['transcode'],
     ['derive'],
-    ['ingest', 'derive', 'fingerprint', 'transcode'],
+    ['ingest'],
   ]);
+});
+
+Deno.test('the highest-priority reserved kind does not take every slot from the others', async () => {
+  // Five slots, the entry work done, and a backlog of every downstream kind: the reserved share
+  // counts as taken once derive runs, so the rest of the slots go outside it.
+  const { worker } = makeWorker([
+    ...Array.from({ length: 5 }, () => ({ kind: 'derive', requires: { cpu: 1 } })),
+    ...Array.from({ length: 5 }, () => ({ kind: 'fingerprint', requires: { cpu: 1 } })),
+    ...Array.from({ length: 5 }, () => ({ kind: 'transcode', requires: { cpu: 1 } })),
+  ]);
+  const claimed: string[] = [];
+  for (let slot = 0; slot < 5; slot++) {
+    const job = (await worker.claimWithReservation())!;
+    claimed.push(job.kind);
+    worker.inFlight.set(job.id, { job, abort: new AbortController() });
+    worker.remaining = { cpu: worker.remaining.cpu - 1 };
+  }
+  assertEquals(new Set(claimed), new Set(['derive', 'fingerprint', 'transcode']));
+});
+
+Deno.test('entry work still comes before the reserved kinds outside the reserved share', async () => {
+  const { worker } = makeWorker([
+    { kind: 'derive', requires: { cpu: 1 } },
+    { kind: 'ingest', requires: { cpu: 1 } },
+  ]);
+  worker.remaining = { cpu: 5 };
+  assertEquals((await worker.claimWithReservation())?.kind, 'ingest');
 });
