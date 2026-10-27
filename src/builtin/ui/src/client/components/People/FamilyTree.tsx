@@ -38,6 +38,8 @@ const HAT_GROUND_OPACITY = 0.07;
 /** The map's control: a filled dark button standing on the drawing. */
 const CONTROL_SIZE = 40;
 
+const DIRECTIONS: readonly FamilyDirection[] = ['up', 'down'];
+
 /** The drawing's scale, and where its top-left corner sits in the box. */
 type View = { scale: number; x: number; y: number };
 type Size = { width: number; height: number };
@@ -148,6 +150,8 @@ export type FamilyTreeProps = {
   expanding: { path: string; direction: FamilyDirection } | null;
   /** Pull in the generation above (`up`) or below (`down`) a card. */
   onExpand: (path: string, direction: FamilyDirection) => void;
+  /** Given, a card expanded one way offers to fold those relatives away again, and this does it. */
+  onCollapse?: (path: string, direction: FamilyDirection) => void;
   /** Relation edits are an administrator action on a person's detail page. */
   editable?: boolean;
   onAddRelation: (path: string, kind: 'parent' | 'partner' | 'child') => void;
@@ -212,7 +216,8 @@ type FamilyDrawingProps = FamilyTreeProps & {
  * portalled outside the box.
  */
 function FamilyDrawing(
-  { graph, loading, expanded, expanding, onExpand, onAddRelation, onRemoveRelation, editable = true, emptyMessage, fit = false, fill, onScreen }: FamilyDrawingProps,
+  { graph, loading, expanded, expanding, onExpand, onCollapse, onAddRelation, onRemoveRelation, editable = true, emptyMessage, fit = false, fill, onScreen }:
+    FamilyDrawingProps,
 ) {
   const layout = useMemo(() => (graph ? layoutFamily(graph) : null), [graph]);
   const root = graph?.root;
@@ -527,8 +532,8 @@ function FamilyDrawing(
             return null;
           }
           // What the graph knows exists minus what is on screen. Once a
-          // direction is expanded it stops offering, even if a relation there
-          // could not be read.
+          // direction is expanded it offers to fold back instead, even if a
+          // relation there could not be read.
           const parents = expanded.up.has(card.path) ? 0 : node.parentCount - node.parents.length;
           const children = expanded.down.has(card.path) ? 0 : node.childCount - node.children.length;
 
@@ -546,6 +551,11 @@ function FamilyDrawing(
                 anchorPath.current = card.path;
                 onExpand(card.path, direction);
               }}
+              collapsible={DIRECTIONS.filter((direction) => expanded[direction].has(card.path))}
+              onCollapse={onCollapse && ((direction) => {
+                anchorPath.current = card.path;
+                onCollapse(card.path, direction);
+              })}
               editable={editable}
               onAddRelation={(kind) => onAddRelation(card.path, kind)}
               onRemoveRelation={() => onRemoveRelation(card.path)}
@@ -554,7 +564,7 @@ function FamilyDrawing(
         })}
       </>
     );
-  }, [graph, layout, expanded, expanding, editable, onExpand, onAddRelation, onRemoveRelation]);
+  }, [graph, layout, expanded, expanding, editable, onExpand, onCollapse, onAddRelation, onRemoveRelation]);
 
   if (loading && !layout) {
     return <PageLoader label='Loading family tree…' />;

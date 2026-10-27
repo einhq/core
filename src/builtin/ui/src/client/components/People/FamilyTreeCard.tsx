@@ -36,6 +36,9 @@ export type FamilyTreeCardProps = {
   /** Relation controls are hidden for readers. */
   editable: boolean;
   onExpand: (direction: FamilyDirection) => void;
+  /** The ways this card was expanded and can be folded back, each with a bulge that hides them again. */
+  collapsible?: readonly FamilyDirection[];
+  onCollapse?: (direction: FamilyDirection) => void;
   onAddRelation: (kind: 'parent' | 'partner' | 'child') => void;
   onRemoveRelation: () => void;
 };
@@ -52,7 +55,7 @@ export type FamilyTreeCardProps = {
  * buttons are also the answer to "is this branch finished".
  */
 export function FamilyTreeCard(
-  { node, x, y, isRoot, moreParents, moreChildren, expanding, editable, onExpand, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
+  { node, x, y, isRoot, moreParents, moreChildren, expanding, editable, onExpand, collapsible = [], onCollapse, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
 ) {
   const span = lifeSpan(node);
 
@@ -75,8 +78,30 @@ export function FamilyTreeCard(
         boxSizing: 'border-box',
       }}
     >
-      {moreParents > 0 && <ExpandBulge side='top' isRoot={isRoot} busy={expanding === 'up'} onClick={() => onExpand('up')} label={`Show ${node.name}'s parents`} />}
-      {moreChildren > 0 && <ExpandBulge side='bottom' isRoot={isRoot} busy={expanding === 'down'} onClick={() => onExpand('down')} label={`Show ${node.name}'s children`} />}
+      {moreParents > 0
+        ? <ExpandBulge side='top' isRoot={isRoot} busy={expanding === 'up'} onClick={() => onExpand('up')} label={`Show ${node.name}'s parents`} />
+        : onCollapse && collapsible.includes('up') && (
+          <ExpandBulge
+            side='top'
+            folds
+            isRoot={isRoot}
+            busy={false}
+            onClick={() => onCollapse('up')}
+            label={`Hide ${node.name}'s parents`}
+          />
+        )}
+      {moreChildren > 0
+        ? <ExpandBulge side='bottom' isRoot={isRoot} busy={expanding === 'down'} onClick={() => onExpand('down')} label={`Show ${node.name}'s children`} />
+        : onCollapse && collapsible.includes('down') && (
+          <ExpandBulge
+            side='bottom'
+            folds
+            isRoot={isRoot}
+            busy={false}
+            onClick={() => onCollapse('down')}
+            label={`Hide ${node.name}'s children`}
+          />
+        )}
 
       <Group wrap='nowrap' gap='xs' pr={6} align='center' h='100%'>
         {
@@ -132,7 +157,15 @@ export function FamilyTreeCard(
   );
 }
 
-type ExpandBulgeProps = { side: 'top' | 'bottom'; isRoot: boolean; busy: boolean; onClick: () => void; label: string };
+type ExpandBulgeProps = {
+  side: 'top' | 'bottom';
+  /** Folds what an expand showed back away, its chevron pointing into the card rather than out of it. */
+  folds?: boolean;
+  isRoot: boolean;
+  busy: boolean;
+  onClick: () => void;
+  label: string;
+};
 
 /**
  * An expand button shaped as a bulge of the card's own edge, so it stands out of
@@ -143,7 +176,7 @@ type ExpandBulgeProps = { side: 'top' | 'bottom'; isRoot: boolean; busy: boolean
  * and the outline runs on round it. The root card's outline is two pixels — its
  * border and the ring outside it — and so is the root's bulge.
  */
-function ExpandBulge({ side, isRoot, busy, onClick, label }: ExpandBulgeProps) {
+function ExpandBulge({ side, folds = false, isRoot, busy, onClick, label }: ExpandBulgeProps) {
   const edge = isRoot ? 2 : 1;
   const line = `${edge}px solid ${isRoot ? 'var(--mantine-color-marine-5)' : 'var(--mantine-color-default-border)'}`;
   const round = `${BULGE_WIDTH / 2}px`;
@@ -173,7 +206,7 @@ function ExpandBulge({ side, isRoot, busy, onClick, label }: ExpandBulgeProps) {
           : { borderBottom: line, borderRadius: `0 0 ${round} ${round}`, paddingBottom: 1 }),
       }}
     >
-      {busy ? <Loader size={10} /> : side === 'top' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+      {busy ? <Loader size={10} /> : (side === 'top') !== folds ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
     </UnstyledButton>
   );
 }
