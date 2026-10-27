@@ -83,7 +83,7 @@ type PoolWorkerOptions = {
   /**
    * Kinds that share a turn of the rotation (`kindQuantumMs`): within it they take slots in
    * turn, and a kind in no group has its turns alone. For backlogs whose models fit on the
-   * card together, so one turn feeds them at once instead of each in its own quarter-hour —
+   * card together, so one turn feeds them at once instead of each in a turn of its own —
    * the media service runs each family under its own lock, so different families infer side by
    * side. A turn is named by its kinds joined with `+` (`currentKind`).
    */
