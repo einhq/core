@@ -3565,3 +3565,13 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
   margin-left: auto;
   padding: 2px 6px;
 }
+
+/* A family card's expand bulge (`FamilyTreeCard`): its chevron darkens under the pointer, while the
+   bulge keeps the card's own ground so the two stay one shape. */
+.mrx-family-bulge {
+  color: var(--mantine-color-dimmed);
+}
+
+.mrx-family-bulge:not(:disabled):hover {
+  color: var(--mantine-color-text);
+}

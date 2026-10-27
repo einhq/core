@@ -1,9 +1,13 @@
-import { ActionIcon, Box, Group, Loader, Menu, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Group, Loader, Menu, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconChevronDown, IconChevronUp, IconDots, IconHeartPlus, IconUser, IconUserMinus, IconUserPlus } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { CARD_HEIGHT, CARD_WIDTH, type FamilyNode } from '../../lib/family-layout.ts';
 import { openRoute } from '../../signals/module-ui.ts';
 import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
+
+/** How far an expand bulge stands out from the card's edge, and how wide it is. */
+const BULGE_HEIGHT = 15;
+const BULGE_WIDTH = 34;
 
 /** `1948 – 2011`, `b. 1948`, `d. 2011`, or nothing. */
 export function lifeSpan(node: Pick<FamilyNode, 'born' | 'died'>): string | undefined {
@@ -41,9 +45,8 @@ export type FamilyTreeCardProps = {
  * guess. Names are clamped rather than allowed to grow for the same reason.
  *
  * The expand buttons sit on the edges they point at: parents above, children
- * below, each showing how many are still hidden. A card with nothing more in a
- * direction shows nothing there, so the buttons are also the answer to "is this
- * branch finished".
+ * below. A card with nothing more in a direction shows nothing there, so the
+ * buttons are also the answer to "is this branch finished".
  */
 export function FamilyTreeCard(
   { node, x, y, isRoot, moreParents, moreChildren, busy, editable, onExpand, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
@@ -69,38 +72,15 @@ export function FamilyTreeCard(
         boxSizing: 'border-box',
       }}
     >
-      {(moreParents > 0 || moreChildren > 0) && (
-        <ActionIcon
-          size='sm'
-          radius='xl'
-          variant='filled'
-          color='gray'
-          loading={busy}
+      {moreParents > 0 && <ExpandBulge side='top' isRoot={isRoot} busy={busy} onClick={onExpand} label={`Show more family for ${node.name}`} />}
+      {moreChildren > 0 && (
+        <ExpandBulge
+          side='bottom'
+          isRoot={isRoot}
+          busy={busy}
           onClick={onExpand}
-          aria-label={`Show more family for ${node.name}`}
-          style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: moreParents > 0 ? -11 : undefined, bottom: moreParents > 0 ? undefined : -11 }}
-        >
-          {moreParents > 0 ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-        </ActionIcon>
-      )}
-
-      {
-        /* Only when there is more in *both* directions does the second button
-          earn its location; otherwise the one above says everything. */
-      }
-      {moreParents > 0 && moreChildren > 0 && (
-        <ActionIcon
-          size='sm'
-          radius='xl'
-          variant='filled'
-          color='gray'
-          loading={busy}
-          onClick={onExpand}
-          aria-label={`Show more descendants of ${node.name}`}
-          style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: -11 }}
-        >
-          <IconChevronDown size={14} />
-        </ActionIcon>
+          label={moreParents > 0 ? `Show more descendants of ${node.name}` : `Show more family for ${node.name}`}
+        />
       )}
 
       <Group wrap='nowrap' gap='xs' pr={6} align='center' h='100%'>
@@ -108,7 +88,7 @@ export function FamilyTreeCard(
           /* The portrait is the card's full height, flush to its left edge — the
             face is what finds a person in a tree, and at this height a round
             avatar inside padding would be a thumbnail. Its own clip, because the
-            card cannot clip: the expand buttons hang over its edges. */
+            card cannot clip: the expand bulges stand out of its edges. */
         }
         <Box
           style={{
@@ -154,5 +134,51 @@ export function FamilyTreeCard(
         )}
       </Group>
     </Box>
+  );
+}
+
+type ExpandBulgeProps = { side: 'top' | 'bottom'; isRoot: boolean; busy: boolean; onClick: () => void; label: string };
+
+/**
+ * An expand button shaped as a bulge of the card's own edge, so it stands out of
+ * the card instead of lying over its name.
+ *
+ * It overlaps the card's border by the border's width and has no border of its
+ * own on that side, so its background hides the card's edge where the two meet
+ * and the outline runs on round it. The root card's outline is two pixels — its
+ * border and the ring outside it — and so is the root's bulge.
+ */
+function ExpandBulge({ side, isRoot, busy, onClick, label }: ExpandBulgeProps) {
+  const edge = isRoot ? 2 : 1;
+  const line = `${edge}px solid ${isRoot ? 'var(--mantine-color-marine-5)' : 'var(--mantine-color-default-border)'}`;
+  const round = `${BULGE_WIDTH / 2}px`;
+  return (
+    <UnstyledButton
+      className='mrx-family-bulge'
+      onClick={onClick}
+      disabled={busy}
+      aria-label={label}
+      style={{
+        position: 'absolute',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        [side]: -(BULGE_HEIGHT + 1),
+        width: BULGE_WIDTH,
+        height: BULGE_HEIGHT + 1,
+        zIndex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxSizing: 'border-box',
+        background: 'var(--mrx-surface-chrome)',
+        borderLeft: line,
+        borderRight: line,
+        ...(side === 'top'
+          ? { borderTop: line, borderRadius: `${round} ${round} 0 0`, paddingTop: 1 }
+          : { borderBottom: line, borderRadius: `0 0 ${round} ${round}`, paddingBottom: 1 }),
+      }}
+    >
+      {busy ? <Loader size={10} /> : side === 'top' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+    </UnstyledButton>
   );
 }

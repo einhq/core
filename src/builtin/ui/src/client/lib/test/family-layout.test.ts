@@ -103,14 +103,25 @@ Deno.test('family layout: a child hangs under the middle of its parents', () => 
   const childrenMiddle = (centre(layout, 'mia') + centre(layout, 'edvin')) / 2;
   assert(Math.abs(coupleMiddle - childrenMiddle) < 1, `couple at ${coupleMiddle}, children at ${childrenMiddle}`);
 
-  // One line per couple, not one per parent: mia descends from anna *and* erik
-  // and gets a single edge, sourced from between them.
+  // A line from each parent: mia descends from anna *and* erik, and the two
+  // lines leave the middle of each parent's card and meet on the way to hers.
   const toMia = layout.descent.filter((edge) => edge.key.endsWith(`>/archive/people/mia`));
-  assertEquals(toMia.length, 1);
-  assert(Math.abs(toMia[0].fromX - coupleMiddle) < 1);
-  // It runs downward, and turns between the two rows.
-  assert(toMia[0].fromY < toMia[0].toY);
-  assert(toMia[0].busY > toMia[0].fromY && toMia[0].busY < toMia[0].toY);
+  assertEquals(toMia.map((edge) => edge.fromX).sort((a, b) => a - b), [centre(layout, 'anna'), centre(layout, 'erik')].sort((a, b) => a - b));
+  for (const edge of toMia) {
+    assertEquals(edge.toX, centre(layout, 'mia'));
+    // It runs downward, and turns between the two rows, where the other one does.
+    assert(edge.fromY < edge.toY);
+    assert(edge.busY > edge.fromY && edge.busY < edge.toY);
+    assertEquals(edge.busY, toMia[0].busY);
+  }
+});
+
+Deno.test('family layout: a partnership carries its years', () => {
+  const graph = family();
+  const anna = graph.nodes['/archive/people/anna'];
+  anna.partners = anna.partners.map((partner) => ({ ...partner, from: '1975-06-01', to: '2001-02-03' }));
+  const union = layoutFamily(graph).unions.find((u) => u.key === `/archive/people/anna~/archive/people/erik`);
+  assertEquals([union?.from, union?.to], ['1975', '2001']);
 });
 
 Deno.test('family layout: a single parent sources its own line', () => {

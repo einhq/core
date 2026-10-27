@@ -47,10 +47,10 @@ export type FamilyGraph = { root: string; nodes: Record<string, FamilyNode> };
 export const CARD_WIDTH = 188;
 /** The portrait is a square this tall at the card's left edge. */
 export const CARD_HEIGHT = 64;
-/** Between two partners inside one couple — tight, so the pair reads as a pair. */
-const COUPLE_GAP = 14;
-/** Between neighbouring couples on the same row. */
-const UNIT_GAP = 40;
+/** Between two partners inside one couple: room for the bar and the years written over and under it. */
+const COUPLE_GAP = 40;
+/** Between neighbouring couples on the same row — wider than a couple's own gap, so a pair still reads as a pair. */
+const UNIT_GAP = 48;
 /** Vertical distance between one row's top and the next. */
 const ROW_HEIGHT = CARD_HEIGHT + 60;
 /** Margin around the whole drawing, so the outermost cards are not flush to the edge. */
@@ -65,16 +65,17 @@ type FamilyCard = {
 };
 
 /**
- * A parent-to-child line.
+ * A parent-to-child line, from the middle of the parent's bottom edge to the
+ * middle of the child's top edge.
  *
- * `fromX` is the couple's midpoint when both parents are drawn together, so a
- * child hangs off the pair rather than off whichever of them happened to be
- * first.
+ * Every line into one child turns at the same `busY`, so a child of a drawn
+ * couple gets a line from each parent that meet on the way down: the fork
+ * reaches into both parents' cards as the siblings' lines reach into theirs.
  */
 export type DescentEdge = { key: string; fromX: number; fromY: number; toX: number; toY: number; busY: number };
 
-/** The bar joining two partners, and what it says about them. */
-type UnionEdge = { key: string; x1: number; x2: number; y: number; label?: string };
+/** The bar joining two partners, and the years the partnership ran: `from` over it, `to` under it. */
+type UnionEdge = { key: string; x1: number; x2: number; y: number; from?: string; to?: string };
 
 type FamilyLayout = {
   cards: FamilyCard[];
@@ -286,14 +287,13 @@ function unionEdges(units: Unit[], graph: FamilyGraph, y: (generation: number) =
       const tie = graph.nodes[left]?.partners.find((partner) => partner.path === right) ??
         graph.nodes[right]?.partners.find((partner) => partner.path === left);
       if (!tie) continue;
-      const years = tie.from ? `${tie.from.slice(0, 4)}${tie.to ? `–${tie.to.slice(0, 4)}` : ''}` : undefined;
 
       edges.push({
         key: `${left}~${right}`,
         x1: unit.x + i * (CARD_WIDTH + COUPLE_GAP) + CARD_WIDTH,
         x2: unit.x + (i + 1) * (CARD_WIDTH + COUPLE_GAP),
         y: y(unit.generation) + CARD_HEIGHT / 2,
-        ...(years ? { label: years } : {}),
+        ...(tie.from ? { from: tie.from.slice(0, 4), ...(tie.to ? { to: tie.to.slice(0, 4) } : {}) } : {}),
       });
     }
   }
@@ -301,44 +301,27 @@ function unionEdges(units: Unit[], graph: FamilyGraph, y: (generation: number) =
   return edges;
 }
 
-/**
- * Parent-to-child lines.
- *
- * Grouped by the couple a child descends from rather than emitted per parent, so
- * two drawn parents produce one line from between them instead of two crossing
- * ones.
- */
-function descentEdges(graph: FamilyGraph, cards: Map<string, FamilyCard>, unitOf: Map<string, Unit>, y: (generation: number) => number): DescentEdge[] {
+/** Parent-to-child lines, one per drawn parent. */
+function descentEdges(graph: FamilyGraph, cards: Map<string, FamilyCard>): DescentEdge[] {
   const edges: DescentEdge[] = [];
 
   for (const card of cards.values()) {
     const node = graph.nodes[card.path];
     if (!node) continue;
 
-    /** Drawn parents, gathered per couple. */
-    const byUnit = new Map<Unit, string[]>();
     for (const parent of node.parents) {
-      const unit = unitOf.get(parent);
-      if (!unit || !cards.has(parent)) continue;
-      const group = byUnit.get(unit);
-      if (group) group.push(parent);
-      else byUnit.set(unit, [parent]);
-    }
+      const from = cards.get(parent);
+      // A child drawn on or above its parent's row is not descent as this
+      // chart reads it — it is the same tie seen from the other end, and
+      // drawing it would put a line through the row between them.
+      if (!from || from.generation >= card.generation) continue;
 
-    for (const [unit, parents] of byUnit) {
-      // A child drawn above its parent is not descent as this chart reads it —
-      // it is the same tie seen from the other end, and drawing it would put a
-      // line through the row between them.
-      if (unit.generation >= card.generation) continue;
-
-      const centres = parents.map((parent) => cards.get(parent)!.x + CARD_WIDTH / 2);
-      const fromX = centres.reduce((sum, x) => sum + x, 0) / centres.length;
-      const fromY = y(unit.generation) + CARD_HEIGHT;
+      const fromY = from.y + CARD_HEIGHT;
       const toY = card.y;
 
       edges.push({
-        key: `${unit.key}>${card.path}`,
-        fromX,
+        key: `${parent}>${card.path}`,
+        fromX: from.x + CARD_WIDTH / 2,
         fromY,
         toX: card.x + CARD_WIDTH / 2,
         toY,
@@ -418,7 +401,7 @@ export function layoutFamily(graph: FamilyGraph): FamilyLayout {
   return {
     cards: [...cards.values()],
     byPath: Object.fromEntries(cards),
-    descent: descentEdges(graph, cards, unitOf, y),
+    descent: descentEdges(graph, cards),
     unions: unionEdges(units, graph, y),
     width,
     height,
