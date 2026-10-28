@@ -80,9 +80,10 @@ export const searchableKinds = signal<SearchableKind[]>([]);
 export const moduleRoutePaths = signal<ReadonlySet<string>>(new Set());
 
 let manifestPromise: Promise<UiManifest | null> | null = null;
+const bundles = new Map<string, Promise<ModuleBundle>>();
 
 /**
- * The manifest, fetched once. A failed fetch is forgotten so the next call tries again:
+ * The manifest, fetched once until `reloadUiManifest`. A failed fetch is forgotten so the next call tries again:
  * before signing in, a guest may not be able to read it.
  */
 export const loadUiManifest = (): Promise<UiManifest | null> => {
@@ -105,6 +106,17 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
   return manifestPromise;
 };
 
+/**
+ * Read the manifest again, after a module is installed, updated or removed, and load bundles
+ * afresh from it. A router keeps the routes it has added: a removed module's fail as a module
+ * that could not load, until the page is reloaded.
+ */
+export const reloadUiManifest = (): Promise<UiManifest | null> => {
+  manifestPromise = null;
+  bundles.clear();
+  return loadUiManifest();
+};
+
 /** Resolves once the stylesheet has loaded (or failed to): a page is never drawn unstyled. */
 const loadStylesheet = (href: string): Promise<void> =>
   new Promise((resolve) => {
@@ -116,8 +128,6 @@ const loadStylesheet = (href: string): Promise<void> =>
     link.onerror = () => resolve();
     document.head.appendChild(link);
   });
-
-const bundles = new Map<string, Promise<ModuleBundle>>();
 
 /** A module's bundle, loaded once. */
 export const loadModuleBundle = (module: string): Promise<ModuleBundle> => {
@@ -180,17 +190,19 @@ export const awaitModuleRoutes = { loader: () => null, shouldRevalidate: () => f
 
 /**
  * A router's `patchRoutesOnNavigation`, one per router (the page's and each surface's): called
- * when a path matches none of its routes, it adds every module's routes under the root once, and the router matches again. Before the manifest can be read (signed
- * out) it adds nothing and is asked again next time.
+ * when a path matches none of its routes, it adds under the root the routes of every module it
+ * has not added yet, and the router matches again. A module installed since is added on the
+ * first path that is its. Before the manifest can be read (signed out) it adds nothing and is
+ * asked again next time.
  */
 export const modulePatcher = () => {
-  let patched = false;
+  const patched = new Set<string>();
   return async ({ patch }: { patch: (routeId: string | null, children: never[]) => void }): Promise<void> => {
-    if (patched) return;
     const manifest = await loadUiManifest();
-    if (!manifest || patched) return;
-    patched = true;
+    if (!manifest) return;
     for (const [module, entry] of Object.entries(manifest.modules)) {
+      if (patched.has(module)) continue;
+      patched.add(module);
       for (const route of entry.routes) {
         if (shellPattern(route.path) === route.path) console.warn(`${module}'s route ${route.path} is the shell's own, which is matched instead`);
       }

@@ -6,6 +6,7 @@ import { useElementWidth } from '../../../hooks/useElementWidth.ts';
 import { usePhone } from '../../../hooks/usePhone.ts';
 import { usePersistedState } from '../../../hooks/usePersistedState.ts';
 import { useModuleReference } from '../../../hooks/useReference.ts';
+import { reloadModuleUi } from '../../../signals/nav.ts';
 import { EmptyState } from '../../EmptyState/EmptyState.tsx';
 import { PageLoader } from '../../Layout/PageLoader.tsx';
 import { fillWindow, PaneScroll, SPLIT_MIN_WIDTH } from '../ListDetail.tsx';
@@ -28,10 +29,15 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * to; side by side, nothing named shows the first. `published=1` opens the published modules
  * instead, which the button beside the filter does. The list is asked fresh rather than reused
  * from the docs' kept answer: a `mod setup` since then changes whether a module works, and an
- * install or a removal here asks it again.
+ * install or a removal here asks it again, and loads the shell's navigation and module pages again.
  */
 export function ModulesTab() {
-  const { data: modules, loading, error, refetch } = useModuleReference({ fresh: true });
+  const { data: modules, loading, error, refetch: refetchList } = useModuleReference({ fresh: true });
+  // A module installed, updated or removed changes the shell's navigation and pages too.
+  const refetch = () => {
+    refetchList();
+    void reloadModuleUi();
+  };
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
   const narrow = width < SPLIT_MIN_WIDTH;
   // On a phone the panel is no box: its sections use the page's width.

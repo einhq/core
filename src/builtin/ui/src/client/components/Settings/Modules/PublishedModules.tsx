@@ -28,7 +28,7 @@ const short = (commit: string): string => commit.slice(0, 9);
 type PublishedModulesProps = {
   /** The installed modules, for what is installed of each. */
   installed: ModuleEntry[];
-  /** After an install, so the list beside it is asked again. */
+  /** After an install, so the list beside it and the shell's navigation are asked again. */
   onInstalled: () => void;
   onOpenModule: (name: string) => void;
 };
@@ -125,7 +125,7 @@ export function PublishedModules({ installed, onInstalled, onOpenModule }: Publi
               </Group>
               {done?.repository === module.repository && (
                 <Box mt='xs'>
-                  <Done>{`${done.message}. Its pages appear when this page is reloaded.`}</Done>
+                  <Done>{done.message}</Done>
                 </Box>
               )}
               {problem?.repository === module.repository && (

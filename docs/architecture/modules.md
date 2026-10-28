@@ -181,7 +181,10 @@ sources are never served under the module's host name.
 `ui-build --all` where the shell is served (`/var/www/ui`; a test instance serves none)
 ([module-pages.ts](../../src/managers/exec/commands/mod/module-pages.ts)), which is how module pages
 are rebuilt at every boot and after an install. A failed build is reported and does not fail the
-setup.
+setup. After an install, update or removal from Settings → Modules the shell reads the manifest and
+`ui-nav` again (`reloadModuleUi`), so the entries come and go in the open page, and each router adds
+a new module's routes on the first path that is its; a removed module's routes stay until the page
+is reloaded, failing as a module that could not load.
 
 **The module contract.** Modules import [`@ein/client`](../../src/client/mod.ts) and nothing else from core. That file is deliberately small, sized to what modules actually use rather than to what core exposes: `Command`, `CmdReturn` and `shq` in almost every bin, then a short tail. `ModuleSystemCore` carries `vfs` alone, because `cmd.sys.vfs` is the only thing any module touches — never the buffer, router or exec managers. Tests use [`@ein/testing`](../../src/client/testing.ts) the same way. `@ein/exec` is core's internals and is off-limits; [module-boundary.test.ts](../../src/modules/test/module-boundary.test.ts) asserts that, that no module reaches into `src/` by relative path, and that every specifier a module uses resolves by the module rule below. What the contract exports is only half of its size; the other half is what those exports import, because a module type-checks against — and a published package would carry — the whole graph. That graph was all of core (567 files, `pg` and `ssh2` among them) while the export list looked small: a spec type lived beside `Command`, the VFS interface imported registry barrels that re-export their PostgreSQL implementations, and `withHostPath`/`readComments` sat inside command files. They now come from leaf files (`exec/spec.ts`, each registry's `types.ts`, `lib/host-path`, `lib/comments`, `lib/media/raw.ts`) and the graph is ~60 files with no npm package; [contract-graph.test.ts](../../src/client/test/contract-graph.test.ts) holds it there. A type added to the contract should come from a file that imports nothing heavier than itself.
 

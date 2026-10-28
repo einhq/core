@@ -3,7 +3,7 @@ import type { NavAction, PanelEntry, UiNav } from '@ui/nav';
 import { execCommand } from './shell-client.ts';
 import { preloadIcons } from '../lib/tabler-icons.ts';
 import { lightboxRoute } from '../lib/lightbox-route.ts';
-import { loadUiManifest, prefetchRoute } from './module-ui.ts';
+import { loadUiManifest, prefetchRoute, reloadUiManifest } from './module-ui.ts';
 import { openDialog, openFullscreen, toggleDrawer } from './surface.ts';
 export type { NavAction, NavLink, PanelEntry, ResolvedSection, ResolvedTopbarEntry, UiNav } from '@ui/nav';
 
@@ -42,6 +42,15 @@ export async function loadNav(): Promise<void> {
     // No navigation is a broken-looking shell, but every page still works by its URL.
     console.error('ui-nav failed', error);
   }
+}
+
+/**
+ * Load the module manifest and the navigation again, after a module is installed, updated or
+ * removed: its sidebar and top-bar entries, panels and pages come and go without reloading the page.
+ */
+export async function reloadModuleUi(): Promise<void> {
+  await reloadUiManifest();
+  await loadNav();
 }
 
 /** The panels a page shows at `slot` (`nodes.tools`, `system.tabs`, `stats.sections`, `search.explore`, …), in order. */
