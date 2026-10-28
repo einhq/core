@@ -92,6 +92,8 @@ export type FamilyLines = {
   children: number[];
   /** The children's top edge. */
   toY: number;
+  /** Who the lines join: the parents, then the children. */
+  people: string[];
 };
 
 /** The bar joining two partners, and the years the partnership ran: `from` over it, `to` under it. */
@@ -176,31 +178,66 @@ function generations(graph: FamilyGraph): Map<string, number> {
 }
 
 /**
- * Couples, built root-first so the person the tree is about anchors their own. Somebody with two
- * partners or more on their row stands between them, so a bar can join them to each.
+ * Couples: everyone on a row tied to one another by partnership, as one block. The person with
+ * the most partners stands in the middle with half of them either side, and a partner's own other
+ * partner beyond them, so every two people a bar joins stand side by side. Built root-first, then
+ * by path, so the layout is reproducible.
  */
 function buildUnits(graph: FamilyGraph, generation: Map<string, number>): { units: Unit[]; unitOf: Map<string, Unit> } {
   const unitOf = new Map<string, Unit>();
   const units: Unit[] = [];
 
-  // Root first, then the rest by path: the order decides who anchors a couple,
-  // and a stable order is what makes the whole layout reproducible.
-  const order = [graph.root, ...Object.keys(graph.nodes).filter((path) => path !== graph.root).sort()];
+  // A tie counts from either end, so a half-written relation still joins the
+  // two. A partner on another row is somebody's parent or child as well, and
+  // that tie is the one that decides where they are drawn.
+  const ties = new Map<string, Set<string>>();
+  const tie = (a: string, b: string) => {
+    if (a === b || !graph.nodes[b] || generation.get(a) !== generation.get(b)) return;
+    for (const [from, to] of [[a, b], [b, a]]) {
+      const set = ties.get(from) ?? new Set<string>();
+      set.add(to);
+      ties.set(from, set);
+    }
+  };
+  for (const [path, node] of Object.entries(graph.nodes)) {
+    for (const partner of node.partners) tie(path, partner.path);
+  }
+  const tiesOf = (path: string) => [...(ties.get(path) ?? [])].sort();
 
+  const order = [graph.root, ...Object.keys(graph.nodes).filter((path) => path !== graph.root).sort()];
   for (const path of order) {
     if (unitOf.has(path) || !graph.nodes[path]) continue;
     const own = generation.get(path);
     if (own === undefined) continue;
 
-    const partners: string[] = [];
-    for (const partner of graph.nodes[path].partners) {
-      // A partner on another row is somebody's parent or child as well, and
-      // that tie is the one that decides where they are drawn.
-      if (unitOf.has(partner.path) || generation.get(partner.path) !== own || partners.includes(partner.path)) continue;
-      partners.push(partner.path);
+    const block = [path];
+    for (let i = 0; i < block.length; i++) {
+      for (const other of tiesOf(block[i])) {
+        if (!block.includes(other) && !unitOf.has(other)) block.push(other);
+      }
     }
-    const half = Math.floor(partners.length / 2);
-    const members = [...partners.slice(0, half), path, ...partners.slice(half)];
+    const centre = block.reduce((best, other) => (tiesOf(other).length > tiesOf(best).length ? other : best));
+
+    const left: string[] = [];
+    const right: string[] = [];
+    const side = new Map<string, 'left' | 'right'>();
+    const placed = new Set([centre]);
+    const first = tiesOf(centre).filter((other) => block.includes(other));
+    first.forEach((other, i) => side.set(other, i < Math.floor(first.length / 2) ? 'left' : 'right'));
+    const queue = [...first];
+    for (const other of first) placed.add(other);
+    while (queue.length > 0) {
+      const next = queue.shift()!;
+      if (side.get(next) === 'left') left.unshift(next);
+      else right.push(next);
+      for (const beyond of tiesOf(next)) {
+        if (placed.has(beyond) || !block.includes(beyond)) continue;
+        placed.add(beyond);
+        side.set(beyond, side.get(next)!);
+        queue.push(beyond);
+      }
+    }
+    const members = [...left, centre, ...right];
 
     const unit: Unit = { key: path, members, generation: own, width: unitWidth(members.length), x: 0, parents: [], children: [] };
     for (const member of members) unitOf.set(member, unit);
@@ -385,6 +422,7 @@ function placeRows(rows: Unit[][], unitOf: Map<string, Unit>, graph: FamilyGraph
 /**
  * A couple drawn the other way round when that brings their cards nearer their own parents: a
  * daughter-in-law whose parents are drawn stands on their side of her husband, not across him.
+ * Reversed whole, so partners who stood side by side still do.
  */
 function faceParents(units: Unit[], unitOf: Map<string, Unit>, graph: FamilyGraph): boolean {
   const reach = (unit: Unit): number =>
@@ -399,7 +437,7 @@ function faceParents(units: Unit[], unitOf: Map<string, Unit>, graph: FamilyGrap
 
   let turned = false;
   for (const unit of units) {
-    if (unit.members.length !== 2) continue;
+    if (unit.members.length < 2) continue;
     const before = reach(unit);
     unit.members.reverse();
     if (reach(unit) < before - 1) turned = true;
@@ -483,6 +521,7 @@ function familyLines(graph: FamilyGraph, cards: Map<string, FamilyCard>): Family
       siblingY: toY - BAR_DROP,
       children: children.map((child) => child.x + CARD_WIDTH / 2).sort((a, b) => a - b),
       toY,
+      people: [...parents, ...children].map((card) => card.path),
     };
   });
 }

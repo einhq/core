@@ -265,3 +265,18 @@ Deno.test('family layout: relatives reached sideways take their place among the 
     }
   }
 });
+
+Deno.test('family layout: somebody with two partners stands between them, joined to each', () => {
+  // jenny sorts before johan and vilhelmina after him: whoever is built first,
+  // all three are one block, johan in the middle.
+  const layout = layoutFamily(graphOf('jenny', {
+    jenny: { partners: ['johan'] },
+    johan: { partners: ['jenny', 'vilhelmina'] },
+    vilhelmina: { partners: ['johan'] },
+  }));
+
+  assertEquals(overlaps(layout), []);
+  const xs = ['jenny', 'johan', 'vilhelmina'].map((name) => centre(layout, name));
+  assert(Math.min(xs[0], xs[2]) < xs[1] && xs[1] < Math.max(xs[0], xs[2]), `johan not between: ${xs}`);
+  assertEquals(layout.unions.map((union) => union.key.split('~').map((path) => path.split('/').pop()).sort().join('~')).sort(), ['jenny~johan', 'johan~vilhelmina']);
+});

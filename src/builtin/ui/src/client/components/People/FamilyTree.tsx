@@ -1,7 +1,7 @@
 import { ActionIcon, Box, Loader, Stack, Text, Tooltip } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconFocusCentered, IconMaximize, IconMinimize, IconZoomScan } from '@tabler/icons-react';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, layoutFamily } from '../../lib/family-layout.ts';
 import { layoutHatField } from '../../lib/hat-field.ts';
 import { type FamilyDirection, FamilyTreeCard } from './FamilyTreeCard.tsx';
@@ -35,6 +35,10 @@ const VIEWPORT_BORDER = 2;
 const CORNER_RADIUS = 10;
 /** How strongly the hat tiles behind the drawing are outlined: a texture, not a picture. */
 const HAT_GROUND_OPACITY = 0.07;
+/** How wide a family's lines are to the pointer, wider than they are drawn. */
+const LINE_HIT_WIDTH = 12;
+/** A lit family's lines and the outline of its people's cards. */
+const LIT = 'var(--mantine-color-marine-4)';
 /** The map's control: a filled dark button standing on the drawing. */
 const CONTROL_SIZE = 40;
 
@@ -227,6 +231,10 @@ function FamilyDrawing(
   const [view, setViewState] = useState<View | null>(null);
   const [fitted, setFitted] = useState(fit);
   const [dragging, setDragging] = useState(false);
+  /** The family whose lines the pointer is on, or a finger last tapped. */
+  const [lit, setLit] = useState<string | null>(null);
+  // useId's colons are not valid in a selector.
+  const scope = `mrx-family-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   // The gesture listeners are attached once per box, so they read through refs.
   const viewRef = useRef(view);
@@ -386,6 +394,7 @@ function FamilyDrawing(
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       stopAnimation();
+      if (!(event.target instanceof Element && event.target.closest('[data-family]'))) setLit(null);
       if (pointers.size === 0) {
         moved = false;
         most = 0;
@@ -498,34 +507,56 @@ function FamilyDrawing(
   }, [viewport, hasDrawing]);
 
   // The drawing itself depends on the graph and not on the view, so dragging
-  // re-renders only the transform round it.
+  // re-renders only the transform round it; a lit family is drawn on its own
+  // between the lines and the cards, so lighting one re-renders neither.
+  const lines = useMemo(() => {
+    if (!layout) return null;
+    return (
+      <svg width={layout.width} height={layout.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
+        {/* One group's opacity, so where a family's lines meet they are no darker than one. */}
+        <g opacity={0.55}>
+          {layout.families.map((family) => (
+            <path key={family.key} d={familyPath(family)} fill='none' stroke='var(--mantine-color-dimmed)' strokeWidth={1.5} strokeLinecap='round' />
+          ))}
+        </g>
+        {
+          /* A wider, unseen stroke along each family's lines, so a pointer finds
+            one without having to land on a pixel and a half. */
+        }
+        <g fill='none' stroke='transparent' strokeWidth={LINE_HIT_WIDTH} style={{ pointerEvents: 'stroke', cursor: 'pointer' }}>
+          {layout.families.map((family) => (
+            <path
+              key={family.key}
+              data-family={family.key}
+              d={familyPath(family)}
+              onPointerEnter={(event) => event.pointerType === 'mouse' && setLit(family.key)}
+              onPointerLeave={(event) => event.pointerType === 'mouse' && setLit((current) => (current === family.key ? null : current))}
+              onClick={() => setLit(family.key)}
+            />
+          ))}
+        </g>
+        {layout.unions.map((union) => {
+          const middle = (union.x1 + union.x2) / 2;
+          return (
+            <g key={union.key}>
+              <line x1={union.x1} y1={union.y} x2={union.x2} y2={union.y} stroke='var(--mantine-color-dimmed)' strokeWidth={2} />
+              {
+                /* The years the partnership ran, where there are any; imported
+                  relations carry none (ein/core#66). */
+              }
+              {union.from && <text x={middle} y={union.y - 5} textAnchor='middle' fontSize={10} fill='var(--mantine-color-dimmed)'>{union.from}</text>}
+              {union.to && <text x={middle} y={union.y + 13} textAnchor='middle' fontSize={10} fill='var(--mantine-color-dimmed)'>{union.to}</text>}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }, [layout]);
+
   const drawing = useMemo(() => {
     if (!graph || !layout) return null;
     return (
       <>
-        <svg width={layout.width} height={layout.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
-          {/* One group's opacity, so where a family's lines meet they are no darker than one. */}
-          <g opacity={0.55}>
-            {layout.families.map((family) => (
-              <path key={family.key} d={familyPath(family)} fill='none' stroke='var(--mantine-color-dimmed)' strokeWidth={1.5} strokeLinecap='round' />
-            ))}
-          </g>
-          {layout.unions.map((union) => {
-            const middle = (union.x1 + union.x2) / 2;
-            return (
-              <g key={union.key}>
-                <line x1={union.x1} y1={union.y} x2={union.x2} y2={union.y} stroke='var(--mantine-color-dimmed)' strokeWidth={2} />
-                {
-                  /* The years the partnership ran, where there are any; imported
-                    relations carry none (ein/core#66). */
-                }
-                {union.from && <text x={middle} y={union.y - 5} textAnchor='middle' fontSize={10} fill='var(--mantine-color-dimmed)'>{union.from}</text>}
-                {union.to && <text x={middle} y={union.y + 13} textAnchor='middle' fontSize={10} fill='var(--mantine-color-dimmed)'>{union.to}</text>}
-              </g>
-            );
-          })}
-        </svg>
-
         {layout.cards.map((card) => {
           const node = graph.nodes[card.path];
           if (!node) {
@@ -580,11 +611,13 @@ function FamilyDrawing(
   const startScale = fit ? fitScaleFor(layout, { width: size.width, height: MAX_VIEWPORT_HEIGHT }) : 1;
   const inlineHeight = Math.max(MIN_VIEWPORT_HEIGHT, Math.min(MAX_VIEWPORT_HEIGHT, layout.height * startScale)) + VIEWPORT_BORDER;
   const rootCard = layout.byPath[graph.root];
+  const litFamily = lit ? layout.families.find((family) => family.key === lit) : undefined;
 
   return (
     <Box style={fill ? { flex: 1, minHeight: 0, position: 'relative' } : { position: 'relative' }}>
       <Box
         ref={setViewport}
+        id={scope}
         style={{
           height: fill ? undefined : inlineHeight,
           ...(fill ? { position: 'absolute', inset: 0 } : {
@@ -600,6 +633,11 @@ function FamilyDrawing(
         }}
       >
         <HatGround width={size.width} height={size.height} seed={`family:${graph.root}`} />
+        {litFamily && (
+          <style>
+            {`${litFamily.people.map((path) => `#${scope} [data-person="${CSS.escape(path)}"]`).join(', ')} { outline: 2px solid ${LIT}; outline-offset: 1px; }`}
+          </style>
+        )}
         {
           /* Hidden until the box is measured and the view placed: one frame at
             full size first would be a flash of a huge tree, then a jump. */
@@ -616,6 +654,12 @@ function FamilyDrawing(
             visibility: view ? undefined : 'hidden',
           }}
         >
+          {lines}
+          {litFamily && (
+            <svg width={layout.width} height={layout.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
+              <path d={familyPath(litFamily)} fill='none' stroke={LIT} strokeWidth={2.5} strokeLinecap='round' />
+            </svg>
+          )}
           {drawing}
         </Box>
       </Box>
