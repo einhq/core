@@ -8,7 +8,7 @@
  * fields, not zeroes and not exceptions. No sampler runs here, so every sample is written by hand.
  */
 
-import { METRICS_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
+import { METRICS_PATH, PIPELINE_INSTANCES_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
 import { METRICS_SERIES, seriesPath } from '../../../../lib/metrics/mod.ts';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
@@ -167,13 +167,21 @@ Deno.test({
     });
 
     await t.step('pipeline-overview carries what each pipeline finishes per hour', async () => {
-      // A node that looks like an instance to the aggregate is enough for the row to exist.
-      await cmd.shouldSucceed('mkdir -p /tmp/rates-instance && attrs -s pipelineName=rates-pipe -s status=completed /tmp/rates-instance');
+      // One completed instance under the pipeline's directory is enough for the row to exist.
+      const instance = `${PIPELINE_INSTANCES_PATH}/rates-pipe/i0`;
+      await cmd.shouldSucceed(`mknode -p -t directory ${instance} && attrs ${instance} -s pipelineName=rates-pipe -s status=completed`);
       await cmd.shouldSucceed(`log-append ${seriesPath('pipelines')} --data '{"completed":{"rates-pipe":10}}' --at ${HALF_HOUR_AGO()}`);
       await cmd.shouldSucceed(`log-append ${seriesPath('pipelines')} --data '{"completed":{"rates-pipe":20}}'`);
 
       const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      assertEquals(overview.instances.byPipeline.find((row) => row.pipeline === 'rates-pipe')?.completedPerHour, 20);
+      const row = overview.instances.byPipeline.find((row) => row.pipeline === 'rates-pipe');
+      assertEquals(row?.completedPerHour, 20);
+      assertEquals(row?.completed, 1);
+
+      // The same samples' growth is the day's completions: at least the ten between the two,
+      // more if a sample the running sampler wrote in between lacks the pipeline.
+      const lastHour = overview.completions.filter((bucket) => bucket.at >= Date.now() - 3_600_000).reduce((sum, bucket) => sum + bucket.count, 0);
+      assertEquals(lastHour >= 10, true);
     });
 
     await t.step('pipeline-overview measures crawl coverage as marker nodes against candidate files', async () => {

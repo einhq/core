@@ -31,7 +31,7 @@ import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { type Kind, kindConditions, NOT_DERIVED } from '../../../../lib/kinds/mod.ts';
 import { createLogger } from '../../../logger/mod.ts';
-import type { PrunedCompletedAttrs } from '../pipeline/pipeline-prune.ts';
+import { countInstances } from '../pipeline/pipeline-overview.ts';
 import {
   type DiskEntry,
   METRICS_PATH,
@@ -178,35 +178,15 @@ const entryPipeline = async (cmd: Command): Promise<EntryPoint | undefined> => {
  *
  * The live row count is not a counter on its own: `pipeline prune` keeps only
  * the newest `--keep` completed instances of each pipeline, so it saturates at
- * the cap. The pruner banks what it removed on the instance directory and it is
- * added back here, so the figure is a lifetime total and `rate()` does not reset
- * on every prune cycle.
+ * the cap. `countInstances` adds back what the pruner banked, so the figure is a
+ * lifetime total and `rate()` does not reset on every prune cycle.
  */
 const samplePipelines = async (cmd: Command): Promise<PipelinesEntry | undefined> => {
   try {
-    const buckets = await cmd.sys.vfs.aggregate(ADMIN_ACCESS, {
-      where: [
-        { ref: 'pipelineName', op: 'exists' },
-        { ref: 'status', op: 'eq', value: 'completed' },
-      ],
-      group: [{ ref: 'pipelineName' }],
-    });
-
-    const completed: Record<string, number> = {};
-    for (const bucket of buckets) completed[bucket.key[0]] = bucket.count;
-
     const instancesPath = join(cmd.env.PIPELINES_PATH || PIPELINES_PATH, 'instances');
-    let pruned: Awaited<ReturnType<typeof cmd.sys.vfs.children<PrunedCompletedAttrs>>> = [];
-    try {
-      pruned = await cmd.sys.vfs.children<PrunedCompletedAttrs>(ADMIN_ACCESS, instancesPath);
-    } catch {
-      // No instances directory yet — the live counts stand on their own.
-    }
-    for (const entry of pruned) {
-      const banked = entry.node.attrs?.prunedCompleted;
-      if (typeof banked === 'number' && banked > 0) {
-        completed[entry.name] = (completed[entry.name] ?? 0) + banked;
-      }
+    const completed: Record<string, number> = {};
+    for (const row of await countInstances(cmd.sys.vfs, ADMIN_ACCESS, instancesPath)) {
+      if (row.completed > 0) completed[row.pipeline] = row.completed;
     }
 
     // Recorded alongside the counts so the reader needs no configuration and

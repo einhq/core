@@ -589,6 +589,9 @@ export class PgStore implements NodeStore {
       // pipelineName so the index covers instance nodes only (a few percent of
       // the table), and **status leads**: every query filters status with
       // eq/in and groups by pipelineName, so status is the selective column.
+      // It cannot serve an index-only scan (an expression index never does), so a
+      // count reads each matched row: pipeline-overview counts only the
+      // statuses that are not `completed`, which are few.
       //
       // Leading with pipelineName instead would leave the selectivity to the
       // partial predicate, and there are no statistics for a JSONB expression —
@@ -603,8 +606,7 @@ export class PgStore implements NodeStore {
         ON ${this.attrsTable} ((${statusExpr}), (${pipelineExpr}), node_id)
         WHERE (attributes->>'pipelineName') IS NOT NULL
       `);
-      // Serves both the completions-over-time buckets and instance listings
-      // ordered newest-first.
+      // Serves instance listings ordered newest-first and pruning by age.
       await conn.query(`
         CREATE INDEX IF NOT EXISTS ${this.attrsTable}_pipeline_completed_idx
         ON ${this.attrsTable} ((${completedAtExpr}), node_id)

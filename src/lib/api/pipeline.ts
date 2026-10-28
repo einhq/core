@@ -70,6 +70,10 @@ export type PipelineOverview = {
   }[];
   /** How long a running step goes without output before it is listed in `quiet`. */
   quietMs: number;
+  /**
+   * Instances completed over the last day, in ~16.7-minute buckets (`at` is the bucket's start),
+   * from the sampler's `pipelines` series; empty until it has two samples.
+   */
   completions: { at: number; count: number }[];
   /** Absent when no pipeline declares itself the entry point with a way to measure coverage. */
   coverage?: CrawlCoverage;

@@ -24,7 +24,7 @@ import type { DiskUsage, HealthAnswer, HostMetrics as Metrics, LogLine, PoolStat
 import { usePipelineOverview, usePipelines, usePolledCommand } from '@ein/ui/hooks';
 import { panelRoute, panelsOf, shellClientConnected } from '@ein/ui/signals';
 
-/** Must match pipeline-overview's BUCKET_DIGITS (10^(13-7) ms) and window. */
+/** Must match pipeline-overview's BUCKET_MS and window. */
 const BUCKET_MS = 1_000_000;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 

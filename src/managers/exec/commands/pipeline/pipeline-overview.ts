@@ -2,21 +2,21 @@
  * pipeline-overview — the whole workload in one round trip.
  *
  * Everything here is an aggregate or a bounded query, never a directory walk,
- * so a dashboard can poll it. Counts come from `vfs.aggregate`, a single
- * GROUP BY.
+ * so a dashboard can poll it.
  *
  * Two invariants this relies on:
  *
  *  - `pipelineName` and `stepName` are exact, non-overlapping discriminators.
  *    Instance nodes carry the first, step nodes the second, and nothing else in
  *    the tree carries `status` at all.
- *  - `completedAt` is epoch-ms and therefore uniformly 13 digits, so the text
- *    ordering `vfs.query` uses matches numeric ordering, and a prefix of 7
- *    digits buckets it at 10^6 ms (~16.7 min). Holds until the year 2286.
+ *  - Every child of `instances/<pipeline>` is an instance of that pipeline, so a
+ *    pipeline's completed count is its directory's child count less its live
+ *    (not completed) instances. Completed instances are nearly all of them, and
+ *    counting them by status reads every one of their attrs rows (ein/core#745).
  *
- * Counts come from `vfs.aggregate`, which is **not** access-filtered (same
- * caveat as facets) while the `active` list is — for a non-admin the two
- * can disagree. This sizes a dashboard; it is not a data listing.
+ * Counts come from `vfs.aggregate` and unfiltered child counts, neither of them
+ * access-filtered (same caveat as facets), while the `active` list is — for a
+ * non-admin the two can disagree. This sizes a dashboard; it is not a data listing.
  */
 
 import { QUEUES_PATH } from '../../../../lib/paths.ts';
@@ -24,9 +24,11 @@ import { join } from '@std/path';
 import { instancesRoot } from './lib.ts';
 import type { PrunedCompletedAttrs } from './pipeline-prune.ts';
 import type { AggregateBucket } from '../../../../vfs/query.ts';
+import type { Access } from '../../../../lib/access/mod.ts';
+import type { NodeVFS } from '../../../../vfs/mod.ts';
 import type { QueueStat } from '../../../../registries/queue/types.ts';
 import type { PipelineInstanceAttrs, PipelineStepAttrs } from '../../../pipeline/types.ts';
-import { eta, type NodesEntry, type PipelinesEntry, rate, within } from '../../../../lib/metrics/mod.ts';
+import { eta, type NodesEntry, type PipelinesEntry, rate, type Sample, within } from '../../../../lib/metrics/mod.ts';
 import type { CrawlCoverage } from '../../../../lib/api/pipeline.ts';
 import { HOUR, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
 import type { Command } from '../../command.ts';
@@ -45,10 +47,15 @@ const RUNNING_STEPS_LIMIT = 500;
 /** How long a running step may go without output before it is listed as quiet; CFG_PIPELINE_STEP_QUIET_MS. */
 const DEFAULT_QUIET_MS = 30 * 60 * 1000;
 
-/** Bucket width for the completions series: 10^(13-7) ms. */
-const BUCKET_DIGITS = 7;
-const BUCKET_MS = 10 ** (13 - BUCKET_DIGITS);
+/** Bucket width for the completions series: 10^6 ms, ~16.7 min. */
+const BUCKET_MS = 1_000_000;
 const SERIES_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** The `pipelines` series (1min cadence) over the completions window, with room for a denser stretch. */
+const PIPELINES_SERIES_LIMIT = 1600;
+
+/** Instance statuses other than completed, the ones counted by status. */
+const LIVE_STATUSES = INSTANCE_STATUSES.filter((status) => status !== 'completed');
 
 const MB = 1024 * 1024;
 
@@ -69,6 +76,56 @@ const toMap = (buckets: AggregateBucket[]): Record<string, number> => {
   return out;
 };
 
+const emptyRow = (pipeline: string): PipelineRow => ({ pipeline, total: 0, running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 });
+
+/**
+ * Instances per pipeline and status, completed ones counting those the pruner has removed.
+ *
+ * Instances the pruner has already deleted still happened. Without adding them back,
+ * `completed` is a count of *surviving* rows and so pins at the retention cap — every
+ * pipeline on a busy instance reads exactly `--keep`. The pruner banks what it removed on
+ * the pipeline's directory, which is the same listing that carries the child counts.
+ *
+ * Pipelines with no instances, live or banked, have no row.
+ */
+export const countInstances = async (vfs: NodeVFS, access: Access, instancesPath: string): Promise<PipelineRow[]> => {
+  const rows = new Map<string, PipelineRow>();
+  const liveTotals = new Map<string, number>();
+
+  const liveBuckets = await vfs.aggregate(access, {
+    where: [
+      { ref: 'pipelineName', op: 'exists' },
+      { ref: 'status', op: 'in', value: LIVE_STATUSES },
+    ],
+    group: [{ ref: 'pipelineName' }, { ref: 'status' }],
+  });
+  for (const bucket of liveBuckets) {
+    const [pipeline, status] = bucket.key as [string, InstanceStatus];
+    const row = rows.get(pipeline) ?? emptyRow(pipeline);
+    rows.set(pipeline, row);
+    row[status] = bucket.count;
+    row.total += bucket.count;
+    liveTotals.set(pipeline, (liveTotals.get(pipeline) ?? 0) + bucket.count);
+  }
+
+  let directories: Awaited<ReturnType<typeof vfs.children<PrunedCompletedAttrs>>> = [];
+  try {
+    directories = await vfs.children<PrunedCompletedAttrs>(access, instancesPath, { all: true });
+  } catch { /* no instances dir */ }
+
+  for (const entry of directories) {
+    const banked = entry.node.attrs?.prunedCompleted;
+    const completed = Math.max(0, entry.childCount - (liveTotals.get(entry.name) ?? 0)) + (typeof banked === 'number' && banked > 0 ? banked : 0);
+    if (completed === 0) continue;
+    const row = rows.get(entry.name) ?? emptyRow(entry.name);
+    rows.set(entry.name, row);
+    row.completed = completed;
+    row.total += completed;
+  }
+
+  return [...rows.values()].sort((a, b) => a.pipeline < b.pipeline ? -1 : 1);
+};
+
 /**
  * Instances each pipeline finished per hour over the last hour.
  *
@@ -78,9 +135,7 @@ const toMap = (buckets: AggregateBucket[]): Record<string, number> => {
  * `pipelines.completed` is cumulative across pruning — the sampler adds back what the pruner
  * removed — so differencing it is meaningful where counting live instance nodes is not.
  */
-const readCompletionRates = async (cmd: Command): Promise<Map<string, number | undefined>> => {
-  // 1min cadence -> ~1.5h, matched to the rate window.
-  const samples = await readSeries<PipelinesEntry>(cmd, 'pipelines', 90);
+const completionRates = (samples: Sample<PipelinesEntry>[]): Map<string, number | undefined> => {
   const window = within(samples, RATE_WINDOW_MS);
   const rates = new Map<string, number | undefined>();
 
@@ -90,6 +145,30 @@ const readCompletionRates = async (cmd: Command): Promise<Map<string, number | u
   }
 
   return rates;
+};
+
+/**
+ * Completions over the last day in `BUCKET_MS` buckets, each sample's growth over the one
+ * before it put in the bucket of the later sample. A pipeline whose count went down between two
+ * samples (instances restarted or retired) contributes nothing to that step rather than a
+ * negative count.
+ */
+const completionSeries = (samples: Sample<PipelinesEntry>[]): PipelineOverview['completions'] => {
+  const since = Date.now() - SERIES_WINDOW_MS;
+  const buckets = new Map<number, number>();
+
+  for (let i = 1; i < samples.length; i++) {
+    const { at, value } = samples[i];
+    if (at < since) continue;
+    const before = samples[i - 1].value.completed ?? {};
+    let count = 0;
+    for (const [name, total] of Object.entries(value.completed ?? {})) count += Math.max(0, total - (before[name] ?? 0));
+    if (count === 0) continue;
+    const bucket = Math.floor(at / BUCKET_MS) * BUCKET_MS;
+    buckets.set(bucket, (buckets.get(bucket) ?? 0) + count);
+  }
+
+  return [...buckets].map(([at, count]) => ({ at, count })).sort((a, b) => a.at - b.at);
 };
 
 /**
@@ -126,57 +205,19 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
   const queuesPath = cmd.env.QUEUES_PATH || QUEUES_PATH;
 
   // ---- Instance status matrix -------------------------------------------
-  const rows = new Map<string, PipelineRow>();
+  const byPipeline = await countInstances(vfs, cmd.access, instancesPath);
   const byStatus = { running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 } as Record<InstanceStatus, number>;
-
-  const instanceBuckets = await vfs.aggregate(cmd.access, {
-    where: [
-      { ref: 'pipelineName', op: 'exists' },
-      { ref: 'status', op: 'in', value: [...INSTANCE_STATUSES] },
-    ],
-    group: [{ ref: 'pipelineName' }, { ref: 'status' }],
-  });
-
-  for (const bucket of instanceBuckets) {
-    const [pipeline, statusValue] = bucket.key;
-    const status = statusValue as InstanceStatus;
-    let row = rows.get(pipeline);
-    if (!row) {
-      row = { pipeline, total: 0, running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 };
-      rows.set(pipeline, row);
-    }
-    row[status] = bucket.count;
-    row.total += bucket.count;
-    byStatus[status] += bucket.count;
+  for (const row of byPipeline) {
+    for (const status of INSTANCE_STATUSES) byStatus[status] += row[status];
   }
-
-  // Instances the pruner has already deleted still happened. Without adding them
-  // back, `completed` is a count of *surviving* rows and so pins at the retention
-  // cap — every pipeline on a busy instance reads exactly `--keep`, and "all
-  // time" becomes a restatement of the pruner's configuration.
-  try {
-    for (const entry of await vfs.children<PrunedCompletedAttrs>(cmd.access, instancesPath)) {
-      const banked = entry.node.attrs?.prunedCompleted;
-      if (typeof banked !== 'number' || banked <= 0) continue;
-
-      let row = rows.get(entry.name);
-      if (!row) {
-        row = { pipeline: entry.name, total: 0, running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 };
-        rows.set(entry.name, row);
-      }
-      row.completed += banked;
-      row.total += banked;
-      byStatus.completed += banked;
-    }
-  } catch { /* no instances dir */ }
-
-  for (const [pipeline, perHour] of await readCompletionRates(cmd)) {
-    const row = rows.get(pipeline);
-    if (row && perHour !== undefined) row.completedPerHour = perHour;
-  }
-
-  const byPipeline = [...rows.values()].sort((a, b) => a.pipeline < b.pipeline ? -1 : 1);
   const total = byPipeline.reduce((sum, row) => sum + row.total, 0);
+
+  const pipelineSamples = await readSeries<PipelinesEntry>(cmd, 'pipelines', PIPELINES_SERIES_LIMIT);
+  const rates = completionRates(pipelineSamples);
+  for (const row of byPipeline) {
+    const perHour = rates.get(row.pipeline);
+    if (perHour !== undefined) row.completedPerHour = perHour;
+  }
 
   // ---- Unfinished step counts -------------------------------------------
   const stepWhere = [
@@ -275,19 +316,7 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
   }
 
   // ---- Completions over time --------------------------------------------
-  const since = Date.now() - SERIES_WINDOW_MS;
-  const seriesBuckets = await vfs.aggregate(cmd.access, {
-    where: [
-      { ref: 'pipelineName', op: 'exists' },
-      { ref: 'completedAt', op: 'gte', value: String(since) },
-    ],
-    group: [{ ref: 'completedAt', prefixLength: BUCKET_DIGITS }],
-  });
-
-  const completions = seriesBuckets
-    .filter((bucket) => /^\d+$/.test(bucket.key[0]))
-    .map((bucket) => ({ at: Number(bucket.key[0]) * BUCKET_MS, count: bucket.count }))
-    .sort((a, b) => a.at - b.at);
+  const completions = completionSeries(pipelineSamples);
 
   const coverage = await readCoverage(cmd);
 
