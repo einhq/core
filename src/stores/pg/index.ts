@@ -430,6 +430,17 @@ export class PgStore implements NodeStore {
           PRIMARY KEY (parent_id, name)
         )
       `);
+      // A child count is an index-only scan, which stays index-only only while the visibility map
+      // is fresh. Pipeline instances are made and pruned all day, and at the default scale factor
+      // (a fifth of the table) a vacuum comes round only after hundreds of thousands of changes,
+      // leaving the count reading most of its rows from the heap (ein/core#747). Set only when
+      // missing: the ALTER takes a lock that would wait behind a running vacuum on every boot.
+      const vacuumOptions = ['autovacuum_vacuum_scale_factor=0.01', 'autovacuum_vacuum_insert_scale_factor=0.01'];
+      const options = await conn.query(`SELECT reloptions FROM pg_class WHERE oid = $1::regclass`, [this.hierarchyTable]);
+      const set: string[] = options.rows[0]?.reloptions ?? [];
+      if (!vacuumOptions.every((option) => set.includes(option))) {
+        await conn.query(`ALTER TABLE ${this.hierarchyTable} SET (${vacuumOptions.join(', ')})`);
+      }
 
       // Create indexes for common queries
       await conn.query(`
@@ -597,6 +608,12 @@ export class PgStore implements NodeStore {
       // partial predicate, and there are no statistics for a JSONB expression —
       // the planner estimates `IS NOT NULL` at ~99% and picks a seq scan. Hence
       // also the ANALYZE below.
+      //
+      // `status` itself has statistics, filled by that ANALYZE. Without them `= 'running'` is
+      // taken for one row in two hundred of the whole table, where it matches a handful, and
+      // the dashboard's running lists get a parallel plan whose workers take longer to start
+      // than the index scan takes to answer (ein/core#747).
+      await conn.query(`CREATE STATISTICS IF NOT EXISTS ${this.attrsTable}_status_stats ON ((attributes->>'status')) FROM ${this.attrsTable}`);
       const statusExpr = attrSortExpr('status');
       const pipelineExpr = attrSortExpr('pipelineName');
       const completedAtExpr = attrSortExpr('completedAt');
