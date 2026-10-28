@@ -45,7 +45,7 @@ const MINUTE = 60 * SECOND;
  * rows.
  */
 export const METRICS_SERIES: MetricsSeries[] = [
-  { name: 'cpu', intervalMs: 15 * SECOND, retention: '7 day', description: 'CPU time consumed, cgroup-scoped' },
+  { name: 'cpu', intervalMs: 15 * SECOND, retention: '7 day', description: "CPU time consumed, the machine's and this cgroup's" },
   { name: 'memory', intervalMs: 15 * SECOND, retention: '7 day', description: 'Resident memory against the cgroup cap' },
   // Lag is the counterpart to `cpu`, not a duplicate of it: utilization says
   // how much of a core we used, this says how long a ready callback waited. The

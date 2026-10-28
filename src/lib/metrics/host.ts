@@ -1,15 +1,15 @@
 /**
  * Host resource probes — CPU and memory as the kernel reports them.
  *
- * Every probe reads cgroup v2 rather than `/proc`, because EiN runs in a
- * container: `/proc/meminfo` and `/proc/stat` are the *host's* numbers, so a
- * dashboard built on them would show 15 GiB of RAM on a container capped at
- * 10g and CPU time spent by processes we do not own. The cgroup files are
- * scoped to us.
+ * EiN runs in a container, where `/proc/meminfo` and `/proc/stat` are the *host's* numbers and
+ * cgroup v2 files are this container's. Memory is the container's: a dashboard built on
+ * `/proc/meminfo` would show 15 GiB of RAM on a container capped at 10g. CPU is both: the
+ * machine's busy time from `/proc/stat`, because the work that loads it (the media service, the
+ * database) runs in other containers, and this container's own time from `cpu.stat`.
  *
- * CPU is exposed as a cumulative counter (`usageUsec`), never as a percentage.
- * A percentage needs two observations and this is one, so the rate is derived
- * where two samples are in hand — see `rate()` in `derive.ts`.
+ * CPU is exposed as cumulative counters, never as a percentage. A percentage needs two
+ * observations and this is one, so the rate is derived where two samples are in hand — see
+ * `derive.ts`.
  */
 
 const CGROUP = '/sys/fs/cgroup';
@@ -35,9 +35,14 @@ const flatKey = (text: string, key: string): number | undefined => {
   return undefined;
 };
 
+/** The machine's cumulative CPU time over all cores, in clock ticks: busy, and busy plus idle. */
+export type HostCpuTicks = { busy: number; total: number };
+
 export type CpuSample = {
   /** Cumulative CPU time consumed by this cgroup, microseconds. */
   usageUsec: number;
+  /** The whole machine's CPU time, when `/proc/stat` is readable. */
+  host?: HostCpuTicks;
   /** Cores available, so a rate can be turned into a percentage. */
   cores: number;
   /** 1-minute load average. Host-wide — the kernel has no per-cgroup load. */
@@ -50,12 +55,26 @@ export type MemorySample = {
   limitBytes?: number;
 };
 
+/**
+ * The `cpu` line of `/proc/stat`: user, nice, system, idle, iowait, irq, softirq, steal (guest
+ * time is already inside user and nice). Idle and iowait are the time no task ran.
+ */
+export const parseProcStat = (text: string): HostCpuTicks | undefined => {
+  const line = text.split('\n').find((row) => row.startsWith('cpu '));
+  if (!line) return undefined;
+  const ticks = line.trim().split(/\s+/).slice(1, 9).map(Number);
+  if (ticks.length < 5 || ticks.some((tick) => !Number.isFinite(tick))) return undefined;
+  const total = ticks.reduce((sum, tick) => sum + tick, 0);
+  return { busy: total - ticks[3] - ticks[4], total };
+};
+
 export const sampleCpu = async (): Promise<CpuSample | undefined> => {
-  const text = await readText(`${CGROUP}/cpu.stat`);
+  const [text, stat] = await Promise.all([readText(`${CGROUP}/cpu.stat`), readText('/proc/stat')]);
   if (text === undefined) return undefined;
 
   const usageUsec = flatKey(text, 'usage_usec');
   if (usageUsec === undefined) return undefined;
+  const host = stat === undefined ? undefined : parseProcStat(stat);
 
   let load1: number | undefined;
   try {
@@ -64,7 +83,7 @@ export const sampleCpu = async (): Promise<CpuSample | undefined> => {
     // --allow-sys not granted; the counter alone is still useful.
   }
 
-  return { usageUsec, cores: navigator.hardwareConcurrency, load1 };
+  return { usageUsec, ...(host ? { host } : {}), cores: navigator.hardwareConcurrency, load1 };
 };
 
 export const sampleMemory = async (): Promise<MemorySample | undefined> => {

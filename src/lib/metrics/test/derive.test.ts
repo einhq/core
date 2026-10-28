@@ -1,5 +1,6 @@
 import { assertEquals } from '@std/assert';
-import { cpuPercent, downsample, eta, percent, rate, within } from '../derive.ts';
+import { cpuPercent, downsample, eta, hostCpuPercent, percent, rate, within } from '../derive.ts';
+import { parseProcStat } from '../host.ts';
 import type { Sample } from '../types.ts';
 
 const at = (minutes: number) => Date.now() - (60 - minutes) * 60_000;
@@ -140,4 +141,25 @@ Deno.test('within: drops samples older than the window', () => {
     { at: now - 60_000, value: 2 },
   ];
   assertEquals(within(samples, 3_600_000).map((sample) => sample.value), [2]);
+});
+
+Deno.test('parseProcStat: idle and iowait are the only time not busy', () => {
+  const text = 'cpu  100 20 30 400 50 6 4 0 0 0\ncpu0 50 10 15 200 25 3 2 0 0 0\nintr 1\n';
+  assertEquals(parseProcStat(text), { busy: 160, total: 610 });
+  assertEquals(parseProcStat('intr 1\n'), undefined);
+});
+
+Deno.test('hostCpuPercent: busy ticks over all ticks between the first and last sample', () => {
+  const now = Date.now();
+  const samples = [
+    { at: now - 15_000, value: { host: { busy: 1000, total: 2000 } } },
+    { at: now, value: { host: { busy: 1450, total: 2600 } } },
+  ];
+  assertEquals(hostCpuPercent(samples), 75);
+});
+
+Deno.test('hostCpuPercent: nothing from a sample without the host counters, or across a reboot', () => {
+  const now = Date.now();
+  assertEquals(hostCpuPercent([{ at: now - 15_000, value: {} }, { at: now, value: { host: { busy: 10, total: 20 } } }]), undefined);
+  assertEquals(hostCpuPercent([{ at: now - 15_000, value: { host: { busy: 900, total: 2000 } } }, { at: now, value: { host: { busy: 10, total: 20 } } }]), undefined);
 });

@@ -203,6 +203,6 @@ Deno.test('top frame', async (t) => {
     const text = renderTop(data, view(), { rows: 40, cols: 120 }, { keys: true, now: NOW }).rows.map(toText).join('\n');
     assert(text.includes('cannot read: permission denied'), text);
     assert(text.includes('reading…'), text);
-    assert(text.includes('no cgroup CPU counter on this host'), text);
+    assert(text.includes('no CPU counter on this host'), text);
   });
 });

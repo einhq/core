@@ -12,7 +12,7 @@
 
 import { getHeapStatistics } from 'node:v8';
 import { SYSTEM_LOG_PATH } from '../../../../../lib/paths.ts';
-import { cpuPercent, type CpuSample, type MemorySample, type Sample, sampleCpu, sampleMemory } from '../../../../../lib/metrics/mod.ts';
+import { type CpuSample, hostCpuPercent, type MemorySample, type Sample, sampleCpu, sampleMemory } from '../../../../../lib/metrics/mod.ts';
 import type {
   DiskUsage,
   Gauge,
@@ -53,9 +53,9 @@ export type TopData = {
   info: SystemInfo;
   /** Load average over 1, 5 and 15 minutes, host-wide as the kernel keeps it. */
   load?: number[];
-  /** Cores the CPU percentage is a share of; absent where there is no cgroup CPU counter. */
+  /** Cores the CPU percentage is a share of; absent where there is no CPU counter. */
   cores?: number;
-  /** CPU use as a percentage of all cores, one reading per tick, oldest first. */
+  /** The machine's CPU use as a percentage of all cores, one reading per tick, oldest first. */
   cpu: MetricPoint[];
   memory?: MemorySample;
   /** This process's JavaScript heap, against the size V8 stops it at. */
@@ -175,15 +175,16 @@ export class TopSources {
     this.data.heap = heap();
     this.data.memory = memory;
 
-    if (!cpu) return;
+    if (!cpu?.host) return;
     this.data.cores = cpu.cores;
     const sample = { at: now, value: cpu };
-    const percent = this.lastCpu ? cpuPercent([this.lastCpu, sample], CPU_MIN_SPAN_MS) : undefined;
+    const last = this.lastCpu;
+    const percent = last && now - last.at >= CPU_MIN_SPAN_MS ? hostCpuPercent([last, sample]) : undefined;
     if (percent !== undefined) {
       this.data.cpu.push({ at: now, value: percent });
       if (this.data.cpu.length > HISTORY) this.data.cpu.splice(0, this.data.cpu.length - HISTORY);
       this.lastCpu = sample;
-    } else if (!this.lastCpu || cpu.usageUsec < this.lastCpu.value.usageUsec) {
+    } else if (!last?.value.host || cpu.host.total < last.value.host.total) {
       // The first probe, or the counter started over: this is the reading the next is measured from.
       this.lastCpu = sample;
     }

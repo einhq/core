@@ -1,8 +1,9 @@
 export type MetricPoint = { at: number; value: number };
 
-/** `host-metrics`: this container's CPU and memory now, and the event loop's lag, each with its recent history. */
+/** `host-metrics`: the machine's CPU, this container's memory and the event loop's lag now, each with its recent history. */
 export type HostMetrics = {
-  cpu?: { percent?: number; cores: number; load1?: number; series: MetricPoint[] };
+  /** The machine's CPU (`percent`, `series`), and `ownPercent` the share of it that is EiN's own container. */
+  cpu?: { percent?: number; ownPercent?: number; cores: number; load1?: number; series: MetricPoint[] };
   memory?: { usedBytes: number; limitBytes?: number; percent?: number; series: MetricPoint[] };
   /** How late a ready callback ran in the last sampling interval; the series is the p99. */
   lag?: { p99Ms: number; maxMs: number; series: MetricPoint[] };

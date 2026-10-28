@@ -7,6 +7,7 @@
  * growth — the same arithmetic instead of four bespoke ones.
  */
 
+import type { HostCpuTicks } from './host.ts';
 import type { Sample } from './types.ts';
 
 /**
@@ -70,7 +71,7 @@ export const rate = <T>(
 };
 
 /**
- * CPU utilization as a percentage of all cores, from the cumulative microsecond counter. A caller
+ * This cgroup's CPU utilization as a percentage of all cores, from the cumulative microsecond counter. A caller
  * that reads the counter more often than the sampler does passes a shorter floor.
  */
 export const cpuPercent = (samples: Sample<{ usageUsec: number; cores: number }>[], minSpanMs: number = GAUGE_MIN_SPAN_MS): number | undefined => {
@@ -81,6 +82,21 @@ export const cpuPercent = (samples: Sample<{ usageUsec: number; cores: number }>
   // usage is in microseconds, the span in milliseconds: 1000 µs of CPU per ms
   // of wall clock is one core saturated.
   return clampPercent((perMs / 1000 / cores) * 100);
+};
+
+/**
+ * The machine's CPU utilization over the span of the samples, as busy ticks over all ticks of
+ * `/proc/stat`; undefined unless the first and last both carry the host's counters.
+ */
+export const hostCpuPercent = (samples: Sample<{ host?: HostCpuTicks }>[]): number | undefined => {
+  if (samples.length < 2) return undefined;
+  const first = samples[0].value.host;
+  const last = samples[samples.length - 1].value.host;
+  if (!first || !last) return undefined;
+  const total = last.total - first.total;
+  // No ticks between them, or the counters started over with a reboot.
+  if (total <= 0 || last.busy < first.busy) return undefined;
+  return clampPercent(((last.busy - first.busy) / total) * 100);
 };
 
 export const percent = (used: number, total: number | undefined): number | undefined => total === undefined || total <= 0 ? undefined : clampPercent((used / total) * 100);

@@ -26,7 +26,7 @@ function TileSkeleton() {
 const pct = (value?: number) => value === undefined ? '—' : `${Math.round(value)}%`;
 
 /**
- * The container's CPU and memory: with the GPU a module draws beside them (a `system.overview`
+ * The machine's CPU and the container's memory: with the GPU a module draws beside them (a `system.overview`
  * panel), the numbers that say whether the machine is coping.
  *
  * Each tile is one series, so there is no legend and no per-metric hue — the
@@ -51,8 +51,8 @@ export function HostMetrics({ cpu, memory, loading }: Props) {
           value={pct(cpu.percent)}
           accent={utilizationColor(cpu.percent)}
           icon={<IconCpu size={14} />}
-          hint={`${cpu.cores} cores${cpu.load1 !== undefined ? ` · load ${cpu.load1.toFixed(2)}` : ''}`}
-          tooltip='Share of all cores used by this container'
+          hint={`${cpu.cores} cores${cpu.load1 !== undefined ? ` · load ${cpu.load1.toFixed(2)}` : ''}${cpu.ownPercent !== undefined ? ` · EiN ${pct(cpu.ownPercent)}` : ''}`}
+          tooltip="Share of all the machine's cores in use; EiN is this container's part of it"
           series={cpu.series}
         />
       )}

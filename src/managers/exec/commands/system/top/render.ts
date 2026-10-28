@@ -219,7 +219,7 @@ const cpuPanel = (data: TopData, view: TopView, body: number): Panel => ({
     const info: Row = now === undefined ? dimRow('—') : [span(`${Math.round(now)}%`, `1;${bandStyle(now)}`), ...(cores ? [span(` of ${cores} cores`, STYLE.dim)] : [])];
     const graphWidth = boxInner(width);
     const content = data.cores === undefined && data.cpu.length === 0 && data.host?.cpu === undefined
-      ? [dimRow('no cgroup CPU counter on this host')]
+      ? [dimRow('no CPU counter on this host')]
       : areaGraph(cpuColumns(data.cpu, data.host?.cpu?.series ?? [], view.tickMs).map((value) => value / 100), graphWidth, height - 2, heatStyle);
     const footerRow = dimRow(`last ${fmtAge(graphWidth * view.tickMs)}`);
     return box([span('CPU')], info, content, width, height, footerRow);

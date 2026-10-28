@@ -1,6 +1,6 @@
 /**
- * host-metrics — this container's CPU and memory now, and how late the event loop runs, each
- * with its recent history. The media service's GPU is ems's (`ems-gpu`).
+ * host-metrics — the machine's CPU (and this container's share of it), this container's memory,
+ * and how late the event loop runs, each now and with its recent history. The media service's GPU is ems's (`ems-gpu`).
  *
  * Read back from `metrics-sampler`'s series (see ./lib.ts), so it answers the same on a laptop
  * in a harness with no cgroup and before the sampler has ticked: an absent source is an absent
@@ -8,7 +8,18 @@
  */
 
 import { parseArgs } from '../../../../lib/args/mod.ts';
-import { type CpuEntry, cpuPercent, downsample, type MemoryEntry, percent, type RuntimeEntry, type Sample, TICK_MS, within } from '../../../../lib/metrics/mod.ts';
+import {
+  type CpuEntry,
+  cpuPercent,
+  downsample,
+  hostCpuPercent,
+  type MemoryEntry,
+  percent,
+  type RuntimeEntry,
+  type Sample,
+  TICK_MS,
+  within,
+} from '../../../../lib/metrics/mod.ts';
 import type { HostMetrics, MetricPoint } from '../../../../lib/api/system.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -27,7 +38,7 @@ const windowFlag = (value: string | undefined): number => value ? Math.max(MINUT
 const rowsFor = (windowMs: number): number => Math.min(1600, Math.ceil(windowMs / TICK_MS) * 2 + 2);
 
 /**
- * CPU as a rolling series: each point is the utilization between it and the
+ * The machine's CPU as a rolling series: each point is the utilization between it and the
  * point before, which is the only thing a cumulative counter can say.
  */
 const cpuSeries = (samples: Sample<CpuEntry>[]): MetricPoint[] => {
@@ -35,7 +46,7 @@ const cpuSeries = (samples: Sample<CpuEntry>[]): MetricPoint[] => {
   const points: MetricPoint[] = [];
 
   for (let i = 1; i < thinned.length; i++) {
-    const value = cpuPercent([thinned[i - 1], thinned[i]]);
+    const value = hostCpuPercent([thinned[i - 1], thinned[i]]);
     if (value !== undefined) points.push({ at: thinned[i].at, value });
   }
 
@@ -56,7 +67,8 @@ export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_W
       // The last pair, not the window average: "CPU now" means the interval
       // that just elapsed. One sampling interval is a wide enough span for a
       // microsecond counter (see GAUGE_MIN_SPAN_MS).
-      percent: cpuPercent(cpuAll.slice(-2)),
+      percent: hostCpuPercent(cpuAll.slice(-2)),
+      ownPercent: cpuPercent(cpuAll.slice(-2)),
       cores: cpuNow.cores,
       load1: cpuNow.load1,
       series: cpuSeries(within(cpuAll, windowMs)),
@@ -86,7 +98,10 @@ export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_W
 };
 
 const writeHostMetrics = async (cmd: Command, { cpu, memory, lag }: HostMetrics): Promise<void> => {
-  if (cpu) await cmd.writeLn(`cpu     ${fmtPct(cpu.percent)} of ${cpu.cores} cores${cpu.load1 !== undefined ? `  load ${cpu.load1.toFixed(2)}` : ''}`);
+  if (cpu) {
+    const load = cpu.load1 !== undefined ? `  load ${cpu.load1.toFixed(2)}` : '';
+    await cmd.writeLn(`cpu     ${fmtPct(cpu.percent)} of ${cpu.cores} cores${load}  EiN ${fmtPct(cpu.ownPercent)}`);
+  }
   if (memory) await cmd.writeLn(`memory  ${fmtPct(memory.percent)}  ${fmtBytes(memory.usedBytes)} of ${fmtBytes(memory.limitBytes)}`);
   if (lag) await cmd.writeLn(`lag     p99 ${lag.p99Ms.toFixed(1)} ms  max ${lag.maxMs.toFixed(1)} ms`);
 };
@@ -108,7 +123,7 @@ export const hostMetrics = async (cmd: Command): CmdReturn => {
 hostMetrics.spec = {
   name: 'host-metrics',
   effect: 'read' as const,
-  description: 'CPU and memory use and event-loop lag now, with their recent history from metrics-sampler',
+  description: "The machine's CPU, this container's memory and event-loop lag now, with their recent history from metrics-sampler",
   args: [],
   flags: [
     { name: 'window', type: 'string' as const, description: 'Minutes of history (default: 360)' },
