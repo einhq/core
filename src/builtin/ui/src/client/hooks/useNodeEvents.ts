@@ -70,9 +70,15 @@ export function useNodeEvents(filter: NodeEventFilter, onEvent: (event: NodeEven
   }, [key, epoch]);
 }
 
+/** A load may take at most this share of the time between two: a 2s aggregate refetches every 10s at most. */
+const LOAD_SHARE = 5;
+
 /**
  * Fetch `load()` once, then again whenever `bump()` is called — at most once
- * per `minIntervalMs`, and never concurrently with itself.
+ * per `minIntervalMs`, or per five times as long as the last load took when
+ * that is longer, and never concurrently with itself. While the tab is hidden a
+ * bump only marks the data stale, and it loads once when the tab is shown again:
+ * a dashboard left open behind other windows under a busy pipeline costs nothing.
  *
  * Counts cannot be maintained from events directly: an event carries the node's
  * new status but not its previous one, so a running -> completed transition
@@ -100,6 +106,9 @@ export function useEventDrivenData<T>(
   // A run was asked for while one was in flight, for a `load` that has since changed.
   const rerun = useRef(false);
   const lastRun = useRef(0);
+  const lastDuration = useRef(0);
+  // Bumped while the tab was hidden.
+  const stale = useRef(false);
   const trailing = useRef<number | null>(null);
   const mounted = useRef(true);
 
@@ -130,6 +139,7 @@ export function useEventDrivenData<T>(
       if (!mounted.current || current !== loadRef.current) return;
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      lastDuration.current = Date.now() - lastRun.current;
       inFlight.current = false;
       if (mounted.current && current === loadRef.current) setLoading(false);
       if (mounted.current && (rerun.current || current !== loadRef.current)) {
@@ -140,8 +150,13 @@ export function useEventDrivenData<T>(
   });
 
   const bump = useRef(() => {
+    if (document.hidden) {
+      stale.current = true;
+      return;
+    }
     const since = Date.now() - lastRun.current;
-    if (since >= minIntervalMs && !inFlight.current) {
+    const gap = Math.max(minIntervalMs, LOAD_SHARE * lastDuration.current);
+    if (since >= gap && !inFlight.current) {
       run.current();
       return;
     }
@@ -150,9 +165,20 @@ export function useEventDrivenData<T>(
     if (trailing.current !== null) return;
     trailing.current = globalThis.setTimeout(() => {
       trailing.current = null;
-      run.current();
-    }, Math.max(0, minIntervalMs - since));
+      if (document.hidden) stale.current = true;
+      else run.current();
+    }, Math.max(0, gap - since));
   });
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden || !stale.current) return;
+      stale.current = false;
+      bump.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   // Initial load, and a resync after every reconnect — a new socket means an
   // unknown amount of missed traffic, so what is on screen cannot be trusted.

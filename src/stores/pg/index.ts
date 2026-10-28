@@ -617,6 +617,15 @@ export class PgStore implements NodeStore {
         ON ${this.attrsTable} ((${statusExpr}), node_id)
         WHERE (attributes->>'stepName') IS NOT NULL
       `);
+      // Steps whose input nothing can process, which `health` counts. Only failed steps carry a
+      // cause, so the index holds few rows; the planner proves its predicate from the query's
+      // `= $1` on the same projection.
+      const causeExpr = attrSortExpr('cause');
+      await conn.query(`
+        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_step_cause_idx
+        ON ${this.attrsTable} ((${causeExpr}), node_id)
+        WHERE (attributes->>'stepName') IS NOT NULL AND (attributes->>'cause') IS NOT NULL
+      `);
 
       // A fresh index on an existing table is unusable until it has statistics,
       // and createSchema runs on every boot against a table that may already
