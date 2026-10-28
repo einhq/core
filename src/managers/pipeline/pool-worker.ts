@@ -163,6 +163,12 @@ export class PoolWorker {
   /** Kind currently being drained, and when this batch started. */
   private currentKind: string | undefined;
   private kindSince = 0;
+  /**
+   * Where a worker without a current kind starts its rotation: a random kind, since always the
+   * first declared one would give that kind an extra turn on every restart and the kinds at the
+   * end of the order fewer (ein/core#737).
+   */
+  private firstKindAt: number;
   /** Kinds resting after a step said its service could not do it yet — see `TEMPORARY_PAUSE_MS`. */
   private paused = new Map<string, { until: number; ms: number }>();
   /** Aborted by `endRests` to end a park that is waiting for a rest to run out. */
@@ -178,6 +184,7 @@ export class PoolWorker {
     this.capacity = { ...(opts.capacity ?? {}) };
     this.remaining = { ...this.capacity };
     this.kinds = opts.kinds ?? [];
+    this.firstKindAt = Math.floor(Math.random() * Math.max(1, this.kinds.length));
     this.reserveKinds = opts.reserveKinds ?? [];
     this.reserveCapacity = { ...(opts.reserveCapacity ?? {}) };
     this.concurrency = Math.max(1, opts.concurrency ?? 1);
@@ -337,11 +344,15 @@ export class PoolWorker {
   }
 
   /** Kinds after `from` in declaration order, wrapping, excluding `from` itself. */
-  private kindsAfter(from: string | undefined): string[] {
-    if (from === undefined) return [...this.kinds];
+  private kindsAfter(from: string): string[] {
     const at = this.kinds.indexOf(from);
     if (at < 0) return [...this.kinds];
     return [...this.kinds.slice(at + 1), ...this.kinds.slice(0, at)];
+  }
+
+  /** The kinds in declaration order from `firstKindAt`, wrapping. */
+  private fromFirstKind(): string[] {
+    return [...this.kinds.slice(this.firstKindAt), ...this.kinds.slice(0, this.firstKindAt)];
   }
 
   /**
@@ -356,8 +367,8 @@ export class PoolWorker {
    * idle worker parks instead of spinning through kinds.
    */
   private async claimBatched(): Promise<PoolJob | null | undefined> {
-    const expired = this.currentKind !== undefined &&
-      Date.now() - this.kindSince >= this.kindQuantumMs;
+    const current = this.currentKind;
+    const expired = current !== undefined && Date.now() - this.kindSince >= this.kindQuantumMs;
 
     if (expired) {
       // Do not cross a rotation boundary while commands of the old kind are
@@ -366,7 +377,7 @@ export class PoolWorker {
       // advertises only the new one. Park until the whole batch drains first —
       // for at most `KIND_BOUNDARY_MAX_MS`.
       if (this.holdAtBoundary()) return undefined;
-      for (const kind of this.kindsAfter(this.currentKind)) {
+      for (const kind of this.kindsAfter(current)) {
         const job = await this.tryClaimKind(kind);
         if (job) {
           logger.info('kind quantum expired, rotating', {
@@ -394,7 +405,8 @@ export class PoolWorker {
       if (!this.isPaused(this.currentKind) && this.holdAtBoundary()) return undefined;
     }
 
-    for (const kind of this.kindsAfter(this.currentKind)) {
+    const order = this.currentKind === undefined ? this.fromFirstKind() : this.kindsAfter(this.currentKind);
+    for (const kind of order) {
       const job = await this.tryClaimKind(kind);
       if (job) {
         // Only a real rotation is worth a line. The first claim of a worker's life has no

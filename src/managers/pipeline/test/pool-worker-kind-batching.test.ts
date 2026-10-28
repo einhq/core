@@ -25,6 +25,7 @@ type Internals = {
   inFlight: Map<number, { job: PoolJob; abort: AbortController }>;
   boundarySince: number | undefined;
   paused: Map<string, { until: number; ms: number }>;
+  firstKindAt: number;
   claimBatched(): Promise<PoolJob | null | undefined>;
 };
 
@@ -59,6 +60,8 @@ function makeWorker(available: Record<string, number>, quantumMs = 1000) {
   );
   const internals = worker as unknown as Internals;
   internals.abort = new AbortController();
+  // The declared order, so each test reads its kinds from the first one.
+  internals.firstKindAt = 0;
   return { worker: internals, asked, available };
 }
 
@@ -70,6 +73,14 @@ Deno.test('stays on one kind while it has work and the quantum holds', async () 
 
   // Both kinds have work throughout, so priority would have interleaved them. Batching must not.
   assertEquals(kinds, ['gpu-faces', 'gpu-faces', 'gpu-faces', 'gpu-faces']);
+});
+
+Deno.test('a new worker starts its rotation at its first kind, which need not be the first declared', async () => {
+  const { worker } = makeWorker({ 'gpu-faces': 5, 'gpu-describe': 5 });
+  worker.firstKindAt = 1;
+
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-describe');
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-describe');
 });
 
 Deno.test('rotates when the quantum expires and the other kind has work', async () => {
