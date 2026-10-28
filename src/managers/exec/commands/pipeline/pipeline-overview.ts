@@ -30,7 +30,7 @@ import type { QueueStat } from '../../../../registries/queue/types.ts';
 import type { PipelineInstanceAttrs, PipelineStepAttrs } from '../../../pipeline/types.ts';
 import { eta, type NodesEntry, type PipelinesEntry, rate, type Sample, within } from '../../../../lib/metrics/mod.ts';
 import type { CrawlCoverage } from '../../../../lib/api/pipeline.ts';
-import { HOUR, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
+import { HOUR, MINUTE, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { INSTANCE_STATUSES, type InstanceStatus, type PipelineOverview, type PipelineRow } from '../../../../lib/api/pipeline.ts';
@@ -126,49 +126,60 @@ export const countInstances = async (vfs: NodeVFS, access: Access, instancesPath
   return [...rows.values()].sort((a, b) => a.pipeline < b.pipeline ? -1 : 1);
 };
 
-/**
- * Instances each pipeline finished per hour over the last hour.
- *
- * Not the same thing as the intake pool's rate for that pipeline, which is how fast triggers
- * become *instances*, and is uniform across pipelines by construction.
- *
- * `pipelines.completed` is cumulative across pruning — the sampler adds back what the pruner
- * removed — so differencing it is meaningful where counting live instance nodes is not.
- */
-const completionRates = (samples: Sample<PipelinesEntry>[]): Map<string, number | undefined> => {
-  const window = within(samples, RATE_WINDOW_MS);
-  const rates = new Map<string, number | undefined>();
-
-  for (const name of Object.keys(samples[samples.length - 1]?.value.completed ?? {})) {
-    const perMs = rate(window, (entry) => entry.completed?.[name]);
-    rates.set(name, perMs === undefined ? undefined : Math.round(perMs * HOUR));
-  }
-
-  return rates;
+/** What `completionGrowth` reads out of the `pipelines` series. */
+type CompletionGrowth = {
+  /** Instances each pipeline finished per hour over the last hour; absent for one without a minute of samples in it. */
+  perHour: Map<string, number>;
+  completions: PipelineOverview['completions'];
 };
 
 /**
- * Completions over the last day in `BUCKET_MS` buckets, each sample's growth over the one
- * before it put in the bucket of the later sample. A pipeline whose count went down between two
- * samples (instances restarted or retired) contributes nothing to that step rather than a
- * negative count.
+ * Completions over the last day, in `BUCKET_MS` buckets, and each pipeline's rate over the last
+ * hour, from the sampler's cumulative counts.
+ *
+ * Not the same thing as the intake pool's rate for a pipeline, which is how fast triggers
+ * become *instances*, and is uniform across pipelines by construction.
+ *
+ * Growth is measured against the highest count a pipeline has had so far, not against the
+ * sample before: the count dips while the pruner removes a page it has not banked yet, and
+ * the climb back is not new work. A count that went down for good (instances restarted or
+ * retired) adds nothing until it is passed. A pipeline's first sample is its baseline.
  */
-const completionSeries = (samples: Sample<PipelinesEntry>[]): PipelineOverview['completions'] => {
-  const since = Date.now() - SERIES_WINDOW_MS;
+export const completionGrowth = (samples: Sample<PipelinesEntry>[], now = Date.now()): CompletionGrowth => {
+  const since = now - SERIES_WINDOW_MS;
+  const rateSince = now - RATE_WINDOW_MS;
+  const highest = new Map<string, number>();
   const buckets = new Map<number, number>();
+  const hour = new Map<string, { firstAt: number; lastAt: number; grown: number }>();
 
-  for (let i = 1; i < samples.length; i++) {
-    const { at, value } = samples[i];
-    if (at < since) continue;
-    const before = samples[i - 1].value.completed ?? {};
+  for (const { at, value } of samples) {
     let count = 0;
-    for (const [name, total] of Object.entries(value.completed ?? {})) count += Math.max(0, total - (before[name] ?? 0));
-    if (count === 0) continue;
+    for (const [name, total] of Object.entries(value.completed ?? {})) {
+      const before = highest.get(name) ?? total;
+      const grown = Math.max(0, total - before);
+      highest.set(name, Math.max(before, total));
+      count += grown;
+
+      if (at < rateSince) continue;
+      const span = hour.get(name);
+      // Growth up to the first sample in the hour happened before the span it is measured over.
+      if (!span) hour.set(name, { firstAt: at, lastAt: at, grown: 0 });
+      else {
+        span.lastAt = at;
+        span.grown += grown;
+      }
+    }
+    if (count === 0 || at < since) continue;
     const bucket = Math.floor(at / BUCKET_MS) * BUCKET_MS;
     buckets.set(bucket, (buckets.get(bucket) ?? 0) + count);
   }
 
-  return [...buckets].map(([at, count]) => ({ at, count })).sort((a, b) => a.at - b.at);
+  const perHour = new Map<string, number>();
+  for (const [name, span] of hour) {
+    if (span.lastAt - span.firstAt >= MINUTE) perHour.set(name, Math.round(span.grown / (span.lastAt - span.firstAt) * HOUR));
+  }
+
+  return { perHour, completions: [...buckets].map(([at, count]) => ({ at, count })).sort((a, b) => a.at - b.at) };
 };
 
 /**
@@ -212,11 +223,10 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
   }
   const total = byPipeline.reduce((sum, row) => sum + row.total, 0);
 
-  const pipelineSamples = await readSeries<PipelinesEntry>(cmd, 'pipelines', PIPELINES_SERIES_LIMIT);
-  const rates = completionRates(pipelineSamples);
+  const { perHour, completions } = completionGrowth(await readSeries<PipelinesEntry>(cmd, 'pipelines', PIPELINES_SERIES_LIMIT));
   for (const row of byPipeline) {
-    const perHour = rates.get(row.pipeline);
-    if (perHour !== undefined) row.completedPerHour = perHour;
+    const pipelineRate = perHour.get(row.pipeline);
+    if (pipelineRate !== undefined) row.completedPerHour = pipelineRate;
   }
 
   // ---- Unfinished step counts -------------------------------------------
@@ -314,9 +324,6 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
       ...(attrs.outputAt !== undefined ? { outputAt: attrs.outputAt } : {}),
     });
   }
-
-  // ---- Completions over time --------------------------------------------
-  const completions = completionSeries(pipelineSamples);
 
   const coverage = await readCoverage(cmd);
 

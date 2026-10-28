@@ -5,8 +5,8 @@ export type PipelineRow = {
   total: number;
   /**
    * Instances finished per hour over the last hour, from the sampler's `pipelines` series —
-   * cumulative across pruning, so differencing it is meaningful where counting live instance
-   * nodes is not. Absent until the sampler has two points in the window.
+   * cumulative across pruning, so its growth is meaningful where counting live instance
+   * nodes is not. Absent until the sampler has samples a minute apart in the window.
    */
   completedPerHour?: number;
 } & Record<InstanceStatus, number>;

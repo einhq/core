@@ -232,7 +232,17 @@ async function retireUndefined(
 }
 
 /**
+ * How many of `targets` were completed and removed, `outcomes` being `removeInstances`'s answer for them.
+ */
+const completedRemoved = (targets: InstanceRow[], outcomes: PromiseSettledResult<void>[]): number =>
+  targets.filter((target, index) => target.attrs.status === 'completed' && outcomes[index]?.status === 'fulfilled').length;
+
+/**
  * Add `count` completed removals to a pipeline's banked total.
+ *
+ * Banked *after* the removal, so a sample never counts a page twice (once live, once banked);
+ * one taken in between sees the total dip, which the `pipelines` series' readers measure
+ * against the highest count so far and so do not take for growth when it comes back.
  *
  * Read-modify-write, and knowingly not atomic: the pruner is a single scheduled
  * service, and losing a handful of counts to a concurrent run would cost a small
@@ -279,15 +289,15 @@ async function pruneAll(
       continue;
     }
     const doomed = instances.filter((inst) => shouldRemove(inst.node.attrs.status));
-    // Before removing, for the reason pruneRetained gives: the sampled total must never fall.
-    await bankPruned(cmd, instancesPath, pName, doomed.filter((inst) => inst.node.attrs.status === 'completed').length);
 
     // An instance can go between the listing above and the removal below: the pipeline-pruner
     // service prunes on its own schedule, and an engine advance can finish and remove one too.
     // That is a race this sweep wins by ignoring, not an error that ends the run.
     for (let start = 0; start < doomed.length; start += PAGE) {
       const batch = doomed.slice(start, start + PAGE).map((inst) => ({ id: inst.node.id, name: inst.name, attrs: inst.node.attrs }));
-      removed += (await removeInstances(cmd, pName, batch)).filter((outcome) => outcome.status === 'fulfilled').length;
+      const outcomes = await removeInstances(cmd, pName, batch);
+      await bankPruned(cmd, instancesPath, pName, completedRemoved(batch, outcomes));
+      removed += outcomes.filter((outcome) => outcome.status === 'fulfilled').length;
     }
   }
   return removed;
@@ -304,8 +314,8 @@ async function pruneAll(
  * The pipelines take turns a page at a time, so a `deadline` reached part way
  * through leaves every pipeline with some of its share done rather than the
  * first few with all of it. The deadline is checked between pages, never inside
- * one: a page is banked before it is removed, and stopping half way would bank
- * instances that are still there. A page can therefore run past it, by at most
+ * one: a page is banked once it is removed, and stopping half way would leave
+ * removed instances unbanked. A page can therefore run past it, by at most
  * one page.
  */
 async function pruneRetained(
@@ -373,17 +383,12 @@ async function pruneRetained(
         return [{ id: row.id, name, attrs: row.node.attrs as PipelineInstanceAttrs }];
       });
 
-      // Banked *before* the page is removed, not after: metrics-sampler adds the bank to the
-      // live count, and removing first would let every tick in between see that sum fall,
-      // which `rate` reads as a reset. An instance that then fails to remove is counted twice
-      // — a small overcount on a figure whose purpose is to be roughly right and always
-      // increasing.
-      await bankPruned(cmd, instancesPath, sweep.name, targets.filter((target) => target.attrs.status === 'completed').length);
-
       // Same race as the sweep above, and it matters more here: this path is what the
       // pipeline-pruner service runs on a schedule, so an instance disappearing under it is
       // the ordinary case rather than the exception.
-      const gone = (await removeInstances(cmd, sweep.name, targets)).filter((outcome) => outcome.status === 'fulfilled').length;
+      const outcomes = await removeInstances(cmd, sweep.name, targets);
+      await bankPruned(cmd, instancesPath, sweep.name, completedRemoved(targets, outcomes));
+      const gone = outcomes.filter((outcome) => outcome.status === 'fulfilled').length;
       sweep.removed += gone;
       removed += gone;
 
