@@ -1,17 +1,20 @@
 # EiN container
 #
-# The primary instance: Deno, core and the UI. Nothing else. The modules are the deployment's:
-# it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any), and `mod install`
-# puts the ones it fetches in MODULE_INSTALL_PATH, a folder of the host's mounted read-write so they
-# outlive the container (unmounted, /app/modules-installed, gone with it). Every media tool and every
-# model — exiftool, ImageMagick, ffmpeg, the CUDA stack, captioning, transcription, embeddings,
-# faces, voices, fingerprints, document text, the renditions and the transcodes — lives in EMS
-# (ein/ems), a service of its own that EiN reaches over HTTP at CFG_EMS_URL
-# and that mounts the same /files, /old, /files-volatile and /files-tmp. See
+# The primary instance: Deno, core and its web interface, built in. Nothing else. The modules are
+# the deployment's: it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any),
+# and `mod install` puts the ones it fetches in MODULE_INSTALL_PATH, a folder of the host's mounted
+# read-write so they outlive the container (unmounted, /app/modules-installed, gone with it). Every
+# media tool and every model — exiftool, ImageMagick, ffmpeg, the CUDA stack, captioning,
+# transcription, embeddings, faces, voices, fingerprints, document text, the renditions and the
+# transcodes — lives in EMS (ein/ems), a service of its own that EiN reaches over HTTP at
+# CFG_EMS_URL and that mounts the same /files, /old, /files-volatile and /files-tmp. See
 # docs/architecture.md, "The ems module".
 #
 # Build:
 #   podman build -t ein -f src/Containerfile .
+#
+# GitHub publishes it as ghcr.io/einhq/ein (.github/workflows/image.yml). src/build.json, when the
+# build finds one, is what system-info reports the image runs.
 #
 # Run:
 #   podman run --rm \
@@ -39,7 +42,7 @@ COPY Makefile Makefile
 # from this stat. A bin that reached the checkout as 644 would then run for admin only.
 RUN chmod +x src/builtin/core/bin/* && mkdir -p modules modules-installed
 
-RUN deno cache src/primary-main.ts
+RUN deno cache src/primary-main.ts && deno task bundle-ui
 
 ENV POSTGRES_URL=postgres://ein:ein@postgres:5432/ein
 ENV CFG_HTTP_PORT=8080
