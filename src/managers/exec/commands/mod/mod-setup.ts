@@ -359,7 +359,7 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
     }
   }
 
-  // 5. Link a site into /www. Only a built site: a module's ui/ may also hold the sources of
+  // 5. Link a site into /var/www. Only a built site: a module's ui/ may also hold the sources of
   // its pages, which are bundled, not served (ein/core#427). A link this module made to
   // a ui/ that is no site is retired, so that sources are never served under the module's
   // host name.

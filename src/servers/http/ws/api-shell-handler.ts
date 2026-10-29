@@ -460,7 +460,7 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
    *
    * `tail` bounds the history first: a read-mode handle starts at entry 1, so
    * without it every subscribe — and every reconnect — replays the whole log
-   * before reaching live. On /logs/system that is the busiest log on the
+   * before reaching live. On /var/logs/system that is the busiest log on the
    * instance. Same seek as `tail -n`, and a failure is ignored the same way,
    * because a log shorter than the request leaves the cursor at the start,
    * which is the right answer.

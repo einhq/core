@@ -174,7 +174,7 @@ dmesg.spec = {
     {
       name: 'path',
       type: 'path' as const,
-      description: 'log node path (default: /logs/system)',
+      description: 'log node path (default: /var/logs/system)',
       optional: true,
     },
   ],

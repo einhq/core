@@ -195,7 +195,7 @@ trigger:
 Either form drops a subject that is a derived file unless the definition opts in with
 `allowDerived: true` — see **Derived outputs** below.
 
-The PipelineEngine consumes a durable queue `/queues/pipeline-engine` for triggers —
+The PipelineEngine consumes a durable queue `/var/queues/pipeline-engine` for triggers —
 they persist until acked, so an upload while the engine is down is not lost. It binds
 `system.events` plus exactly the VFS keys its loaded `event:`-form definitions ask for
 (`system.vfs.<nodeType>.<eventType>`), recomputed whenever definitions change. A system
@@ -254,7 +254,7 @@ any, and `health` fails until a person has seen them. `queue-dead <queue>` lists
 for one); opening the queue in `w` mode empties it whole.
 
 **A matched trigger becomes a pool job, not an instance.** The consume loop matches
-and then `poolAdd`s to `/pools/triggers` keyed `<pipeline>/<nodeId>`; a claim loop
+and then `poolAdd`s to `/var/pools/triggers` keyed `<pipeline>/<nodeId>`; a claim loop
 inside the engine turns those into instances, `PIPELINE_TRIGGER_CONCURRENCY`
 (default 4) at a time. Two things follow. **Re-announcing a subject is free**, not
 merely rare: `dedupKey` is unique among a pool's non-terminal jobs, so ten
@@ -339,7 +339,7 @@ the trigger pool began feeding instances at 5.5/s, production reached 24,349 dis
 across 25,748 running instances and V8 killed the process on a 2 GB heap.
 
 The gate has **two limits, counting two different costs**. Only inline steps reach
-`dispatchStep`; a `pool:` step is marked `waiting` and handed to `/pools/*`, so a
+`dispatchStep`; a `pool:` step is marked `waiting` and handed to `/var/pools/*`, so a
 pipeline whose steps are all delegated (media-faces, media-face-transfer, media-transcribe,
 media-transcode, media-face-assign) would otherwise be admitted without being counted at
 all. So `inFlight` is bounded by `CFG_PIPELINE_MAX_ADMITTED_STEPS`, and the per-instance
@@ -430,7 +430,7 @@ it. So `PoolWorker` always writes the step first, in the failure path as well as
 success one, which means deciding terminal-versus-retry from the claimed job's own
 `attempts`/`maxAttempts` (the rule `fail()` applies) and reconciling afterwards if the
 pool's answer disagrees. The release itself is retried a few times, because on
-`/pools/media` the leaked permit is `gpu=1` — the only one there is — and a transient
+`/var/pools/media` the leaked permit is `gpu=1` — the only one there is — and a transient
 error should not cost a minute and a half of idle GPU waiting for the sweep.
 
 **A step's exit code says whose failure it was** ([src/lib/step-exit.ts](../../src/lib/step-exit.ts),
@@ -541,7 +541,7 @@ it; for most of them `-p` was only ever asking for "do not fail on an existing n
 **Pool-delegated steps.** A step may declare `pool: <name>` with `kind`,
 `requires`, `priority` and `exclusive`. Instead of running it inline under the shared
 semaphore, the engine marks the step `waiting` (no permit held) and adds a job to
-`/pools/<name>` keyed on the step path. A long-lived **`pipeline-worker --pool`**
+`/var/pools/<name>` keyed on the step path. A long-lived **`pipeline-worker --pool`**
 service offers its remaining capacity (`--capacity models=4`)
 and the pool hands back the best job that offer can actually run: highest
 `eff_priority` first, oldest within a priority, skipping anything whose `requires`
@@ -729,7 +729,7 @@ enqueues it or — when the subject's instance is live — writes it onto that i
 terminal, `rerunIfRequested` re-announces the subject from that record, so every arrival
 during a run is one further run. Both sides re-read after writing so the race between a fold
 and a completion cannot lose the trigger; at worst both enqueue and the pool's dedup makes it
-one job. `debounceMs` is the other half: it holds the (deduped) trigger job in `/pools/triggers`
+one job. `debounceMs` is the other half: it holds the (deduped) trigger job in `/var/pools/triggers`
 for that long from its _first_ announcement (a re-add keeps the earliest `availableAt`), so a
 burst before any instance exists collects into one run. A definition choosing `rerun` is
 stating that nothing its steps write re-emits its own trigger, and is responsible for keeping
@@ -765,7 +765,7 @@ caller's shell.
 **One instance per node.** An instance directory is named after its **trigger node's
 id**, so at most one can exist per `(pipeline, node)` — the invariant is structural
 rather than something each creation path searches for and cleans up. Every lookup is a
-direct `get` on `/pipelines/instances/<pipeline>/<nodeId>`, including the
+direct `get` on `/var/pipelines/instances/<pipeline>/<nodeId>`, including the
 self-inflicted-trigger check, which previously scanned a directory that reached ~126k
 children during a crawl. An automatic re-trigger (re-upload, re-index) or an explicit
 `pipeline rerun` therefore _replaces_ the previous instance in place, keeping its id.
@@ -835,17 +835,17 @@ Remove.
 ```
 Upload lands: the PUT handler writes size/sha256/mimetype
   → VFS event on system.vfs.file.updated
-    → /queues/archive-bridge (durable; binds only the keys the rules need)
+    → /var/queues/archive-bridge (durable; binds only the keys the rules need)
       → archive-bridge applies event-rules → media.file.discovered → /dev/events
-        → /queues/pipeline-engine (durable, triggers only)
+        → /var/queues/pipeline-engine (durable, triggers only)
           → PipelineEngine matches `on:` + filter
-            → /pools/triggers job, dedupKey media-ingest/<nodeId> (re-announce = same row)
-              → engine claims → /pipelines/instances/media-ingest/<nodeId>
+            → /var/pools/triggers job, dedupKey media-ingest/<nodeId> (re-announce = same row)
+              → engine claims → /var/pipelines/instances/media-ingest/<nodeId>
             → advanceDAG: for each ready step:
                 inline step     → mark 'queued', acquire a semaphore slot (cap N),
                                   re-validate, run in-process, capture exit code,
                                   mark completed/failed (retry)
-                pool: media → mark 'waiting', add job to /pools/media (keyed on step path)
+                pool: media → mark 'waiting', add job to /var/pools/media (keyed on step path)
                                     → pipeline-worker consumes, re-validates, runs,
                                       writes the step node
                                         → engine sees it in-process → re-advances

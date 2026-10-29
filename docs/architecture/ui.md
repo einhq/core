@@ -800,7 +800,7 @@ Archive history is deliberately outside that operational loop. `/stats` fetches 
 
 ## Metrics
 
-Operational charts come from **one log node per series** under `/logs/metrics`, written by the `metrics-sampler` service ([src/managers/exec/commands/system/metrics-sampler.ts](../../src/managers/exec/commands/system/metrics-sampler.ts)) and read back by `host-metrics`, `df`, `pool-stat` and `pipeline-overview`. Archive statistics are instead derived directly from node birthtimes, because a short operational sample cannot describe archive history. The series table is [src/lib/metrics/series.ts](../../src/lib/metrics/series.ts), which the sampler and readers import so a path or cadence is never declared twice; the sampler creates any missing log on start, the same way the pipeline engine creates the pools its definitions name. A module adds series of its own (`mod.json` `metrics`, see [modules.md](modules.md)); the sampler reads that list each tick, so a module set up later is sampled from then on.
+Operational charts come from **one log node per series** under `/var/logs/metrics`, written by the `metrics-sampler` service ([src/managers/exec/commands/system/metrics-sampler.ts](../../src/managers/exec/commands/system/metrics-sampler.ts)) and read back by `host-metrics`, `df`, `pool-stat` and `pipeline-overview`. Archive statistics are instead derived directly from node birthtimes, because a short operational sample cannot describe archive history. The series table is [src/lib/metrics/series.ts](../../src/lib/metrics/series.ts), which the sampler and readers import so a path or cadence is never declared twice; the sampler creates any missing log on start, the same way the pipeline engine creates the pools its definitions name. A module adds series of its own (`mod.json` `metrics`, see [modules.md](modules.md)); the sampler reads that list each tick, so a module set up later is sampled from then on.
 
 A log per series rather than one fat entry per tick, because the things that differ between these measurements all live on the log node: retention (the node census is kept a year, CPU a week), cadence (cpu/memory/pools and ems's gpu at 15s, pipelines at 1min, disk/nodes at 15min), and read cost. Adding a core metric is a row in the table plus a probe; a module's is a `metrics` entry and a command.
 
@@ -811,7 +811,7 @@ Two rules make the rest work:
   saturates at the cap and then reports the cap forever. The dashboard's library-indexing bar read
   "1,998 of 253,444" for months against a corpus that was in fact ~100% indexed. Two fixes, and both
   are the same idea — count something that is not deleted. `pipeline-prune` banks each completed
-  instance it removes on the `/pipelines/instances/<name>` directory and the sampler adds it back;
+  instance it removes on the `/var/pipelines/instances/<name>` directory and the sampler adds it back;
   `pool purge` banks the jobs it deletes per kind and state in the same statement, and a pool's
   `stat` adds them back; and crawl coverage stopped counting instances altogether in favour of counting _marker nodes_
   (below).

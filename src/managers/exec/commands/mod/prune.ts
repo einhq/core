@@ -12,7 +12,7 @@ import { unlinkModuleFiles } from './module-links.ts';
  * A module is installed as a link under `/usr/modules` into wherever its code lives — the image,
  * or the dev mount. When a deploy drops a module, the link is left pointing at nothing, and
  * everything `mod setup` registered for it stays: its bin/ line in `/etc/bashrc`, its services —
- * enabled, so every boot tries to start them — its pipeline definitions, its `/www`, navigation
+ * enabled, so every boot tries to start them — its pipeline definitions, its `/var/www`, navigation
  * and docs links. `mod remove` cannot help: it reads the module's own directory to know what to
  * undo, and that directory is what went away. And a registration that points outside a module
  * reads as an operator's to `mod setup`, so another module could never take over its name.
@@ -124,7 +124,7 @@ const undoRegistrations = async (cmd: Command, name: string, modulePath: string)
 
   await unlinkModuleFiles(cmd, name, modulePath);
 
-  // The /www and docs links, named after the module.
+  // The /var/www and docs links, named after the module.
   for (const parent of [cmd.env.WWW_PATH || WWW_PATH, DOCS_MODULES_PATH]) {
     const linkPath = join(parent, name);
     try {

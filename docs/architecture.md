@@ -716,7 +716,7 @@ Work nobody is waiting on runs in the **bulk lane**, below everything else, so a
 goes on in the background while what a person just uploaded is processed first. A domain event
 says so with `lane: 'bulk'` (`DomainEvent.lane`, `@ein/api`); one without a lane is in the normal
 lane. The engine runs every job a bulk event starts `LANE_OFFSET.bulk` (100) priority points
-lower ([types.ts](../src/managers/pipeline/types.ts)): its trigger job in `/pools/triggers`, the
+lower ([types.ts](../src/managers/pipeline/types.ts)): its trigger job in `/var/pools/triggers`, the
 instance it becomes (instance attr `lane`), each pooled step's job, and each inline step's place
 at the engine's semaphore. Pipelines' priorities span 0 to 100, so no bulk job outranks a normal
 one; a claim takes bulk work whenever no normal work it can run is ready, so bulk work is put
@@ -1540,7 +1540,7 @@ Key pieces ([src/testing/](../src/testing/)):
 - **Module contract suite** ([src/modules/test/module-contract.test.ts](../src/modules/test/module-contract.test.ts)) —
   the executable spec of the module interface: installs a fixture module and asserts every
   observable effect of `mod setup`/`mod list`/`mod info`/`mod remove`, including that
-  `mod remove` reverses setup (bashrc PATH line, services, pipeline definitions, /www symlink).
+  `mod remove` reverses setup (bashrc PATH line, services, pipeline definitions, /var/www symlink).
 - **Reachability suite** ([src/modules/test/reachability.test.ts](../src/modules/test/reachability.test.ts)) —
   walks the import graph from the entry points (`src/*-main.ts`, the shell's client, every
   module's `bin/`, `services/` and `etc/`, its manifest `exports` and `ui.routes`, the files

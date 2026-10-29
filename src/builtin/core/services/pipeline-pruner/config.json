@@ -1,5 +1,5 @@
 {
-  "description": "Runs failed pipeline work again after a growing wait, and keeps /pipelines/instances and the pools bounded by pruning finished work",
+  "description": "Runs failed pipeline work again after a growing wait, and keeps /var/pipelines/instances and the pools bounded by pruning finished work",
   "restartPolicy": "on-failure",
   "workClass": "background"
 }

@@ -43,7 +43,7 @@ sit under `src/builtin/` and every module under `modules/`.
 `mod setup` ([src/managers/exec/commands/mod/mod-setup.ts](../../src/managers/exec/commands/mod/mod-setup.ts))
 wires each of these folders into a shared VFS location; `mod remove` reverses them.
 `mod setup --all` first forgets modules whose code is gone — a `/usr/modules/<name>` link to a
-directory a deploy removed — undoing the bashrc line, services, pipeline definitions and `/www` and
+directory a deploy removed — undoing the bashrc line, services, pipeline definitions and `/var/www` and
 docs links that point into it, since `mod remove` needs the module's own directory to know what to
 undo ([prune.ts](../../src/managers/exec/commands/mod/prune.ts)). It then walks every installed module in dependency order — alphabetical order is wrong,
 since `archive` depends on `ems` and sorts before it — and is what boot calls. Each module is a

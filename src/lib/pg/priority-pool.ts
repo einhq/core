@@ -64,7 +64,7 @@ const BACKGROUND_WAIT_TIMEOUT_MS = 30_000;
 
 const logger = createLogger('pg-pool');
 
-/** What `poolStats()` reports; drained into `/logs/metrics/runtime` by the sampler. */
+/** What `poolStats()` reports; drained into `/var/logs/metrics/runtime` by the sampler. */
 export type PriorityPoolStats = {
   max: number;
   reserved: number;

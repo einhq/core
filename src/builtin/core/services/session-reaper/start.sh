@@ -1,4 +1,4 @@
-# session-reaper — keep /sessions bounded, and turn off share links that expired.
+# session-reaper — keep /var/sessions bounded, and turn off share links that expired.
 #
 # Collects sessions whose cookie has lapsed and the ttys of processes that are
 # gone. The first pass is also the boot sweep: `service start-all` runs this

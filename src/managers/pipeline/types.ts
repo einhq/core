@@ -103,7 +103,7 @@ export type PipelineStep = {
   dependsOn?: string[];
   condition?: string;
   /**
-   * Delegate this step to `/pools/<pool>`, where a worker claims it under a
+   * Delegate this step to `/var/pools/<pool>`, where a worker claims it under a
    * lease if its remaining capacity covers `requires`.
    *
    * Priority and requirements travel on the job, so one pool serves every
@@ -427,7 +427,7 @@ export type PoolJobParams = {
 };
 
 /**
- * A matched trigger waiting to become an instance, in `/pools/triggers`.
+ * A matched trigger waiting to become an instance, in `/var/pools/triggers`.
  *
  * The trigger event is carried rather than re-derived: it is what the instance
  * records as `triggerEvent`, and the fact it describes has already happened, so

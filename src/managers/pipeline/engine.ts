@@ -99,7 +99,7 @@ const TRIGGER_LEASE_MS = 60_000;
  *
  * Identity is the VFS instance plus the queue path, not the path alone: test
  * files boot whole systems in one process, and two systems sharing the default
- * `/queues/pipeline-engine` string are separate queues.
+ * `/var/queues/pipeline-engine` string are separate queues.
  */
 const activeEngines = new Set<PipelineEngine>();
 
@@ -266,7 +266,7 @@ export class PipelineEngine {
     /**
      * How many instances the engine may hold open at once.
      *
-     * A `pool:` step is marked `waiting` and handed to `/pools/*` without ever
+     * A `pool:` step is marked `waiting` and handed to `/var/pools/*` without ever
      * reaching `dispatchStep`, so a pipeline whose steps are all delegated
      * contributes nothing to `inFlight`. Left uncounted entirely the engine would
      * keep claiming triggers while holding an unbounded number of instances

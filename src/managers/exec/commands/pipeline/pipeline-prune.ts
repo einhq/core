@@ -45,7 +45,7 @@ const RETAINED_TERMINAL = ['completed', 'cancelled'];
 const PAGE = 200;
 
 /**
- * What a `/pipelines/instances/<name>` directory remembers about its own
+ * What a `/var/pipelines/instances/<name>` directory remembers about its own
  * pruning.
  *
  * Deleting an instance also deletes the only evidence it ever completed, so a

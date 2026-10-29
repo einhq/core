@@ -96,6 +96,6 @@ queuePeek.spec = {
     { name: 'n', type: 'string' as const, description: `how many entries, from the front (default ${DEFAULT_LIMIT})` },
     { name: 'limit', type: 'string' as const, description: `how many entries, from the front (default ${DEFAULT_LIMIT})` },
   ],
-  examples: ['queue-peek -n 20 /pipelines/queues/example'],
+  examples: ['queue-peek -n 20 /var/queues/pipeline-engine'],
   returns: 'the next entries in delivery order: id, state (ready or in-flight), attempts, created, routing key and data; in JSON mode { items }.',
 };

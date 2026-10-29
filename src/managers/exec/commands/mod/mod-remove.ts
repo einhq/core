@@ -20,7 +20,7 @@ import { rebuildModulePages } from './module-pages.ts';
 
 /**
  * Reverse the side effects of `mod setup` (bashrc PATH line, services,
- * pipeline definitions, /www symlink). Scans the still-present module
+ * pipeline definitions, /var/www symlink). Scans the still-present module
  * directory, mirroring mod-setup. Best-effort: a failure on one effect logs a
  * warning but never aborts removal.
  */
@@ -119,7 +119,7 @@ const undoModuleSetup = async (cmd: Command, modulePath: string, manifestName: s
     }
   }
 
-  // 4. Remove the /www UI symlink
+  // 4. Remove the /var/www UI symlink
   const uiPath = join(modulePath, 'ui');
   if (await cmd.sys.vfs.exists(cmd.access, uiPath)) {
     const wwwPath = cmd.env.WWW_PATH || WWW_PATH;

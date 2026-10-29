@@ -1,5 +1,5 @@
 {
-  "description": "Samples host, storage and workload counters into /logs/metrics",
+  "description": "Samples host, storage and workload counters into /var/logs/metrics",
   "restartPolicy": "on-failure",
   "workClass": "background"
 }

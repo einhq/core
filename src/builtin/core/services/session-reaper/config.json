@@ -1,5 +1,5 @@
 {
-  "description": "Removes expired sessions so /sessions stays bounded, and turns off expired share links",
+  "description": "Removes expired sessions so /var/sessions stays bounded, and turns off expired share links",
   "restartPolicy": "on-failure",
   "workClass": "background"
 }

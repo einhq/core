@@ -93,7 +93,7 @@ export const USER_UI_NAV_FILE = '.ui/nav.json';
 
 /**
  * Machine-owned mutable state. Every directory below is created eagerly at boot
- * by `01_var.sh` rather than by whatever writes to it first, so `ls /var` reads
+ * by `00_mount.sh` rather than by whatever writes to it first, so `ls /var` reads
  * the same on a fresh instance as on one that has been running for a year.
  */
 export const VAR_PATH = '/var';
@@ -119,7 +119,7 @@ export const WWW_PATH = `${VAR_PATH}/www`;
  */
 export const MOD_INSTALL_PATH = `${VAR_PATH}/lib/modules`;
 
-/** Created by `01_var.sh`, in `ls /var` order. */
+/** Created by `00_mount.sh`, in `ls /var` order. */
 export const VAR_DIRS = [
   MOD_INSTALL_PATH,
   LOGS_PATH,

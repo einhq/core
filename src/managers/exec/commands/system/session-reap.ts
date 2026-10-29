@@ -35,7 +35,7 @@ import type { CmdReturn } from '../../types.ts';
  */
 const DEFAULT_STALE_MS = 24 * 3_600_000;
 
-/** Deletions per run, so a first pass over a large /sessions cannot monopolise the database. */
+/** Deletions per run, so a first pass over a large /var/sessions cannot monopolise the database. */
 const DEFAULT_MAX = 1000;
 
 type Reaped = {

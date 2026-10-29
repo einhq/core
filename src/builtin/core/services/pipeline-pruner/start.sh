@@ -2,13 +2,13 @@
 #
 # Pools first. A finished job stays as a terminal row, every trigger and every
 # delegated step leaves one, and every claim and pool count reads past them, so
-# /pools/triggers is the highest-volume table in the system. A purge is cheap —
+# /var/pools/triggers is the highest-volume table in the system. A purge is cheap —
 # batched deletes, short transactions — and a day of history is enough to answer
 # "what happened to that file", which is all anyone reads them for after the
 # fact. It used to run after the instance prune, and on a first pass over a
 # backlog the trigger pool sat at 1.34 M rows for the 80 minutes that took.
 #
-# Then instances. An instance is a node in /pipelines/instances/<pipeline>/, and
+# Then instances. An instance is a node in /var/pipelines/instances/<pipeline>/, and
 # nothing else removes the terminal ones: media-ingest reached 24,427 during a
 # crawl. --keep retains the newest completions per pipeline and never touches
 # running work (a running instance has no completedAt, and the retention query

@@ -428,7 +428,7 @@ const ensureSeries = async (cmd: Command, series: MetricsSeries): Promise<void> 
   }
 
   // No routing keys: these are written directly and must not pick up relay
-  // traffic bound for /logs/system.
+  // traffic bound for /var/logs/system.
   await vfs.create(ADMIN_ACCESS, NODE_TYPE_LOG, METRICS_PATH, series.name, {
     attrs: { retention: series.retention, description: series.description },
   });
@@ -537,7 +537,7 @@ metricsSampler.spec = {
   effect: 'write' as const,
   daemon: true,
   json: false,
-  description: 'Sample host, storage and workload metrics into /logs/metrics (long-running)',
+  description: 'Sample host, storage and workload metrics into /var/logs/metrics (long-running)',
   args: [],
   flags: [
     { name: 'interval', type: 'string' as const, description: 'Seconds between ticks (default: shortest series cadence)' },
