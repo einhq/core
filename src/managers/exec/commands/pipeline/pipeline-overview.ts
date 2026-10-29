@@ -4,25 +4,23 @@
  * Everything here is an aggregate or a bounded query, never a directory walk,
  * so a dashboard can poll it.
  *
- * Two invariants this relies on:
+ * `pipelineName` and `stepName` are exact, non-overlapping discriminators.
+ * Instance nodes carry the first, step nodes the second, and nothing else in
+ * the tree carries `status` at all.
  *
- *  - `pipelineName` and `stepName` are exact, non-overlapping discriminators.
- *    Instance nodes carry the first, step nodes the second, and nothing else in
- *    the tree carries `status` at all.
- *  - Every child of `instances/<pipeline>` is an instance of that pipeline, so a
- *    pipeline's completed count is its directory's child count less its live
- *    (not completed) instances. Completed instances are nearly all of them, and
- *    counting them by status reads every one of their attrs rows (ein/core#745).
+ * Only the live (not completed) instances are counted here. A pipeline's completed count is
+ * the metrics sampler's latest `pipelines` sample, at most a minute old: completed instances
+ * are nearly all of them, and counting them, by status (ein/core#745) or by their directory's
+ * child count (ein/core#751), reads a row or an index entry per instance on every read.
  *
- * Counts come from `vfs.aggregate` and unfiltered child counts, neither of them
- * access-filtered (same caveat as facets), while the `active` list is — for a
- * non-admin the two can disagree. This sizes a dashboard; it is not a data listing.
+ * Counts come from `vfs.aggregate` and the sampler, neither of them access-filtered (same
+ * caveat as facets), while the `active` list is — for a non-admin the two can disagree. This
+ * sizes a dashboard; it is not a data listing.
  */
 
 import { QUEUES_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { instancesRoot } from './lib.ts';
-import type { PrunedCompletedAttrs } from './pipeline-prune.ts';
 import type { AggregateBucket } from '../../../../vfs/query.ts';
 import type { Access } from '../../../../lib/access/mod.ts';
 import type { NodeVFS } from '../../../../vfs/mod.ts';
@@ -78,52 +76,24 @@ const toMap = (buckets: AggregateBucket[]): Record<string, number> => {
 
 const emptyRow = (pipeline: string): PipelineRow => ({ pipeline, total: 0, running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 });
 
-/**
- * Instances per pipeline and status, completed ones counting those the pruner has removed.
- *
- * Instances the pruner has already deleted still happened. Without adding them back,
- * `completed` is a count of *surviving* rows and so pins at the retention cap — every
- * pipeline on a busy instance reads exactly `--keep`. The pruner banks what it removed on
- * the pipeline's directory, which is the same listing that carries the child counts.
- *
- * Pipelines with no instances, live or banked, have no row.
- */
-export const countInstances = async (vfs: NodeVFS, access: Access, instancesPath: string): Promise<PipelineRow[]> => {
+/** Live (not completed) instances per pipeline and status; a pipeline with none has no row. */
+export const countLive = async (vfs: NodeVFS, access: Access): Promise<Map<string, PipelineRow>> => {
   const rows = new Map<string, PipelineRow>();
-  const liveTotals = new Map<string, number>();
-
-  const liveBuckets = await vfs.aggregate(access, {
+  const buckets = await vfs.aggregate(access, {
     where: [
       { ref: 'pipelineName', op: 'exists' },
       { ref: 'status', op: 'in', value: LIVE_STATUSES },
     ],
     group: [{ ref: 'pipelineName' }, { ref: 'status' }],
   });
-  for (const bucket of liveBuckets) {
+  for (const bucket of buckets) {
     const [pipeline, status] = bucket.key as [string, InstanceStatus];
     const row = rows.get(pipeline) ?? emptyRow(pipeline);
     rows.set(pipeline, row);
     row[status] = bucket.count;
     row.total += bucket.count;
-    liveTotals.set(pipeline, (liveTotals.get(pipeline) ?? 0) + bucket.count);
   }
-
-  let directories: Awaited<ReturnType<typeof vfs.children<PrunedCompletedAttrs>>> = [];
-  try {
-    directories = await vfs.children<PrunedCompletedAttrs>(access, instancesPath, { all: true });
-  } catch { /* no instances dir */ }
-
-  for (const entry of directories) {
-    const banked = entry.node.attrs?.prunedCompleted;
-    const completed = Math.max(0, entry.childCount - (liveTotals.get(entry.name) ?? 0)) + (typeof banked === 'number' && banked > 0 ? banked : 0);
-    if (completed === 0) continue;
-    const row = rows.get(entry.name) ?? emptyRow(entry.name);
-    rows.set(entry.name, row);
-    row.completed = completed;
-    row.total += completed;
-  }
-
-  return [...rows.values()].sort((a, b) => a.pipeline < b.pipeline ? -1 : 1);
+  return rows;
 };
 
 /** What `completionGrowth` reads out of the `pipelines` series. */
@@ -216,14 +186,22 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
   const queuesPath = cmd.env.QUEUES_PATH || QUEUES_PATH;
 
   // ---- Instance status matrix -------------------------------------------
-  const byPipeline = await countInstances(vfs, cmd.access, instancesPath);
+  const pipelineSamples = await readSeries<PipelinesEntry>(cmd, 'pipelines', PIPELINES_SERIES_LIMIT);
+  const rows = await countLive(vfs, cmd.access);
+  for (const [pipeline, completed] of Object.entries(pipelineSamples.at(-1)?.value.completed ?? {})) {
+    const row = rows.get(pipeline) ?? emptyRow(pipeline);
+    rows.set(pipeline, row);
+    row.completed = completed;
+    row.total += completed;
+  }
+  const byPipeline = [...rows.values()].sort((a, b) => a.pipeline < b.pipeline ? -1 : 1);
   const byStatus = { running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 } as Record<InstanceStatus, number>;
   for (const row of byPipeline) {
     for (const status of INSTANCE_STATUSES) byStatus[status] += row[status];
   }
   const total = byPipeline.reduce((sum, row) => sum + row.total, 0);
 
-  const { perHour, completions } = completionGrowth(await readSeries<PipelinesEntry>(cmd, 'pipelines', PIPELINES_SERIES_LIMIT));
+  const { perHour, completions } = completionGrowth(pipelineSamples);
   for (const row of byPipeline) {
     const pipelineRate = perHour.get(row.pipeline);
     if (pipelineRate !== undefined) row.completedPerHour = pipelineRate;

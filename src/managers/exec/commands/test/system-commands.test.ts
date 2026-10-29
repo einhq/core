@@ -8,7 +8,7 @@
  * fields, not zeroes and not exceptions. No sampler runs here, so every sample is written by hand.
  */
 
-import { METRICS_PATH, PIPELINE_INSTANCES_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
+import { METRICS_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
 import { METRICS_SERIES, seriesPath } from '../../../../lib/metrics/mod.ts';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
@@ -166,17 +166,16 @@ Deno.test({
       assertEquals(stat.perHour, undefined);
     });
 
-    await t.step('pipeline-overview carries what each pipeline finishes per hour', async () => {
-      // One completed instance under the pipeline's directory is enough for the row to exist.
-      const instance = `${PIPELINE_INSTANCES_PATH}/rates-pipe/i0`;
-      await cmd.shouldSucceed(`mknode -p -t directory ${instance} && attrs ${instance} -s pipelineName=rates-pipe -s status=completed`);
+    await t.step('pipeline-overview carries what each pipeline has finished, and per hour', async () => {
       await cmd.shouldSucceed(`log-append ${seriesPath('pipelines')} --data '{"completed":{"rates-pipe":10}}' --at ${HALF_HOUR_AGO()}`);
       await cmd.shouldSucceed(`log-append ${seriesPath('pipelines')} --data '{"completed":{"rates-pipe":20}}'`);
 
       const overview = await client.execJson<PipelineOverview>('pipeline-overview');
       const row = overview.instances.byPipeline.find((row) => row.pipeline === 'rates-pipe');
       assertEquals(row?.completedPerHour, 20);
-      assertEquals(row?.completed, 1);
+      // The completed count is the latest sample's, not a count of the tree, which has none.
+      assertEquals(row?.completed, 20);
+      assertEquals(row?.total, 20);
 
       // The same samples' growth is the day's completions: at least the ten between the two,
       // more if a sample the running sampler wrote in between lacks the pipeline.

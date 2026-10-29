@@ -31,7 +31,8 @@ import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { type Kind, kindConditions, NOT_DERIVED } from '../../../../lib/kinds/mod.ts';
 import { createLogger } from '../../../logger/mod.ts';
-import { countInstances } from '../pipeline/pipeline-overview.ts';
+import { countLive } from '../pipeline/pipeline-overview.ts';
+import type { PrunedCompletedAttrs } from '../pipeline/pipeline-prune.ts';
 import {
   type DiskEntry,
   METRICS_PATH,
@@ -174,20 +175,41 @@ const entryPipeline = async (cmd: Command): Promise<EntryPoint | undefined> => {
 };
 
 /**
- * Completed instances per pipeline, counting the ones already pruned away.
+ * Completed instances per pipeline, counting the ones already pruned away; a pipeline with none
+ * has no entry.
  *
- * The live row count is not a counter on its own: `pipeline prune` keeps only
- * the newest `--keep` completed instances of each pipeline, so it saturates at
- * the cap. `countInstances` adds back what the pruner banked, so the figure is a
- * lifetime total and `rate()` does not reset on every prune cycle.
+ * Every child of `instances/<pipeline>` is an instance of that pipeline, so its completed count
+ * is the directory's child count less its live instances: counting the completed ones by status
+ * would read every one of their attrs rows (ein/core#745). The child count still reads an index
+ * entry per instance, ~80 ms on a busy archive, which is why it is taken here once a minute and
+ * `pipeline-overview` reads the sample (ein/core#751).
+ *
+ * The live row count is not a counter on its own: `pipeline prune` keeps only the newest
+ * `--keep` completed instances of each pipeline, so it saturates at the cap. The pruner banks
+ * what it removed on the pipeline's directory, the same listing that carries the child counts,
+ * and adding it back makes the figure a lifetime total, so `rate()` does not reset on every
+ * prune cycle.
  */
+export const countCompleted = async (vfs: NodeVFS, instancesPath: string): Promise<Record<string, number>> => {
+  const live = await countLive(vfs, ADMIN_ACCESS);
+
+  let directories: Awaited<ReturnType<typeof vfs.children<PrunedCompletedAttrs>>> = [];
+  try {
+    directories = await vfs.children<PrunedCompletedAttrs>(ADMIN_ACCESS, instancesPath, { all: true });
+  } catch { /* no instances dir */ }
+
+  const completed: Record<string, number> = {};
+  for (const entry of directories) {
+    const banked = entry.node.attrs?.prunedCompleted;
+    const count = Math.max(0, entry.childCount - (live.get(entry.name)?.total ?? 0)) + (typeof banked === 'number' && banked > 0 ? banked : 0);
+    if (count > 0) completed[entry.name] = count;
+  }
+  return completed;
+};
+
 const samplePipelines = async (cmd: Command): Promise<PipelinesEntry | undefined> => {
   try {
-    const instancesPath = join(cmd.env.PIPELINES_PATH || PIPELINES_PATH, 'instances');
-    const completed: Record<string, number> = {};
-    for (const row of await countInstances(cmd.sys.vfs, ADMIN_ACCESS, instancesPath)) {
-      if (row.completed > 0) completed[row.pipeline] = row.completed;
-    }
+    const completed = await countCompleted(cmd.sys.vfs, join(cmd.env.PIPELINES_PATH || PIPELINES_PATH, 'instances'));
 
     // Recorded alongside the counts so the reader needs no configuration and
     // no knowledge of which module is installed.

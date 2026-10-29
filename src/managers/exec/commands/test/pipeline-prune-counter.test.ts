@@ -7,15 +7,15 @@
  * for months: "1,998 of 253,444 indexed", where 1,998 was the pruner's cap and
  * not a fact about the library at all.
  *
- * So the contract here is that pruning does not lower the reported completed
- * total, and that `pipeline-overview` reports the lifetime figure rather than
- * the surviving one.
+ * So the contract here is that pruning does not lower the completed total the
+ * metrics sampler records, which `pipeline-overview` reports: the lifetime figure
+ * rather than the surviving one.
  */
 
 import { PIPELINE_INSTANCES_PATH } from '../../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
-import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
+import { countCompleted } from '../system/metrics-sampler.ts';
 
 const testCtx = createTestContext();
 
@@ -41,7 +41,8 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  await testCtx.setup();
+  const { vfs } = await testCtx.setup();
+  const completed = () => countCompleted(vfs, PIPELINE_INSTANCES_PATH);
   const client: ShellClient = await testCtx.server.createShellClient();
   const cmd = testCommands(client);
 
@@ -51,8 +52,7 @@ Deno.test({
     for (let index = 0; index < 6; index++) await seedInstance(cmd, 'ingest', index, 'completed');
 
     await t.step('counts every completed instance before any pruning', async () => {
-      const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      assertEquals(overview.instances.byStatus.completed, 6);
+      assertEquals(await completed(), { ingest: 6 });
     });
 
     await t.step('a prune to a cap does not lower the reported total', async () => {
@@ -64,17 +64,14 @@ Deno.test({
       assertEquals(remaining.length, 2);
 
       // ...and the reported total is still six, because they still happened.
-      const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      assertEquals(overview.instances.byStatus.completed, 6);
-      assertEquals(overview.instances.byPipeline.find((row) => row.pipeline === 'ingest')?.completed, 6);
+      assertEquals(await completed(), { ingest: 6 });
     });
 
     await t.step('a second prune adds to the bank rather than replacing it', async () => {
       await seedInstance(cmd, 'ingest', 10, 'completed');
       await client.execJson<{ removed: number }>('pipeline-prune --keep 1');
 
-      const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      assertEquals(overview.instances.byStatus.completed, 7);
+      assertEquals(await completed(), { ingest: 7 });
     });
 
     await t.step('only completed instances are banked', async () => {
@@ -83,10 +80,8 @@ Deno.test({
 
       await client.execJson<{ removed: number }>('pipeline-prune other --keep 1');
 
-      const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      const row = overview.instances.byPipeline.find((entry) => entry.pipeline === 'other');
       // Three failures pruned away, and none of them turned into completions.
-      assertEquals(row?.completed ?? 0, 0);
+      assertEquals((await completed()).other, undefined);
     });
   } finally {
     client.close();

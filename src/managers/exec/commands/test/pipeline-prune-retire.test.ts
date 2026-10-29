@@ -1,6 +1,7 @@
 /**
  * pipeline-prune retires pipelines that are no longer defined: their instances, failures
- * included, and the directory with its banked total, so `pipeline-overview` stops listing them.
+ * included, and the directory with its banked total, so neither `pipeline-overview` nor the
+ * completed counts the metrics sampler records list them.
  * Only once the definition has stayed gone for the grace period, and never one that comes back.
  */
 
@@ -9,6 +10,7 @@ import { assertEquals } from '@std/assert';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
 import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
 import { RETIRE_GRACE_MS } from '../pipeline/pipeline-prune.ts';
+import { countCompleted } from '../system/metrics-sampler.ts';
 
 const testCtx = createTestContext();
 
@@ -19,7 +21,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  await testCtx.setup();
+  const { vfs } = await testCtx.setup();
   const client: ShellClient = await testCtx.server.createShellClient();
   const cmd = testCommands(client);
 
@@ -34,7 +36,10 @@ Deno.test({
   };
   const exists = async (path: string) => (await client.exec(`test -e ${path}`)).success;
   const backdate = (pipeline: string) => cmd.shouldSucceed(`attrs ${PIPELINE_INSTANCES_PATH}/${pipeline} -J undefinedSince=${Date.now() - RETIRE_GRACE_MS - 1000}`);
-  const pipelines = async () => (await client.execJson<PipelineOverview>('pipeline-overview')).instances.byPipeline.map((row) => row.pipeline);
+  const pipelines = async () => [
+    ...(await client.execJson<PipelineOverview>('pipeline-overview')).instances.byPipeline.map((row) => row.pipeline),
+    ...Object.keys(await countCompleted(vfs, PIPELINE_INSTANCES_PATH)),
+  ];
 
   try {
     await define('kept');

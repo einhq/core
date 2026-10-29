@@ -9,7 +9,7 @@
 import { PIPELINE_INSTANCES_PATH } from '../../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
-import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
+import { countCompleted } from '../system/metrics-sampler.ts';
 
 const testCtx = createTestContext();
 
@@ -21,7 +21,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  await testCtx.setup();
+  const { vfs } = await testCtx.setup();
   const client: ShellClient = await testCtx.server.createShellClient();
   const cmd = testCommands(client);
   const dir = `${PIPELINE_INSTANCES_PATH}/aged`;
@@ -53,8 +53,7 @@ Deno.test({
       assertEquals(await names(), ['new1', 'new2', 'new3', 'oldfailed', 'running']);
 
       // The two old completions are banked, so the lifetime total still counts them.
-      const overview = await client.execJson<PipelineOverview>('pipeline-overview');
-      assertEquals(overview.instances.byPipeline.find((row) => row.pipeline === 'aged')?.completed, 5);
+      assertEquals((await countCompleted(vfs, PIPELINE_INSTANCES_PATH)).aged, 5);
     });
 
     await t.step('with --keep, an instance goes when either bound says so', async () => {
