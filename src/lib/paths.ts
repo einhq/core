@@ -86,7 +86,12 @@ export const UI_ETC_PATH = `${ETC_PATH}/ui`;
 export const UI_NAV_D_PATH = `${UI_ETC_PATH}/nav.d`;
 /** The administrator's changes to the navigation, laid over every module's. */
 export const UI_NAV_PATH = `${UI_ETC_PATH}/nav.json`;
-/** A user's own changes to the navigation, relative to their home directory; laid over the administrator's. */
+/**
+ * A group's changes to the navigation, as `<group>/nav.json` here: laid over the administrator's
+ * for the group's members, under each member's own.
+ */
+export const UI_GROUPS_PATH = `${UI_ETC_PATH}/groups`;
+/** A user's own changes to the navigation, relative to their home directory; laid over the administrator's and their groups'. */
 export const USER_UI_NAV_FILE = '.ui/nav.json';
 
 /* -------------------------------------------------------------------- /var */

@@ -171,8 +171,8 @@ for it.
 
 **Navigation.** A module's sidebar and top-bar entries are its `ui/nav.json`, which `mod setup`
 links as `/etc/ui/nav.d/<module>.json` (owned by link target, like its services; `mod remove` and
-the prune undo it). The administrator's `/etc/ui/nav.json` and each user's `~/.ui/nav.json` are laid
-over them; `ui-nav` resolves the layers for the reader ([nav.ts](../../src/builtin/ui/lib/nav.ts),
+the prune undo it). The administrator's `/etc/ui/nav.json`, each group's
+`/etc/ui/groups/<group>/nav.json` and each user's `~/.ui/nav.json` are laid over them; `ui-nav` resolves the layers for the reader ([nav.ts](../../src/builtin/ui/lib/nav.ts),
 [UI layer](ui.md#navigation)). `mod setup` links a module's `ui/` into `/var/www` only when it is a
 built site (`ui/index.html`), and retires a link of its own that points at anything else, so page
 sources are never served under the module's host name.

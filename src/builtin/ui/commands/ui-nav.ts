@@ -1,6 +1,6 @@
 import type { CmdReturn, Command } from '@ein/client';
-import { collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
-import { UI_NAV_D_PATH, UI_NAV_PATH, USER_UI_NAV_FILE } from '@ein/paths';
+import { ADMIN_ACCESS, collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
+import { GROUPS_PATH, UI_GROUPS_PATH, UI_NAV_D_PATH, UI_NAV_PATH, USER_UI_NAV_FILE } from '@ein/paths';
 import { toText } from '@std/streams/to-text';
 import { type NamedLayer, type NavLayer, resolveNav, type UiNav } from '@ui/nav';
 
@@ -20,31 +20,59 @@ const readLayer = async (cmd: Command, path: string, warnings: string[]): Promis
   }
 };
 
+/** The names of a directory's children, none when it is not there. */
+const childNames = async (cmd: Command, path: string): Promise<string[]> => {
+  try {
+    return (await cmd.sys.vfs.children(cmd.access, path)).map((child) => child.name).sort();
+  } catch (error) {
+    if (error instanceof NodeNotFoundError) return [];
+    throw error;
+  }
+};
+
+/**
+ * The groups under /etc/ui/groups the caller is a member of, by name. A group is looked up as the
+ * administrator, since its members need not be able to read /etc/groups; a directory naming no
+ * group is a warning.
+ */
+const memberGroups = async (cmd: Command, warnings: string[]): Promise<string[]> => {
+  const groups: string[] = [];
+  for (const name of await childNames(cmd, UI_GROUPS_PATH)) {
+    let gid: unknown;
+    try {
+      const node = await cmd.sys.vfs.get(ADMIN_ACCESS, `${GROUPS_PATH}/${name}`);
+      if (node.type === 'group') gid = node.attrs.gid;
+    } catch (error) {
+      if (!(error instanceof NodeNotFoundError)) throw error;
+    }
+    if (typeof gid !== 'number') warnings.push(`${UI_GROUPS_PATH}/${name}: no group ${name}`);
+    else if (cmd.access.gids.includes(gid)) groups.push(name);
+  }
+  return groups;
+};
+
 export const uiNav = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, { boolean: ['help'], unknown: collectUnknownFlags(unknown) });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
   if (flags.help) {
-    await cmd.writeLn("usage: ui-nav\nThe sidebar and top bar for the caller: every module's /etc/ui/nav.d fragment, then /etc/ui/nav.json, then ~/.ui/nav.json.");
+    await cmd.writeLn(
+      "usage: ui-nav\nThe sidebar and top bar for the caller: every module's /etc/ui/nav.d fragment, then /etc/ui/nav.json, then /etc/ui/groups/<group>/nav.json for each of the caller's groups, then ~/.ui/nav.json.",
+    );
     return 0;
   }
 
   const warnings: string[] = [];
   const fragments: NamedLayer[] = [];
-  let names: string[] = [];
-  try {
-    names = (await cmd.sys.vfs.children(cmd.access, UI_NAV_D_PATH)).map((child) => child.name);
-  } catch (error) {
-    if (!(error instanceof NodeNotFoundError)) throw error;
-  }
-  for (const name of names.filter((n) => n.endsWith('.json')).sort()) {
+  for (const name of (await childNames(cmd, UI_NAV_D_PATH)).filter((n) => n.endsWith('.json'))) {
     const layer = await readLayer(cmd, `${UI_NAV_D_PATH}/${name}`, warnings);
     if (layer) fragments.push({ source: name.slice(0, -'.json'.length), layer });
   }
 
   const overlays: NamedLayer[] = [];
   const home = cmd.env.HOME;
-  for (const path of [UI_NAV_PATH, ...(home ? [`${home}/${USER_UI_NAV_FILE}`] : [])]) {
+  const groups = (await memberGroups(cmd, warnings)).map((name) => `${UI_GROUPS_PATH}/${name}/nav.json`);
+  for (const path of [UI_NAV_PATH, ...groups, ...(home ? [`${home}/${USER_UI_NAV_FILE}`] : [])]) {
     const layer = await readLayer(cmd, path, warnings);
     if (layer) overlays.push({ source: path, layer });
   }
@@ -76,7 +104,7 @@ export const uiNav = async (cmd: Command): CmdReturn => {
 uiNav.spec = {
   name: 'ui-nav',
   effect: 'read' as const,
-  description: "The web UI's sidebar, top bar and panels for the caller, from every module's entries and the administrator's and the user's changes",
+  description: "The web UI's sidebar, top bar and panels for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
   args: [],
   flags: [],
 };

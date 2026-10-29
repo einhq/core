@@ -1,11 +1,12 @@
 /**
- * `ui-nav` reads the fragments in /etc/ui/nav.d and the two overlays from the VFS. The merge
+ * `ui-nav` reads the fragments in /etc/ui/nav.d and the overlays from the VFS. The merge
  * rules themselves are nav.test.ts's; this is the files: which are read, in what order, and
  * that a broken one is a warning rather than a broken sidebar.
  */
 
 import { assertEquals } from '@std/assert';
-import { UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
+import { GUEST_ACCESS } from '@ein/client';
+import { UI_GROUPS_PATH, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
 import { createTestContext, type ShellClient } from '@ein/testing';
 import type { UiNav } from '@ui/nav';
 
@@ -43,6 +44,33 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
       assertEquals(nav.warnings[1], 'broken: not a navigation object');
     });
 
+    await t.step("a group's overlay applies to its members alone, under the member's own", async () => {
+      // The visitors' group, as boot makes it; gids clear of the ones boot reserves.
+      await client.exec(`group-create guest --gid ${GUEST_ACCESS.gid} && group-create sailors --gid 7000 && group-create gardeners --gid 7001`);
+      await client.exec('user-create anna && user-passwd anna --new-password secret1 && group-add-member sailors anna');
+      await client.exec(`mkdir -p ${UI_GROUPS_PATH}/sailors ${UI_GROUPS_PATH}/gardeners ${UI_GROUPS_PATH}/nobody`);
+      await write(`${UI_GROUPS_PATH}/sailors/nav.json`, {
+        sidebar: [{ id: 'sailors.boats', section: 'main', label: 'Boats', icon: 'sailboat', to: '/search?q=sailboat' }, { id: 'ui.home', order: 2000 }],
+      });
+      await write(`${UI_GROUPS_PATH}/gardeners/nav.json`, { hide: ['ui.home'] });
+      const annaHome = `${(await client.exec('echo $HOMES_PATH')).data}`.trim() + '/anna';
+      await client.exec(`mkdir -p ${annaHome}/.ui && chown anna ${annaHome}/.ui`);
+      await write(`${annaHome}/.ui/nav.json`, { sidebar: [{ id: 'sailors.boats', label: 'Our boats' }] });
+
+      const anna = await testCtx.server.createShellClient({ username: 'anna', password: 'secret1' });
+      try {
+        const nav = await anna.execJson<UiNav>('ui-nav');
+        assertEquals(nav.sections.map((s) => s.items.map((i) => [i.id, i.label])), [[['ui.media', 'Pictures'], ['sailors.boats', 'Our boats'], ['ui.home', 'Home']]]);
+        assertEquals(nav.warnings.includes(`${UI_GROUPS_PATH}/nobody: no group nobody`), true, nav.warnings.join('\n'));
+      } finally {
+        anna.close();
+      }
+      // The administrator is in neither group.
+      const nav = await client.execJson<UiNav>('ui-nav');
+      assertEquals(nav.sections.flatMap((s) => s.items.map((i) => i.id)).includes('sailors.boats'), false);
+      await client.exec(`rm -r ${UI_GROUPS_PATH}`);
+    });
+
     await t.step('the guest is not given what is for someone signed in', async () => {
       await write(`${UI_NAV_D_PATH}/own.json`, {
         sidebar: [{ id: 'own.favourites', section: 'main', label: 'Favourites', icon: 'heart', to: '/favourites', signedIn: true }],
@@ -57,6 +85,10 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
         const nav = await guest.execJson<UiNav>('ui-nav');
         // Without the signed-in reader's own overlay, which put Media first.
         assertEquals(nav.sections.map((s) => s.items.map((i) => i.id)), [['ui.home', 'ui.media']]);
+        // The visitor is a member of the guest group.
+        await client.exec(`mkdir -p ${UI_GROUPS_PATH}/guest`);
+        await write(`${UI_GROUPS_PATH}/guest/nav.json`, { hide: ['ui.media'] });
+        assertEquals((await guest.execJson<UiNav>('ui-nav')).sections.map((s) => s.items.map((i) => i.id)), [['ui.home']]);
       } finally {
         guest.close();
         await client.execString('config unset CFG_GUEST_BROWSING');

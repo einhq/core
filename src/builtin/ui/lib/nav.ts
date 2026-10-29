@@ -2,8 +2,9 @@
  * The web UI's navigation — the sidebar and the top bar — as configuration.
  *
  * Every module may ship a fragment, `ui/nav.json`, which `mod setup` links into
- * `/etc/ui/nav.d/<module>.json`. The administrator's `/etc/ui/nav.json` and a user's
- * `~/.ui/nav.json` are overlays in the same format, laid over the fragments in that order.
+ * `/etc/ui/nav.d/<module>.json`. The administrator's `/etc/ui/nav.json`, a group's
+ * `/etc/ui/groups/<group>/nav.json` for its members and a user's `~/.ui/nav.json` are overlays in
+ * the same format, laid over the fragments in that order.
  * An entry is known by its `id` (`<module>.<name>` by convention): a layer that names an id
  * an earlier layer gave changes the fields it states and keeps the rest, one that names a
  * new id adds an entry, and `hide` takes entries away. So an overlay never copies what it

@@ -1,8 +1,8 @@
 # Changing the sidebar and top bar
 
 The pages in the sidebar and the buttons in the top bar are not fixed: every module adds its own,
-and both an administrator and you can change what shows. Nothing you change here is lost when EiN
-is updated, and an update still reaches everything you left alone.
+and an administrator, for everyone or for one group, can change what shows, and so can you. Nothing
+you change here is lost when EiN is updated, and an update still reaches everything you left alone.
 
 To see what you get now — every entry, its id and where it leads — run this in the
 [terminal](shell-commands.md):
@@ -68,3 +68,26 @@ An administrator writes the same kind of file to `/etc/ui/nav.json`. It applies 
 before each user's own changes. Entries can be shown to administrators only with `"admin": true`,
 and only to someone signed in — never to a visitor browsing without signing in — with
 `"signedIn": true`.
+
+## For a group
+
+An administrator can also change the navigation for the members of one group, for example to give
+the `sailors` group a page of its own. The file is `/etc/ui/groups/<group>/nav.json`, in the same
+format:
+
+```
+mkdir -p /etc/ui/groups/sailors
+edit /etc/ui/groups/sailors/nav.json
+```
+
+```json
+{
+  "sidebar": [
+    { "id": "sailors.boats", "section": "explore", "label": "Boats", "icon": "sailboat", "to": "/search?q=sailboat" }
+  ]
+}
+```
+
+It is laid over `/etc/ui/nav.json` and under each member's own file. Someone in several such groups
+gets each of them, in the order of the groups' names. The `guest` group's file is for visitors
+browsing without signing in.

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.5.0
+MODULE_API_VERSION 0.5.1
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -1178,6 +1178,7 @@ src/lib/paths.ts SYSTEM_LOG_PATH 629098147f14
 src/lib/paths.ts TAGS_ROOT 629098147f14
 src/lib/paths.ts TEMP_PATH 6cc73ebd4257
 src/lib/paths.ts UI_ETC_PATH 629098147f14
+src/lib/paths.ts UI_GROUPS_PATH 629098147f14
 src/lib/paths.ts UI_NAV_D_PATH 629098147f14
 src/lib/paths.ts UI_NAV_PATH 629098147f14
 src/lib/paths.ts USERS_PATH 629098147f14

@@ -114,7 +114,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * anything a module could be broken by (a caret range `^0.1.0` takes 0.1.x only). Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.5.0';
+export const MODULE_API_VERSION = '0.5.1';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];
