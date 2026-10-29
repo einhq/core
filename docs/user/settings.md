@@ -104,7 +104,9 @@ each one's version, and whether it is installed. An administrator installs one
 with **Install**, which brings the modules it needs along with it, and gets
 **Update** where a newer version is published than the one installed. A module
 installed this way says where it came from in its panel, where it can be
-updated or removed too. Its pages appear once the page is reloaded.
+updated or removed too: Update takes the newest commit of the branch it was
+installed from, or the tag's again. One installed at a commit stays there, and
+its panel offers no Update. Its pages appear once the page is reloaded.
 
 Installed modules are kept in a folder of their own beside EiN, not inside it,
 so they stay when EiN is upgraded — as long as the installation keeps that
@@ -121,6 +123,7 @@ there in the terminal:
 mod search                  # the published modules, and what is installed of them
 mod install archive         # by name, from the first source that has it
 mod install https://github.com/einhq/module-archive@main
+mod install archive@463a92f # at a commit, kept there; seven characters of its id or more
 mod remove archive
 ```
 

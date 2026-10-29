@@ -1,7 +1,7 @@
 /**
  * A forge that answers as Forgejo does, for the tests of `mod install` and `mod search`: git's ref
  * advertisement over smart HTTP, `/archive/<commit>.tar.gz` under one top directory, an
- * organisation's repositories and a file at a branch in its API. A repository may be private,
+ * organisation's repositories, a file at a branch and the commit a short id begins in its API. A repository may be private,
  * read only with its token.
  */
 
@@ -83,6 +83,13 @@ export class FakeForge {
       const listed = [...this.repositories].filter(([key]) => key.startsWith(`${list[1]}/`));
       if (listed.length === 0) return new Response('Not found', { status: 404 });
       return Response.json(listed.map(([key, repository]) => ({ name: key.split('/')[1], description: repository.description, default_branch: 'main' })));
+    }
+
+    const commit = /^\/api\/v1\/repos\/([^/]+)\/([^/]+)\/git\/commits\/([^/]+)$/.exec(url.pathname);
+    if (commit) {
+      const repository = this.repositories.get(`${commit[1]}/${commit[2]}`);
+      const matching = repository && allowed(repository) ? [...repository.commits.keys()].filter((id) => id.startsWith(commit[3])) : [];
+      return matching.length === 1 ? Response.json({ sha: matching[0] }) : new Response('Not found', { status: 404 });
     }
 
     const raw = /^\/api\/v1\/repos\/([^/]+)\/([^/]+)\/raw\/(.+)$/.exec(url.pathname);

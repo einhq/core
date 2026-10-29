@@ -4,8 +4,8 @@
  * The image has no git, so everything here is plain HTTP that GitHub, Forgejo and Gitea all
  * answer. A repository's branches and tags come from git's own advertisement over smart HTTP
  * (`<repository>.git/info/refs?service=git-upload-pack`), its tree at a commit is the forge's
- * `/archive/<commit>.tar.gz`, and an organisation's repositories and a file at a branch come
- * from the forge's API. A host is GitHub when it is `github.com`, and a Forgejo or a Gitea
+ * `/archive/<commit>.tar.gz`, and an organisation's repositories, a file at a branch and the
+ * commit a short id names come from the forge's API. A host is GitHub when it is `github.com`, and a Forgejo or a Gitea
  * otherwise.
  *
  * A token is sent only to the host it was given for (`CFG_MODULE_SOURCES_KEY`, `host=token`), so
@@ -236,19 +236,38 @@ export const fetchRefs = async (repository: Repository, tokens: Tokens, signal?:
 
 const COMMIT = /^[0-9a-f]{40}$/;
 
+/** What may be a commit id cut short, as git takes one: four hex digits or more. */
+export const ABBREVIATED_COMMIT = /^[0-9a-f]{4,39}$/;
+
 /**
  * The commit `ref` names — a branch, a tag or a whole commit id — or the default branch's when no
- * ref is given; nothing when the repository has no such ref. A tag wins over a branch of the same
- * name, as in git.
+ * ref is given or it is `HEAD`; nothing when the advertisement has no such ref. A tag wins over a
+ * branch of the same name, as in git. A commit id cut short is not advertised: `fetchCommit` finds it.
  */
 export const resolveRef = (refs: Refs, ref?: string): { ref: string; commit: string } | undefined => {
-  if (ref === undefined) return refs.head ? { ref: refs.branch ?? 'HEAD', commit: refs.head } : undefined;
+  if (ref === undefined || ref === 'HEAD') return refs.head ? { ref: refs.branch ?? 'HEAD', commit: refs.head } : undefined;
   if (COMMIT.test(ref)) return { ref, commit: ref };
   for (const name of [`refs/tags/${ref}^{}`, `refs/tags/${ref}`, `refs/heads/${ref}`, ...(ref.startsWith('refs/') ? [ref] : [])]) {
     const commit = refs.refs.get(name);
     if (commit) return { ref, commit };
   }
   return undefined;
+};
+
+/** The whole id of the commit `id` begins, from the forge's API; nothing when no single commit does. */
+export const fetchCommit = async (repository: Repository, id: string, tokens: Tokens, signal?: AbortSignal): Promise<string | undefined> => {
+  const url = repository.kind === 'github'
+    ? `${apiOrigin(repository)}/repos/${repository.owner}/${repository.name}/commits/${id}`
+    : `${apiOrigin(repository)}/repos/${repository.owner}/${repository.name}/git/commits/${id}?stat=false&verification=false&files=false`;
+  const headers = { ...authorization(repository, tokens, 'api'), ...(repository.kind === 'github' ? { Accept: 'application/vnd.github+json' } : {}) };
+  try {
+    const sha = (await (await get(url, headers, signal)).json() as { sha?: unknown }).sha;
+    return typeof sha === 'string' && COMMIT.test(sha) && sha.startsWith(id) ? sha : undefined;
+  } catch (error) {
+    // GitHub answers 422 for an id no commit begins, or more than one does.
+    if (error instanceof ForgeError && (error.status === 404 || error.status === 422)) return undefined;
+    throw error;
+  }
 };
 
 /** The repository's tree at `commit`, as a gzipped tar whose entries sit under one top directory. */

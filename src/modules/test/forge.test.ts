@@ -4,6 +4,7 @@
 
 import { assertEquals, assertRejects } from '@std/assert';
 import {
+  fetchCommit,
   fetchRefs,
   ForgeError,
   listModuleRepositories,
@@ -75,6 +76,7 @@ Deno.test("refs come from git's advertisement, and a ref is resolved as git does
   assertEquals(refs.head, A);
   assertEquals(refs.branch, 'main');
   assertEquals(resolveRef(refs), { ref: 'main', commit: A });
+  assertEquals(resolveRef(refs, 'HEAD'), { ref: 'main', commit: A });
   // An annotated tag is its commit, and a tag wins over a branch of its name.
   assertEquals(resolveRef(refs, 'v1'), { ref: 'v1', commit: C });
   assertEquals(resolveRef(refs, 'refs/heads/v1'), { ref: 'refs/heads/v1', commit: B });
@@ -84,7 +86,7 @@ Deno.test("refs come from git's advertisement, and a ref is resolved as git does
 });
 
 Deno.test({
-  name: 'a forge is asked with the token for its host only, and an organisation lists its module repositories',
+  name: 'a forge is asked with the token for its host only, finds a short commit id, and lists its module repositories',
   sanitizeResources: false,
   sanitizeOps: false,
 }, async () => {
@@ -95,6 +97,7 @@ Deno.test({
     if (url.pathname === '/acme/module-x.git/info/refs') {
       return new Response(advertisement([`${A} HEAD\0symref=HEAD:refs/heads/main\n`, `${A} refs/heads/main\n`]));
     }
+    if (url.pathname === `/api/v1/repos/acme/module-x/git/commits/${A.slice(0, 7)}`) return Response.json({ sha: A });
     if (url.pathname === '/api/v1/orgs/acme/repos') {
       return Response.json([
         { name: 'module-x', description: 'X', default_branch: 'main' },
@@ -116,6 +119,11 @@ Deno.test({
     assertEquals(seen.at(-1)?.authorization, 'token secret');
     await fetchRefs(repositoryOf(acme, 'module-x'), parseTokens('elsewhere.example=other'));
     assertEquals(seen.at(-1)?.authorization, null);
+
+    // A commit's id cut short is asked of the API, and one no commit begins is none.
+    assertEquals(await fetchCommit(repositoryOf(acme, 'module-x'), A.slice(0, 7), tokens), A);
+    assertEquals(seen.at(-1)?.authorization, 'token secret');
+    assertEquals(await fetchCommit(repositoryOf(acme, 'module-x'), 'fffffff', tokens), undefined);
 
     const listed = await listModuleRepositories(acme, tokens);
     assertEquals(listed.map((repository) => [repository.name, repository.branch, repository.description]), [['module-x', 'main', 'X']]);

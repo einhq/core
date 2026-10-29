@@ -226,7 +226,8 @@ is reloaded, failing as a module that could not load.
 it up. The image has no git, so the fetching is plain HTTP that GitHub, Forgejo and Gitea all
 answer ([forge.ts](../../src/modules/forge.ts)): the ref — a branch, a tag, a commit, or the default
 branch when none is given — is resolved from git's own ref advertisement
-(`<repository>.git/info/refs?service=git-upload-pack`), and the tree at that commit is the forge's
+(`<repository>.git/info/refs?service=git-upload-pack`), a commit's id cut short, which no
+advertisement holds, from the forge's API, and the tree at that commit is the forge's
 `/archive/<commit>.tar.gz`. It is unpacked through the VFS into `.staging-<id>` beside the
 installed modules ([install.ts](../../src/modules/install.ts)), with each file's mode, so a bin
 stays executable, then checked, renamed into place and linked as `/usr/modules/<name>` →
@@ -272,7 +273,10 @@ the range; one installed at a version outside the range refuses the install and 
 `mod install <dependency>` updates it.
 
 **Updates and dependents.** `mod install` of an installed module is its update; the same commit
-again is left alone (`--force` fetches it anyway). Every installed module that depends on it must
+again is left alone (`--force` fetches it anyway). A module installed at a commit, recorded with
+the commit's whole id as its ref, stays there: its panel's Update, which installs the recorded ref
+again, is not offered for it, and `mod install <name>` without a ref moves it to the default
+branch. Every installed module that depends on it must
 accept the new version, or nothing changes; `--force` updates anyway. After the swap the module is
 set up and its services restarted — on a first install, started — and every module depending on
 an updated one, however indirectly, is set up again and its running services restarted, so none

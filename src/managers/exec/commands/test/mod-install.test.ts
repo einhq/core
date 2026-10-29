@@ -4,11 +4,12 @@
  *
  * What is pinned down: a module named by its name comes from the first source that has it, with
  * its dependencies; it is unpacked into the installed modules and linked into /usr/modules; the
- * same commit is not fetched again and a new one replaces the module whole; an update a dependent
- * does not accept is refused unless forced; --missing and --no-setup, as boot runs it, leave an
- * installed module alone and set nothing up; a module the deployment provides, one for another core
- * and a repository that holds no module leave nothing behind; a private repository is read with
- * its host's token; and mod remove takes an installed module's tree with it.
+ * same commit is not fetched again and a new one replaces the module whole; a ref — a tag, or a
+ * commit's id whole or cut short — pins the commit; an update a dependent does not accept is
+ * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
+ * alone and set nothing up; a module the deployment provides, one for another core and a
+ * repository that holds no module leave nothing behind; a private repository is read with its
+ * host's token; and mod remove takes an installed module's tree with it.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
@@ -93,7 +94,20 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
 
       const missing = await install('greet@v9');
       assertEquals(missing.success, false);
-      assertStringIncludes(missing.error ?? '', "no branch or tag 'v9'");
+      assertStringIncludes(missing.error ?? '', "no branch, tag or commit 'v9'");
+
+      // A commit's id cut short is the commit, recorded whole, and installing it again stays there.
+      const byShortId = await install(`greet@${first.slice(0, 7)}`);
+      assert(byShortId.success, byShortId.error);
+      assertEquals([byShortId.answer?.installed[0]?.commit, byShortId.answer?.installed[0]?.ref], [first, first]);
+      assertEquals(await run('$MOD_PATH/greet/bin/greet'), 'greet 1');
+      const again = await install(`${forge.url('acme')}/module-greet@${first}`);
+      assert(again.success, again.error);
+      assertEquals(again.answer?.installed, []);
+      const unknown = await install('greet@0000000');
+      assertEquals(unknown.success, false);
+      assertStringIncludes(unknown.error ?? '', "no branch, tag or commit '0000000'");
+      assert((await install('greet@main')).success);
     });
 
     await t.step('an update a dependent does not accept is refused, unless forced', async () => {

@@ -3,9 +3,10 @@
  *
  * A module is named by its repository's address, `https://host/owner/module-x`, or by its name,
  * which the first of `CFG_MODULE_SOURCES` to have `module-<name>` answers; either may end in
- * `@<branch, tag or commit>`, and without one the default branch is taken. The tree at that
- * commit is unpacked beside the installed modules (`MOD_INSTALL_PATH`), checked, renamed into
- * place and linked into `MOD_PATH`, the way boot links them.
+ * `@<branch, tag or commit>`, and without one the default branch is taken; a commit's id may be
+ * cut short, and is recorded whole. The tree at that commit is unpacked beside the installed
+ * modules (`MOD_INSTALL_PATH`), checked, renamed into place and linked into `MOD_PATH`, the way
+ * boot links them.
  *
  * Before anything is replaced: the module must be no deployment's (a name the deployment mounts
  * runs from there), it must be written for this core's module API, and its exports and pages must
@@ -31,7 +32,9 @@ import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { DEV_MODULES_PATH, MOD_INSTALL_PATH, MOD_PATH } from '../../../../lib/paths.ts';
 import {
+  ABBREVIATED_COMMIT,
   fetchArchive,
+  fetchCommit,
   fetchRefs,
   ForgeError,
   type InstallTarget,
@@ -140,6 +143,18 @@ const locate = async (run: Run, target: InstallTarget, near?: Repository): Promi
   return await findPublished(run, target.name);
 };
 
+/** The commit a short id names, recorded as its whole id, as a whole id given is; nothing when it names none. */
+const resolveAbbreviated = async (run: Run, repository: Repository, ref?: string): Promise<{ ref: string; commit: string } | undefined> => {
+  if (!ref || !ABBREVIATED_COMMIT.test(ref)) return undefined;
+  try {
+    const commit = await fetchCommit(repository, ref, run.tokens, within(run.cmd, FORGE_TIMEOUT_MS));
+    return commit ? { ref: commit, commit } : undefined;
+  } catch (error) {
+    if (error instanceof ForgeError) throw new InstallError(error.message);
+    throw error;
+  }
+};
+
 /** Whether `MOD_PATH/<name>` is the link to the installed module of that name. */
 const linksTo = async (run: Run, name: string): Promise<boolean> => {
   try {
@@ -178,9 +193,9 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository)
   }
   await refuseDeployed(run, expected);
   const { repository, refs } = await locate(run, target, near);
-  const resolved = resolveRef(refs, target.ref);
+  const resolved = resolveRef(refs, target.ref) ?? await resolveAbbreviated(run, repository, target.ref);
   if (!resolved) {
-    throw new InstallError(target.ref ? `${repository.repository} has no branch or tag '${target.ref}'` : `${repository.repository} has no default branch`);
+    throw new InstallError(target.ref ? `${repository.repository} has no branch, tag or commit '${target.ref}'` : `${repository.repository} has no default branch`);
   }
 
   const current = await readInstallRecord(vfs, cmd.access, join(run.store, expected));
@@ -413,7 +428,8 @@ modInstall.spec = {
       name: 'module',
       type: 'string' as const,
       variadic: true,
-      description: 'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit',
+      description:
+        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more)',
     },
   ],
   flags: [

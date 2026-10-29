@@ -158,11 +158,12 @@ type InstalledProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boole
 
 /**
  * Where `mod install` fetched the module from, and for the administrator, Update — the newest
- * commit of the branch it was installed from, or the same tag or commit again — and Remove, which
- * asks first and says what goes with it.
+ * commit of the branch it was installed from, or the tag's commit again; one installed at a commit
+ * stays there and has none — and Remove, which asks first and says what goes with it.
  */
 function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledProps) {
   const record = module.installed!;
+  const pinned = record.ref === record.commit;
   const [busy, setBusy] = useState<'update' | 'remove' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -173,8 +174,7 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
     setProblem(null);
     setDone(null);
     try {
-      const target = record.ref === record.commit ? record.repository : `${record.repository}@${record.ref}`;
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}`);
+      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(`${record.repository}@${record.ref}`)}`);
       setDone(result.installed.some((each) => each.name === module.name) ? 'Updated' : 'Up to date');
       onChanged();
     } catch (err) {
@@ -203,7 +203,7 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
         <>
           <Anchor href={record.repository} target='_blank' rel='noreferrer' size='sm' style={{ overflowWrap: 'anywhere' }}>{record.repository}</Anchor> at{' '}
           <Text span ff='monospace' size='sm'>{record.commit.slice(0, 9)}</Text>
-          {record.ref !== record.commit && ` (${record.ref})`}
+          {!pinned && ` (${record.ref})`}
           {record.at && `, ${new Date(record.at).toLocaleString()}`}
         </>
       }
@@ -212,7 +212,11 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
     >
       {admin && !confirm.open && (
         <Group gap='xs'>
-          <Button size='xs' variant='default' leftSection={<IconRefresh size={16} />} loading={busy === 'update'} disabled={busy !== null} onClick={update}>Update</Button>
+          {!pinned && (
+            <Button size='xs' variant='default' leftSection={<IconRefresh size={16} />} loading={busy === 'update'} disabled={busy !== null} onClick={update}>
+              Update
+            </Button>
+          )}
           <Button ref={confirm.opener} size='xs' variant='light' color='red' leftSection={<IconTrash size={16} />} disabled={busy !== null} onClick={confirm.show}>
             Remove
           </Button>
