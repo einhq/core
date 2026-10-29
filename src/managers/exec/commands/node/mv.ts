@@ -2,11 +2,13 @@ import { basename, dirname, join, resolve } from '@std/path';
 import type { MvAnswer } from '../../../../lib/api/node.ts';
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
+import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
 /**
- * Move sources into an existing destination, or one source to a new path, in one `renameMany`:
+ * Move sources into an existing destination that is not a file, or one source to a new path or
+ * onto a file it replaces, in one `renameMany`:
  * the softlinks at each moved path or under it are re-pointed in the moves' own transactions.
  * Each source that does not move is reported on stderr and in the answer's `failed`.
  */
@@ -32,7 +34,11 @@ export const mv = async (cmd: Command): CmdReturn => {
   const sources = args.slice(0, -1).map((arg) => ({ arg, path: resolve(cmd.cwd, arg) }));
   const destArg = args.at(-1)!;
   const destPath = resolve(cmd.cwd, destArg);
-  const destExists = await cmd.sys.vfs.exists(cmd.access, destPath);
+  const dest = await cmd.sys.vfs.exists(cmd.access, destPath) ? await cmd.sys.vfs.get(cmd.access, destPath) : undefined;
+  const destExists = dest !== undefined;
+  // Any node can hold children, so an existing DEST takes the sources as a directory does, unless
+  // it is a file: a file named as DEST is the one the move replaces.
+  const into = destExists && dest.type !== NODE_TYPE_FILE;
 
   // A trailing slash names a directory: one that must exist (a softlink to one counts), never a
   // file, though a file can hold children.
@@ -41,13 +47,18 @@ export const mv = async (cmd: Command): CmdReturn => {
       await cmd.writeError(`mv: cannot move to '${destArg}': No such file or directory\n`);
       return 1;
     }
-    if ((await cmd.sys.vfs.get(cmd.access, destPath)).type !== NODE_TYPE_DIRECTORY) {
+    if (dest.type !== NODE_TYPE_DIRECTORY) {
       await cmd.writeError(`mv: cannot move to '${destArg}': Not a directory\n`);
       return 1;
     }
   }
-  if (sources.length > 1 && !destExists) {
-    await cmd.writeError(`mv: target '${destArg}' is not an existing node\n`);
+  if (sources.length > 1 && !into) {
+    await cmd.writeError(destExists ? `mv: target '${destArg}' is not a directory\n` : `mv: target '${destArg}' is not an existing node\n`);
+    return 1;
+  }
+  const [first] = sources;
+  if (destExists && !into && await cmd.sys.vfs.exists(cmd.access, first.path) && (await cmd.sys.vfs.get(cmd.access, first.path)).type !== NODE_TYPE_FILE) {
+    await cmd.writeError(`mv: cannot overwrite file '${destArg}' with '${first.arg}', which is not a file\n`);
     return 1;
   }
   if (!destExists && !await cmd.sys.vfs.exists(cmd.access, dirname(destPath))) {
@@ -60,7 +71,7 @@ export const mv = async (cmd: Command): CmdReturn => {
 
   const settled = await cmd.sys.vfs.renameMany(
     cmd.access,
-    sources.map(({ path }) => ({ from: path, to: destExists ? join(destPath, basename(path)) : destPath })),
+    sources.map(({ path }) => ({ from: path, to: into ? join(destPath, basename(path)) : destPath })),
     { failIfExists: flags['no-clobber'], relink: !flags['no-relink'], signal: interrupt.signal },
   );
 
@@ -99,7 +110,7 @@ mv.spec = {
     {
       name: 'dest',
       type: 'path' as const,
-      description: 'destination: an existing node to move into, or the new path of a single source',
+      description: 'destination: an existing node that is not a file to move into, or the new path of a single source, replacing a file there',
     },
   ],
   flags: [

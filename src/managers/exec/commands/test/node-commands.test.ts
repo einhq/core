@@ -66,6 +66,25 @@ Deno.test({
       assertEquals((await client.execString('cat /d/tree2/sub/deep.txt')).trim(), 'deep');
     });
 
+    await t.step('cp onto a file replaces it, and copies into any other node', async () => {
+      await cmd.shouldSucceed('mkdir -p /d/onto && echo new > /d/onto/new.txt && echo old > /d/onto/old.txt');
+      await cmd.shouldSucceed('cp /d/onto/new.txt /d/onto/old.txt');
+      assertEquals((await client.execString('cat /d/onto/old.txt')).trim(), 'new');
+      await cmd.shouldFail('ls /d/onto/old.txt/new.txt');
+
+      await cmd.shouldSucceed('mknode -t album /d/onto/album');
+      await cmd.shouldSucceed('cp /d/onto/new.txt /d/onto/album');
+      assertEquals((await client.execString('cat /d/onto/album/new.txt')).trim(), 'new');
+
+      await cmd.shouldFailWith('cp /d/onto/new.txt /d/onto/new.txt', 'are the same file');
+      assertEquals((await client.execString('cat /d/onto/new.txt')).trim(), 'new');
+      await cmd.shouldFailWith('cp /d/onto/new.txt /d/f.txt /d/onto/old.txt', 'is not a directory');
+      await cmd.shouldFailWith('cp /d/onto/new.txt /d/onto/old.txt/', 'Not a directory');
+      await cmd.shouldSucceed('mkdir /d/onto/dir');
+      await cmd.shouldFailWith('cp -r /d/onto/dir /d/onto/old.txt', 'which is not a file');
+      assertEquals((await client.execString('cat /d/onto/old.txt')).trim(), 'new');
+    });
+
     await t.step('mv renames and moves', async () => {
       await cmd.shouldSucceed('mv /d/copy.txt /d/renamed.txt');
       await cmd.shouldFail('cat /d/copy.txt');

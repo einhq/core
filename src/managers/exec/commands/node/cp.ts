@@ -1,5 +1,6 @@
 import { basename, dirname, resolve } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -28,10 +29,22 @@ export const cp = async (cmd: Command): CmdReturn => {
   const force = flags.force;
 
   const destPath = resolve(cmd.cwd, destArg);
-  const destExists = await cmd.sys.vfs.exists(cmd.access, destPath);
+  const dest = await cmd.sys.vfs.exists(cmd.access, destPath) ? await cmd.sys.vfs.get(cmd.access, destPath) : undefined;
+  // Any node can hold children, so an existing DEST holds the copies as a directory does, unless
+  // it is a file: a file named as DEST is the one the copy replaces.
+  const into = dest !== undefined && dest.type !== NODE_TYPE_FILE;
+  const replace = dest !== undefined && !into;
 
-  if (sourceArgs.length > 1 && !destExists) {
-    await cmd.writeError(`cp: target '${destArg}' is not an existing node\n`);
+  if (replace && destArg.endsWith('/')) {
+    await cmd.writeError(`cp: cannot copy to '${destArg}': Not a directory\n`);
+    return 1;
+  }
+  if (sourceArgs.length > 1 && !into) {
+    await cmd.writeError(dest ? `cp: target '${destArg}' is not a directory\n` : `cp: target '${destArg}' is not an existing node\n`);
+    return 1;
+  }
+  if (!dest && !await cmd.sys.vfs.exists(cmd.access, dirname(destPath))) {
+    await cmd.writeError(`cp: cannot create '${destArg}': No such file or directory\n`);
     return 1;
   }
 
@@ -45,27 +58,27 @@ export const cp = async (cmd: Command): CmdReturn => {
         continue;
       }
 
-      let destParent: string;
-      let destName: string;
-      if (destExists) {
-        destParent = destPath;
-        destName = basename(sourcePath);
-      } else {
-        destParent = dirname(destPath);
-        destName = basename(destPath);
-
-        if (!await cmd.sys.vfs.exists(cmd.access, destParent)) {
-          await cmd.writeError(`cp: cannot create '${destArg}': No such file or directory\n`);
-          return 1;
+      if (replace) {
+        const source = await cmd.sys.vfs.get(cmd.access, sourcePath);
+        if (source.id === dest!.id) {
+          await cmd.writeError(`cp: '${sourceArg}' and '${destArg}' are the same file\n`);
+          exitCode = 1;
+          continue;
+        }
+        if (source.type !== NODE_TYPE_FILE) {
+          await cmd.writeError(`cp: cannot overwrite file '${destArg}' with '${sourceArg}', which is not a file\n`);
+          exitCode = 1;
+          continue;
         }
       }
 
       await cmd.sys.vfs.copy(
         cmd.access,
         sourcePath,
-        destParent,
-        destName,
-        { recursive, overwrite: force },
+        into ? destPath : dirname(destPath),
+        into ? basename(sourcePath) : basename(destPath),
+        // A file named as DEST is replaced, as cp replaces it; a name taken inside DEST only with -f.
+        { recursive, overwrite: force || replace },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -91,12 +104,12 @@ cp.spec = {
     {
       name: 'dest',
       type: 'path' as const,
-      description: 'destination path',
+      description: 'destination: an existing directory (or other node that is not a file) to copy into, or the path of a single source, replacing a file there',
     },
   ],
   flags: [
     { name: 'r', type: 'bool' as const, description: 'copy directories recursively' },
-    { name: 'f', type: 'bool' as const, description: 'overwrite existing destination files' },
+    { name: 'f', type: 'bool' as const, description: 'replace a node of the same name in the destination directory; a file named as DEST is replaced without it' },
   ],
   examples: [
     'cp /archive/albums/Exempelalbum_2019/files/IMG_0007.jpg /archive/albums/Exempelalbum_2019/files/IMG_0007_copy.jpg',

@@ -1,7 +1,8 @@
 /**
  * `mv` on `renameMany`: a moved directory keeps every link into it, a relation link's `peerLink`
- * follows, several sources move in one call, `--no-relink` leaves the links, and each source that
- * does not move is answered for while the others move.
+ * follows, several sources move in one call, a file named as the destination is replaced,
+ * `--no-relink` leaves the links, and each source that does not move is answered for while the
+ * others move.
  */
 
 import { assertEquals } from '@std/assert';
@@ -85,6 +86,23 @@ Deno.test({
       await cmd.shouldFail('mv /m/part/src/gone.txt /m/part/dst/gone.txt');
       await cmd.shouldFail('mv /m/library/day /m/library/day/sub/day');
       await cmd.shouldFail('mv /m/part/dst/p.txt /m/nowhere/p.txt');
+    });
+
+    await t.step('a file as the destination is replaced, any other node takes the source', async () => {
+      await cmd.shouldSucceed('mkdir -p /m/onto/dir && echo new > /m/onto/new.txt && echo old > /m/onto/old.txt');
+      await cmd.shouldSucceed('mv /m/onto/new.txt /m/onto/old.txt');
+      assertEquals((await client.execString('cat /m/onto/old.txt')).trim(), 'new');
+      await cmd.shouldFail('ls /m/onto/new.txt');
+      await cmd.shouldFail('ls /m/onto/old.txt/new.txt');
+
+      await cmd.shouldSucceed('mknode -t album /m/onto/album');
+      await cmd.shouldSucceed('mv /m/onto/old.txt /m/onto/album');
+      assertEquals((await client.execString('cat /m/onto/album/old.txt')).trim(), 'new');
+
+      await cmd.shouldSucceed('echo a > /m/onto/a.txt && echo b > /m/onto/b.txt && echo c > /m/onto/c.txt');
+      await cmd.shouldFailWith('mv /m/onto/a.txt /m/onto/b.txt /m/onto/c.txt', 'is not a directory');
+      await cmd.shouldFailWith('mv /m/onto/dir /m/onto/c.txt', 'which is not a file');
+      assertEquals((await client.execString('cat /m/onto/c.txt')).trim(), 'c');
     });
 
     await t.step('a trailing slash on the destination names a directory', async () => {
