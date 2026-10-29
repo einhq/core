@@ -203,7 +203,7 @@ with only fact-triggered pipelines therefore receives no raw VFS events at all. 
 those keys rather than binding `system.vfs.#` on purpose — the same reason the archive bridge lists
 its own.
 
-The engine's **own** state — instance nodes, step nodes, `/etc/bashrc`, definitions —
+The engine's **own** state — instance nodes, step nodes, definitions —
 is watched in-process via `vfs.subscribe`, not through the queue. Every step
 transition is a node update, and persisting each one only to read it back was the
 largest single contributor to a 453,437-message backlog during a crawl. Durability
@@ -622,9 +622,9 @@ cooperative teardown before SIGKILL instead of its ten-second default.
 
 Step commands are module binaries (e.g. `exif-extract` in `/usr/modules/archive/bin`), found
 via the engine or pool worker shell's `PATH`. `mod setup` appends each module's `bin/` to
-`/etc/bashrc`, so both source bashrc on start and subscribe to its VFS changes. A module
-set up after boot is therefore visible to already-running inline and delegated pipeline
-steps without restarting either service. Likewise, the engine reloads its pipeline definitions
+`/etc/bashrc`, which their shells source again before the next step after it changes, as they
+do after any settings change. A module set up after boot is therefore visible to
+already-running inline and delegated pipeline steps without restarting either service. Likewise, the engine reloads its pipeline definitions
 when anything under `/var/pipelines/definitions` changes, so `pipeline define` (or a post-boot
 `mod setup`) takes effect without an engine restart.
 

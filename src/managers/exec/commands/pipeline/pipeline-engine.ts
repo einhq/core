@@ -1,5 +1,4 @@
-import { ETC_PATH, PIPELINE_QUEUE_PATH, PIPELINES_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
-import { join } from '@std/path';
+import { PIPELINE_QUEUE_PATH, PIPELINES_PATH, POOLS_PATH } from '../../../../lib/paths.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { EVENTS_ROUTING_KEY, PIPELINE_EVENTS_NODE_PATH } from '../../../../lib/events/mod.ts';
 import { PipelineEngine } from '../../../pipeline/engine.ts';
@@ -9,7 +8,6 @@ import type { CmdReturn } from '../../types.ts';
 export const pipelineEngine = async (cmd: Command): CmdReturn => {
   const pipelinesPath = cmd.env.PIPELINES_PATH || PIPELINES_PATH;
   const queuePath = cmd.env.PIPELINE_QUEUE_PATH || PIPELINE_QUEUE_PATH;
-  const bashrcPath = join(cmd.env.ETC_PATH || ETC_PATH, 'bashrc');
   const maxConcurrent = Number(cmd.env.CFG_PIPELINE_MAX_CONCURRENT) || 4;
   const triggerConcurrency = Number(cmd.env.CFG_PIPELINE_TRIGGER_CONCURRENCY) || 4;
   const consumeConcurrency = Number(cmd.env.CFG_PIPELINE_CONSUME_CONCURRENCY) || 4;
@@ -32,7 +30,6 @@ export const pipelineEngine = async (cmd: Command): CmdReturn => {
     pipelinesPath,
     queuePath,
     routingKeys,
-    bashrcPath,
     maxConcurrent,
     PIPELINE_EVENTS_NODE_PATH,
     cmd.env.POOLS_PATH || POOLS_PATH,

@@ -68,7 +68,8 @@ export default function SettingsPage() {
           <Tabs.Panel value='system'>
             <Stack gap='lg'>
               <Text c='dimmed'>
-                Settings for the whole installation. Changing one restarts whatever reads it, so the change takes effect without a restart of EiN itself.
+                Settings for the whole installation. A change takes effect without a restart of EiN: a service that reads it only when it starts is restarted, and everything
+                else uses it from its next command on.
               </Text>
               {config.error && (
                 <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />}>

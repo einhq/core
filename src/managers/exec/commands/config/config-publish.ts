@@ -31,9 +31,11 @@ export const configPublish = async (cmd: Command): CmdReturn => {
   const rcPath = join(etcPath, 'bashrc');
 
   try {
-    const published = Object.keys(cmd.env).filter((key) => isSettingKey(key) && cmd.env[key]).sort();
+    // The tty's launch environment, not the shell's: that has sourced the settings files too.
+    const launched = cmd.launchEnv;
+    const published = Object.keys(launched).filter((key) => isSettingKey(key) && launched[key]).sort();
     // The shebang has it highlighted as bash, as /etc/bashrc is.
-    const text = ['#!bash\n', ...published.map((key) => `export ${key}=${quoteRcValue(cmd.env[key]!)}\n`)].join('');
+    const text = ['#!bash\n', ...published.map((key) => `export ${key}=${quoteRcValue(launched[key])}\n`)].join('');
 
     // Both are sourced by every shell, so everyone reads them.
     const props = { uid: cmd.access.uid, gid: cmd.access.gid, mode: 0o644 };

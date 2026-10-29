@@ -5,3 +5,4 @@ export * from './rc-file.ts';
 export * from './paths.ts';
 export * from './validate.ts';
 export * from './read-settings.ts';
+export * from './settings-version.ts';

@@ -234,7 +234,6 @@ export class PipelineEngine {
     // Always bound. VFS keys are added per `event:`-form definition, so a system
     // with only domain-triggered pipelines never sees a raw VFS event.
     private routingKeys: string[] = [EVENTS_ROUTING_KEY],
-    private bashrcPath = '/etc/bashrc',
     maxConcurrent = 4,
     private pipelineEventsPath = PIPELINE_EVENTS_NODE_PATH,
     poolsRoot = POOLS_PATH,
@@ -324,12 +323,6 @@ export class PipelineEngine {
     await this.vfs.ensure(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, this.pipelinesPath, 'instances');
 
     await this.loadDefinitions();
-
-    // Pull module bin dirs onto the engine shell's PATH. mod setup appends them to
-    // bashrc; the shell sourced it at open() but that may have raced module setup,
-    // so re-source now that boot is past module setup (and again on change, see
-    // watchInternalNodes). Without this, step commands resolve to 'command not found'.
-    await this.sourceBashrc(true);
 
     // A stop requested during startup must not go on to open the queue and start
     // consuming — unwind now. The command's finally still runs the full stop().
@@ -515,15 +508,6 @@ export class PipelineEngine {
     const instancesPath = join(this.pipelinesPath, 'instances');
 
     this.subscriptions.push(
-      // bashrc changed (e.g. a module was set up after boot) — refresh the engine
-      // shell's PATH so newly added module bins resolve without a restart.
-      await this.vfs.subscribe(() => ADMIN_ACCESS, (event) => {
-        if (event.path !== this.bashrcPath) return;
-        this.schedule('bashrc', () => this.sourceBashrc());
-      }, { eventTypes: ['created', 'updated'] }),
-    );
-
-    this.subscriptions.push(
       // A definition changed (`pipeline define` after boot, or a module set up
       // post-boot) — reload without a restart. Coalesced under one key, so a
       // burst of module setups costs one reload.
@@ -613,22 +597,6 @@ export class PipelineEngine {
     if (!path.startsWith(prefix)) return false;
     const parts = path.slice(prefix.length).split('/').filter(Boolean);
     return parts.length === 4 && parts[2] === 'steps';
-  }
-
-  /**
-   * Source bashrc into the engine shell so module bin dirs are on its PATH.
-   * `startup` logs at info; change-driven re-sources log at debug so the boot
-   * replay of one bashrc write per module doesn't flood the log.
-   */
-  private async sourceBashrc(startup = false): Promise<void> {
-    try {
-      if (!(await this.vfs.exists(ADMIN_ACCESS, this.bashrcPath))) return;
-      await this.tty.run(`source "${this.bashrcPath}"`);
-      if (startup) logger.info('sourced bashrc', { path: this.bashrcPath });
-      else logger.debug('re-sourced bashrc', { path: this.bashrcPath });
-    } catch (err) {
-      logger.error('failed to source bashrc', { error: err });
-    }
   }
 
   /**

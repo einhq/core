@@ -58,7 +58,7 @@ import {
 } from '../../lib/access/mod.ts';
 import type { ShellOrigin } from '../../lib/api/system.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
-import { guestMayBrowse } from '../../lib/config/mod.ts';
+import { guestMayBrowse, listConfigOptions, settingsVersion } from '../../lib/config/mod.ts';
 import { globToRegex, hasGlobChars } from '../../lib/glob/mod.ts';
 import { getMimeFromExt } from '../../lib/media/mod.ts';
 import { createLogger } from '../logger/mod.ts';
@@ -332,6 +332,8 @@ export class Shell implements TtyIf {
   /** Fingerprint of the state last written to the tty node — see `persist`. */
   private persistedState?: string;
   private persistedAt = 0;
+  /** The `settingsVersion` /etc/bashrc was last sourced at — see `refreshSettings`. */
+  private settingsSeen?: number;
 
   constructor(protected config: ShellConfig) {
     this.origin = config.origin ?? 'system';
@@ -648,7 +650,10 @@ export class Shell implements TtyIf {
    * web UI, whose shell opens as guest on connect and logs in afterwards.
    */
   private async sourceBashrc(timer?: StepTimer): Promise<void> {
-    const rcFile = join(this.getEnv().ETC_PATH || ETC_PATH, 'bashrc');
+    const etcPath = this.getEnv().ETC_PATH || ETC_PATH;
+    const rcFile = join(etcPath, 'bashrc');
+    // Taken before reading, so a change while it is read is seen by the next refresh.
+    this.settingsSeen = await settingsVersion(this.config.vfs, etcPath);
     try {
       const exists = await this.config.vfs.exists(this.access!, rcFile);
       timer?.mark('bashrc-exists');
@@ -666,6 +671,47 @@ export class Shell implements TtyIf {
       timer?.mark('bashrc-source');
     } catch {
       // Do nothing
+    }
+  }
+
+  /**
+   * Source /etc/bashrc again when it or a layer it sources has changed since
+   * it was last sourced, so a long-lived shell — a service's, the web UI's —
+   * runs its next command with the settings as they are now.
+   *
+   * Every setting is cleared first, so one the files no longer hold falls
+   * back as in a new shell: to the deployment's value, which
+   * `/etc/environment` holds, or to none. Sourced in a subshell and the
+   * difference copied over at once: a command starting meanwhile on this
+   * shell sees the old settings or the new, never a setting cleared and not
+   * yet read back.
+   */
+  private async refreshSettings(): Promise<void> {
+    if (!this.access) return;
+    const etcPath = this.getEnv().ETC_PATH || ETC_PATH;
+    const version = await settingsVersion(this.config.vfs, etcPath);
+    if (version === undefined || version === this.settingsSeen) return;
+    this.settingsSeen = version;
+
+    const rcFile = join(etcPath, 'bashrc');
+    try {
+      if (!(await this.config.vfs.exists(this.access, rcFile))) return;
+      const before = this.ctx.getEnv();
+      const sub = this.ctx.subContext();
+      sub.setEnv(Object.fromEntries(listConfigOptions().filter((option) => option.type !== 'secret').map((option) => [option.key, null])));
+      await shellSetup.run(true, () => this.executor.execute(`source "${rcFile}"`, sub));
+
+      const after = sub.getEnv();
+      const changed: Record<string, string | null> = {};
+      for (const [name, value] of Object.entries(after)) if (before[name] !== value) changed[name] = value;
+      for (const name of Object.keys(before)) if (!(name in after)) changed[name] = null;
+      this.ctx.setEnv(changed);
+      for (const [name, alias] of Object.entries(sub.getAliases())) {
+        if (this.ctx.getAlias(name) !== alias) this.ctx.setAlias(name, alias);
+      }
+      logger.debug('settings re-read', { tty: this.name, changed: Object.keys(changed) });
+    } catch (error) {
+      logger.error('failed to re-read settings', { tty: this.name, error });
     }
   }
 
@@ -824,7 +870,10 @@ export class Shell implements TtyIf {
       throw new Error('shell is closed');
     }
     // A command running a script passes its own context, and is not someone at the shell.
-    if (!ctx) this.activeAt = Date.now();
+    if (!ctx) {
+      this.activeAt = Date.now();
+      await this.refreshSettings();
+    }
     let runCtx = ctx || this.ctx;
     if (opts.signal) {
       runCtx = runCtx.subContext();
@@ -900,7 +949,10 @@ export class Shell implements TtyIf {
       throw new Error('shell is closed');
     }
     // A request on the shell's own context is someone using it; `cmd.execute` passes a command's.
-    if (ctx === this.ctx) this.activeAt = Date.now();
+    if (ctx === this.ctx) {
+      this.activeAt = Date.now();
+      await this.refreshSettings();
+    }
     if (opts.env || opts.attribution) {
       // A subshell of the caller's context, so the variables and the attribution reach the
       // script and nothing else.

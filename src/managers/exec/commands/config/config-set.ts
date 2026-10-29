@@ -68,7 +68,7 @@ export const configSet = async (cmd: Command): CmdReturn => {
 configSet.spec = {
   name: 'config-set',
   effect: 'write' as const,
-  description: 'Change a setting and restart whatever reads it',
+  description: 'Change a setting and restart the services that read it only at start',
   args: [
     { name: 'key', type: 'string' as const, description: 'setting name' },
     { name: 'value', type: 'string' as const, description: 'new value' },

@@ -1271,18 +1271,27 @@ administrator sets wins. Two modules setting the same key: the later file by nam
 does. `parse-search` and `docs find` read the setting when they run (`readSettings`), not from the
 shell's environment, since the web UI's shell outlives a settings change.
 
-**Changing a setting restarts what reads it.** `config set` runs `service restart` for each
-service the entry names, and only for services that are actually running — a service someone
-stopped is not brought back by a settings change. `http-server` and `ssh-server` name none:
-restarting either from the settings page would drop the connection carrying the request, so their
-entries carry a note saying when the change takes effect instead.
+**A shell re-reads its settings before its next command.** Every write to `/etc/bashrc` or a
+layer it sources counts up a version ([settings-version.ts](../src/lib/config/settings-version.ts));
+a shell given a command on its own context — typed, from the web UI, or a step the pipeline
+engine or a pool worker runs — sources `/etc/bashrc` again first when the version moved since it
+last did. Every setting starts from what the shell was opened with, so one the files no longer
+hold falls back as in a new shell, and the sourcing happens in a subshell whose difference is
+copied over at once, so a step starting meanwhile never sees a setting half re-read. A command
+already running keeps the environment it started with, and so does a script that keeps running:
+a service's loop, and every command it runs.
 
-**A shell's environment is a snapshot**, taken when it opened. That is the right model for a
-service, which is restarted when its setting changes, but the web UI holds one shell per
-connection. Anything that reads a setting as _policy at the moment it is applied_ — the default
-sharing, a person's sharing preference — goes through
-[readSettings](../src/lib/config/read-settings.ts), which reads the files rather than the
-environment, so a change applies in the session that made it. It starts from the caller's
+**Changing a setting restarts what reads it only at start.** An entry names the services that
+read it when they start — a worker's capacity, a service's interval, a loop service's commands
+— and `config set` runs `service restart` for each, and only for services that are actually
+running: a service someone stopped is not brought back by a settings change. `http-server` and
+`ssh-server` name none: restarting either from the settings page would drop the connection
+carrying the request, so their entries carry a note saying when the change takes effect instead.
+
+**Policy is read from the files.** Anything that reads a setting as _policy at the moment it is
+applied_ — the default sharing, a person's sharing preference, from a service's loop as from
+the web UI — goes through [readSettings](../src/lib/config/read-settings.ts), which reads the
+files rather than the environment. It starts from the caller's
 environment, though, which anyone may set on their own command line, so a
 setting that decides what the caller is allowed is read with `readSystemSettings` instead
 (`guestMayBrowse`, `defaultUserGroups`): the files under `/etc` alone, the deployment's included.

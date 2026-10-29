@@ -213,7 +213,13 @@ export class SystemTestHarness {
       sysCore.serviceManager = serviceManager;
       this.serviceManager = serviceManager;
 
-      shell = await shellManager.createSystemShell({ sessionPath: '!/.session-system', env: passwordEnv });
+      // The boot shell is what `service start-all` hands to every service,
+      // so this is the only route by which a test can configure one, a pool
+      // worker included.
+      const settings = { ...testEnvironment(modules), ...passwordEnv, ...this.options.env };
+      // Launched with them, as primary-main launches it with the container's: `config publish`
+      // publishes what the shell was launched with.
+      shell = await shellManager.createSystemShell({ sessionPath: '!/.session-system', env: settings });
       this.primaryShell = shell;
 
       await boot(shell, {
@@ -222,12 +228,7 @@ export class SystemTestHarness {
           EXTERNAL_DEV_MODULES_PATH: MODULES_DIR,
           EXTERNAL_DOCS_PATH: join(import.meta.dirname!, '..', '..', 'docs', 'user'),
           TEST_MODULES: modules.join(' '),
-          // The boot shell is what `service start-all` hands to every service,
-          // so this is the only route by which a test can configure one, a pool
-          // worker included.
-          ...testEnvironment(modules),
-          ...passwordEnv,
-          ...this.options.env,
+          ...settings,
         },
       });
     } else {

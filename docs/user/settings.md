@@ -55,9 +55,12 @@ says only whether one is set, by the deployment or here, and the field takes a
 new one. Unlike other settings, a key is in no shell's environment, and EiN
 sends it only to the address set for its service.
 
-**Changing a setting restarts whatever reads it**, and the page tells you what
-it restarted. Work already running is not lost; it is picked up again when the
-service comes back. Two settings are exceptions: the HTTP and SSH ports cannot
+**A change takes effect without restarting EiN.** A service that reads the
+setting only when it starts is restarted, and the page tells you which; work
+already running is not lost, it is picked up again when the service comes back.
+Everything else uses the new value from its next command on: the next picture
+the pipeline looks for faces in, the next question to the assistant. A command
+already running finishes with the value it started with. Two settings are exceptions: the HTTP and SSH ports cannot
 restart their own server from a web page without cutting the connection you are
 using, so they take effect the next time EiN starts.
 

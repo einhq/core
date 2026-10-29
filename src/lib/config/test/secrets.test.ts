@@ -114,17 +114,28 @@ Deno.test({
       assertEquals(await keyFor({}), undefined);
       assertEquals((await entry()).source, 'default');
     });
-
-    await t.step('config publish leaves a secret out of /etc/environment', async () => {
-      await admin.exec(`${KEY}=${DEPLOYED} ${URL_KEY}=http://ours.example config publish`);
-      const published = await admin.execString('cat /etc/environment');
-      assertStringIncludes(published, URL_KEY);
-      assert(!published.includes(KEY) && !published.includes(DEPLOYED));
-    });
   } finally {
     unregisterConfigOptions('example');
     guest.close();
     admin.close();
     await testCtx.teardown();
+  }
+});
+
+Deno.test({
+  name: 'config publish leaves a secret it was launched with out of /etc/environment',
+  sanitizeResources: false,
+  sanitizeOps: false,
+}, async () => {
+  const launched = createTestContext({ boot: true, env: { [KEY]: DEPLOYED, [URL_KEY]: 'http://ours.example' } });
+  await launched.setup();
+  const admin = await launched.server.createShellClient();
+  try {
+    const published = await admin.execString('cat /etc/environment');
+    assertStringIncludes(published, URL_KEY);
+    assert(!published.includes(KEY) && !published.includes(DEPLOYED));
+  } finally {
+    admin.close();
+    await launched.teardown();
   }
 });

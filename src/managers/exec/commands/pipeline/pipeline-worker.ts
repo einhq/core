@@ -1,5 +1,3 @@
-import { ETC_PATH } from '../../../../lib/paths.ts';
-import { join } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { parseVector } from '../pool/lib.ts';
@@ -45,7 +43,6 @@ export const pipelineWorker = async (cmd: Command): CmdReturn => {
     concurrency,
     kindQuantumMs: flags['kind-quantum'] !== undefined ? Number(flags['kind-quantum']) : Number(cmd.env.CFG_PIPELINE_KIND_QUANTUM_MS) || undefined,
     leaseMs: flags.lease === undefined ? undefined : Number(flags.lease),
-    bashrcPath: join(cmd.env.ETC_PATH || ETC_PATH, 'bashrc'),
   });
 
   await worker.start();

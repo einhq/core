@@ -6,7 +6,6 @@ import { NODE_TYPE_POOL } from '../../vfs/types/pool.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { PoolJob } from '../../registries/pool/mod.ts';
 import type { TtyIf } from '../exec/types.ts';
-import type { EventSubscription } from '../../vfs/types.ts';
 import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
 import { stepErrorDetail, stepErrorLogDetail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
@@ -65,7 +64,6 @@ type PoolWorkerOptions = {
    */
   kindQuantumMs?: number;
   leaseMs?: number;
-  bashrcPath?: string;
 };
 
 /**
@@ -176,8 +174,6 @@ export class PoolWorker {
   /** Since when free slots have been held at a kind boundary, or undefined when they are not. */
   private boundarySince: number | undefined;
   private readonly leaseMs: number;
-  private readonly bashrcPath: string;
-  private bashrcSubscription: EventSubscription | undefined;
 
   constructor(private vfs: NodeVFS, private tty: TtyIf, opts: PoolWorkerOptions) {
     this.poolPath = opts.poolPath;
@@ -191,7 +187,6 @@ export class PoolWorker {
     // Batching needs at least two kinds to rotate between; with one it is a no-op either way.
     this.kindQuantumMs = this.kinds.length > 1 ? Math.max(0, opts.kindQuantumMs ?? 0) : 0;
     this.leaseMs = opts.leaseMs ?? 60_000;
-    this.bashrcPath = opts.bashrcPath ?? '/etc/bashrc';
     this.owner = `${Deno.hostname()}:${Deno.pid}:${crypto.randomUUID().slice(0, 8)}`;
   }
 
@@ -207,11 +202,6 @@ export class PoolWorker {
       reserveKinds: this.reserveKinds,
       reserveCapacity: this.reserveCapacity,
     });
-
-    // Subscribe before the initial read so a module setup racing worker startup cannot land
-    // between the read and the watch. Step commands live in module bin dirs added here.
-    await this.watchBashrc();
-    await this.sourceBashrc(true);
 
     // Ensure the pool exists even if the worker starts before the engine.
     const poolDir = dirname(this.poolPath);
@@ -269,13 +259,6 @@ export class PoolWorker {
     liveWorkers.delete(this.owner);
     const claimed = [...this.inFlight.values()];
     for (const { abort } of claimed) abort.abort();
-
-    if (this.bashrcSubscription) {
-      try {
-        await this.bashrcSubscription.unsubscribe();
-      } catch { /* best effort */ }
-      this.bashrcSubscription = undefined;
-    }
 
     // Nothing below may race a run still writing to its step or job. The wait
     // is bounded: a step that ignores SIGTERM is abandoned after the kill grace.
@@ -1027,26 +1010,5 @@ export class PoolWorker {
       const timer = setTimeout(done, ms);
       signal?.addEventListener('abort', done, { once: true });
     });
-  }
-
-  /** Re-source bashrc whenever post-boot module setup adds another bin directory. */
-  private async watchBashrc(): Promise<void> {
-    if (!this.vfs.subscribe) return;
-
-    this.bashrcSubscription = await this.vfs.subscribe(() => ADMIN_ACCESS, async (event) => {
-      if (event.path !== this.bashrcPath) return;
-      await this.sourceBashrc();
-    }, { eventTypes: ['created', 'updated'] });
-  }
-
-  private async sourceBashrc(startup = false): Promise<void> {
-    try {
-      if (!(await this.vfs.exists(ADMIN_ACCESS, this.bashrcPath))) return;
-      await this.tty.run(`source "${this.bashrcPath}"`);
-      if (startup) logger.info('sourced bashrc', { path: this.bashrcPath });
-      else logger.debug('re-sourced bashrc', { path: this.bashrcPath });
-    } catch (err) {
-      logger.error('failed to source bashrc', { error: err });
-    }
   }
 }

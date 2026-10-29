@@ -94,6 +94,32 @@ Deno.test({
       assertEquals(cleared.source, 'environment');
     });
 
+    await t.step('a shell already open takes a change at its next command', async () => {
+      const open = await testCtx.server.createShellClient();
+      // Read through a marker: an unset variable echoes an empty line, which
+      // the API shell hands back as null rather than as ''.
+      const show = (key: string) => `echo "value=\${${key}:-unset}"`;
+      try {
+        assertEquals((await open.execString(show('CFG_SESSION_EXPIRES_SEC'))).trim(), `value=${DEPLOYED_EXPIRY}`);
+        assertEquals((await open.execString(show('CFG_DEFAULT_SHARE_MODE'))).trim(), 'value=unset');
+
+        await admin.exec('config set CFG_SESSION_EXPIRES_SEC 7200');
+        await admin.exec('config set CFG_DEFAULT_SHARE_MODE 0700');
+        assertEquals((await open.execString(show('CFG_SESSION_EXPIRES_SEC'))).trim(), 'value=7200');
+        assertEquals((await open.execString(show('CFG_DEFAULT_SHARE_MODE'))).trim(), 'value=0700');
+        assertEquals((await admin.execString(show('CFG_DEFAULT_SHARE_MODE'))).trim(), 'value=0700');
+
+        // A cleared setting falls back as in a new shell: to the deployment's
+        // value where it supplies one, and to nothing where it does not.
+        await admin.exec('config unset CFG_SESSION_EXPIRES_SEC');
+        await admin.exec('config unset CFG_DEFAULT_SHARE_MODE');
+        assertEquals((await open.execString(show('CFG_SESSION_EXPIRES_SEC'))).trim(), `value=${DEPLOYED_EXPIRY}`);
+        assertEquals((await open.execString(show('CFG_DEFAULT_SHARE_MODE'))).trim(), 'value=unset');
+      } finally {
+        open.close();
+      }
+    });
+
     await t.step('--scope narrows the list', async () => {
       const user = await admin.execJson<ConfigEntry[]>('config list --scope user');
       assert(user.length > 0);

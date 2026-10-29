@@ -15,12 +15,10 @@ export type SettingsContext = {
 /**
  * Settings as they are *now*, rather than as they were when this shell opened.
  *
- * A shell's environment is a snapshot: `/etc/bashrc` is sourced once, at
- * `Shell.open()`. That is the right model for a service, which is restarted
- * when a setting it reads changes — but the web UI holds one long-lived shell
- * per connection, so an administrator who changes the default sharing group and
- * then opens a sharing dialog would be shown the value from before the change,
- * in the same session that made it.
+ * A shell sources `/etc/bashrc` when it opens and again before the next
+ * command it is given after a settings file changed, but a script that keeps
+ * running — a service's loop — keeps the environment it started with, and so
+ * does every command it runs.
  *
  * So anything that reads a setting as *policy*, at the moment it is applied,
  * reads it through here: the files first, the environment behind them. Two small
