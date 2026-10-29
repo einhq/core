@@ -1,5 +1,6 @@
 import { assertEquals } from '@std/assert';
 import {
+  buildFollowAllCommand,
   buildReferenceCommand,
   buildShareCommand,
   defaultDraft,
@@ -122,6 +123,10 @@ Deno.test('a selection is saved in one share-set, kept apart from the album and 
   const command = buildShareCommand(['/a/1.jpg', '/a/2.jpg'], draft(0o700, [group('none', 'primary')]), { pin: true, dropLinks: true });
   assertEquals(command, "share-set '/a/1.jpg' '/a/2.jpg' --mode 0700 -b --drop-links --pin");
   assertEquals(buildReferenceCommand(['/a/1.jpg'], '/a'), "share-set '/a/1.jpg' --reference '/a' --unpin");
+});
+
+Deno.test('every exception in an album is shared like it in one share-set, those not listed too', () => {
+  assertEquals(buildFollowAllCommand('/a'), "share-set '/a' --pinned-below --reference '/a' --unpin");
 });
 
 Deno.test('visibility is public with a link, restricted short of every account, private for the owner alone', () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ShareDraft, ShareSaveOptions } from '../lib/share.ts';
-import { buildReferenceCommand, buildShareCommand } from '../lib/share.ts';
+import { buildFollowAllCommand, buildReferenceCommand, buildShareCommand } from '../lib/share.ts';
 import { shq } from '../lib/shquote.ts';
 import { execCommand } from '../signals/shell-client.ts';
 import type { ShareInfo, ShareLinkCreated, ShareSetResult } from '@ein/api';
@@ -29,6 +29,8 @@ type UseShareResult = {
   removeLink: (id: string) => Promise<void>;
   /** Share nodes below this one as this one is, and let its changes reach them again. */
   shareLikeThis: (paths: string[]) => Promise<ShareSetResult>;
+  /** Share every node below this one that keeps its own sharing as this one is, those not listed too. */
+  shareAllLikeThis: () => Promise<ShareSetResult>;
   /** Share this node as `reference` is, and let changes from above reach it again. */
   shareLike: (reference: string) => Promise<ShareSetResult>;
 };
@@ -103,6 +105,13 @@ export function useShare(path: string | undefined, enabled = true): UseShareResu
     return result;
   }, [path, refreshParts]);
 
+  const shareAllLikeThis = useCallback(async () => {
+    if (!path) throw new Error('no node to share');
+    const result = await execCommand<ShareSetResult>(buildFollowAllCommand(path));
+    await refreshParts();
+    return result;
+  }, [path, refreshParts]);
+
   const shareLike = useCallback(async (reference: string) => {
     if (!path) throw new Error('no node to share');
     const result = await execCommand<ShareSetResult>(buildReferenceCommand([path], reference));
@@ -110,7 +119,7 @@ export function useShare(path: string | undefined, enabled = true): UseShareResu
     return result;
   }, [path, fetchInfo]);
 
-  return { info, revision, loading, error, save, createLink, setLinkExpiry, removeLink, shareLikeThis, shareLike };
+  return { info, revision, loading, error, save, createLink, setLinkExpiry, removeLink, shareLikeThis, shareAllLikeThis, shareLike };
 }
 
 const parentOf = (path: string): string | undefined => {

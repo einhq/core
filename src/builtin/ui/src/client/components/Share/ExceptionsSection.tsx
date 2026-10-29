@@ -33,21 +33,23 @@ type ExceptionsSectionProps = {
   editable: boolean;
   /** Share these as the node is, and let its changes reach them again. */
   onFollow: (paths: string[]) => Promise<void>;
+  /** The same for every one of them, those not in `exceptions` too. */
+  onFollowAll: () => Promise<void>;
 };
 
 /**
  * What inside the node keeps its own sharing: the photos someone made private in a shared album.
  * The node's sharing, and its links, do not reach them until they are shared like it again.
  */
-export function ExceptionsSection({ exceptions, count, noun, editable, onFollow }: ExceptionsSectionProps) {
+export function ExceptionsSection({ exceptions, count, noun, editable, onFollow, onFollowAll }: ExceptionsSectionProps) {
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const shown = all ? exceptions : exceptions.slice(0, FIRST);
 
-  const follow = async (key: string, paths: string[]) => {
+  const follow = async (key: string, apply: () => Promise<void>) => {
     setBusy(key);
     try {
-      await onFollow(paths);
+      await apply();
     } finally {
       setBusy(null);
     }
@@ -61,13 +63,13 @@ export function ExceptionsSection({ exceptions, count, noun, editable, onFollow 
           {count === 1 ? 'This keeps' : 'These keep'} {count === 1 ? 'its' : 'their'} own sharing: changes to the {noun}'s sharing, and its link, do not reach{' '}
           {count === 1 ? 'it' : 'them'}.
         </Text>
-        {editable && exceptions.length > 1 && (
+        {editable && count > 1 && (
           <Button
             variant='subtle'
             size='compact-xs'
             loading={busy === '*'}
             disabled={busy !== null}
-            onClick={() => follow('*', exceptions.map((each) => each.path))}
+            onClick={() => follow('*', onFollowAll)}
             style={{ flex: 'none' }}
           >
             Share all like the {noun}
@@ -90,7 +92,7 @@ export function ExceptionsSection({ exceptions, count, noun, editable, onFollow 
                 size='compact-xs'
                 loading={busy === exception.path}
                 disabled={busy !== null}
-                onClick={() => follow(exception.path, [exception.path])}
+                onClick={() => follow(exception.path, () => onFollow([exception.path]))}
                 style={{ flex: 'none' }}
               >
                 Share like the {noun}

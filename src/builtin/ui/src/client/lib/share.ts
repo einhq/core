@@ -205,6 +205,9 @@ export const buildShareCommand = (paths: string | readonly string[], draft: Shar
 export const buildReferenceCommand = (paths: readonly string[], reference: string): string =>
   ['share-set', ...paths.map(quote), '--reference', quote(reference), '--unpin'].join(' ');
 
+/** Share every node below `reference` that keeps its own sharing as `reference` is, and let its changes reach them again. */
+export const buildFollowAllCommand = (reference: string): string => ['share-set', quote(reference), '--pinned-below', '--reference', quote(reference), '--unpin'].join(' ');
+
 /**
  * How visible a node is, in the one word a header says it in: `public` when a link opens it or
  * visitors who have not signed in see it, `restricted` when not every account does, `private` when

@@ -403,6 +403,23 @@ Deno.test({
         eve.close();
       }
     });
+
+    await t.step('--pinned-below changes every pinned node below, past the ones share-info lists, and nothing else', async () => {
+      await cmd.shouldSucceed('mkdir -p /exc/sub && share-set /exc --mode 0750');
+      const pinned = Array.from({ length: 52 }, (_, i) => `/exc/sub/${i}.jpg`);
+      for (const path of pinned) await cmd.shouldSucceed(`mkfile ${path} && share-set ${path} --mode 0700 --pin`);
+      await cmd.shouldSucceed('mkfile /exc/plain.jpg && chmod 0700 /exc/plain.jpg');
+      assertEquals((await client.execJson<{ exceptionCount: number; exceptions: unknown[] }>('share-info /exc')).exceptions.length, 50);
+
+      const result = await client.execJson<{ updated: number; failed: number }>('share-set /exc --pinned-below --reference /exc --unpin');
+      assertEquals(result, { ...result, updated: 52, failed: 0 });
+      assertEquals((await client.execJson<{ exceptionCount: number }>('share-info /exc')).exceptionCount, 0);
+      assertEquals((await props('/exc/sub/51.jpg')).mode & 0o777, 0o750);
+      assertEquals((await props('/exc/plain.jpg')).mode & 0o777, 0o700);
+
+      // With none left there is nothing to change, which is not a failure.
+      assertEquals((await client.execJson<{ updated: number }>('share-set /exc --pinned-below --reference /exc --unpin')).updated, 0);
+    });
   } finally {
     client.close();
     await testCtx.teardown();

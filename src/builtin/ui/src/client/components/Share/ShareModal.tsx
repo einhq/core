@@ -280,6 +280,7 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
               noun={noun}
               editable={editable}
               onFollow={(paths) => write(async () => (await share.shareLikeThis(paths), null))}
+              onFollowAll={() => write(async () => (await share.shareAllLikeThis(), null))}
             />
           </ShareSection>
         )}

@@ -7,6 +7,7 @@ import type { Node, NodeAttrsUpdate, NodePropsUpdate } from '../../../../../vfs/
 import type { Command } from '../../../command.ts';
 import type { CmdReturn } from '../../../types.ts';
 import { editAcl, hasAclEdit, resolveAclEdit, type ResolvedAclEdit, resolveGrantee } from './acl-entries.ts';
+import { pinnedBelow } from './pinned.ts';
 import { applySubtree, applySubtrees, type SubtreeResult } from './walk.ts';
 
 /** Refusals kept for the answer across every path; the counts stay exact past this. */
@@ -25,18 +26,22 @@ const MAX_FAILURES = 20;
  * the edit — a share link given to a folder inside — stays. `--reference` gives every node the
  * reference's list as it is.
  *
+ * `--pinned-below` aims all of it at the nodes below each named one that hold their own access,
+ * found by the pin's index, in place of the named node: `share-set <album> --pinned-below
+ * --reference <album> --unpin` shares every exception in an album as the album is.
+ *
  * The pin is written to the **named nodes only**. Pinning a folder is a statement
  * about the folder; stamping it onto every file inside would make the next
  * change from above a no-op, which is the opposite of what was asked.
  */
 export const shareSet = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    boolean: ['b', 'L', 'pin', 'unpin', 'no-recursive', 'strict', 'default-owner', 'drop-links'],
+    boolean: ['b', 'L', 'pin', 'unpin', 'no-recursive', 'strict', 'default-owner', 'drop-links', 'pinned-below'],
     string: ['mode', 'owner', 'group', 'reference'],
     collect: ['m', 'x'],
   });
 
-  const paths = (flags._.length > 0 ? flags._ : ['.']).map((arg) => resolve(cmd.cwd, String(arg)));
+  const named = (flags._.length > 0 ? flags._ : ['.']).map((arg) => resolve(cmd.cwd, String(arg)));
   const resolveOpts = { readlink: flags.L };
   const recursive = !flags['no-recursive'];
 
@@ -90,6 +95,16 @@ export const shareSet = async (cmd: Command): CmdReturn => {
     await cmd.writeError(`share-set: ${message}\n`);
     return 1;
   }
+
+  // `--pinned-below` changes, in place of each named node, the nodes below it that keep their own
+  // sharing; a node pinned below two named ones is changed once.
+  const below = new Set<string>();
+  if (flags['pinned-below']) {
+    for (const path of named) {
+      for await (const hit of pinnedBelow(cmd.sys.vfs, cmd.access, path)) below.add(hit.absPath);
+    }
+  }
+  const paths = flags['pinned-below'] ? [...below] : named;
 
   const interrupt = new AbortController();
   cmd.onInterrupt(() => interrupt.abort());
@@ -181,7 +196,7 @@ export const shareSet = async (cmd: Command): CmdReturn => {
   }
 
   // Refused on every node it was given: nothing changed, and that is this command failing.
-  if (refused === paths.length) {
+  if (paths.length > 0 && refused === paths.length) {
     for (const failure of total.failures) await cmd.writeError(`share-set: ${failure.path}: ${failure.message}\n`);
     return 1;
   }
@@ -255,6 +270,7 @@ shareSet.spec = {
     { name: 'drop-links', type: 'bool' as const, description: "remove the share links' entries too, so no link opens the nodes" },
     { name: 'pin', type: 'bool' as const, description: 'hold this node against access changes made further up' },
     { name: 'unpin', type: 'bool' as const, description: 'let access changes from further up reach this node again' },
+    { name: 'pinned-below', type: 'bool' as const, description: 'change the nodes below each path that hold their own access (--pin), not the path itself' },
     { name: 'no-recursive', type: 'bool' as const, description: 'change only this node, not what is below it' },
     { name: 'strict', type: 'bool' as const, description: 'exit non-zero when any node below could not be changed' },
     { name: 'L', type: 'bool' as const, description: 'do not follow symbolic links' },

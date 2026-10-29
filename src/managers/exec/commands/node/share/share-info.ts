@@ -1,49 +1,26 @@
 import { basename, resolve } from '@std/path';
 import { parseArgs } from '../../../../../lib/args/mod.ts';
-import { ACCESS_PINNED_ATTR, ADMIN_UID, isAdmin, isLinkUid, isPinned, isVisitor, resolveDefaultOwnership, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { ADMIN_UID, isAdmin, isLinkUid, isPinned, isVisitor, resolveDefaultOwnership, verifyAccess } from '../../../../../lib/access/mod.ts';
 import { groupRole } from '../../../../../lib/auth/roles.ts';
 import { guestMayBrowse } from '../../../../../lib/config/mod.ts';
 import { isDefaultShare, levelFromMode, MaskACL, MaskGroup, MaskOther, MaskOwner, sharePreset } from '../../../../../lib/mode/mod.ts';
-import type { NodeQueryCursor } from '../../../../../vfs/mod.ts';
 import type { Command } from '../../../command.ts';
 import type { CmdReturn } from '../../../types.ts';
 import { effectiveAccess, readDirectory } from './effective.ts';
 import { allLinks, describeLink, titleOf, userNames } from './links.ts';
+import { pinnedBelow } from './pinned.ts';
 import { EXCEPTIONS_SHOWN, type ShareException, type ShareGrant, type ShareInfo, type ShareLink } from '../../../../../lib/api/share.ts';
 
-/** Pinned nodes read per query page; few nodes are pinned, so most answers take one. */
-const PINNED_PAGE = 500;
-
-/**
- * The nodes below `path` that keep their own sharing and the caller can read: found through the
- * index on the pin rather than by walking the subtree, since a pin is rare and a subtree is not.
- */
+/** The nodes below `path` that keep their own sharing and the caller can read: the first `EXCEPTIONS_SHOWN` found, and how many there are. */
 const exceptionsBelow = async (cmd: Command, path: string): Promise<{ shown: ShareException[]; count: number }> => {
-  const prefix = path === '/' ? '/' : `${path}/`;
   const shown: ShareException[] = [];
   let count = 0;
-  let after: NodeQueryCursor | undefined;
-
-  for (;;) {
-    const page = await cmd.sys.vfs.query(cmd.access, {
-      where: [{ ref: ACCESS_PINNED_ATTR, op: 'eq', value: true }],
-      ...(after ? { after } : {}),
-      limit: PINNED_PAGE,
-    });
-
-    for (const hit of page) {
-      if (!hit.absPath.startsWith(prefix)) continue;
-      count++;
-      if (shown.length < EXCEPTIONS_SHOWN) {
-        shown.push({ path: hit.absPath, type: hit.node.type, name: basename(hit.absPath), preset: sharePreset(hit.node.props) });
-      }
+  for await (const hit of pinnedBelow(cmd.sys.vfs, cmd.access, path)) {
+    count++;
+    if (shown.length < EXCEPTIONS_SHOWN) {
+      shown.push({ path: hit.absPath, type: hit.node.type, name: basename(hit.absPath), preset: sharePreset(hit.node.props) });
     }
-
-    if (page.length < PINNED_PAGE) break;
-    const last = page[page.length - 1];
-    after = { value: last.sortValue, id: last.id };
   }
-
   shown.sort((a, b) => a.path.localeCompare(b.path));
   return { shown, count };
 };
