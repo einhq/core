@@ -2272,6 +2272,7 @@
           "jsr:@std/assert@^1.0.16",
           "jsr:@std/cli@^1.0.24",
           "jsr:@std/path@^1.1.3",
+          "jsr:@std/yaml@^1.0.11",
           "npm:bson@^6.10.4"
         ]
       }

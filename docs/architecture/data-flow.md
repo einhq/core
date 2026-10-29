@@ -105,9 +105,8 @@ simply off for a pass in which the media service cannot be asked.
 
 Image work downstream of detection is deliberately different: `detect-faces` writes `facesAt` only
 after every face node and crop has been processed, including a zero-face result, and that file
-update derives `media.faces.completed`. `media-face-transfer` starts from this fact, so legacy
-manual-tag transfer sees final face geometry and is independently visible and retryable without
-holding the detection job open. Transcription of video and audio starts from `metadata.extracted`,
+update derives `media.faces.completed`. What needs the final face geometry starts from this fact,
+so it is independently visible and retryable without holding the detection job open. Transcription of video and audio starts from `metadata.extracted`,
 and `media.transcript.generated` (the transcript gaining `transcribedAt`) starts their voices. A
 video's `media.faces.completed` is derived only on the write that sets `facesAt`; on a video whose
 voices came first it ties them to the faces (`media-speaker-faces`), and a face of such a video
@@ -340,7 +339,7 @@ across 25,748 running instances and V8 killed the process on a 2 GB heap.
 
 The gate has **two limits, counting two different costs**. Only inline steps reach
 `dispatchStep`; a `pool:` step is marked `waiting` and handed to `/var/pools/*`, so a
-pipeline whose steps are all delegated (media-faces, media-face-transfer, media-transcribe,
+pipeline whose steps are all delegated (media-faces, media-speaker-faces, media-transcribe,
 media-transcode, media-face-assign) would otherwise be admitted without being counted at
 all. So `inFlight` is bounded by `CFG_PIPELINE_MAX_ADMITTED_STEPS`, and the per-instance
 advance lock — one entry per instance the engine holds open, dropped when an advance
@@ -857,8 +856,7 @@ Upload lands: the PUT handler writes size/sha256/mimetype
                       → bridge derives media.face.detected (one per face)
                         → media-face-assign
                       → bridge derives media.faces.completed (also when zero faces)
-                        → media-face-transfer
-                      → tag-transfer moves legacy regions/manual-N identities onto face regions, deletes the moved tags
+                        → media-speaker-faces, for a video whose voices are already printed
 ```
 
 Nothing in that chain waits on "the previous step finished" — each stage waits on a
