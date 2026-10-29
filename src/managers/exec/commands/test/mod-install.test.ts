@@ -198,6 +198,13 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
         `greet 2.1.0 [installed ${installed.slice(0, 9)}, ${greet!.commit!.slice(0, 9)} published]`,
       );
       assertStringIncludes((await client.exec('JSON_OUTPUT=0 mod search base')).data as string, 'base 1.0.0 [installed]');
+
+      // With no source answering, the failure names each one and why.
+      await client.execString(`config set CFG_MODULE_SOURCES '${forge.url('nobody')}'`);
+      const unanswered = await client.exec('mod search');
+      assertEquals(unanswered.success, false);
+      assertStringIncludes(unanswered.error ?? '', `mod search: ${forge.url('nobody')}: `);
+      await client.execString(`config set CFG_MODULE_SOURCES '${forge.url('nobody')} ${forge.url('acme')}'`);
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {

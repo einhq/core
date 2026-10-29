@@ -94,7 +94,10 @@ export const modSearch = async (cmd: Command): CmdReturn => {
 
   if (cmd.json) {
     await cmd.writeJSON({ modules, failed } satisfies ModuleSearch);
-    return failed.length > 0 && modules.length === 0 && sources.length > 0 ? 1 : 0;
+    if (failed.length === 0 || modules.length > 0 || sources.length === 0) return 0;
+    // Failing, the answer is not read: why goes where the failure is.
+    for (const { source, reason } of failed) await cmd.writeError(`mod search: ${source}: ${reason}\n`);
+    return 1;
   }
 
   for (const { source, reason } of failed) await cmd.writeError(`mod search: ${source}: ${reason}\n`);
