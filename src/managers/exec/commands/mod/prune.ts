@@ -1,4 +1,4 @@
-import { DOCS_MODULES_PATH, PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
+import { PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
@@ -12,8 +12,8 @@ import { unlinkModuleFiles } from './module-links.ts';
  * A module is installed as a link under `/usr/modules` into wherever its code lives — the image,
  * or the dev mount. When a deploy drops a module, the link is left pointing at nothing, and
  * everything `mod setup` registered for it stays: its bin/ line in `/etc/bashrc`, its services —
- * enabled, so every boot tries to start them — its pipeline definitions, its `/var/www`, navigation
- * and docs links. `mod remove` cannot help: it reads the module's own directory to know what to
+ * enabled, so every boot tries to start them — its pipeline definitions, its `/var/www` and
+ * navigation links. `mod remove` cannot help: it reads the module's own directory to know what to
  * undo, and that directory is what went away. And a registration that points outside a module
  * reads as an operator's to `mod setup`, so another module could never take over its name.
  *
@@ -124,15 +124,13 @@ const undoRegistrations = async (cmd: Command, name: string, modulePath: string)
 
   await unlinkModuleFiles(cmd, name, modulePath);
 
-  // The /var/www and docs links, named after the module.
-  for (const parent of [cmd.env.WWW_PATH || WWW_PATH, DOCS_MODULES_PATH]) {
-    const linkPath = join(parent, name);
-    try {
-      const link = await cmd.sys.vfs.get(ADMIN_ACCESS, linkPath, { follow: false });
-      if (typeof link.props.softlink !== 'string' || !link.props.softlink.startsWith(prefix)) continue;
-      await cmd.sys.vfs.unlink(ADMIN_ACCESS, linkPath, parent, { readlink: true });
-    } catch {
-      // Not linked.
-    }
+  // The /var/www link, named after the module.
+  const www = cmd.env.WWW_PATH || WWW_PATH;
+  const linkPath = join(www, name);
+  try {
+    const link = await cmd.sys.vfs.get(ADMIN_ACCESS, linkPath, { follow: false });
+    if (typeof link.props.softlink === 'string' && link.props.softlink.startsWith(prefix)) await cmd.sys.vfs.unlink(ADMIN_ACCESS, linkPath, www, { readlink: true });
+  } catch {
+    // Not linked.
   }
 };

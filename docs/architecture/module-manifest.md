@@ -302,7 +302,6 @@ Some of what a module brings is found by where it is, not by a field:
 | `etc/config`              | linked as `/etc/config.d/<module>`: the module's own choice of settings, sourced before `/etc/config` |
 | `etc/<x>.d/`              | linked as `/etc/<x>.d/<module>`: what it gives whichever module reads `/etc/<x>.d/*` (`assistant.d`)  |
 | `etc/` (the rest)         | copied into `/etc` when not already there, never overwritten                                          |
-| `docs/`                   | linked under `/usr/docs/modules/<name>`: the module's user documentation                              |
 | `lib/`, `types/`, `test/` | ordinary source, reached through `imports` and `exports`                                              |
 | `deno.jsonc`              | generated from `mod.json` by `deno task sync:modules`; never edited                                   |
 

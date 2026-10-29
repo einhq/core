@@ -3,8 +3,6 @@ import { IconAdjustments, IconBinaryTree, IconPuzzle, IconTerminal2, IconVariabl
 import { type ReactNode, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-/** A guide page, by its VFS path. */
-export const docRoute = (path: string): string => `/docs/${encodeURIComponent(path)}`;
 export const commandAnchor = (name: string): string => `cmd-${name}`;
 export const commandRoute = (name: string): string => `/docs/commands#${commandAnchor(name)}`;
 export const moduleRoute = (name: string): string => `/docs/modules/${encodeURIComponent(name)}`;

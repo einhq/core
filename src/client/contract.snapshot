@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.5.1
+MODULE_API_VERSION 0.6.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -28,10 +28,10 @@ src/builtin/ui/src/client/components/mod.ts DialogActions a96f6bc4d6fb @signatur
 src/builtin/ui/src/client/components/mod.ts DialogHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts DialogProps f45489defdac
 src/builtin/ui/src/client/components/mod.ts DialogSize 4930cea5a9f0
-src/builtin/ui/src/client/components/mod.ts DocView 086211fd4fb0 @signature=345c030f9a5c,path=aa6112178522
-src/builtin/ui/src/client/components/mod.ts DocsSearch 455909805700 @signature=8ae46c3df2e4,guide=4220e08b926e,query=38c93561f293
-src/builtin/ui/src/client/components/mod.ts DocsSidebar 635eed77723c @signature=00ad2bddeb22,indexPath=38f029cba769,loading=248c243176bd,onNavigate=baa1abc172f4,tree=bb807c39b57c
-src/builtin/ui/src/client/components/mod.ts DocsSidebarProps 5583fb46606d indexPath=76b1790f14db,loading=dc098a42525d,onNavigate=82d730b55ce2,tree=04e5c4620910
+src/builtin/ui/src/client/components/mod.ts DocView 110184de647a @signature=73151a9db7b9,page=df61a2605513
+src/builtin/ui/src/client/components/mod.ts DocsSearch eacec7f4753c @signature=ba470b507e37,guide=4220e08b926e,query=38c93561f293
+src/builtin/ui/src/client/components/mod.ts DocsSidebar 4e88851f73fb @signature=00ad2bddeb22,guide=4220e08b926e,loading=248c243176bd,onNavigate=baa1abc172f4
+src/builtin/ui/src/client/components/mod.ts DocsSidebarProps cd3c186c8809 guide=1aadab67a01c,loading=dc098a42525d,onNavigate=82d730b55ce2
 src/builtin/ui/src/client/components/mod.ts DrawerButtons 62c1d9608efc @signature=73e6f9df646c,activeColor=4f37d1d67189,iconSize=4033ac489609
 src/builtin/ui/src/client/components/mod.ts DrawerHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts DrawerMenuItems e7506efc7616 @signature=5af85515442f,iconSize=4033ac489609
@@ -58,6 +58,7 @@ src/builtin/ui/src/client/components/mod.ts FormValues d0884e0dbae4
 src/builtin/ui/src/client/components/mod.ts FullscreenHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts GRID_GAP ea376360d1f6
 src/builtin/ui/src/client/components/mod.ts GeoBounds fa41bfcc8bfd east=fb4ff6c4ec0a,north=31b6f63818f1,south=0330942ce773,west=21744fa5482d
+src/builtin/ui/src/client/components/mod.ts GuidePageList b442fdd28ecc @signature=e33cbda23dff,pages=bc771936e8f1
 src/builtin/ui/src/client/components/mod.ts HatField 8baa66824a67 @signature=310418427352,backdrop=75d2e08758d9,kind=c2166ef41324,pattern=1c45d7add5c6
 src/builtin/ui/src/client/components/mod.ts HeaderChoice 8abc5d076ade @signature=036e0ae507b2,disabled=afdef89e0b9b,label=52f9b8b83044,onChange=9f54af0b3372,options=f050aa75715d,value=9c19b817e1d4,variant=fc676df8952b
 src/builtin/ui/src/client/components/mod.ts HeaderChoiceOption f7e4357e5fdc icon=a13250a7ad68,label=af04505f402e,value=5647ee15e4bf
@@ -98,10 +99,10 @@ src/builtin/ui/src/client/components/mod.ts MapTracks 37d7c3f2edf9 @signature=1f
 src/builtin/ui/src/client/components/mod.ts MapTracksProps d0be718fcecf fit=811db48a83a6,follow=0e2746401d99,tracks=4d615d33e78a
 src/builtin/ui/src/client/components/mod.ts MapView 921fbe650a4a @signature=63947a3f1a59,baseLayer=56c1e849fcdc,bounds=d75a319bb661,center=8d95320f9e92,children=f8549eefbbf8,layerSwitcher=178ea4687612,onBaseLayerChange=8acfa9947a7b,onClick=cba05844a02b,onMoveEnd=dca04917469d,style=5dcc17338766,zoom=02225d9982f8
 src/builtin/ui/src/client/components/mod.ts MapViewProps 4f104818ed3f baseLayer=3e43cfa2c9b0,bounds=e68a8ed96ded,center=8ee41b2aa6aa,children=6415c6b05203,layerSwitcher=be40b731da40,onBaseLayerChange=7456c0f951ea,onClick=5a79b83a407d,onMoveEnd=e252bf7d8b9b,style=625c0e59d262,zoom=5bf926d1ae31
-src/builtin/ui/src/client/components/mod.ts Markdown 1ff2ec716be4 @signature=38088c47cbb4,breaks=2862426f30d6,className=757c8b67b7a0,content=8ac8fea942e2,image=f4d3d09d90cd,link=232b5800650e
+src/builtin/ui/src/client/components/mod.ts Markdown fec6c6ad27a2 @signature=38088c47cbb4,breaks=2862426f30d6,className=757c8b67b7a0,content=8ac8fea942e2,headingIds=197160a1d4a8,image=f4d3d09d90cd,link=232b5800650e,renderImage=03ae3eeecd96
 src/builtin/ui/src/client/components/mod.ts MarkdownEditor 0bea8ea7063e @signature=14740d58b620,autoFocus=f0bb1e20a9c2,description=1eca5f329f27,label=52f9b8b83044,minRows=a96f39d722ad,onChange=9f54af0b3372,placeholder=6b504f866977,required=75f38a32e652,value=9c19b817e1d4
 src/builtin/ui/src/client/components/mod.ts MarkdownEditorProps 6b1ec82b3026 autoFocus=78bc6d38f766,description=44bc7438b335,label=995d88c00ff2,minRows=f634024d19e8,onChange=6c8049023f89,placeholder=ceab9a4efe5b,required=e33495947f08,value=5647ee15e4bf
-src/builtin/ui/src/client/components/mod.ts MarkdownProps 57796b999902 breaks=a9a0a5d0c21d,className=2fd87384f8d7,content=ce725f60e741,image=cccfc3532201,link=c4375606d898
+src/builtin/ui/src/client/components/mod.ts MarkdownProps 3bb25ca155cd breaks=a9a0a5d0c21d,className=2fd87384f8d7,content=ce725f60e741,headingIds=d715d033c4ab,image=cccfc3532201,link=c4375606d898,renderImage=48ea1d4f8873
 src/builtin/ui/src/client/components/mod.ts MediaGrid ab079cbfacc6 @signature=654f0e578d84,bleed=67b01c38200b,dragPayload=fff5cfa348ae,focusPath=286b8044e7a0,gap=f6df973881f7,indexOffset=f6b944c3ca1c,items=6d58b7e31872,lightboxItems=57ffe05e876b,loading=a463d53175d7,markPinned=50d4c08063a2,onLayout=e5b6fccf6d9e,onOpen=afa9b1514906,originals=605287cf92dc,renderOverlay=d9276bb8f3fc,selection=4ac0a761f645,square=0356b878b7f7,targetRowHeight=80813a1399e0,tileKeys=4c2cee65c711
 src/builtin/ui/src/client/components/mod.ts MediaGridProps f4edaaac1011 bleed=fdfbdc84617a,dragPayload=d6f58a452657,focusPath=e632035b4b0d,gap=5b976bcc5f07,indexOffset=050eb282b042,items=43b69154bc23,lightboxItems=40faf96c899f,loading=dc098a42525d,markPinned=97e852a7be70,onLayout=02d12764fdea,onOpen=707e45d122cb,originals=7b4f63f2f5df,renderOverlay=94357b284f06,selection=97e3959d26af,square=49d7276795d6,targetRowHeight=89b4088cbabd,tileKeys=7674a328e0f8
 src/builtin/ui/src/client/components/mod.ts MediaGridSkeleton b7c27b2c975d @signature=4816e57e7841,containerWidth=7bc826cbea99,gap=f6df973881f7,itemsPerRow=6c4e93e7a75f,targetRowHeight=80813a1399e0
@@ -201,7 +202,6 @@ src/builtin/ui/src/client/components/mod.ts clusterIcon 83e3c97ea853
 src/builtin/ui/src/client/components/mod.ts commandAnchor f9969fb62c83
 src/builtin/ui/src/client/components/mod.ts commandRoute f9969fb62c83
 src/builtin/ui/src/client/components/mod.ts displayNames 2110bdfa58e9
-src/builtin/ui/src/client/components/mod.ts docRoute a90ef74a89ee
 src/builtin/ui/src/client/components/mod.ts elapsed a820f77ac017
 src/builtin/ui/src/client/components/mod.ts entityKindIcon c3e32905aef3
 src/builtin/ui/src/client/components/mod.ts envAnchor b73d3a4d54b6
@@ -215,7 +215,6 @@ src/builtin/ui/src/client/components/mod.ts nodeTypeColor 3c392a124ac5
 src/builtin/ui/src/client/components/mod.ts numberedPinIcon a55c04e4ceed
 src/builtin/ui/src/client/components/mod.ts pileIcon 85abe50f295b
 src/builtin/ui/src/client/components/mod.ts pinIcon 8bec277e864a
-src/builtin/ui/src/client/components/mod.ts prettify f9969fb62c83
 src/builtin/ui/src/client/components/mod.ts searchResultRoute 91fa00c986dc
 src/builtin/ui/src/client/components/mod.ts settingAnchor 7d2cd6bb37f3
 src/builtin/ui/src/client/components/mod.ts statusColor f703bef40474
@@ -238,7 +237,6 @@ src/builtin/ui/src/client/hooks/mod.ts CommandQueueItem ca1e30e5a494 error=4e465
 src/builtin/ui/src/client/hooks/mod.ts CommandReference 2ef83be47754 module=a18fa72ffaa2,name=6d0c36381511,spec=0c214b035dc8
 src/builtin/ui/src/client/hooks/mod.ts CommandSpec 22e2a35d51f3 admin=e5caa4ef7900,args=e813fe48babe,daemon=246cd9d6fb9f,description=644be3c4d4da,effect=f7d5b5e17e8c,examples=84df1e35c90e,flags=b906855f84f7,group=23881e684876,guest=a56bf333f7e1,json=c94bd9bb3f68,name=6d0c36381511,returns=8685231c9cd2,words=a48e780d3e27
 src/builtin/ui/src/client/hooks/mod.ts CommandTask fbc4e14085eb
-src/builtin/ui/src/client/hooks/mod.ts DocNode 9c5a6704ce0b children=1e0b96df17c9,name=6d0c36381511,path=3fd20668ef6e,type=0b4816ce13a6
 src/builtin/ui/src/client/hooks/mod.ts DropTarget fc417d3f266a over=45cbed97c95d,props=f29eb0d1cca6
 src/builtin/ui/src/client/hooks/mod.ts DropTargetOptions 5695c94a1bf6 accept=c1bf13a06dd7,disabled=31a4a7656b0d,onDrop=473c70abbd2e
 src/builtin/ui/src/client/hooks/mod.ts ENTITY_KINDS e59c52657c7b
@@ -300,8 +298,8 @@ src/builtin/ui/src/client/hooks/mod.ts Surface 7081f248283e close=a70610dbf827,k
 src/builtin/ui/src/client/hooks/mod.ts SurfaceContext 0a752fffac0f
 src/builtin/ui/src/client/hooks/mod.ts UseConfigResult ceddbcf838ab entries=7b3089c1d9ca,error=badebb2f202e,loading=6ab16fe49a65,refetch=e606a4dac3f8,reset=cccae9671ff7,save=3cdf36bc4fb3
 src/builtin/ui/src/client/hooks/mod.ts UseCoverOptions 1f61feaf1347 fallbackRendition=6bfc359cca32,rendition=3bbb84d28c0b,sourcePhoto=7151cb6ee3c1
-src/builtin/ui/src/client/hooks/mod.ts UseDocsResult 6d7c7ca8439b error=badebb2f202e,loading=6ab16fe49a65,refetch=e606a4dac3f8,tree=0e3765a4ea0d
 src/builtin/ui/src/client/hooks/mod.ts UseEntityCompleteResult 564ad7ae61d0 hits=96dbe2689832,loading=6ab16fe49a65
+src/builtin/ui/src/client/hooks/mod.ts UseGuideResult 67f5f75f37cd guide=b77f948d0989,loading=6ab16fe49a65
 src/builtin/ui/src/client/hooks/mod.ts UseLabelsResult c78535763d32 error=badebb2f202e,labels=282800e2a618,loading=6ab16fe49a65,refetch=e606a4dac3f8
 src/builtin/ui/src/client/hooks/mod.ts UseLogFollowOptions d4ccebcaa13c keep=5ce89753f209,paused=7b48c6c6be06,tail=66dae11bbc83
 src/builtin/ui/src/client/hooks/mod.ts UseMentionCompleteResult 5b3031814a17 loading=6ab16fe49a65,suggestions=e54a6e36a033
@@ -327,12 +325,12 @@ src/builtin/ui/src/client/hooks/mod.ts useCommandQueue d20dd21f3e73
 src/builtin/ui/src/client/hooks/mod.ts useCommandReference 51fae67f903b
 src/builtin/ui/src/client/hooks/mod.ts useConfig 74daa24318c8
 src/builtin/ui/src/client/hooks/mod.ts useCover e84f2e58ac22
-src/builtin/ui/src/client/hooks/mod.ts useDocs 1615c754838d
 src/builtin/ui/src/client/hooks/mod.ts useDropTarget ef2d6cb8b294
 src/builtin/ui/src/client/hooks/mod.ts useElementWidth a4f30aa3c2a9
 src/builtin/ui/src/client/hooks/mod.ts useEntityComplete 332e19a07c40
 src/builtin/ui/src/client/hooks/mod.ts useEnvReference 40cc094946b0
 src/builtin/ui/src/client/hooks/mod.ts useEventDrivenData f926fdb19e55
+src/builtin/ui/src/client/hooks/mod.ts useGuide 90d488b7f42d
 src/builtin/ui/src/client/hooks/mod.ts useHeaderHeight 197be745efe7
 src/builtin/ui/src/client/hooks/mod.ts useIdentities 1210adf11ebe
 src/builtin/ui/src/client/hooks/mod.ts useLabels 821370a1c211
@@ -1147,7 +1145,6 @@ src/lib/paths.ts COVER_LINK_NAME f14ec0158712
 src/lib/paths.ts DEV_MODULES_PATH 629098147f14
 src/lib/paths.ts DEV_PATH e1b3604650b4
 src/lib/paths.ts DOCS_GUIDE_PATH 629098147f14
-src/lib/paths.ts DOCS_MODULES_PATH 629098147f14
 src/lib/paths.ts DOCS_PATH 629098147f14
 src/lib/paths.ts ETC_PATH 31d575916b24
 src/lib/paths.ts EVENTS_NODE_PATH 629098147f14

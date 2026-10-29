@@ -2,17 +2,17 @@ import { Alert, Anchor, Badge, Box, Button, Group, Loader, Stack, Table, Tabs, T
 import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DOCS_MODULES_PATH } from '@ein/paths';
 import type { ModuleEntry, ModuleInstallResult, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useConfig } from '../../../hooks/useConfig.ts';
-import { useDocs } from '../../../hooks/useDocs.ts';
+import { useGuide } from '../../../hooks/useGuide.ts';
 import { useCommandReference, useNodeTypeReference } from '../../../hooks/useReference.ts';
 import { usePolledCommand } from '../../../hooks/useSystem.ts';
 import { formatCount, formatUptime } from '../../../lib/format.ts';
 import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
-import { DocView } from '../../Docs/DocView.tsx';
+import { modulePages } from '../../../lib/guide.ts';
+import { GuidePageList } from '../../Docs/ModuleReference.tsx';
 import { moduleRoute } from '../../Docs/reference.tsx';
 import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
 import { Done, Note, PanelHeader, PanelSection, useInlineConfirm } from '../Accounts/PanelParts.tsx';
@@ -255,12 +255,12 @@ function SectionTable({ head, children }: { head: string[]; children: ReactNode 
   );
 }
 
-/** The introduction from the module's guide (`/usr/docs/modules/<name>/index.md`), when it has one. */
+/** The guide's section on the module (its pages under `<name>/`), when the guide has one. */
 function About({ module }: { module: ModuleEntry }) {
-  const { tree, loading } = useDocs(DOCS_MODULES_PATH);
-  const index = tree.find((node) => node.name === module.name)?.children?.find((node) => node.name.toLowerCase() === 'index.md');
+  const { guide, loading } = useGuide();
+  const pages = modulePages(guide, module.name);
   if (loading) return <Loader size='sm' />;
-  return index ? <DocView path={index.path} /> : <Text size='sm' c='dimmed'>It has no guide.</Text>;
+  return pages.length ? <GuidePageList pages={pages} /> : <Text size='sm' c='dimmed'>The guide has no section on it.</Text>;
 }
 
 type DependenciesProps = { module: ModuleEntry; modules: ModuleEntry[]; usedBy: ModuleEntry[]; onOpenModule: (name: string) => void };

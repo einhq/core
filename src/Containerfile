@@ -28,12 +28,32 @@
 #
 # No GPU is passed to this container: the card is EMS's.
 
+# The guide the Docs page shows: einhq.eu's documentation, from the site's repository as DOCS_URL
+# archives it (main by default; a tag's or a fork's archive works as well). Cut down to what its
+# pages need, in the site's layout so their relative links hold: the Markdown and diagrams under
+# docs/, the screenshots they name with their 2x files, and the diagrams' fonts. It is the same on
+# every platform, so it is cut once, on the builder's.
+FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:debian-2.9.6 AS guide
+ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/refs/heads/main.tar.gz
+ADD ${DOCS_URL} /site.tar.gz
+WORKDIR /site
+RUN tar -xzf /site.tar.gz --strip-components=1 \
+  && mkdir -p /guide/assets/fonts \
+  && find docs \( -name '*.md' -o -name '*.svg' \) -exec cp --parents {} /guide/ \; \
+  && cp LICENSE ATTRIBUTION.md /guide/ \
+  && cp assets/fonts/familjen-grotesk-*.woff2 assets/fonts/fragment-mono-*.woff2 assets/fonts/OFL-familjen-grotesk.txt assets/fonts/OFL-fragment-mono.txt /guide/assets/fonts/ \
+  && grep -rhoE 'assets/shots/[^)" ]+\.webp' docs --include='*.md' | sort -u | while read -r shot; do \
+    cp --parents "$shot" /guide/; \
+    if [ -f "${shot%.webp}@2x.webp" ]; then cp --parents "${shot%.webp}@2x.webp" /guide/; fi; \
+  done \
+  && test -f /guide/docs/SUMMARY.md
+
 FROM docker.io/denoland/deno:debian-2.9.6
 
 WORKDIR /app
 
 COPY src src
-COPY docs docs
+COPY --from=guide /guide guide
 COPY deno.jsonc deno.jsonc
 COPY deno.lock deno.lock
 COPY Makefile Makefile

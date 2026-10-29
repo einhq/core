@@ -11,7 +11,7 @@ export * from './usePersistedState.ts';
 export * from './useUrlParam.ts';
 export * from './usePhone.ts';
 export * from './useHeaderHeight.ts';
-export * from './useDocs.ts';
+export * from './useGuide.ts';
 export * from './useLabels.ts';
 export * from './useSelection.ts';
 export * from './useSectionSelection.ts';

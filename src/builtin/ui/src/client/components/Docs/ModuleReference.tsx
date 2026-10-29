@@ -1,13 +1,12 @@
 import { Alert, Anchor, Badge, Box, Card, Group, List, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconAlertTriangle } from '@tabler/icons-react';
-import { DOCS_MODULES_PATH } from '@ein/paths';
 import { type ReactNode, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { type DocNode, useCommandReference, useConfig, useDocs, useEnvReference, useModuleReference, useNodeTypeReference } from '@ein/ui/hooks';
+import { useCommandReference, useConfig, useEnvReference, useGuide, useModuleReference, useNodeTypeReference } from '@ein/ui/hooks';
+import { type GuidePage, guideRoute, modulePages } from '../../lib/guide.ts';
 import { displayNames, EffectBadge } from './CommandReference.tsx';
-import { DocView } from './DocView.tsx';
-import { commandRoute, docRoute, envAnchor, moduleRoute, nodeTypeAnchor, ReferenceIntro, ReferenceSection, settingAnchor } from './reference.tsx';
+import { commandRoute, envAnchor, moduleRoute, nodeTypeAnchor, ReferenceIntro, ReferenceSection, settingAnchor } from './reference.tsx';
 
 const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
@@ -55,36 +54,16 @@ export function ModulesReference() {
   );
 }
 
-/** A module's own markdown, under `/usr/docs/modules/<name>`: its index inline, the rest as links. */
-function ModuleDocs({ name }: { name: string }) {
-  const { tree, loading } = useDocs(DOCS_MODULES_PATH);
-  const root = tree.find((node) => node.name === name);
-  if (loading) return <Loader size='sm' />;
-  if (!root) return null;
-
-  const pages: DocNode[] = [];
-  const walk = (nodes: DocNode[] | undefined) => {
-    for (const node of nodes ?? []) {
-      if (node.type === 'directory') walk(node.children);
-      else if (node.path !== `${root.path}/index.md`) pages.push(node);
-    }
-  };
-  walk(root.children);
-  const hasIndex = root.children?.some((node) => node.name.toLowerCase() === 'index.md');
-
+/** Links to pages of the guide, by their titles. */
+export function GuidePageList({ pages }: { pages: GuidePage[] }) {
   return (
-    <ReferenceSection id='guide' title='Guide'>
-      {hasIndex && <DocView path={`${root.path}/index.md`} />}
-      {pages.length > 0 && (
-        <List spacing={4} mt='sm'>
-          {pages.map((page) => (
-            <List.Item key={page.path}>
-              <Anchor component={Link} to={docRoute(page.path)}>{page.name.replace(/\.md$/i, '').replace(/[-_]/g, ' ')}</Anchor>
-            </List.Item>
-          ))}
-        </List>
-      )}
-    </ReferenceSection>
+    <List spacing={4}>
+      {pages.map((page) => (
+        <List.Item key={page.path}>
+          <Anchor component={Link} to={guideRoute(page.path)}>{page.title}</Anchor>
+        </List.Item>
+      ))}
+    </List>
   );
 }
 
@@ -99,8 +78,10 @@ export function ModuleDetail({ name }: { name: string }) {
   const { entries: settings } = useConfig();
   const { data: env } = useEnvReference();
   const { data: types } = useNodeTypeReference();
+  const { guide } = useGuide();
 
   const module = modules?.find((entry) => entry.name === name);
+  const guidePages = modulePages(guide, name);
   const names = useMemo(() => displayNames(commands ?? []), [commands]);
   const own = {
     commands: (commands ?? []).filter((entry) => entry.module === name).toSorted((a, b) => names.get(a.name)!.localeCompare(names.get(b.name)!)),
@@ -159,7 +140,11 @@ export function ModuleDetail({ name }: { name: string }) {
         {module.description ?? ''}
       </ReferenceIntro>
 
-      <ModuleDocs name={name} />
+      {guidePages.length > 0 && (
+        <ReferenceSection id='guide' title='Guide'>
+          <GuidePageList pages={guidePages} />
+        </ReferenceSection>
+      )}
 
       <ReferenceSection id='commands' title='Commands'>
         {commandsLoading && !commands ? <Loader size='sm' /> : own.commands.length === 0 ? <Text size='sm' c='dimmed'>None.</Text> : (

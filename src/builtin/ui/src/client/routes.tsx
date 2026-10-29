@@ -2,7 +2,7 @@ import { CommandReference, EnvironmentReference, ModulesReference, NodeTypeRefer
 import { Outlet, type RouteObject } from 'react-router-dom';
 import { NotFound, RouteError } from './components/RouteProblem/RouteProblem.tsx';
 import Layout from './Layout.tsx';
-import DocsLayout, { DocPage, DocsIndexPage, ModulePage } from './pages/docs.tsx';
+import DocsLayout, { DocPage, ModulePage } from './pages/docs.tsx';
 import HomePage from './pages/home.tsx';
 import LoginPage from './pages/login.tsx';
 import NodesPage from './pages/nodes.tsx';
@@ -61,14 +61,15 @@ export const routes: RouteObject[] = [{
         </DocsLayout>
       ),
       children: [
-        { index: true, element: <DocsIndexPage /> },
-        { path: ':id', element: <DocPage /> },
+        { index: true, element: <DocPage /> },
         { path: 'commands', element: <CommandReference /> },
         { path: 'environment', element: <EnvironmentReference /> },
         { path: 'modules', element: <ModulesReference /> },
         { path: 'modules/:name', element: <ModulePage /> },
         { path: 'node-types', element: <NodeTypeReference /> },
         { path: 'settings', element: <SettingsReference /> },
+        // Any other path is a page of the guide; the pages above are ranked before it.
+        { path: '*', element: <DocPage /> },
       ],
     },
     // Opened in the dialog from the account menu; it draws its own header there.

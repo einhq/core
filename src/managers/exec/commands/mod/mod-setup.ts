@@ -1,4 +1,4 @@
-import { DOCS_MODULES_PATH, PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
+import { PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
@@ -393,26 +393,6 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
 
   // 6. Link its navigation entries into /etc/ui/nav.d, its settings into /etc/config.d and its drop-ins into /etc/<x>.d
   for (const problem of await linkModuleFiles(cmd, manifest.name, modulePath)) await fail(problem);
-
-  // 7. Link docs/ into the module docs directory
-  const docsPath = join(modulePath, 'docs');
-  if (await cmd.sys.vfs.exists(cmd.access, docsPath)) {
-    const linkPath = join(DOCS_MODULES_PATH, manifest.name);
-
-    // Boot sets the modules up before it creates this directory.
-    await cmd.execute(`mkdir -p ${DOCS_MODULES_PATH}`);
-
-    if (await cmd.sys.vfs.exists(ADMIN_ACCESS, linkPath, { follow: false })) {
-      if (!cmd.json) await cmd.write(`  Docs already linked at ${linkPath}\n`);
-    } else {
-      const res = await cmd.execute(`ln -s ${docsPath} ${linkPath}`);
-      if (res.code !== 0) {
-        await fail(`failed to link docs: ${res.stderr}`);
-      } else {
-        if (!cmd.json) await cmd.write(`  Linked docs at ${linkPath}\n`);
-      }
-    }
-  }
 
   // The `{ ok: true }` JSON belongs to the caller, not here — `--all` sets up many modules and
   // must emit one object, not one per module.

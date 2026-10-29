@@ -226,7 +226,7 @@ export class SystemTestHarness {
         mode: 'test',
         env: {
           EXTERNAL_DEV_MODULES_PATH: MODULES_DIR,
-          EXTERNAL_DOCS_PATH: join(import.meta.dirname!, '..', '..', 'docs', 'user'),
+          EXTERNAL_DOCS_PATH: join(import.meta.dirname!, 'fixtures', 'guide'),
           TEST_MODULES: modules.join(' '),
           ...settings,
         },

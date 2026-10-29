@@ -24,7 +24,6 @@ modules/<name>/
   pipelines/        pipeline definitions (.yaml)
   types/            node attr type definitions
   ui/               its routes (ui.routes) and navigation entries (nav.json)
-  docs/             end-user markdown (symlinked to /usr/docs/modules/<name>)
 ```
 
 **Core is no module.** Core's own commands in bash (`mkdir`, `mkfile`, `mkqueue`, `www` …), its

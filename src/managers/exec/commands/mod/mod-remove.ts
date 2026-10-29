@@ -1,4 +1,4 @@
-import { DOCS_MODULES_PATH, MOD_INSTALL_PATH, MOD_PATH, WWW_PATH } from '../../../../lib/paths.ts';
+import { MOD_INSTALL_PATH, MOD_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { parseArgs } from '../../../../lib/args/mod.ts';
@@ -136,21 +136,6 @@ const undoModuleSetup = async (cmd: Command, modulePath: string, manifestName: s
 
   // 5. Remove its navigation entries and its settings
   await unlinkModuleFiles(cmd, manifestName, modulePath);
-
-  // 6. Remove the /docs/modules docs symlink
-  const docsPath = join(modulePath, 'docs');
-  if (await cmd.sys.vfs.exists(cmd.access, docsPath)) {
-    const docsModulesPath = DOCS_MODULES_PATH;
-    const linkPath = join(docsModulesPath, manifestName);
-    if (await cmd.sys.vfs.exists(ADMIN_ACCESS, linkPath, { follow: false })) {
-      try {
-        await cmd.sys.vfs.unlink(cmd.access, linkPath, docsModulesPath, { readlink: true });
-        if (!cmd.json) await cmd.write(`  Unlinked docs at ${linkPath}\n`);
-      } catch (err) {
-        await cmd.writeError(`  failed to unlink docs: ${(err as Error).message}\n`);
-      }
-    }
-  }
 };
 
 export const modRemove = async (cmd: Command): CmdReturn => {

@@ -74,15 +74,17 @@ directories rather than running `mkdir -p` before queueing.
 
 The docs section has two halves: a written **guide** and a **reference** read from the running installation, under one `EntityDetailHeader` with a search over both.
 
-**The guide** is end-user markdown in the VFS under `/usr/docs` (`$DOCS_PATH`; not the developer docs in this repo's `docs/`). `/usr/docs` is a plain directory (a read-only mount can't host child links), assembled at boot by [08_docs.sh](../../src/init/files/init/primary/08_docs.sh):
+**The guide** is the documentation at einhq.eu/docs, written once in the site's repository (ein/einhq.github.io) and bundled, never a copy kept here. The image's `guide` build stage ([src/Containerfile](../../src/Containerfile)) fetches the site's archive (`DOCS_URL`) and keeps, in the site's layout, `docs/**/*.md`, `docs/diagrams/*.svg`, the screenshots the pages name with their 2x files, and the diagrams' two fonts; boot ([08_docs.sh](../../src/init/files/init/primary/08_docs.sh)) mounts it read-only at `/usr/docs/guide` from `$DOCS_PATH` (`/app/guide` in the image). `make container-run GUIDE_PATH=<site checkout>` mounts a checkout of the site instead. Without one the Docs page links to einhq.eu.
 
 ```
-/usr/docs/
-  guide/            read-only fsmount of repo docs/user (EXTERNAL_DOCS_PATH)
-  modules/<name>/   softlink to the module's docs/ (per module, by `mod setup`)
+/usr/docs/guide/
+  docs/SUMMARY.md      the contents: parts, sections, pages
+  docs/<area>/<page>.md
+  docs/diagrams/*.svg
+  assets/shots/*.webp  assets/fonts/*.woff2
 ```
 
-The docs source is baked into the image ([src/Containerfile](../../src/Containerfile) `COPY docs docs`) and live-mounted in `make container-run` (`docs/user → /docs-dev`). The sidebar walks `guide/` with `ls -l` (`useDocs`); a module's pages are shown on that module's reference page instead. `DocView` reads a body via `GET /file/<path>`, fills `{{host}}`, `{{ssh.port}}`, `{{user}}` and `{{origin}}` with this installation's values (so `ssh-sftp.md` shows commands that work as copied), and `Markdown` renders it with `react-markdown`: relative image/link URLs resolve to `/file` and to other guide pages, an absolute link to anything but a `.md` file is an app route (`/docs/commands`, `/profile?tab=preferences`), and fenced code is highlighted by `HighlightedCode`.
+The sidebar follows `SUMMARY.md` (`useGuide`, [lib/guide.ts](../../src/builtin/ui/src/client/lib/guide.ts)); a page is routed by its path without `.md` (`/docs/shell/ssh-sftp`, an `index.md` by its folder, the welcome page at `/docs`). The site's generated pages — the reference pages and each module section's `commands.md` — are left out: a link to one goes to the live page at the same entry (`liveRoute`), as `reference/settings.md#cfg_x` to `/docs/settings#set-CFG_X`. A section in a part after the first is a module's, so a module's page and its panel list that module's pages. `DocView` reads a page via `GET /file/<path>`; `Markdown` renders it with `react-markdown`, GitHub's heading anchors and `> [!NOTE]` callouts (`plugins.ts`); a relative link resolves to another guide page, a diagram is drawn inline in the bundled fonts with its scripts, handlers and `javascript:` links removed and its ids prefixed, and a screenshot loads with its 2x file.
 
 **The reference** pages (the `docs` routes in [routes.tsx](../../src/builtin/ui/src/client/routes.tsx), [pages/docs.tsx](../../src/builtin/ui/src/client/pages/docs.tsx), components in `components/Docs/`) are generated, never written:
 
@@ -92,7 +94,7 @@ The docs source is baked into the image ([src/Containerfile](../../src/Container
 | Settings    | `/docs/settings`                        | `config list`                                                                                                                                                                                                                                                                |
 | Environment | `/docs/environment`                     | `docs env`: `CORE_ENVIRONMENT` and each module's `mod.json` `environment`, with the caller's shell values (never for `deployment` variables or secret-looking names), plus whatever the shell has set that nothing describes                                                 |
 | Node types  | `/docs/node-types`                      | `docs node-types`: `CORE_NODE_TYPES` and each module's `mod.json` `nodeTypes`, joined with a `vfs.aggregate` count per type, so a type in use but undescribed still shows                                                                                                    |
-| Modules     | `/docs/modules`, `/docs/modules/<name>` | `mod list`, joined in the client with the four above by owner, plus the module's own markdown                                                                                                                                                                                |
+| Modules     | `/docs/modules`, `/docs/modules/<name>` | `mod list`, joined in the client with the four above by owner, and the guide's pages on the module                                                                                                                                                                           |
 
 Each answer is fetched once per page load and shared by every docs page (`useReference.ts`). The header search (`?find=`, not `q`, which the app header's own box reads on every route; `DocsSearch`) ranks every source locally with `textScore` (the `matchesText` rule, name weighted over description, letters-in-order as a last resort) and merges the command index's `find` hits, which search by meaning when EMS can embed. Code is highlighted without an editor: `HighlightedCode` runs the language's CodeMirror parser once and draws `highlightTree`'s ranges as `mrx-tok-*` spans, coloured for both schemes in `theme.css`; a fence without a language is an EiN command line, a small `StreamLanguage` of its own that marks the command word, flags, `KEY=value` prefixes, strings and variables.
 

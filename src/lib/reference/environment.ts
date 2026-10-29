@@ -54,8 +54,9 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   {
     key: 'DOCS_PATH',
     kind: 'deployment',
-    default: './docs/user',
-    description: 'Host directory mounted as the guide at /usr/docs/guide. In a shell the same name is the tree path /usr/docs.',
+    default: './guide',
+    description:
+      'Host directory mounted as the guide at /usr/docs/guide: the documentation at einhq.eu, as the image bundles it or a checkout of the site. Without one the Docs page links to einhq.eu. In a shell the same name is the tree path /usr/docs.',
   },
   {
     key: 'DEV_MODULES_PATH',

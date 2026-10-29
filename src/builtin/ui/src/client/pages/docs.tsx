@@ -1,12 +1,27 @@
-import { Box, Button, CloseButton, Collapse, Container, Flex, Text, TextInput } from '@mantine/core';
+import { Anchor, Box, Button, CloseButton, Collapse, Container, Flex, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconList, IconSearch } from '@tabler/icons-react';
 import { DOCS_GUIDE_PATH } from '@ein/paths';
 import { DocsSearch, DocsSidebar, DocView, EntityDetailHeader, HeaderFilterBar, ModuleDetail } from '@ein/ui/components';
-import { useDocs } from '@ein/ui/hooks';
+import { useGuide } from '@ein/ui/hooks';
 import { type ReactNode, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { PageLoader } from '../components/Layout/PageLoader.tsx';
+import { fileUrl } from '../lib/file-url.ts';
+import { GUIDE_SITE, guidePageOf } from '../lib/guide.ts';
 
 const FIND_PARAM = 'find';
+
+/** The fonts the guide's diagrams are drawn in, from the bundle, so an inline diagram lays out as on the site. */
+const GUIDE_FONTS = [
+  ['Familjen Grotesk', 'familjen-grotesk', '400 700'],
+  ['Fragment Mono', 'fragment-mono', '400'],
+].map(([family, file, weight]) =>
+  ['latin', 'latin-ext'].map((subset) =>
+    `@font-face { font-family: '${family}'; font-weight: ${weight}; font-display: swap; src: url(${
+      fileUrl(`${DOCS_GUIDE_PATH}/assets/fonts/${file}-${subset}.woff2`)
+    }) format('woff2'); }`
+  ).join('\n')
+).join('\n');
 
 /**
  * The docs section: the header every page has, with a search over all of the documentation; the
@@ -15,7 +30,7 @@ const FIND_PARAM = 'find';
  * so a search can be linked and Back returns to it.
  */
 export default function DocsLayout({ children }: { children: ReactNode }) {
-  const { tree, loading } = useDocs(DOCS_GUIDE_PATH);
+  const { guide, loading } = useGuide();
   const [searchParams, setSearchParams] = useSearchParams();
   const [contentsOpen, setContentsOpen] = useState(false);
   // Not `q`: the app header's own search box reads that on every route, and would show this one's words.
@@ -28,10 +43,11 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
     setSearchParams(next, { replace: true });
   };
 
-  const sidebar = <DocsSidebar tree={tree} loading={loading} indexPath={`${DOCS_GUIDE_PATH}/index.md`} onNavigate={() => setContentsOpen(false)} />;
+  const sidebar = <DocsSidebar guide={guide} loading={loading} onNavigate={() => setContentsOpen(false)} />;
 
   return (
     <Box>
+      {guide && <style>{GUIDE_FONTS}</style>}
       <EntityDetailHeader
         title='Documentation'
         pattern='mixed'
@@ -99,7 +115,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
             {sidebar}
           </Box>
           <Box py='lg' style={{ flex: 1, minWidth: 0 }}>
-            {query.trim() ? <DocsSearch query={query} guide={tree} /> : children}
+            {query.trim() ? <DocsSearch query={query} guide={guide} /> : children}
           </Box>
         </Flex>
       </Container>
@@ -107,16 +123,30 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
   );
 }
 
-/** Docs landing: the guide's overview. */
-export function DocsIndexPage() {
-  return <DocView path={`${DOCS_GUIDE_PATH}/index.md`} />;
+/** Without a guide bundled, the landing points at the published one and at what this installation draws itself. */
+function NoGuide() {
+  return (
+    <Stack gap='sm' maw={720}>
+      <Title order={1} fz={28}>Documentation</Title>
+      <Text>
+        The guide to EiN is at <Anchor href={GUIDE_SITE} target='_blank' rel='noreferrer'>einhq.eu/docs</Anchor>; this installation has no copy of its own.
+      </Text>
+      <Text>
+        What is installed here is described on the pages beside this one: the <Anchor component={Link} to='/docs/commands'>commands</Anchor>,{' '}
+        <Anchor component={Link} to='/docs/settings'>settings</Anchor>, <Anchor component={Link} to='/docs/environment'>environment</Anchor>,{' '}
+        <Anchor component={Link} to='/docs/node-types'>node types</Anchor> and <Anchor component={Link} to='/docs/modules'>modules</Anchor>.
+      </Text>
+    </Stack>
+  );
 }
 
-/** The doc addressed by the encoded VFS path in the route. */
+/** A page of the guide, by its route (`/docs/shell/ssh-sftp`); `/docs` itself is the welcome page. */
 export function DocPage() {
-  const { id } = useParams();
-  const path = id ? decodeURIComponent(id) : `${DOCS_GUIDE_PATH}/index.md`;
-  return <DocView path={path} />;
+  const { '*': route = '' } = useParams();
+  const { guide, loading } = useGuide();
+  if (loading) return <PageLoader />;
+  if (!guide) return <NoGuide />;
+  return <DocView page={guidePageOf(guide, route.replace(/\/+$/, ''))} />;
 }
 
 /** One installed module and everything it brings. */

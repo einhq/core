@@ -2716,6 +2716,37 @@ html.mrx-floating .mrx-scrubber {
   scroll-margin-top: calc(var(--app-shell-header-height, 0px) + var(--mrx-stuck-header-height, 0px) + 16px);
 }
 
+/* A guide page's headings are what its links and the search land on. */
+.mrx-guide :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: calc(var(--app-shell-header-height, 0px) + var(--mrx-stuck-header-height, 0px) + 16px);
+}
+
+/* A picture in a guide page, a block though a paragraph holds it: a screenshot at its own width at
+ * most, a diagram at the page's, and the caption centred under either. */
+.mrx-guide-figure {
+  display: block;
+  margin: var(--mantine-spacing-lg) 0;
+  text-align: center;
+}
+.mrx-guide-figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid var(--mantine-color-default-border);
+}
+.mrx-guide-diagram,
+.mrx-guide-diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.mrx-guide-caption {
+  display: block;
+  margin-top: var(--mantine-spacing-xs);
+  font-size: var(--mantine-font-size-sm);
+  color: var(--mantine-color-dimmed);
+}
+
 /* A reference entry the page was opened at (`/docs/commands#cmd-ls`) is marked, briefly:
  * `useScrollToHash` sets the attribute once the entry exists, which `:target` cannot see. */
 .mrx-docs-target[data-targeted] {

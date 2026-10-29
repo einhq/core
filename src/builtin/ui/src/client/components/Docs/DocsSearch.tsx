@@ -1,12 +1,13 @@
 import { Anchor, Badge, Box, Center, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { type DocNode, useCommandFind, useCommandReference, useConfig, useEnvReference, useModuleReference, useNodeTypeReference } from '@ein/ui/hooks';
+import { useCommandFind, useCommandReference, useConfig, useEnvReference, useModuleReference, useNodeTypeReference } from '@ein/ui/hooks';
 import { foldText, queryWords, textScore } from '@ein/ui/lib';
 import { fileUrl } from '../../lib/file-url.ts';
+import { type Guide, GUIDE_ROOT, guideRoute } from '../../lib/guide.ts';
+import { headingAnchor } from '../Markdown/plugins.ts';
 import { displayNames, EffectBadge } from './CommandReference.tsx';
-import { prettify } from './DocsSidebar.tsx';
-import { commandRoute, docRoute, envAnchor, moduleRoute, nodeTypeAnchor, OwnerBadge, settingAnchor } from './reference.tsx';
+import { commandRoute, envAnchor, moduleRoute, nodeTypeAnchor, OwnerBadge, settingAnchor } from './reference.tsx';
 
 const LIMIT = 12;
 /** A `find` score below this is the model guessing: see where it is used. */
@@ -14,25 +15,33 @@ const FIND_FLOOR = 0.45;
 
 type Result = { key: string; score: number; to: string; title: ReactNode; badges?: ReactNode; text?: string };
 
-/** The guide's text, fetched once per page load: a handful of small files, searched as they are. */
-let guideText: Promise<{ path: string; title: string; text: string }[]> | undefined;
+type GuideText = { path: string; title: string; text: string };
 
-const loadGuide = (tree: DocNode[]) => {
-  const files: DocNode[] = [];
-  const walk = (nodes: DocNode[]) => nodes.forEach((node) => node.type === 'directory' ? walk(node.children ?? []) : files.push(node));
-  walk(tree);
-  return Promise.all(files.map(async (file) => {
-    const res = await fetch(fileUrl(file.path));
-    const text = res.ok ? await res.text() : '';
-    return { path: file.path, title: text.match(/^#\s+(.+)$/m)?.[1] ?? prettify(file.name), text };
+/** The guide's text, fetched once per page load when a search first needs it. */
+let guideText: Promise<GuideText[]> | undefined;
+
+const loadGuide = (guide: Guide) =>
+  Promise.all(guide.pages.map(async (page) => {
+    const res = await fetch(fileUrl(`${GUIDE_ROOT}/${page.path}`));
+    return { path: page.path, title: page.title, text: res.ok ? await res.text() : '' };
   }));
-};
 
-/** The line of `text` that best shows why it matched, trimmed of markdown. */
-const snippet = (text: string, query: string): string | undefined => {
+/**
+ * The line of `text` that best shows why it matched, trimmed of markdown, and the anchor of the
+ * heading it is under. Lines in code blocks count, headings do not.
+ */
+const snippet = (text: string, query: string): { line?: string; anchor: string } => {
   const words = queryWords(query);
-  const line = text.split('\n').find((candidate) => !candidate.startsWith('#') && words.some((word) => foldText(candidate).includes(word)));
-  return line?.replace(/[*_`[\]]|\(([^)]*)\)/g, '').trim();
+  let anchor = '';
+  for (const line of text.split('\n')) {
+    const heading = line.match(/^#{2,6}\s+(.+)$/);
+    if (heading) {
+      anchor = headingAnchor(heading[1]);
+      continue;
+    }
+    if (words.some((word) => foldText(line).includes(word))) return { line: line.replace(/[*_`[\]>]|\(([^)]*)\)/g, '').trim(), anchor };
+  }
+  return { anchor: '' };
 };
 
 function ResultList({ title, results, loading }: { title: string; results: Result[]; loading?: boolean }) {
@@ -65,17 +74,17 @@ const best = (results: Result[]): Result[] => results.filter((result) => result.
  * index, by meaning and by words) and by name, settings, variables, node types, modules and the
  * guide's own text.
  */
-export function DocsSearch({ query, guide }: { query: string; guide: DocNode[] }) {
+export function DocsSearch({ query, guide }: { query: string; guide: Guide | null }) {
   const { data: commands, loading: commandsLoading } = useCommandReference();
   const { data: hits, loading: hitsLoading } = useCommandFind(query);
   const { entries: settings } = useConfig();
   const { data: env } = useEnvReference();
   const { data: types } = useNodeTypeReference();
   const { data: modules } = useModuleReference();
-  const [pages, setPages] = useState<{ path: string; title: string; text: string }[]>([]);
+  const [pages, setPages] = useState<GuideText[]>([]);
 
   useEffect(() => {
-    if (!guide.length) return;
+    if (!guide) return;
     guideText ??= loadGuide(guide).catch(() => {
       guideText = undefined;
       return [];
@@ -155,13 +164,16 @@ export function DocsSearch({ query, guide }: { query: string; guide: DocNode[] }
     }))), [modules, query]);
 
   const guideResults = useMemo(() =>
-    best(pages.map((page) => ({
-      key: page.path,
-      score: textScore(page.title, [page.text], query),
-      to: docRoute(page.path),
-      title: page.title,
-      text: snippet(page.text, query),
-    }))), [pages, query]);
+    best(pages.map((page) => {
+      const { line, anchor } = snippet(page.text, query);
+      return {
+        key: page.path,
+        score: textScore(page.title, [page.text], query),
+        to: guideRoute(page.path, anchor),
+        title: page.title,
+        text: line,
+      };
+    })), [pages, query]);
 
   const lists = [
     { title: 'Commands', results: commandResults, loading: (commandsLoading && !commands) || hitsLoading },

@@ -305,14 +305,13 @@ Deno.test({
 
     await t.step('mod setup --all forgets a module whose code is gone, so another can take its service', async () => {
       // What a deploy that drops a module leaves: `/usr/modules/<name>` still links to where the
-      // code was, and its bashrc line, service and docs link are all still registered. `mod remove`
+      // code was, and its bashrc line and service are both still registered. `mod remove`
       // cannot undo it — it reads the module's own directory to know what to undo.
       const source = '/tmp/mod-src/mod-gone';
-      await client.exec(`mkdir -p ${source}/bin ${source}/services/shared-svc ${source}/docs`);
+      await client.exec(`mkdir -p ${source}/bin ${source}/services/shared-svc`);
       await client.exec(`echo '${JSON.stringify({ name: 'mod-gone', version: '0.1.0' })}' > ${source}/mod.json`);
       await client.exec(`echo 'echo gone' > ${source}/bin/gone-hi`);
       await client.exec(`echo 'echo old' > ${source}/services/shared-svc/start.sh`);
-      await client.exec(`echo '# gone' > ${source}/docs/index.md`);
       await cmd.shouldSucceed(`ln -s ${source} ${MOD_PATH}/mod-gone`);
       await cmd.shouldSucceed('mod setup mod-gone');
 

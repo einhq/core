@@ -94,6 +94,9 @@ MODULE_INSTALL_PATH ?= ./modules-installed
 # address, separated by spaces: `INSTALL_MODULES='archive assistant'`. One installed already is
 # left as it is; `mod install` or the settings page updates it.
 INSTALL_MODULES  ?=
+# The guide the Docs page shows: a checkout of the site (ein/einhq.github.io), mounted read-only
+# at /guide-dev, so its pages read as written. Empty keeps the copy the image bundled.
+GUIDE_PATH       ?=
 # Extra flags for the `deno run` that starts the server. Empty leaves the image's own CMD
 # alone; setting it overrides the command, so the flags land between `deno run -A` and the
 # entrypoint. Meant for diagnosis, one run at a time:
@@ -156,10 +159,10 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		-e FILE_TMP_PATH=/files-tmp \
 		-e DEV_MODULES_PATH=/modules-dev \
 		-e MODULE_INSTALL_PATH=/modules-installed \
-		-e DOCS_PATH=/docs-dev \
 		-e TZ=$(TZ) \
 		$(if $(ENV_FILE),--env-file $(ENV_FILE),) \
 		$(if $(INSTALL_MODULES),-e INSTALL_MODULES='$(INSTALL_MODULES)',) \
+		$(if $(GUIDE_PATH),-e DOCS_PATH=/guide-dev -v $(GUIDE_PATH):/guide-dev:ro,) \
 		$(if $(LOG_LEVEL),-e LOG_LEVEL=$(LOG_LEVEL),) \
 		$(if $(LOG_MODULES),-e LOG_MODULES=$(LOG_MODULES),) \
 		-v $(FILE_ROOT_PATH):/files \
@@ -169,7 +172,6 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		-v $(MODULES_PATH):/modules-dev:ro \
 		-v $(MODULE_INSTALL_PATH):/modules-installed \
 		-v $(PWD)/src/builtin/ui/ui:/app/src/builtin/ui/ui:ro \
-		-v $(PWD)/docs/user:/docs-dev:ro \
 		$(IMAGE_NAME) $(DENO_CMD)
 
 container-stop: ## Stop the EiN container

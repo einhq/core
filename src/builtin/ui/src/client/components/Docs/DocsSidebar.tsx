@@ -1,70 +1,67 @@
-import { Loader, NavLink, Text } from '@mantine/core';
+import { Anchor, Loader, NavLink, Text } from '@mantine/core';
+import { IconExternalLink } from '@tabler/icons-react';
 import { Link, useLocation } from 'react-router-dom';
-import { type DocNode, useModuleReference } from '@ein/ui/hooks';
-import { docRoute, moduleRoute, REFERENCE_PAGES } from './reference.tsx';
-
-export function prettify(name: string): string {
-  return name
-    .replace(/\.md$/i, '')
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\bSsh\b/, 'SSH')
-    .replace(/\bSftp\b/, 'SFTP');
-}
-
-/** Label a guide node; the index of a directory is its overview. */
-function label(node: DocNode): string {
-  if (node.type === 'file' && node.name.toLowerCase() === 'index.md') return 'Overview';
-  return prettify(node.name);
-}
-
-function GuideLink({ node, activePath, onNavigate }: { node: DocNode; activePath: string; onNavigate?: () => void }) {
-  if (node.type === 'directory') {
-    // A directory containing the currently-open doc starts expanded.
-    const containsActive = activePath.startsWith(node.path + '/');
-    return (
-      <NavLink label={prettify(node.name)} defaultOpened={containsActive} childrenOffset={16}>
-        {node.children?.map((child) => <GuideLink key={child.path} node={child} activePath={activePath} onNavigate={onNavigate} />)}
-      </NavLink>
-    );
-  }
-  return (
-    <NavLink
-      component={Link}
-      to={docRoute(node.path)}
-      label={label(node)}
-      active={activePath === node.path}
-      onClick={onNavigate}
-      style={{ borderRadius: 6 }}
-    />
-  );
-}
+import { useModuleReference } from '@ein/ui/hooks';
+import { type Guide, GUIDE_SITE, guideRoute } from '../../lib/guide.ts';
+import { moduleRoute, REFERENCE_PAGES } from './reference.tsx';
 
 const Heading = ({ children }: { children: string }) => <Text size='xs' c='dimmed' fw={500} mt='md' mb={4} px='sm' tt='uppercase'>{children}</Text>;
 
+/** The guide's contents as the site's sidebar has them: its parts, each section folded but the one open, a page under the one above indented. */
+function GuideContents({ guide, pathname, onNavigate }: { guide: Guide; pathname: string; onNavigate?: () => void }) {
+  return guide.sections.map((section, i) => {
+    const links = section.pages.map((page) => {
+      const to = guideRoute(page.path);
+      return (
+        <NavLink
+          key={page.path}
+          component={Link}
+          to={to}
+          label={page.title}
+          active={pathname === to}
+          onClick={onNavigate}
+          pl={page.depth ? 12 + 16 * page.depth : undefined}
+          style={{ borderRadius: 6 }}
+        />
+      );
+    });
+    const part = section.part && section.part !== guide.sections[i - 1]?.part ? <Heading key={`part-${section.part}`}>{section.part}</Heading> : null;
+    if (!section.title) return [part, ...links];
+    const here = section.pages.some((page) => pathname === guideRoute(page.path));
+    return [
+      part,
+      <NavLink key={`${section.part}/${section.title}`} label={section.title} defaultOpened={here} childrenOffset={16} style={{ borderRadius: 6 }}>
+        {links}
+      </NavLink>,
+    ];
+  });
+}
+
 export type DocsSidebarProps = {
-  /** The guide's pages. */
-  tree: DocNode[];
+  /** The guide's contents; null when none is bundled here. */
+  guide: Guide | null;
   loading?: boolean;
-  /** The guide's overview, which `/docs` itself shows. */
-  indexPath: string;
   /** Called after a link is followed, so a phone can fold the contents away. */
   onNavigate?: () => void;
 };
 
-/** The docs section's contents: the written guide, then the pages drawn from this installation. */
-export function DocsSidebar({ tree, loading, indexPath, onNavigate }: DocsSidebarProps) {
+/** The docs section's contents: the guide, then the pages drawn from this installation. */
+export function DocsSidebar({ guide, loading, onNavigate }: DocsSidebarProps) {
   const { pathname } = useLocation();
   const { data: modules } = useModuleReference();
-  // A guide page's VFS path is encoded into the route's last segment (/docs/<encoded>); /docs itself is the overview.
-  const activePath = pathname === '/docs' ? indexPath : pathname.startsWith('/docs/') ? decodeURIComponent(pathname.slice('/docs/'.length)) : '';
 
   return (
     <>
-      <Heading>Guide</Heading>
-      {loading ? <Loader size='xs' mx='sm' /> : tree.map((node) => <GuideLink key={node.path} node={node} activePath={activePath} onNavigate={onNavigate} />)}
+      {loading ? <Loader size='xs' mx='sm' mt='md' /> : guide ? <GuideContents guide={guide} pathname={pathname} onNavigate={onNavigate} /> : (
+        <>
+          <Heading>Guide</Heading>
+          <Anchor href={GUIDE_SITE} target='_blank' rel='noreferrer' size='sm' px='sm'>
+            einhq.eu/docs <IconExternalLink size={12} />
+          </Anchor>
+        </>
+      )}
 
-      <Heading>Reference</Heading>
+      <Heading>This installation</Heading>
       {REFERENCE_PAGES.map((page) => {
         const route = `/docs/${page.slug}`;
         const icon = <page.icon size={16} stroke={1.6} />;

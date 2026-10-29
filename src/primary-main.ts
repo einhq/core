@@ -179,7 +179,7 @@ async function main() {
       EXTERNAL_DEV_MODULES_PATH: Deno.env.get('DEV_MODULES_PATH') || resolve(Deno.cwd(), './modules'),
       EXTERNAL_MODULE_INSTALL_PATH: moduleInstallPath,
       INSTALL_MODULES: Deno.env.get('INSTALL_MODULES') ?? '',
-      EXTERNAL_DOCS_PATH: Deno.env.get('DOCS_PATH') || resolve(Deno.cwd(), './docs/user'),
+      EXTERNAL_DOCS_PATH: Deno.env.get('DOCS_PATH') || resolve(Deno.cwd(), './guide'),
       // Every CFG_* the container was launched with, forwarded wholesale.
       //
       // Shells take their environment from /etc/bashrc rather than from this

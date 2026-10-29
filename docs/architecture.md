@@ -294,7 +294,7 @@ before is read": the id is taken when the write is made and the record inserted 
 own transaction, so a transaction that commits late appears after a later id was already read.
 So a follower keeps its place some minutes behind the newest record it read, and the ids it read
 after that place, and reads from there each time; the staging organizer keeps ten minutes
-([auto-albums.md](../modules/archive/docs/auto-albums.md#the-organizer)).
+([auto-albums.md](../modules/archive/architecture/auto-albums.md#the-organizer)).
 
 ### Write-time size and hash tracking
 

@@ -153,10 +153,11 @@ export const LIB_PATH = `${USR_PATH}/lib`;
 export const CORE_BIN_PATH = `${LIB_PATH}/core/bin`;
 export const MOD_PATH = `${USR_PATH}/modules`;
 export const DOCS_PATH = `${USR_PATH}/docs`;
-/** The shipped end-user guide, mounted read-only from the repo's `docs/user`. */
+/**
+ * The guide: einhq.eu's documentation as the site's tree has it (`docs/` its Markdown, `assets/` the
+ * screenshots and fonts it uses), mounted read-only from the host directory `DOCS_PATH` names.
+ */
 export const DOCS_GUIDE_PATH = `${DOCS_PATH}/guide`;
-/** `mod setup` links each module's own docs in as `<name>`. */
-export const DOCS_MODULES_PATH = `${DOCS_PATH}/modules`;
 
 /* ------------------------------------------------------------- /dev, /tmp */
 
