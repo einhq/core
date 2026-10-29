@@ -85,6 +85,20 @@ Deno.test({
       assertEquals((await client.execString('cat /d/onto/old.txt')).trim(), 'new');
     });
 
+    await t.step('cp onto a softlink to a file replaces its target and keeps the link', async () => {
+      await cmd.shouldSucceed('mkdir -p /d/through/real && echo old > /d/through/real/conf.txt && echo new > /d/through/new.txt');
+      await cmd.shouldSucceed('ln -s /d/through/real/conf.txt /d/through/link');
+      await cmd.shouldSucceed('ln -s /d/through/link /d/through/chain');
+
+      await cmd.shouldSucceed('cp /d/through/new.txt /d/through/chain');
+      assertEquals((await client.execString('cat /d/through/real/conf.txt')).trim(), 'new');
+      assertEquals((await client.execJson<{ softlink: string }>('props -L /d/through/chain')).softlink, '/d/through/link');
+      assertEquals((await client.execJson<{ softlink: string }>('props -L /d/through/link')).softlink, '/d/through/real/conf.txt');
+
+      await cmd.shouldFailWith('cp /d/through/real/conf.txt /d/through/link', 'are the same file');
+      assertEquals((await client.execString('cat /d/through/link')).trim(), 'new');
+    });
+
     await t.step('mv renames and moves', async () => {
       await cmd.shouldSucceed('mv /d/copy.txt /d/renamed.txt');
       await cmd.shouldFail('cat /d/copy.txt');
