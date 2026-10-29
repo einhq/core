@@ -9,6 +9,7 @@ import { resolve } from '@std/path';
 import { Pool } from 'pg';
 import { registerPoolStats } from './lib/metrics/runtime.ts';
 import { PriorityPool, updateExtensions } from './lib/pg/mod.ts';
+import { setFirstAdminPassword } from './init/admin-password.ts';
 import { boot } from './init/boot.ts';
 import { SYSTEM_TIME_ZONE } from './lib/datetime/mod.ts';
 import { BufferManager } from './managers/buffer/mod.ts';
@@ -190,6 +191,13 @@ async function main() {
       ...settingsFromEnv(),
     },
   });
+
+  // A new instance's admin password: the deployment's, which it keeps, or a random one printed
+  // here once, where whoever installs the instance reads it. Without a password nobody signs in
+  // as admin, so the services that started during boot are safe until it is set.
+  const adminPassword = await setFirstAdminPassword(vfs, { ...settingsFromEnv(), INITIAL_ADMIN_PASSWORD: Deno.env.get('INITIAL_ADMIN_PASSWORD') });
+  if (adminPassword.set === 'given') console.log('Admin password set to INITIAL_ADMIN_PASSWORD');
+  if (adminPassword.set === 'random') console.log(`Admin password set to: ${adminPassword.password}`);
 
   // Release startup queue — all subscribers are now registered
   routerManager.release();

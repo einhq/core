@@ -13,10 +13,5 @@ user-exists "$GUEST_USERNAME" || user-create "$GUEST_USERNAME" --uid "$GUEST_UID
 
 group-is-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || group-add-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || true
 
-# A new instance's admin password is random and printed to the boot log once;
-# nothing keeps it, so whoever installs the instance reads it there.
-if [ ! -e "$USERS_PATH/$ADMIN_USERNAME/.password" ]; then
-  ADMIN_PASSWORD="$(uuid)"
-  user-passwd "$ADMIN_USERNAME" --new-password "$ADMIN_PASSWORD"
-  echo "Admin password set to: $ADMIN_PASSWORD"
-fi
+# The primary sets a new instance's admin password once boot is through
+# (src/init/admin-password.ts).

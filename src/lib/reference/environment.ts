@@ -78,6 +78,18 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
       'Modules boot installs with `mod install` when they are not installed: names or repository addresses, separated by spaces. One installed already is left as it is; `mod install` and the settings page update it.',
   },
   {
+    key: 'INITIAL_ADMIN_PASSWORD',
+    kind: 'deployment',
+    description:
+      "The admin account's first password, set at the first start of a new instance. Without it that start sets a random one and prints it to the log once. Changing it later does nothing; the account's password is changed in Settings or with `user-passwd`.",
+  },
+  {
+    key: 'INITIAL_ADMIN_PASSWORD',
+    kind: 'deployment',
+    description:
+      "The admin account's first password, set at the first start of a new instance; without it that start sets a random one and prints it to the log once. Changing it later does nothing: the account's password is changed in Settings or with `user-passwd`.",
+  },
+  {
     key: 'TZ',
     kind: 'deployment',
     default: "the host's zone",
