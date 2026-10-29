@@ -13,9 +13,9 @@ ui-nav
 
 ## Your own changes
 
-Write them to `.ui/nav.json` in your home directory, for example with the
-[code editor](/system/nodes) or from the terminal. Name an entry by its id and give only what
-should be different; reload the page to see it.
+Write them to `.ui/nav.json` in your home directory. Neither the folder nor the file is there
+until you make them; in the terminal, `mkdir -p ~/.ui` and then `edit ~/.ui/nav.json`. Name an
+entry by its id and give only what should be different; reload the page to see it.
 
 Rename Albums and move it to the top of its group, and hide Map:
 
@@ -45,18 +45,19 @@ Add a page of your own, here a search you use often, to the Explore group:
 A top-bar button is an entry under `"topbar"` with a `title` (its tooltip), an `icon` and an
 `action`: `{ "navigate": "/map" }` opens a page, `{ "dialog": "/people/new" }` opens one in a dialog
 over the page, `{ "drawer": "/chat" }` in the panel at the side, `{ "fullscreen": "/map" }` over the
-whole screen until Back or Escape, and `{ "run": "<a command>" }` runs a command. Entries that name
-another as their `parent` become rows of its dropdown, the way **Create** is made: its rows (Album,
-Person, Location, Device, Import media) are each a module's entry with `"parent": "ui.create"`. Rows
+whole screen until Back or Escape, and `{ "run": "<a command>" }` runs a command, with `"navigate"`
+beside it going where the command's answer says. Entries that name another as their `parent` become
+rows of its dropdown, the way **Create** is made: its rows (Import media, Album, Person, Location,
+Device) are each a module's entry with `"parent": "ui.create"`. Rows
 with `"parent": "ui.account"` go in the menu under your picture, beside **Favourites**. A button
 with `"place": "search"` stands beside the search box, as **Random album** does, rather than with
 the others on the right.
 
 A button or a dropdown's row can have a key, `"shortcut": "alt+R"`, which does what choosing it does
-from anywhere outside a text field: modifiers (`alt`, `shift`, `ctrl`, and `mod` for Ctrl, or Cmd on
-a Mac) and one key, joined by `+`. **Random album** has Alt+R. The key shows in the button's tooltip,
-beside the row and in the list `?` opens. A key already taken — by another entry, or by the app itself
-(Ctrl+K, Alt+T and the terminal's other keys) — is not given twice,
+from anywhere outside a text field: modifiers (`alt`, `shift`, `ctrl`, `meta`, and `mod` for Ctrl,
+or Cmd on a Mac) and one key, joined by `+`. **Random album** has Alt+R. The key shows in the
+button's tooltip, beside the row and in the list `?` opens. A key already taken — by another entry, or by the app itself
+(Ctrl+K, `?`, Alt+T and the terminal's other keys) — is not given twice,
 and `"shortcut": null` takes a module's key away.
 
 If something you wrote does not show, `ui-nav` says why: a missing field, a group that does not

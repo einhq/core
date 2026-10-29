@@ -1,7 +1,7 @@
 # The node tree
 
 Everything in EiN is a **node** in a single tree, like files and folders —
-hence the name, _Everything Is a Node_.
+hence the name, _Everything is a Node_.
 Every node has a **type** that decides what it holds and how it behaves: an
 album, a photo, a person, a location. You mostly meet them through the interface
 without naming them, but knowing the shape helps when you browse the tree in the
@@ -13,6 +13,8 @@ people and locations come from modules.
 
 ## Where things are
 
+Albums, people, locations, devices and staging are there with the archive module.
+
 | Path                  | What is there                                                |
 | --------------------- | ------------------------------------------------------------ |
 | `/archive/albums`     | Albums, and the photos and videos in them                    |
@@ -22,8 +24,10 @@ people and locations come from modules.
 | `/archive/tags`       | Labels, one folder per label                                 |
 | `/home/<you>`         | Your own space: settings, shell history, staging             |
 | `/home/<you>/staging` | New files to sort, by category, before they join the library |
+| `/etc`                | Accounts, groups, settings and services                      |
 | `/usr`                | Commands, modules and this documentation                     |
 | `/var`, `/dev`        | What the system writes as it runs: logs, queues, jobs        |
+| `/tmp`                | Temporary files, removed after a day by default              |
 
 In the shell the system's folders have variables, so `cd $LOGS_PATH` works wherever they
 live; the [Environment](/docs/environment) page lists them all.
@@ -41,8 +45,8 @@ to what carries it. How two people are related is a pair of links too.
 Like files on a computer, every node has an owner, a group, and permissions that
 decide who can read or change it, written the way `chmod` writes them (`0750`).
 A node may also grant access to further users or groups. The **Share** button on
-an album, person or location sets all of this without the numbers; see
-[Default sharing](settings.md#default-sharing) for what a new album starts with.
+an album, person, location or device, and **Share** in a photo's menu, set all of this
+without the numbers; see [Default sharing](settings.md#default-sharing) for what a new album starts with.
 
 ## Sharing
 
@@ -67,8 +71,8 @@ an album, person or location sets all of this without the numbers; see
   the corner of a photo, or of a folder, marks one that keeps its own sharing.
 
 The chip under an album's title says how visible it is, and opens the same dialog: _Public_ (green)
-when a link opens it, or visitors without an account see it; _Restricted_ (orange) when not
-everyone with an account can see it; _Private_ (red) when only its owner can. An album everyone
+when a link opens it, or visitors without an account see it while **Visitors may browse** is
+on; _Restricted_ (orange) when not everyone with an account can see it; _Private_ (red) when only its owner can. An album everyone
 with an account can see, as most are, has no chip.
 
 ## What you cannot see

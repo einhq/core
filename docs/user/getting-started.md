@@ -4,19 +4,23 @@ This page walks through the first things you'll do in EiN.
 
 ## Signing in
 
-Open EiN in your browser and sign in with the username and password you were
-given. A fresh installation has an administrator account, `admin`, whose
-password is generated on first start and printed once to the server's log;
-change it to one of your own with `user passwd` once you are in.
+Open EiN in your browser and sign in with the username (or e-mail address) and
+password you were given. A fresh installation has an administrator account,
+`admin`, whose first password the installation gives it: the installer prints it
+when it is done, and without one EiN makes up a password and prints it once to the
+server's log. Change it to one of your own once you are in: **Profile**, under
+your picture at the top right, then the **Security** tab, or `user-passwd admin`
+in the terminal.
 
-Where the administrator has opened the archive to visitors (**Visitors may browse**, under
-Settings → Users and sharing), you can look around without signing in: you see what is shared
-with everyone, and **Sign in** at the top right takes you to the form when you want more.
+Where the administrator has opened the archive to visitors (**Visitors may browse**, on the
+**Permissions** tab of Settings), you can look around without signing in: you see what is shared
+with visitors, and **Sign in** at the top right takes you to the form when you want more.
 
 ## Finding your way around
 
 The menu on the left — behind the menu button on a phone — is your main
-navigation:
+navigation. What is in it depends on the modules installed; with the archive and
+the assistant it holds:
 
 - **Home** — this day in earlier years, what people added lately, and the birthdays and anniversaries around today.
 - **Chat** — ask the assistant about the archive in your own words.
@@ -24,10 +28,11 @@ navigation:
 - **Search**, **Year** and **Map** — find content across everything.
 - **Albums**, **People**, **Locations** and **Devices** — browse the archive by
   what it is about; a device's page shows the route it recorded.
-- **Nodes**, **Dashboard**, **Statistics** and **Documentation** — the tree
-  itself, how the system is doing, how the archive has grown, and these pages.
-  The Dashboard opens on one word for how things stand: healthy, catching up,
-  stuck or needs a person. After an upload it reads "catching up" until every
+- **Settings**, **Statistics** and **Documentation** — your preferences and
+  the installed modules, how the archive has grown, and these pages. An
+  administrator also has **Nodes** and **Dashboard**: the tree itself, and how
+  the system is doing. The Dashboard opens on one word for how things stand:
+  healthy, catching up, stuck or needs a person. After an upload it reads "catching up" until every
   photo and video has been looked at; nothing needs doing unless it says
   "stuck" or "needs a person" for long.
 
@@ -45,10 +50,11 @@ profile and your trash.
 
 ## Uploading photos and files
 
-Open the album (or folder) you want to add to and use the **Upload** control.
-You can drag files straight onto the page. EiN stores each file as a node and,
-for photos and videos, generates thumbnails and reads embedded information such
-as the date and location automatically.
+Open an album you may change and choose **Upload** in its header, or drag files
+straight onto the page: they go into that album. **Upload** on the Media page, like
+**Import media**, puts them in your Staging to be sorted first. EiN stores each
+file as a node and, for photos and videos, generates thumbnails and reads
+embedded information such as the date and location automatically.
 
 Behind the scenes an upload is a file written to a path under the album, for
 example `/archive/albums/Holidays 2019/beach.jpg`. You normally never need to think about

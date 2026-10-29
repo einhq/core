@@ -14,7 +14,9 @@ You need:
   in to the web interface with.
 
 The commands below are filled in for this installation and for you, so they can
-be copied as they are. Once you have [put your key in EiN](#signing-in-with-a-key),
+be copied as they are. The port is the one EiN listens on; where the machine
+publishes SSH on another one, as the installer's `EIN_SSH_PORT` can, use that
+one instead. Once you have [put your key in EiN](#signing-in-with-a-key),
 you are no longer asked for the password.
 
 ## Signing in with a key
@@ -33,8 +35,9 @@ running shell commands that EiN's shell does not have.
 
 The key is kept in `~/.ssh/authorized_keys` in your home in EiN, one key per
 line, and you can add or remove lines there yourself. EiN only trusts that file
-while no one but you can change it — `~/.ssh` must be mode `700` and the file
-`600` (`ssh-copy-id -s` sets both) — since anyone able to write to it could
+while no one but you can change it — the file, `~/.ssh` and your home must each
+be yours (or the administrator's), not writable by group or others, and not
+links (`ssh-copy-id -s` leaves `~/.ssh` at `700` and the file at `600`) — since anyone able to write to it could
 sign in as you. Lines with options in front of the key (`command="…"` and the
 like) are ignored.
 
@@ -87,7 +90,11 @@ get lighthouse.jpg
 
 Uploading a photo over SFTP into an album is the same as uploading it in the
 web interface: EiN makes its thumbnails and reads its date and position the
-same way.
+same way. Files copied into a category of your staging, whose folder the
+**Import media** dialog shows, wait there to be sorted like any upload.
+
+EiN has no `rsync` of its own, so `rsync` straight to EiN over SSH does not
+work. Mount EiN with sshfs and use `rsync` on the mount instead.
 
 ## What looks different over SFTP
 
@@ -95,8 +102,8 @@ A photo in EiN keeps things of its own — its EXIF data, the faces found in
 it, its thumbnails — and a file cannot hold other files in an ordinary file
 system. Those live in a hidden folder named after the photo with `_` added:
 the things belonging to `beach.jpg` are in `beach.jpg_`. It is not listed, so
-copying an album with `cp -r` or rsync copies the photos without them, but you
-can go into it by typing its name (`cd beach.jpg_`) and look around and download
+copying an album with `cp -r`, or with rsync on an sshfs mount, copies the
+photos without them, but you can go into it by typing its name (`cd beach.jpg_`) and look around and download
 at any depth. Nothing in it can be changed over SFTP. Removing the photo removes
 it too.
 
@@ -108,8 +115,8 @@ size changes are refused.
 
 Links — an album's cover, a picture added to an album, a person tagged in a
 photo — appear as symbolic links, and following one takes you to what it points
-to. A copy made with `cp -r` or rsync therefore copies the link rather than
-everything behind it. `ln -s` in `sftp` makes a new link, and removing a link
+to. A copy made with `cp -r` or rsync on a mount therefore copies the link
+rather than everything behind it. `ln -s` in `sftp` makes a new link, and removing a link
 removes only the link, never what it points to.
 
 A link's target is a path in EiN, such as `/archive/people/anna-andersson`. When
@@ -182,8 +189,10 @@ mount --save /mnt/nas sftp "host=nas.local,user=anna,path=/srv/photos"
 `--save` mounts it again after every restart. Options: `host`, `port`, `user`,
 `path` (the folder on the other machine), `key` (another key file), `hostkey`
 (accept only this key, given as its `SHA256:` fingerprint), `uid`/`gid` (who
-owns the files here) and `readonly`. The mount logs in with the administrator's
-key, which should not have a passphrase, since the mount reconnects on its own.
+owns the files here) and `readonly`. The mount logs in with the key in the
+`~/.ssh` of whoever runs `mount` (the administrator's when it is mounted again at
+start), as the same user name unless `user` gives another. That key should not
+have a passphrase, since the mount reconnects on its own.
 `unmount --save /mnt/nas` removes it for good.
 
 A mounted folder is a plain mirror: its files get no thumbnails or other
@@ -194,8 +203,7 @@ in.
 
 - Paths are the same ones you see in the interface and the shell, such as
   `/archive/albums/<album name>/<file>`. Quote paths that contain spaces.
-- An account that must choose a new password cannot sign in over SSH, even
-  with a key, until it has: sign in to the web interface once and set one there
-  first.
+- An account waiting for a new password cannot sign in at all, over SSH or on
+  the web, even with a key, until an administrator sets one.
 - Access is governed by the same permissions as the rest of EiN — you can
   only see and change what your account is allowed to.

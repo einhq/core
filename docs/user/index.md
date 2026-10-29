@@ -1,6 +1,6 @@
 # EiN documentation
 
-Welcome to EiN — _Everything Is a Node_ — a place to gather and document the
+Welcome to EiN — _Everything is a Node_ — a place to gather and document the
 story of people's lives: photos, texts, events, and the locations and moments they
 belong to.
 
@@ -37,9 +37,10 @@ open them, so they always match what is running.
 - **[Node types](/docs/node-types)** — every kind of node, and how many there are.
 - **[Modules](/docs/modules)** — what is installed, and what each module brings.
 
-The search at the top of the page looks through all of it at once. For
-commands it searches by meaning as well as by name: _restart the web server_
-finds `service restart`.
+The search at the top of the page looks through all of it at once. Commands are
+found by the words in their names and descriptions, and with the assistant and
+the media service installed by meaning as well: _restart the web server_ finds
+`service-restart`.
 
 ## How this documentation works
 
@@ -47,3 +48,6 @@ The guide lives inside EiN itself, under `/usr/docs/guide`, written in
 Markdown and mounted from the EiN source, so it stays in step with the version
 you are running. Each module can ship its own pages too; they appear on that
 module's page under **Modules**.
+
+The full documentation, for everyone who uses or runs EiN, is at
+<https://einhq.eu/docs/>.

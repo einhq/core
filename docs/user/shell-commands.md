@@ -1,6 +1,6 @@
 # Using the shell
 
-EiN includes a small, bash-like **shell** for working with the node tree
+EiN includes a **shell** that speaks bash, for working with the node tree
 directly. You can reach it from the terminal panel in the UI or over
 [SSH](ssh-sftp.md). It's optional — everything important can be done from the
 graphical interface — but the shell is handy for browsing, searching, and
@@ -19,7 +19,7 @@ node, `..` is the parent, and you move around with `cd`.
 | `edit`         | Edit a text file in the terminal ([Editing files](#editing-files)).                                                   |
 | `cp`           | Copy a node.                                                                                                          |
 | `mv`           | Move or rename a node.                                                                                                |
-| `rm`           | Remove a node (`rm -r` for a directory and its contents).                                                             |
+| `rm`           | Delete a node for good (`rm -r` for one with anything in it); `trash put` keeps it restorable.                        |
 | `mkdir`        | Create a directory.                                                                                                   |
 | `du`           | Sum file sizes below paths (`du -chs *` for human-readable summaries and a total).                                    |
 | `find`         | List nodes under a path, optionally filtered.                                                                         |
@@ -40,7 +40,9 @@ node, `..` is the parent, and you move around with `cd`.
 | `top`          | Watch the system live ([Watching the system](#watching-the-system)).                                                  |
 | `ps`, `who`    | What is running now, and who is signed in.                                                                            |
 
-Combine steps with `&&`, for example:
+`timeline`, `dayinhistory`, `latest`, `album-span`, `album-cover`, `device-cover` and `album-stack`
+come with the archive module, and `news`, `events` and `onthisday` gather what the installed
+modules tell. Combine steps with `&&`, for example:
 
 ```
 cd /archive/albums && ls -l
@@ -49,13 +51,13 @@ cd /archive/albums && ls -l
 ## Getting help
 
 Every command accepts `--help` to show its options, and tab completion fills in
-command names and paths as you type. The **[Commands](/docs/commands)** page
+command names, paths, options, users and groups as you type. The **[Commands](/docs/commands)** page
 lists every command on your PATH with its options and examples, and the search
 at the top of the documentation finds one by what it does:
 
 ```
 search --help
-assistant-commands find 'restart a service'
+docs find 'restart a service'
 ```
 
 Add `JSON_OUTPUT=1` in front of a command to get its answer as JSON, which is
@@ -85,8 +87,11 @@ error asks first.
 | ^G             | Go to a line, or `line:column`                          |
 | ^Z, ^Y         | Undo, redo                                              |
 | ^K, ^U         | Cut the line (cuts in a row collect), paste             |
-| Ctrl+←, Ctrl+→ | Move by word                                            |
+| Ctrl+←, Ctrl+→ | Move by word (Alt+← and Alt+→ too)                      |
 | Home, End      | Start of the text on the line (again: of the line), end |
+| ^A, ^E         | The same as Home and End                                |
+| Ctrl+Home/End  | Start, end of the file                                  |
+| Tab            | Indent                                                  |
 | Esc            | Cancel a question                                       |
 
 ## Watching the system
@@ -95,17 +100,19 @@ error asks first.
 graph of the last few minutes, memory and how quickly the server answers, free disk space, the
 work the pipelines are doing and what is being processed right now, the commands running, who
 is signed in, the services, and the latest warnings from the system log. Green, amber and red
-mean the same as on the System page: amber from 75%, red from 90%. On a small terminal the
+mean the same as on the Dashboard: amber from 75%, red from 90%. On a small terminal the
 least important panels are left out.
 
-| Keys         | What they do                                          |
-| ------------ | ----------------------------------------------------- |
-| q (or ^C)    | Quit                                                  |
-| ↑ ↓, PgUp/Dn | Scroll the list of commands                           |
-| s            | Sort the commands: newest, oldest, by user or by name |
-| + and -      | Update less or more often (`top -d 5` starts at 5 s)  |
-| p            | Pause, so a list can be read; again to go on          |
-| Space        | Update now                                            |
+| Keys         | What they do                                             |
+| ------------ | -------------------------------------------------------- |
+| q (or ^C)    | Quit                                                     |
+| ↑ ↓, PgUp/Dn | Scroll the list of commands (j and k, Home and End too)  |
+| s            | Sort the commands: newest, oldest, by user or by command |
+| + and -      | Update less or more often (`top -d 5` starts at 5 s)     |
+| p            | Pause, so a list can be read; again to go on             |
+| Space        | Update now                                               |
+
+Without a terminal, as in `ssh host 'top'`, it prints one picture and ends; `top -n 3` prints three.
 
 `ps` lists the commands running now, with the `pid` that `kill` takes, and `who` lists who is
 signed in — over SSH, in a terminal panel or in the web interface — the address each connects
@@ -115,9 +122,11 @@ the one in `$!`, and killing it stops the whole job.
 
 `health` says in one line whether the system is **healthy** (nothing waiting), **catching up**
 (work waiting and getting done), **stuck** (work waiting and none of it done in the last hour) or
-**needs a person**, and lists the checks that decide it: each kind of work with something
-waiting, failed work, and what the media service reports about itself. `pool-stat` shows each kind of work in detail: how much is
-left, how fast it goes, how long the oldest has waited, and why a kind is not moving. `gauges`
+**needs a person** (a check failed), and lists the checks that decide it: each kind of work with
+something waiting, failed work, steps that have gone quiet, queue entries that were dropped, and
+what services such as the media service and the language model report about themselves. A warning
+does not change the word: the system can be healthy with one. `pool-stat` shows each kind of work
+in detail: how much is left, how fast it goes, how long the oldest has waited, and why a kind is not moving. `gauges`
 prints the meters services add beside the machine's own, such as the graphics card's memory.
 
 ## A few tips
