@@ -1331,8 +1331,9 @@ Two WebSocket modes on `/__shell`:
 
 - **Interactive** — raw bytes piped to xterm.js. Browser terminals include a validated `terminalId`;
   the HTTP server keys the shell by `(sessionPath, terminalId)` and keeps it alive for
-  `CFG_TERMINAL_RECONNECT_GRACE_SEC` (300 seconds by default) after the socket detaches. A permanent
-  output pump feeds `@xterm/headless` while nobody is connected, preventing pipe backpressure and
+  `CFG_TERMINAL_RECONNECT_GRACE_SEC` (300 seconds by default, read from the settings at each detach)
+  after the socket detaches. A permanent output pump feeds `@xterm/headless` while nobody is
+  connected, preventing pipe backpressure and
   retaining 1,000 lines of screen/scrollback state. Before opening those sockets, browser pages
   arbitrate ownership of their terminal workspace over `BroadcastChannel`: reloads retain it, while
   a concurrently opened tab that inherited a copy of `sessionStorage` replaces the copied terminal

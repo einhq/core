@@ -1,6 +1,7 @@
 import HeadlessXterm from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { ADMIN_ACCESS, GUEST_UID } from '../../../lib/access/mod.ts';
+import { readSettings } from '../../../lib/config/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { InteractiveShell } from '../../../managers/shell/interactive-shell.ts';
 import type { ResourceHandleIf } from '../../../registries/types.ts';
@@ -103,9 +104,14 @@ export class InteractiveTerminalRegistry {
   private disposed = false;
   private sessionWatch: Promise<EventSubscription | undefined>;
 
+  /**
+   * `reconnectGraceMs` fixes the grace; without it, each disconnect reads
+   * `CFG_TERMINAL_RECONNECT_GRACE_SEC` from the settings as they are then, so a
+   * change applies from the next disconnect without restarting the server.
+   */
   constructor(
     private config: InteractiveTerminalRegistryConfig,
-    private reconnectGraceMs = terminalReconnectGraceMs(config.env),
+    private reconnectGraceMs?: number,
   ) {
     this.sessionWatch = this.watchSessions().catch((error) => {
       logger.error('interactive terminals cannot follow logouts', { error: errorMessage(error) });
@@ -128,7 +134,7 @@ export class InteractiveTerminalRegistry {
     if (!pending) {
       const created = RetainedInteractiveTerminal.create(
         { ...this.config, sessionPath },
-        this.reconnectGraceMs,
+        () => this.graceMs(),
         () => this.remove(key, created),
       );
       pending = created;
@@ -201,6 +207,16 @@ export class InteractiveTerminalRegistry {
     }
   }
 
+  private async graceMs(): Promise<number> {
+    if (this.reconnectGraceMs !== undefined) return this.reconnectGraceMs;
+    const settings = await readSettings({ sys: { vfs: this.config.vfs }, env: this.config.env }, ADMIN_ACCESS, { user: false })
+      .catch((error) => {
+        logger.error('terminal reconnect grace falls back to the environment', { error: errorMessage(error) });
+        return this.config.env;
+      });
+    return terminalReconnectGraceMs(settings);
+  }
+
   private remove(key: string, pending: Promise<RetainedInteractiveTerminal>): void {
     if (this.terminals.get(key) === pending) this.terminals.delete(key);
   }
@@ -237,7 +253,7 @@ class RetainedInteractiveTerminal {
 
   private constructor(
     private config: ShellWebSocketHandlerConfig,
-    private reconnectGraceMs: number,
+    private reconnectGraceMs: () => Promise<number>,
     private onEnd: () => void,
   ) {
     this.terminal.loadAddon(this.serializer);
@@ -250,7 +266,7 @@ class RetainedInteractiveTerminal {
 
   static async create(
     config: ShellWebSocketHandlerConfig,
-    reconnectGraceMs: number,
+    reconnectGraceMs: () => Promise<number>,
     onEnd: () => void,
   ): Promise<RetainedInteractiveTerminal> {
     const terminal = new RetainedInteractiveTerminal(config, reconnectGraceMs, onEnd);
@@ -353,15 +369,20 @@ class RetainedInteractiveTerminal {
     const resumable = this.attachment!.resumable;
     this.attachment = undefined;
 
-    if (!resumable || this.reconnectGraceMs === 0) {
+    const graceMs = resumable ? await this.reconnectGraceMs() : 0;
+    // A browser may have reattached, or the shell ended, while the grace was read.
+    if (this.attachment || this.closed) return;
+
+    if (graceMs === 0) {
       await this.close('timeout');
       return;
     }
 
+    clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => {
       this.closeTimer = undefined;
       this.close('timeout').catch((error) => logger.error('terminal expiry failed', { error: errorMessage(error) }));
-    }, this.reconnectGraceMs);
+    }, graceMs);
   }
 
   close(reason: CloseReason): Promise<void> {

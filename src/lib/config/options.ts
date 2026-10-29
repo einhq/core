@@ -52,9 +52,9 @@ export const CORE_OPTIONS: ConfigOption[] = [
     type: 'number',
     default: '300',
     label: 'Terminal reconnect grace',
-    description: 'How long an interactive terminal survives without a browser connection, allowing reloads and short network interruptions to reattach.',
+    description:
+      'How long an interactive terminal survives without a browser connection, allowing reloads and short network interruptions to reattach. A change applies from the next disconnect.',
     group: 'Sessions',
-    restarts: ['http-server'],
   },
   {
     key: 'CFG_SESSION_REAP_INTERVAL',

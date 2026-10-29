@@ -159,6 +159,28 @@ Deno.test({
         }
       });
 
+      await t.step('a changed grace applies from the next disconnect', async () => {
+        const { sessionPath } = await harness.createHttpSession();
+        const registry = new InteractiveTerminalRegistry(config);
+        const admin = await harness.createShellClient();
+        try {
+          const first = await registry.attach(sessionPath, 'tab-grace', new ProbePeer(), { resumable: true });
+          await first.detach();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          const secondPeer = new ProbePeer();
+          const second = await registry.attach(sessionPath, 'tab-grace', secondPeer, { resumable: true });
+          assertEquals(secondPeer.restore().resumed, true);
+
+          await admin.exec('config set CFG_TERMINAL_RECONNECT_GRACE_SEC 0');
+          await second.detach();
+          assertEquals(await ttyNames(primary.vfs, sessionPath), []);
+        } finally {
+          await admin.exec('config unset CFG_TERMINAL_RECONNECT_GRACE_SEC');
+          admin.close();
+          await registry.dispose();
+        }
+      });
+
       await t.step('the same terminal id is isolated by HTTP session', async () => {
         const firstSession = await harness.createHttpSession();
         const secondSession = await harness.createHttpSession();
