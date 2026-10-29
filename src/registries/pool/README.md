@@ -105,7 +105,7 @@ if (job) {
 
 A terminal job stays as a row until `purge()` deletes it; the `pipeline-pruner` service purges every pool hourly, keeping a day. The PostgreSQL purge deletes in batches of 5000 by ascending id, each batch its own transaction, so a backlog of a million rows is many short deletes rather than one that holds its locks for minutes.
 
-Each batch also adds what it deleted, per kind and state, to the `_pools_tally` table in the same statement, and `stat()` reads live rows and tally together in one statement. So `counts.done` and `counts.failed` include purged jobs and do not fall when a purge runs, which is what lets the metrics sampler difference them into throughput. `retry()` is the one thing that lowers them, by sending finished jobs back to `ready`. The live count is served by the `(pool_id, state, kind)` index alone.
+The PostgreSQL counts live in the `_pools_count` table, kept by statement-level triggers on the jobs table: each insert or update adds its net change per pool, kind and state, and a delete changes nothing. So `counts.done` and `counts.failed` include purged jobs and do not fall when a purge runs, which is what lets the metrics sampler difference them into throughput. `retry()` is the one thing that lowers them, by sending finished jobs back to `ready`; truncating a pool on open subtracts its jobs. `stat()` reads a few rows per kind and state whatever the pool's size: each count is spread over 16 slot rows, one per backend modulo 16, so concurrent claims rarely wait on one row, and the rows are written in key order so they cannot deadlock. The oldest ready job of each kind comes from the `(pool_id, kind, created_at)` index on ready jobs.
 
 ## Notes
 

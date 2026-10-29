@@ -42,6 +42,12 @@ const AGING_BATCH = 1000;
 /** Jobs deleted per statement by `purge`. */
 const PURGE_BATCH = 5000;
 
+/**
+ * Rows each (pool, kind, state) count is spread over. A writer adds to the row
+ * of its backend, so concurrent claims rarely wait on one counter row.
+ */
+const COUNT_SLOTS = 16;
+
 /** Unique violation — a concurrent claimer won the exclusivity class. */
 const UNIQUE_VIOLATION = '23505';
 
@@ -114,9 +120,9 @@ export class PgPoolRegistry implements PoolRegistryIf {
     return `${this.tablePrefix}_job`;
   }
 
-  /** Purged jobs per (pool, kind, state); see {@link purge}. */
-  private get tallyTable(): string {
-    return `${this.tablePrefix}_tally`;
+  /** Jobs per (pool, kind, state), purged ones included; see {@link tally}. */
+  private get countTable(): string {
+    return `${this.tablePrefix}_count`;
   }
 
   private get jobsChannel(): string {
@@ -172,7 +178,17 @@ export class PgPoolRegistry implements PoolRegistryIf {
     const { truncate } = await ensureResource(this, id, opts, mode);
 
     if (truncate) {
-      await this.pool.query(`DELETE FROM ${this.jobsTable} WHERE pool_id = $1`, [id]);
+      // A purge's delete leaves the counts alone; this one takes the jobs out of them.
+      await this.pool.query(
+        `
+        WITH del AS (DELETE FROM ${this.jobsTable} WHERE pool_id = $1 RETURNING kind, state)
+        INSERT INTO ${this.countTable} (pool_id, kind, state, slot, n)
+        SELECT $1, kind, state, pg_backend_pid() % ${COUNT_SLOTS}, -COUNT(*) FROM del
+         GROUP BY kind, state ORDER BY kind, state
+        ON CONFLICT (pool_id, kind, state, slot) DO UPDATE SET n = ${this.countTable}.n + EXCLUDED.n
+        `,
+        [id],
+      );
     }
 
     const io: PoolIO = {
@@ -518,13 +534,13 @@ export class PgPoolRegistry implements PoolRegistryIf {
   }
 
   /**
-   * Delete terminal jobs in batches, banking each batch into the tally table.
+   * Delete terminal jobs in batches.
    *
    * Batched by ascending id so each batch is a short transaction of its own: a
    * first purge after a backlog once deleted 780k rows in one statement and held
    * it for minutes under a crawl. Old jobs have low ids, so the batches find them
-   * first. The delete and the bank are one statement, so `done` and `failed`
-   * in {@link stat} never fall, which is what makes them usable as rates.
+   * first. Deletes do not change the counts, so `done` and `failed` in
+   * {@link stat} never fall, which is what makes them usable as rates.
    */
   async purge(id: string, opts?: PoolPurgeOptions): Promise<number> {
     const states = opts?.state === undefined ? ['done', 'failed', 'cancelled'] : Array.isArray(opts.state) ? opts.state : [opts.state];
@@ -545,11 +561,7 @@ export class PgPoolRegistry implements PoolRegistryIf {
               ORDER BY id
               LIMIT $5
            )
-          RETURNING id, kind, state
-        ), banked AS (
-          INSERT INTO ${this.tallyTable} (pool_id, kind, state, count)
-          SELECT $1, kind, state, COUNT(*) FROM del GROUP BY kind, state
-          ON CONFLICT (pool_id, kind, state) DO UPDATE SET count = ${this.tallyTable}.count + EXCLUDED.count
+          RETURNING id
         )
         SELECT COUNT(*)::int AS n, MAX(id) AS last FROM del
         `,
@@ -597,18 +609,24 @@ export class PgPoolRegistry implements PoolRegistryIf {
   }
 
   /**
-   * Live jobs plus purged ones, per kind and state.
+   * Jobs per kind and state, purged ones included, and the oldest ready job of each kind.
    *
-   * One statement, so the live rows and the tally come from one snapshot: read
-   * apart, a purge committing in between would count its batch twice for one
-   * reading, and the next one would look like a fall.
+   * The counts are kept by the triggers on the jobs table, so this reads at most
+   * {@link COUNT_SLOTS} rows per kind and state however many jobs the pool holds.
    */
   private async tally(id: string): Promise<ReturnType<typeof tallyCounts>> {
     const result = await this.pool.query<{ kind: string; state: PoolJobState; count: string; oldest: Date | null }>(
       `
-      SELECT kind, state, COUNT(*) AS count, MIN(created_at) AS oldest FROM ${this.jobsTable} WHERE pool_id = $1 GROUP BY kind, state
-      UNION ALL
-      SELECT kind, state, count, NULL FROM ${this.tallyTable} WHERE pool_id = $1
+      WITH c AS (
+        SELECT kind, state, SUM(n) AS count FROM ${this.countTable} WHERE pool_id = $1
+         GROUP BY kind, state HAVING SUM(n) <> 0
+      )
+      SELECT kind, state, count,
+             CASE WHEN state = 'ready' THEN (
+               SELECT MIN(created_at) FROM ${this.jobsTable} j
+                WHERE j.pool_id = $1 AND j.kind = c.kind AND j.state = 'ready'
+             ) END AS oldest
+        FROM c
       `,
       [id],
     );
@@ -859,6 +877,79 @@ export class PgPoolRegistry implements PoolRegistryIf {
     }
   }
 
+  /**
+   * The count table and the triggers that keep it.
+   *
+   * Each statement on the jobs table adds its net change per (pool, kind, state)
+   * to its backend's slot: an insert counts its rows, an update moves them from
+   * their old state to their new one. A delete changes nothing, so purged jobs
+   * stay counted; truncating a pool subtracts its jobs itself. The rows are
+   * written in key order, so two statements never lock each other's in reverse.
+   *
+   * A count table created beside existing jobs starts from them. Creating the
+   * triggers locks the jobs table against writes until the schema commits, so
+   * no job is counted twice or missed.
+   */
+  private async createCounts(client: PoolClient): Promise<void> {
+    const exists = await client.query<{ t: string | null }>(`SELECT to_regclass($1)::text AS t`, [this.countTable]);
+
+    await client.query(`DROP TABLE IF EXISTS ${this.tablePrefix}_tally`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.countTable} (
+        pool_id VARCHAR(26) NOT NULL REFERENCES ${this.poolsTable}(id) ON DELETE CASCADE,
+        kind    TEXT        NOT NULL,
+        state   TEXT        NOT NULL,
+        slot    SMALLINT    NOT NULL,
+        n       BIGINT      NOT NULL,
+        PRIMARY KEY (pool_id, kind, state, slot)
+      )
+    `);
+
+    const add = (changes: string) => `
+      INSERT INTO ${this.countTable} (pool_id, kind, state, slot, n)
+      SELECT pool_id, kind, state, pg_backend_pid() % ${COUNT_SLOTS}, SUM(n) FROM (${changes}) d
+       GROUP BY pool_id, kind, state HAVING SUM(n) <> 0
+       ORDER BY pool_id, kind, state
+      ON CONFLICT (pool_id, kind, state, slot) DO UPDATE SET n = ${this.countTable}.n + EXCLUDED.n
+    `;
+
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.jobsTable}_count_insert() RETURNS trigger AS $$
+      BEGIN
+        ${add('SELECT pool_id, kind, state, 1 AS n FROM new_rows')};
+        RETURN NULL;
+      END; $$ LANGUAGE plpgsql
+    `);
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.jobsTable}_count_update() RETURNS trigger AS $$
+      BEGIN
+        ${add('SELECT pool_id, kind, state, 1 AS n FROM new_rows UNION ALL SELECT pool_id, kind, state, -1 FROM old_rows')};
+        RETURN NULL;
+      END; $$ LANGUAGE plpgsql
+    `);
+
+    // Transition tables allow one event per trigger.
+    await client.query(`DROP TRIGGER IF EXISTS ${this.jobsTable}_count_insert ON ${this.jobsTable}`);
+    await client.query(`
+      CREATE TRIGGER ${this.jobsTable}_count_insert AFTER INSERT ON ${this.jobsTable}
+        REFERENCING NEW TABLE AS new_rows
+        FOR EACH STATEMENT EXECUTE FUNCTION ${this.jobsTable}_count_insert()
+    `);
+    await client.query(`DROP TRIGGER IF EXISTS ${this.jobsTable}_count_update ON ${this.jobsTable}`);
+    await client.query(`
+      CREATE TRIGGER ${this.jobsTable}_count_update AFTER UPDATE ON ${this.jobsTable}
+        REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+        FOR EACH STATEMENT EXECUTE FUNCTION ${this.jobsTable}_count_update()
+    `);
+
+    if (exists.rows[0].t === null) {
+      await client.query(`
+        INSERT INTO ${this.countTable} (pool_id, kind, state, slot, n)
+        SELECT pool_id, kind, state, 0, COUNT(*) FROM ${this.jobsTable} GROUP BY pool_id, kind, state
+      `);
+    }
+  }
+
   private async createSchema(): Promise<void> {
     const client = await this.pool.connect();
 
@@ -948,23 +1039,19 @@ export class PgPoolRegistry implements PoolRegistryIf {
           ON ${this.jobsTable} (pool_id, created_at) WHERE state = 'ready'
       `);
 
-      // Kind last, so the per-kind count in `tally` is read from the index
-      // alone, and purge still has its (pool_id, state) prefix.
-      await client.query(`DROP INDEX IF EXISTS ${this.jobsTable}_pool_state_idx`);
+      // The oldest ready job of each kind, for `tally`.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_kind_age_idx
+          ON ${this.jobsTable} (pool_id, kind, created_at) WHERE state = 'ready'
+      `);
+
+      // Listing and purging a pool's jobs by state, and by kind within it.
       await client.query(`
         CREATE INDEX IF NOT EXISTS ${this.jobsTable}_pool_state_kind_idx
           ON ${this.jobsTable} (pool_id, state, kind)
       `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.tallyTable} (
-          pool_id VARCHAR(26) NOT NULL REFERENCES ${this.poolsTable}(id) ON DELETE CASCADE,
-          kind    TEXT        NOT NULL,
-          state   TEXT        NOT NULL,
-          count   BIGINT      NOT NULL,
-          PRIMARY KEY (pool_id, kind, state)
-        )
-      `);
+      await this.createCounts(client);
 
       // Notify only on a real transition. A predicate as loose as
       // `NEW.state = 'ready'` would emit a notification per aged row, thousands

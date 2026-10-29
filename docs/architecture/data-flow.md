@@ -790,8 +790,8 @@ Management commands:
   pool and then `--keep 2000 --max 2000 --budget 15m` — before it existed nothing ran
   prune at all, and `media-ingest` reached 24,427 instances in one directory. The
   purge goes first because it is cheap (batches of 5000 rows, each its own
-  transaction, banked into the pool's tally so `done` never falls) and it shrinks
-  the tables every claim and pool count reads; behind an 80-minute instance prune
+  transaction, and a delete leaves the pool's counts alone so `done` never falls) and
+  it shrinks the tables every claim reads; behind an 80-minute instance prune
   the trigger pool once waited at 1.34 M rows. Size `--max` against the _completion_
   rate: removing an instance costs ~278 ms (recursive unlink of the instance, its
   `steps` dir and one node per step), and at the original 500 the pruner removed

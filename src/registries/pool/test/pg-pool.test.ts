@@ -72,7 +72,7 @@ pgTest('PgPoolRegistry resolves concurrent adds of one dedup key to one job', as
   }
 });
 
-pgTest('PgPoolRegistry purges a backlog in batches and banks every one', async () => {
+pgTest('PgPoolRegistry purges a backlog in batches and its counts stay', async () => {
   const ctx = pgTestContext();
   const registry = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
 
@@ -135,6 +135,88 @@ pgTest('PgPoolRegistry re-adding a waiting job with nothing new writes nothing',
     assertEquals((await registry.jobs('readd')).length, 1);
   } finally {
     await registry.dispose();
+    await ctx.teardown();
+  }
+});
+
+/** Live jobs per kind and state, counted over the rows themselves. */
+async function liveCounts(ctx: ReturnType<typeof pgTestContext>, pool: string): Promise<Record<string, number>> {
+  const result = await ctx.pool.query<{ key: string; n: number }>(
+    `SELECT kind || '/' || state AS key, COUNT(*)::int AS n FROM ${ctx.prefix}_pools_job WHERE pool_id = $1 GROUP BY kind, state`,
+    [pool],
+  );
+  return Object.fromEntries(result.rows.map((row) => [row.key, row.n]));
+}
+
+function byKindState(stat: { byKind: Record<string, Record<string, number>> }): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [kind, counts] of Object.entries(stat.byKind)) {
+    for (const [state, n] of Object.entries(counts)) {
+      if (state !== 'total' && n !== 0) out[`${kind}/${state}`] = n;
+    }
+  }
+  return out;
+}
+
+pgTest('PgPoolRegistry counts stay exact under concurrent workers', async () => {
+  const ctx = pgTestContext();
+  const registry = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
+
+  try {
+    await registry.init();
+    await registry.touch('busy', { backoffMs: 0 });
+    for (let i = 0; i < 120; i++) {
+      await registry.add('busy', { kind: i % 2 === 0 ? 'a' : 'b' });
+    }
+
+    // Each worker takes jobs until none is left, ending each one a different way.
+    const worker = async (owner: string) => {
+      for (let n = 0;; n++) {
+        const job = await registry.claim('busy', { owner });
+        if (!job) return;
+        if (n % 5 === 0) await registry.release('busy', job.id, owner);
+        else if (n % 7 === 0) await registry.fail('busy', job.id, owner, 'boom', { terminal: true });
+        else await registry.complete('busy', job.id, owner);
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, (_, i) => worker(`w${i}`)));
+
+    const stat = await registry.stat('busy');
+    assertEquals(byKindState(stat), await liveCounts(ctx, 'busy'));
+    assertEquals(stat.counts.total, 120);
+    assertEquals(stat.counts.ready + stat.counts.claimed, 0);
+  } finally {
+    await registry.dispose();
+    await ctx.teardown();
+  }
+});
+
+pgTest('PgPoolRegistry starts a new count table from the jobs already there', async () => {
+  const ctx = pgTestContext();
+
+  try {
+    const first = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
+    await first.init();
+    await first.touch('kept', {});
+    await first.add('kept', { kind: 'a' });
+    await first.add('kept', { kind: 'b' });
+    const job = (await first.claim('kept', { owner: 'w', kinds: ['a'] }))!;
+    await first.complete('kept', job.id, 'w');
+    await first.dispose();
+
+    await ctx.pool.query(`DROP TABLE ${ctx.prefix}_pools_count`);
+
+    const second = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
+    await second.init();
+    const stat = await second.stat('kept');
+    assertEquals(byKindState(stat), { 'a/done': 1, 'b/ready': 1 });
+    assertEquals(Object.keys(stat.oldestReadyAt), ['b']);
+
+    // And the triggers count from there on.
+    await second.add('kept', { kind: 'a' });
+    assertEquals(byKindState(await second.stat('kept')), { 'a/done': 1, 'a/ready': 1, 'b/ready': 1 });
+    await second.dispose();
+  } finally {
     await ctx.teardown();
   }
 });
