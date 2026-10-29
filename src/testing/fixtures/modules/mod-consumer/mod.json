@@ -2,7 +2,7 @@
   "name": "mod-consumer",
   "version": "0.1.0",
   "description": "fixture module importing another module's export",
-  "coreApi": "^0.4.0",
+  "coreApi": "^0.5.0",
   "dependencies": {
     "mod-fixture": "^0.1.0"
   }

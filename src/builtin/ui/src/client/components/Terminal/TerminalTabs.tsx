@@ -1,7 +1,7 @@
 import { ActionIcon, CloseButton, Group, Kbd, Popover, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
-import { IconArrowsMaximize, IconArrowsMinimize, IconChevronUp, IconPlus, IconQuestionMark, IconTerminal2 } from '@tabler/icons-react';
+import { IconArrowsMaximize, IconArrowsMinimize, IconChevronUp, IconPlugConnectedX, IconPlus, IconQuestionMark, IconTerminal2 } from '@tabler/icons-react';
 import {
   activeTerminalTab,
   addTerminalTab,
@@ -46,7 +46,10 @@ export function TerminalTabs() {
               gap: 8,
             })}
           >
-            <IconTerminal2 size={14} />
+            {/* A session not connected, while it connects or reconnects, says so here; the top bar's badge is the page's own connection. */}
+            {tab.connected
+              ? <IconTerminal2 size={14} />
+              : <IconPlugConnectedX size={14} color='var(--mantine-color-red-5)' title='Not connected' aria-label='Not connected' />}
             <Text size='xs' c={tab.id === activeId ? 'gray.3' : 'dimmed'}>
               {tab.pwd || tab.title}
             </Text>

@@ -1,4 +1,4 @@
-import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import {
@@ -6,6 +6,7 @@ import {
   IconKeyboard,
   IconLogin2,
   IconLogout,
+  IconPlugConnectedX,
   IconShieldFilled,
   IconShieldOff,
   IconShieldUp,
@@ -15,7 +16,6 @@ import {
   IconUserCog,
 } from '@tabler/icons-react';
 import {
-  activeTabConnected,
   currentUser,
   drawerShows,
   heldLinkRoutes,
@@ -230,17 +230,24 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
 
       {/* Right section: Actions */}
       <Group gap={phone ? 4 : 'xs'} wrap='nowrap'>
-        {/* Connection status - only show when disconnected: the terminal's, or for the guest, who has none, the page's own */}
-        {!(signedIn ? activeTabConnected.value : shellClientConnected.value) && (
-          <Badge
-            size='sm'
-            color='red'
-            variant='dot'
-            visibleFrom='sm'
-            styles={{ root: { color: 'white' } }}
-          >
-            Disconnected
-          </Badge>
+        {
+          /* Only when the page's own connection is down, which every page's commands go through;
+            the terminal's sessions show theirs on their tabs. A phone has room for the plug alone. */
+        }
+        {!shellClientConnected.value && (
+          phone
+            ? (
+              <Tooltip label='Disconnected — reconnecting'>
+                <ThemeIcon color='red' variant='transparent' size={36} role='status' aria-label='Disconnected'>
+                  <IconPlugConnectedX size={22} />
+                </ThemeIcon>
+              </Tooltip>
+            )
+            : (
+              <Badge size='sm' color='red' variant='dot' role='status' styles={{ root: { color: 'white' } }}>
+                Disconnected
+              </Badge>
+            )
         )}
 
         {/* Upload indicator (shows when uploads in queue) */}

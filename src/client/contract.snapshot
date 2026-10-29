@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.4.3
+MODULE_API_VERSION 0.5.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -640,8 +640,6 @@ src/builtin/ui/src/client/signals/mod.ts Toast 91ca39af7b74 action=ac294cc3717d,
 src/builtin/ui/src/client/signals/mod.ts UiNav 586186fbe852 panels=7a10cf5ac8e3,sections=9a3a0fc1dafa,topbar=1b979ecf949b,warnings=9e8d69c3a0d6
 src/builtin/ui/src/client/signals/mod.ts User ae4e5f4d85f1
 src/builtin/ui/src/client/signals/mod.ts activateNodesTab f6f88bb02fa4
-src/builtin/ui/src/client/signals/mod.ts activeTab 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts activeTabConnected 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts activeTerminalTab 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts addNodesTab 87af4b99e96d
 src/builtin/ui/src/client/signals/mod.ts addTerminalTab 2b19adca8d5e

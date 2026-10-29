@@ -1,4 +1,4 @@
-import { computed, signal } from '@preact/signals-react';
+import { signal } from '@preact/signals-react';
 
 export interface TerminalTab {
   id: string;
@@ -105,9 +105,6 @@ export const terminalHeight = signal(getStoredHeight());
 export const terminalTabs = signal<TerminalTab[]>(initialTabs);
 export const activeTerminalTab = signal(storedWorkspace?.activeTabId ?? initialTabs[0].id);
 export const terminalWorkspaceId = signal(loadTerminalWorkspaceId());
-
-export const activeTab = computed(() => terminalTabs.value.find((tab) => tab.id === activeTerminalTab.value));
-export const activeTabConnected = computed(() => activeTab.value?.connected ?? false);
 
 const terminators = new Map<string, () => void>();
 
