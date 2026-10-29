@@ -50,8 +50,10 @@ everything archive shares is imported as `@archive/…`.
 ### `version` (required)
 
 Semver. Dependents name a range (`"archive": "^0.3.0"`), and `mod setup` refuses a dependent
-whose range the installed version does not satisfy. Raise the minor when something is added
-that a dependent may start relying on, the major when something they use changes.
+whose range the installed version does not satisfy. As in a caret range, below 1.0.0 the minor
+moves when something a dependent uses changes or goes, and the patch for anything else; from
+1.0.0 the major and the minor. Each released version is tagged `v<version>` in the module's
+repository, which is what `mod install <name>@v<version>` installs.
 
 ### `description`, `author`, `license`
 
