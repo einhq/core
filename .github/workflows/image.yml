@@ -1,7 +1,7 @@
 name: image
 
 # EiN's image, core with its web interface built in (src/Containerfile), published for the installer
-# to pull: ghcr.io/einhq/ein:main is the newest commit on main, :sha-<commit> each one.
+# to pull: ghcr.io/einhq/core:main is the newest commit on main, :sha-<commit> each one.
 on:
   push:
     branches: [main]
@@ -42,8 +42,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/ein:main
-            ghcr.io/${{ github.repository_owner }}/ein:sha-${{ steps.stamp.outputs.sha }}
+            ghcr.io/${{ github.repository_owner }}/core:main
+            ghcr.io/${{ github.repository_owner }}/core:sha-${{ steps.stamp.outputs.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

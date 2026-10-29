@@ -13,7 +13,7 @@
 # Build:
 #   podman build -t ein -f src/Containerfile .
 #
-# GitHub publishes it as ghcr.io/einhq/ein (.github/workflows/image.yml). src/build.json, when the
+# GitHub publishes it as ghcr.io/einhq/core (.github/workflows/image.yml). src/build.json, when the
 # build finds one, is what system-info reports the image runs.
 #
 # Run:
