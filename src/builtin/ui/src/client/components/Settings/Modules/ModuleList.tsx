@@ -60,7 +60,7 @@ type ModuleListProps = {
 /**
  * The installed modules, narrowed by the filter, each opening its panel: its description under its
  * name, and at its right its version, or a badge when it does not work. The switch at the foot
- * leaves out the ones that do not; `action`, beside the filter, opens the published ones.
+ * leaves out the ones that do not; `action`, beside the filter, opens the panel for adding one.
  */
 export function ModuleList({ modules, selected, onSelect, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
   const shown = modules.filter((module) => matchesText([module.name, module.description], filter));

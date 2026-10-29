@@ -101,15 +101,19 @@ config unset CFG_CPU_SLOTS  # back to the default
 
 The **[Modules](/settings?tab=modules)** tab lists the installed modules: what
 each one brings, whether it works, and what it needs. The button beside the
-filter opens the **published modules** — the module repositories of the places
-the **Module sources** setting names, such as `https://github.com/einhq` — with
-each one's version, and whether it is installed. An administrator installs one
-with **Install**, which brings the modules it needs along with it, and gets
-**Update** where a newer version is published than the one installed. A module
-installed this way says where it came from in its panel, where it can be
-updated or removed too: Update takes the newest commit of the branch it was
-installed from, or the tag's again. One installed at a commit stays there, and
-its panel offers no Update. Its pages appear once the page is reloaded.
+filter, **Add a module**, lists the **published modules** — the module
+repositories of the places the **Module sources** setting names, such as
+`https://github.com/einhq` — with each one's version, and whether it is
+installed. An administrator installs one with **Install**, which brings the
+modules it needs along with it, and gets **Update** where a newer version is
+published than the one installed. Above the list, **From a repository** installs
+from any repository's address, published or not, such as
+`https://github.com/someone/module-name`; add `@` and a branch, tag or commit to
+take other than its default branch (`…/module-name@v0.2.0`). A module installed
+either way says where it came from in its panel, where it can be updated or
+removed too: Update takes the newest commit of the branch it was installed from,
+or the tag's again. One installed at a commit stays there, and its panel offers
+no Update. Its pages and sidebar entries appear, or go, at once.
 
 Installed modules are kept in a folder of their own beside EiN, not inside it,
 so they stay when EiN is upgraded — as long as the installation keeps that

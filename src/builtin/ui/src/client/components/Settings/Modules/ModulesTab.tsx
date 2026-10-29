@@ -12,7 +12,7 @@ import { PageLoader } from '../../Layout/PageLoader.tsx';
 import { fillWindow, PaneScroll, SPLIT_MIN_WIDTH } from '../ListDetail.tsx';
 import { byState, ModuleList, moduleState } from './ModuleList.tsx';
 import { ModulePanel } from './ModulePanel.tsx';
-import { PublishedModules } from './PublishedModules.tsx';
+import { AddModule } from './AddModule.tsx';
 
 /** The history state of a module opened from the list where they take turns, so going back to the list pops it. */
 const OPENED = { modulesOpened: true };
@@ -26,8 +26,8 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * page's own scroll, and opening a module is a step in the history that Back undoes.
  *
  * The open module is the URL's `module` and its panel's tab is `section`, so either can be linked
- * to; side by side, nothing named shows the first. `published=1` opens the published modules
- * instead, which the button beside the filter does. The list is asked fresh rather than reused
+ * to; side by side, nothing named shows the first. `published=1` opens the panel for adding a
+ * module instead, which the button beside the filter does. The list is asked fresh rather than reused
  * from the docs' kept answer: a `mod setup` since then changes whether a module works, and an
  * install or a removal here asks it again, and loads the shell's navigation and module pages again.
  */
@@ -102,8 +102,8 @@ export function ModulesTab() {
       onFilter={setFilter}
       loading={firstLoad}
       action={
-        <Tooltip label='Published modules'>
-          <ActionIcon size='input-sm' aria-label='Published modules' disabled={published} onClick={() => go(null, narrow, section, true)}>
+        <Tooltip label='Add a module'>
+          <ActionIcon size='input-sm' aria-label='Add a module' disabled={published} onClick={() => go(null, narrow, section, true)}>
             <IconPackageImport size={18} />
           </ActionIcon>
         </Tooltip>
@@ -119,7 +119,7 @@ export function ModulesTab() {
       <PaneScroll scrolls={!narrow} viewportRef={detailRef}>
         <Box p={flat ? 0 : narrow ? 'md' : 'lg'}>
           {published
-            ? <PublishedModules installed={all} onInstalled={refetch} onOpenModule={(name) => go(name)} />
+            ? <AddModule installed={all} onInstalled={refetch} onOpenModule={(name) => go(name)} />
             : firstLoad
             ? <PageLoader label='Loading modules…' />
             : selected
@@ -138,7 +138,7 @@ export function ModulesTab() {
                 }}
               />
             )
-            : <EmptyState title='No module to show'>Pick a module in the list, or add one of the published ones.</EmptyState>}
+            : <EmptyState title='No module to show'>Pick a module in the list, or add one.</EmptyState>}
         </Box>
       </PaneScroll>
     </Paper>

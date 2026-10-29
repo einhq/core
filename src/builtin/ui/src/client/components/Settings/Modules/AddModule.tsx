@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconDownload, IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import type { ModuleEntry, ModuleInstallResult, ModuleSearch, PublishedModule } from '@ein/api';
@@ -25,7 +25,10 @@ const standingOf = (module: PublishedModule, installed: ModuleEntry[]): Standing
 
 const short = (commit: string): string => commit.slice(0, 9);
 
-type PublishedModulesProps = {
+/** What `busy`, `done` and `problem` are keyed by for the install from an address, beside the published repositories. */
+const ADDRESS = 'address';
+
+type AddModuleProps = {
   /** The installed modules, for what is installed of each. */
   installed: ModuleEntry[];
   /** After an install, so the list beside it and the shell's navigation are asked again. */
@@ -34,53 +37,142 @@ type PublishedModulesProps = {
 };
 
 /**
- * The published modules, as the Modules tab's panel for adding one: each `module-*` repository of
- * the module sources (`mod search`), with its version and what is installed of it, and for the
+ * The Modules tab's panel for adding a module. For the administrator, a field that installs from
+ * any repository's address, at a branch, tag or commit; under it the published modules: each
+ * `module-*` repository of the module sources (`mod search`), with its version and what is installed of it, and for the
  * administrator a button that installs it with what it needs, or updates it when its default
  * branch is past the commit installed. A source that does not answer is named above the list.
  */
-export function PublishedModules({ installed, onInstalled, onOpenModule }: PublishedModulesProps) {
+export function AddModule({ installed, onInstalled, onOpenModule }: AddModuleProps) {
   const admin = useAccessIds()?.admin === true;
   const { data, loading, error, refetch } = useCommand<ModuleSearch>('mod search');
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ repository: string; message: string } | null>(null);
-  const [done, setDone] = useState<{ repository: string; message: string } | null>(null);
+  const [done, setDone] = useState<{ repository: string; message: string; names: string[] } | null>(null);
+  const [address, setAddress] = useState('');
 
-  const install = async (module: PublishedModule, update: boolean) => {
-    setBusy(module.repository);
+  /** `mod install <target>`, its outcome said under the row `key` names. */
+  const run = async (key: string, target: string, say: (names: string[]) => string): Promise<boolean> => {
+    setBusy(key);
     setProblem(null);
     setDone(null);
     try {
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(module.repository)}`);
+      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}`);
       const names = result.installed.map((each) => each.name);
-      setDone({
-        repository: module.repository,
-        message: update ? 'Updated' : names.length > 1 ? `Installed, with ${names.filter((name) => name !== module.name).join(', ')}` : 'Installed',
-      });
+      setDone({ repository: key, message: say(names), names });
+      return true;
     } catch (err) {
-      setProblem({ repository: module.repository, message: err instanceof Error ? err.message : String(err) });
+      setProblem({ repository: key, message: err instanceof Error ? err.message : String(err) });
+      return false;
     } finally {
       setBusy(null);
       onInstalled();
     }
   };
 
+  const install = (module: PublishedModule, update: boolean) =>
+    run(
+      module.repository,
+      module.repository,
+      (names) => update ? 'Updated' : names.length > 1 ? `Installed, with ${names.filter((name) => name !== module.name).join(', ')}` : 'Installed',
+    );
+
+  const installAddress = async () => {
+    const target = address.trim();
+    if (!target) return;
+    const installed = await run(ADDRESS, target, (names) => names.length === 0 ? 'Installed at that commit already' : `Installed ${names.join(', ')}`);
+    if (installed) setAddress('');
+  };
+
+  /** What the last install under `key` came to; with `open`, a link to each module it installed. */
+  const outcome = (key: string, open = false) => (
+    <>
+      {done?.repository === key && (
+        <Group mt='xs' gap='xs'>
+          <Done>{done.message}</Done>
+          {open && done.names.map((name) => <Anchor key={name} component='button' type='button' size='sm' onClick={() => onOpenModule(name)}>Open {name}</Anchor>)}
+        </Group>
+      )}
+      {problem?.repository === key && (
+        <Alert
+          mt='xs'
+          color='red'
+          p='xs'
+          icon={<IconAlertTriangle size={16} />}
+          withCloseButton
+          closeButtonLabel='Dismiss'
+          onClose={() => setProblem(null)}
+        >
+          <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem.message}</Text>
+        </Alert>
+      )}
+    </>
+  );
+
   const modules = data?.modules ?? [];
   return (
     <Stack gap='lg'>
+      <Box>
+        <Title order={3}>Add a module</Title>
+        <Text size='sm' c='dimmed'>
+          An installed module is kept in the folder for installed modules, and stays when EiN is upgraded where the deployment mounts that folder from its own disk.
+        </Text>
+      </Box>
+
+      {admin && (
+        <Paper withBorder radius='md' p='sm'>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void installAddress();
+            }}
+          >
+            <Stack gap='xs'>
+              <Box>
+                <Title order={5}>From a repository</Title>
+                <Text size='sm' c='dimmed'>
+                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Add @ and a branch, tag or commit for other than its default branch. A private one
+                  needs its host's token in the Tokens for module sources setting.
+                </Text>
+              </Box>
+              <Group gap='xs' align='flex-start' wrap='nowrap'>
+                <TextInput
+                  aria-label="The module's repository"
+                  placeholder='https://github.com/owner/module-name@v0.1.0'
+                  value={address}
+                  onChange={(event) => setAddress(event.currentTarget.value)}
+                  disabled={busy !== null}
+                  autoComplete='off'
+                  autoCapitalize='off'
+                  autoCorrect='off'
+                  spellCheck={false}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button
+                  type='submit'
+                  leftSection={<IconDownload size={16} />}
+                  loading={busy === ADDRESS}
+                  disabled={(busy !== null && busy !== ADDRESS) || address.trim() === ''}
+                  style={{ flex: 'none' }}
+                >
+                  Install
+                </Button>
+              </Group>
+              {outcome(ADDRESS, true)}
+            </Stack>
+          </form>
+        </Paper>
+      )}
+
       <Group justify='space-between' align='flex-start' wrap='nowrap'>
         <Box>
-          <Title order={3}>Published modules</Title>
-          <Text size='sm' c='dimmed'>
-            The module repositories of the sources the Module sources setting names. An installed module is kept in the folder for installed modules, and stays when EiN is
-            upgraded where the deployment mounts that folder from its own disk.
-          </Text>
+          <Title order={5}>Published</Title>
+          <Text size='sm' c='dimmed'>The module repositories of the sources the Module sources setting names.</Text>
         </Box>
         <Button variant='default' size='xs' leftSection={<IconRefresh size={16} />} onClick={refetch} loading={loading && !!data} style={{ flex: 'none' }}>
           Refresh
         </Button>
       </Group>
-
       {error && <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />}>{error.message}</Alert>}
       {data?.failed.map((failure) => (
         <Alert key={failure.source} color='yellow' variant='light' icon={<IconAlertTriangle size={16} />} title={`${failure.source} did not answer`}>
@@ -123,24 +215,7 @@ export function PublishedModules({ installed, onInstalled, onOpenModule }: Publi
                   </Button>
                 )}
               </Group>
-              {done?.repository === module.repository && (
-                <Box mt='xs'>
-                  <Done>{done.message}</Done>
-                </Box>
-              )}
-              {problem?.repository === module.repository && (
-                <Alert
-                  mt='xs'
-                  color='red'
-                  p='xs'
-                  icon={<IconAlertTriangle size={16} />}
-                  withCloseButton
-                  closeButtonLabel='Dismiss'
-                  onClose={() => setProblem(null)}
-                >
-                  <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem.message}</Text>
-                </Alert>
-              )}
+              {outcome(module.repository)}
             </Paper>
           );
         })}
