@@ -99,6 +99,29 @@ Deno.test({
       assertEquals((await client.execString('cat /d/through/link')).trim(), 'new');
     });
 
+    await t.step('cp onto a softlink inside a mount replaces its target and keeps the link', async () => {
+      const filesPath = await Deno.makeTempDir();
+      try {
+        for (const [point, spec] of [['/d/mem', 'memory'], ['/d/disk', `filesystem filesPath=${filesPath}`]]) {
+          await cmd.shouldSucceed(`mkdir -p ${point} && mount ${point} ${spec}`);
+          await cmd.shouldSucceed(`mkdir -p ${point}/real && echo old > ${point}/real/conf.txt && echo new > /d/through/fresh.txt`);
+          await cmd.shouldSucceed(`ln -s ${point}/real/conf.txt ${point}/link`);
+          await cmd.shouldSucceed(`ln -s real/conf.txt ${point}/rel`);
+
+          await cmd.shouldSucceed(`cp /d/through/fresh.txt ${point}/link`);
+          assertEquals((await client.execString(`cat ${point}/real/conf.txt`)).trim(), 'new');
+          assertEquals((await client.execJson<{ softlink: string }>(`props -L ${point}/link`)).softlink, `${point}/real/conf.txt`);
+
+          await cmd.shouldSucceed(`echo newer > /d/through/fresh.txt && cp /d/through/fresh.txt ${point}/rel`);
+          assertEquals((await client.execString(`cat ${point}/real/conf.txt`)).trim(), 'newer');
+          assertEquals((await client.execJson<{ softlink: string }>(`props -L ${point}/rel`)).softlink, 'real/conf.txt');
+          await cmd.shouldSucceed(`unmount ${point}`);
+        }
+      } finally {
+        await Deno.remove(filesPath, { recursive: true });
+      }
+    });
+
     await t.step('mv renames and moves', async () => {
       await cmd.shouldSucceed('mv /d/copy.txt /d/renamed.txt');
       await cmd.shouldFail('cat /d/copy.txt');
