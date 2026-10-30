@@ -70,6 +70,12 @@ const attrJsonExpr = (ref: AttrRef, column: string): string => {
   return projections.length === 1 ? projections[0] : `COALESCE(${projections.join(', ')})`;
 };
 
+/** The attr as a JSON array, for reading it element by element: a scalar becomes a one-element array. */
+const attrElementsExpr = (ref: AttrRef, column: string): string => {
+  const json = attrJsonExpr(ref, column);
+  return `CASE WHEN jsonb_typeof(${json}) = 'array' THEN ${json} ELSE jsonb_build_array(${json}) END`;
+};
+
 /** PostgreSQL's collation for each of `NodeQueryCollation`'s; ICU's, as the memory store's `Intl.Collator` is. */
 const SQL_COLLATIONS: Record<NodeQueryCollation, string> = { bytes: 'C', en: 'en-x-icu', sv: 'sv-x-icu' };
 
@@ -141,6 +147,8 @@ const conditionSql = (cond: AttrCondition, params: ParamList, column: string): s
       return `(${expr}) ILIKE ${params.bind(`%${escapeLike(cond.value)}%`)}`;
     case 'in':
       return `${sortExpr} = ANY(${params.bind(cond.value.map(String))})`;
+    case 'has':
+      return `EXISTS (SELECT 1 FROM jsonb_array_elements_text(${attrElementsExpr(cond.ref, column)}) e(value) WHERE e.value = ${params.bind(String(cond.value))})`;
   }
 };
 
@@ -419,11 +427,10 @@ export const buildAggregateSql = (
     if (group.each) {
       // One row per distinct element; a node whose attr is absent, or an empty array, has none and
       // drops out like a missing value does. A scalar is read as a one-element array.
-      const json = attrJsonExpr(group.ref, column);
       const alias = `e_${laterals.length}`;
       laterals.push(
         `CROSS JOIN LATERAL (SELECT DISTINCT ${cut('value')} AS value FROM jsonb_array_elements_text(` +
-          `CASE WHEN jsonb_typeof(${json}) = 'array' THEN ${json} ELSE jsonb_build_array(${json}) END) WHERE value IS NOT NULL) ${alias}`,
+          `${attrElementsExpr(group.ref, column)}) WHERE value IS NOT NULL) ${alias}`,
       );
       return `${alias}.value`;
     }

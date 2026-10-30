@@ -355,6 +355,23 @@ export async function runQueryConformance(t: Deno.TestContext, factory: QueryVfs
       ]);
     });
 
+    await t.step('has matches an element of an array attr, or a scalar as one', async () => {
+      // The nodes of the step above.
+      const carrying = async (...values: string[]) =>
+        names(
+          await vfs.query(ADMIN_ACCESS, {
+            where: [{ ref: 'fixture', op: 'eq', value: 'each' }, ...values.map((value) => ({ ref: 'labels', op: 'has' as const, value }))],
+            limit: 50,
+          }),
+        ).sort();
+      assertEquals(await carrying('sea'), ['one.jpg', 'two.jpg']);
+      assertEquals(await carrying('boat'), ['one.jpg', 'three.jpg']);
+      assertEquals(await carrying('sky'), ['five.jpg', 'one.jpg']);
+      assertEquals(await carrying('sea', 'sky'), ['one.jpg']);
+      // A whole element, not a part of one.
+      assertEquals(await carrying('se'), []);
+    });
+
     await t.step('aggregate buckets by node type', async () => {
       // Node type has no attr projection, so this is the only way to count it.
       // Unlike an attr group, nothing is excluded for a missing key: every node

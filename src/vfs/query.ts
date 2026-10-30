@@ -53,6 +53,11 @@ export type AttrCondition =
    */
   | { ref: AttrRef; op: 'contains'; value: string }
   | { ref: AttrRef; op: 'in'; value: (string | number)[] }
+  /**
+   * An element of the attr is the value: an array is read element by element and a scalar as a
+   * one-element array, as an `each` group reads it. What finds the nodes carrying a label.
+   */
+  | { ref: AttrRef; op: 'has'; value: string | number }
   | { ref: AttrRef; op: 'exists' | 'missing' };
 
 /** The languages names can be sorted in, by their BCP 47 tags; the archive's is `CFG_LANGUAGE`. */

@@ -128,11 +128,14 @@ export default function SearchPage() {
   // answers with the node it resolved to; their names are the nodes' own.
   const resolved = useMemo(() => new Map((outcome?.subjects ?? []).map(({ ref, path }) => [ref, path])), [outcome]);
   const pathOf = useCallback((kind: PillKind, value: string): string | undefined => value.startsWith('/') ? value : resolved.get(`${kind}:${value}`), [resolved]);
-  const names = useNodeNames((filters.subjects ?? []).flatMap((subject) => {
-    const { kind, ref } = splitSubject(subject);
-    const path = kind ? pathOf(kind, ref) : ref;
-    return path ? [path] : [];
-  }));
+  const names = useNodeNames([
+    ...(filters.subjects ?? []).flatMap((subject) => {
+      const { kind, ref } = splitSubject(subject);
+      const path = kind ? pathOf(kind, ref) : ref;
+      return path ? [path] : [];
+    }),
+    ...(filters.under ? [filters.under] : []),
+  ]);
   const nameOf = useCallback((kind: PillKind, value: string): string | undefined => {
     const path = pathOf(kind, value);
     return path ? names.get(path) : undefined;

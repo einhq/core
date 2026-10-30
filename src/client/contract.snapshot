@@ -816,7 +816,7 @@ src/client/mod.ts Access 1069058b3779 admin=e5caa4ef7900,cause=78aea5e4feb6,crea
 src/client/mod.ts AccessLevel 12d0838a94fe
 src/client/mod.ts AggregateBucket 85af9db11fe4 count=56355d434a33,counts=5f124083708c,key=7347f33d782b,sum=30ba4b673467
 src/client/mod.ts ArgCompleteType d91fb6b71d55
-src/client/mod.ts AttrCondition 824eee54b1a8
+src/client/mod.ts AttrCondition 53ce0a8389d4
 src/client/mod.ts AttrPathRef 6eddb394065c
 src/client/mod.ts AttrRef 37e9a696d3eb
 src/client/mod.ts COVER_LINK_NAME f14ec0158712
@@ -957,7 +957,7 @@ src/client/mod.ts serviceKey 3b76acd40e0e
 src/client/mod.ts setCover fc605e4b80de
 src/client/mod.ts shq 92d188ce1039
 src/client/mod.ts stepPhase dabab03c4cac
-src/client/mod.ts taggedPaths a830b2722426
+src/client/mod.ts taggedPaths efaadb4c8575
 src/client/mod.ts toUtc 2abb7b1fd96c
 src/client/mod.ts toolCallToCommandLine 6adafd3f3455
 src/client/mod.ts toolDescription a0a4b3f92dba

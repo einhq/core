@@ -17,7 +17,7 @@ import { compareText, NAME_LANGUAGES, type NameLanguage, type NodeQueryCursor, t
 import { readSettings } from '../config/read-settings.ts';
 import type { Command } from '../../client/mod.ts';
 import { basename } from '@std/path';
-import { TAGS_ROOT, TEMP_PATH } from '../paths.ts';
+import { TEMP_PATH } from '../paths.ts';
 import { shq } from '../shell-quote/mod.ts';
 import type { AttrCondition } from '../../vfs/query.ts';
 import type { NodeType } from '../../vfs/node.ts';
@@ -486,29 +486,32 @@ export const writeIdFile = async (cmd: Command, ids: NodeId[]): Promise<string> 
   return path;
 };
 
-/** Paths of the softlink targets under /tags/<label>, intersected across labels. */
-export const taggedPaths = async (cmd: Command, tags: string[]): Promise<Set<string>> => {
-  let intersection: Set<string> | undefined;
+/** How many rows one query of `labeledNodes` asks for. */
+const LABELED_PAGE = 1000;
 
-  for (const tag of tags) {
-    const targets = new Set<string>();
-    try {
-      const children = await cmd.sys.vfs.children(cmd.access, `${TAGS_ROOT}/${tag}`);
-      for (const child of children) {
-        if (child.node.props.softlink) targets.add(child.node.props.softlink);
-      }
-    } catch {
-      // unknown tag: contributes an empty set, so the intersection empties
-    }
-    intersection = intersection ? new Set([...intersection].filter((p) => targets.has(p))) : targets;
+/**
+ * The nodes carrying every one of `labels` in `attrs.labels`, which is what a label is: the links
+ * under the tags root only index it for browsing, and the facets count the same attr.
+ */
+const labeledNodes = async (cmd: Command, labels: string[]): Promise<Candidate[]> => {
+  if (labels.length === 0) return [];
+  const where: AttrCondition[] = labels.map((label) => ({ ref: 'labels', op: 'has', value: label }));
+  const found: Candidate[] = [];
+  let after: NodeQueryCursor | undefined;
+  for (;;) {
+    const rows = await cmd.sys.vfs.query(cmd.access, { where, after, limit: LABELED_PAGE });
+    found.push(...rows.map((row) => ({ path: row.absPath, score: 1, node: row.node, id: row.id })));
+    if (rows.length < LABELED_PAGE) return found;
+    after = { value: rows[rows.length - 1].sortValue, id: rows[rows.length - 1].id };
   }
-
-  return intersection ?? new Set();
 };
 
+/** Paths of the nodes carrying every one of `labels`. */
+export const taggedPaths = async (cmd: Command, labels: string[]): Promise<Set<string>> => new Set((await labeledNodes(cmd, labels)).map((candidate) => candidate.path));
+
 export const tagSource = async (cmd: Command, tags: string[], offset: number, order?: ListOrder): Promise<CandidateSource> => {
-  const paths = [...await taggedPaths(cmd, tags)].sort();
-  return orderedListSource(cmd, 'tag', paths.map((path) => ({ path, score: 1 })), offset, order);
+  const items = (await labeledNodes(cmd, tags)).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  return orderedListSource(cmd, 'tag', items, offset, order);
 };
 
 /**

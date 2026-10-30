@@ -2,8 +2,9 @@
  * completion-entity — name completion over the things media hangs off.
  *
  * What backs the `@`-mention popup in the search box. It answers the one
- * question a completion asks — "which people, locations, albums, devices or tracks
- * are called something like this?" — and deliberately answers *only* that.
+ * question a completion asks — "which people, locations, albums or devices are
+ * called something like this?" — and deliberately answers *only* that. The kinds
+ * are the installed modules' node types that have a root.
  *
  * `search` is the wrong tool for a keystroke: it fans out to every provider,
  * each in its own subshell, and several embed the query with a model. A
@@ -227,7 +228,7 @@ export const completeEntity = async (cmd: Command): CmdReturn => {
 completeEntity.spec = {
   name: 'completion-entity',
   effect: 'read' as const,
-  description: 'Complete a person, location, album, device or track by name',
+  description: 'Complete a person, location, album or device by name',
   args: [
     { name: 'query', type: 'string' as const, description: 'the partial name typed so far' },
   ],
@@ -235,7 +236,7 @@ completeEntity.spec = {
     {
       name: 'kind',
       type: 'string' as const,
-      description: 'restrict to these kinds, comma-separated: whichever the installed modules declare (person, location, album, device, track)',
+      description: 'restrict to these kinds, comma-separated: whichever the installed modules declare (person, location, album, device)',
     },
     { name: 'limit', type: 'string' as const, description: `maximum suggestions (default ${DEFAULT_LIMIT})` },
   ],

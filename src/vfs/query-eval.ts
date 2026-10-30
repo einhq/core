@@ -107,6 +107,8 @@ export const matchesCondition = (attrs: NodeAttrs, cond: AttrCondition): boolean
       if (actual === undefined) return false;
       return cond.value.some((v) => String(v) === actual);
     }
+    case 'has':
+      return projectAttrElements(attrs, cond.ref).includes(String(cond.value));
   }
 };
 
