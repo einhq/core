@@ -98,6 +98,25 @@ Deno.test({
         assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
       });
 
+      await t.step('types a file written under a temporary name by the name it is renamed to', async () => {
+        const data = new TextEncoder().encode('{"title": "IMG_0001.jpg"}\n');
+        await sftp.writeFile('/home/admin/IMG_0001.jpg.json.filepart', data);
+        await sftp.rename('/home/admin/IMG_0001.jpg.json.filepart', '/home/admin/IMG_0001.jpg.json');
+
+        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json');
+        assertEquals(node.attrs.mimetype, 'application/json');
+        assertEquals(node.attrs.size, data.length);
+        await assertRejects(() => harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json.filepart'));
+      });
+
+      await t.step('types a file created without content as an empty upload is', async () => {
+        const handle = await sftp.open('/home/admin/empty.md', 'w');
+        await sftp.close(handle);
+
+        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/empty.md');
+        assertEquals(node.attrs.mimetype, 'application/octet-stream');
+      });
+
       await t.step('lists directory contents', async () => {
         await sftp.mkdir('/home/admin/listdir');
         const enc = new TextEncoder();

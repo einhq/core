@@ -1412,11 +1412,13 @@ default mode is group-writable. Lines with options are skipped rather than half-
 shell's `login` (so the web too) and by both SSH methods (`src/servers/ssh/authorized-keys.ts`). Each `shell` and `exec`
 channel gets its own session node under `/var/sessions`, unlinked when the channel's shell closes.
 A connection whose account is disabled or deleted is ended (see above).
-An SFTP upload is filed as an HTTP one is: closing the write handle stores its size and sha256
-(above), and the SFTP close adds the mimetype sniffed from the file's first bytes, so the bytes
-decide what the pipelines see; a name decides only over a sniff that cannot tell (a camera RAW's
-over text, bytes or TIFF, a `.json` sidecar's over text, an `.xmp` one's over text or XML;
-`refineMimeByName`).
+An SFTP upload is filed as an HTTP one is: a file is created untyped, as an upload of no bytes
+is, closing the write handle stores its size and sha256 (above), and the SFTP close adds the
+mimetype sniffed from the file's first bytes, so the bytes decide what the pipelines see; a name
+decides only over a sniff that cannot tell (a camera RAW's over text, bytes or TIFF, a `.json`
+sidecar's over text, an `.xmp` one's over text or XML, an office document's over the zip or
+Compound File container it is; `refineMimeByName`). A rename applies those rules to the new name,
+so a client that writes to a temporary name and renames it when done gets the upload's type.
 
 ### Outbound SSH — [src/lib/ssh/](../src/lib/ssh/)
 

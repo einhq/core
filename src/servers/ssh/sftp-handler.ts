@@ -15,7 +15,7 @@
 import { basename, dirname, join, resolve } from '@std/path';
 import { OPEN_MODE, type SFTP, STATUS_CODE } from 'ssh2';
 import type { Access } from '../../lib/access/mod.ts';
-import { getMimeFromBuffer, getMimeFromExt, MIME_SAMPLE_BYTES } from '../../lib/media/mime.ts';
+import { getMimeFromBuffer, MIME_SAMPLE_BYTES, refineMimeByName } from '../../lib/media/mime.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import type { ResourceHandleIf } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
@@ -379,6 +379,7 @@ export class SFTPHandler {
           vfsPath,
         );
         if (!exists) {
+          // Typed as an upload of no bytes is; the first write and the close sniff the content
           await this.config.vfs.create(
             this.config.access,
             NODE_TYPE_FILE,
@@ -387,7 +388,7 @@ export class SFTPHandler {
             {
               attrs: {
                 name: basename(vfsPath),
-                mimetype: await getMimeFromExt(basename(vfsPath)),
+                mimetype: await getMimeFromBuffer(new Uint8Array(), basename(vfsPath)),
                 size: 0,
               },
             },
@@ -1167,22 +1168,23 @@ export class SFTPHandler {
     const releaseLock2 = paths[0] !== paths[1] ? await this.acquirePathLock(paths[1]) : null;
 
     try {
-      const oldParent = await this.config.vfs.get(
+      const node = await this.config.vfs.rename(
         this.config.access,
         dirname(oldVfsPath),
-      );
-      const newParent = await this.config.vfs.get(
-        this.config.access,
-        dirname(newVfsPath),
-      );
-
-      await this.config.vfs.rename(
-        this.config.access,
-        oldParent.id,
         basename(oldVfsPath),
-        newParent.id,
+        dirname(newVfsPath),
         basename(newVfsPath),
       );
+
+      // A client that writes to a temporary name (`photo.cr2.filepart`) and renames it when done
+      // gets the type an upload under the final name gets: the name rules apply to that name.
+      const mimetype = (node.attrs as { mimetype?: unknown }).mimetype;
+      if (node.type === NODE_TYPE_FILE && typeof mimetype === 'string') {
+        const named = refineMimeByName(mimetype, basename(newVfsPath));
+        if (named !== mimetype) {
+          await this.config.vfs.update(this.config.access, newVfsPath, { attrs: { mimetype: named } });
+        }
+      }
 
       this.sendResponse(() => sftp.status(reqid, STATUS_CODE.OK));
     } finally {
