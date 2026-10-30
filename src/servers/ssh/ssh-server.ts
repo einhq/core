@@ -7,7 +7,7 @@
 
 import { basename, dirname, join } from '@std/path';
 import { ulid } from '@std/ulid';
-import { type Channel, type Connection, type ConnectionInfo, type PKAuthContext, Server, type ServerAuthContext, type Session, SFTP } from 'ssh2';
+import { type Channel, type Connection, type ConnectionInfo, type PKAuthContext, Server, type ServerAuthContext, type Session, SFTP, type StderrWritable } from 'ssh2';
 import { type Access, ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { accountByLoginName } from '../../lib/auth/email.ts';
 import { userAccess } from '../../lib/auth/member-gids.ts';
@@ -377,8 +377,10 @@ export class SSHServer {
         const stdinHandle = await cmdShell.openIOHandle('rawStdin', 'w');
         this.pipeReadableToHandle(channel.readable, stdinHandle);
 
+        // Without a terminal the client keeps the two apart, as `ssh host cmd 2>/dev/null` relies on.
+        const stderr = channel.stderr as StderrWritable;
         this.pipeHandleToChannel(await cmdShell.openIOHandle('stdout', 'r'), channel);
-        this.pipeHandleToChannel(await cmdShell.openIOHandle('stderr', 'r'), channel);
+        this.pipeHandleToChannel(await cmdShell.openIOHandle('stderr', 'r'), stderr);
         timer.mark('pipes');
 
         // A client that goes away hangs up what it ran, as an interactive session's does.
@@ -399,7 +401,7 @@ export class SSHServer {
           error: (err as Error).message,
           command: info.command,
         });
-        channel.write(`error: ${(err as Error).message}\n`);
+        (channel.stderr as StderrWritable).write(`error: ${(err as Error).message}\n`);
         channel.exit(1);
         channel.close();
       } finally {
@@ -500,7 +502,7 @@ export class SSHServer {
 
   private pipeHandleToChannel(
     handle: ResourceHandleIf,
-    channel: Channel,
+    channel: Pick<Channel, 'write'>,
     opts?: { crlf?: boolean },
   ): void {
     const reader = handle.readable.getReader();

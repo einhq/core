@@ -38,7 +38,7 @@ Deno.test({
     await t.step("a hard link of an account is the administrator's to make", async () => {
       const linked = await harness.runSSH('mkdir /home/anna/x && ln /etc/users/anna /home/anna/x/admin', asAnna);
       assertEquals(linked.code, 1);
-      assertStringIncludes(linked.stdout, "'link user'");
+      assertStringIncludes(linked.stderr, "'link user'");
     });
 
     await t.step('over SSH exec', async () => {
@@ -53,10 +53,8 @@ Deno.test({
         ].join('\n'),
         asAnna,
       );
-      // An exec channel carries what the commands write to stderr on stdout too.
-      const lines = result.stdout.split('\n');
-      assertEquals(lines.filter((line) => !line.includes(': ')), ['refused', 'refused', 'denied', 'anna', '']);
-      assertEquals(lines.filter((line) => line === 'login: authentication failed').length, 2);
+      assertEquals(result.stdout, 'refused\nrefused\ndenied\nanna\n');
+      assertEquals(result.stderr.split('\n').filter((line) => line === 'login: authentication failed').length, 2);
     });
 
     await t.step('in an interactive shell on a web session', async () => {

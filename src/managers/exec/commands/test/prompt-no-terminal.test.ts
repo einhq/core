@@ -36,11 +36,10 @@ Deno.test({
           '[ -e /tmp/prompt-mods/demo/mod.json ] && echo kept',
         ].join('\n'),
       );
-      // An exec channel carries what the commands write to stderr on stdout too.
-      assertStringIncludes(result.stdout, 'mod-remove: no terminal to answer on; add --force');
-      assertStringIncludes(result.stdout, 'user-passwd: no terminal to answer on; add --new-password');
-      assertStringIncludes(result.stdout, 'user elevate: no terminal to answer on; add --password');
-      assertStringIncludes(result.stdout, 'login: no terminal to answer on; give the password after the username');
+      assertStringIncludes(result.stderr, 'mod-remove: no terminal to answer on; add --force');
+      assertStringIncludes(result.stderr, 'user-passwd: no terminal to answer on; add --new-password');
+      assertStringIncludes(result.stderr, 'user elevate: no terminal to answer on; add --password');
+      assertStringIncludes(result.stderr, 'login: no terminal to answer on; give the password after the username');
       assertEquals(result.stdout.split('\n').filter((line) => line.startsWith('code=')), ['code=1', 'code=1', 'code=1', 'code=1']);
       assertStringIncludes(result.stdout, 'kept');
       assertEquals(result.code, 0);
