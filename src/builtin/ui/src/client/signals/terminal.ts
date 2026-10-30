@@ -193,10 +193,17 @@ export const terminalOpenToggle = () => {
   persistTerminalWorkspace();
 };
 
+/** `Session <n>` with the lowest n no open tab is named with. */
+const nextSessionTitle = (tabs: TerminalTab[]): string => {
+  const taken = new Set(tabs.map((tab) => tab.title));
+  let n = 1;
+  while (taken.has(`Session ${n}`)) n++;
+  return `Session ${n}`;
+};
+
 export const addTerminalTab = (initialCommand?: string) => {
   const newId = newTerminalId();
-  const tabNumber = terminalTabs.value.length + 1;
-  terminalTabs.value = [...terminalTabs.value, { id: newId, title: `Session ${tabNumber}`, connected: false, initialCommand }];
+  terminalTabs.value = [...terminalTabs.value, { id: newId, title: nextSessionTitle(terminalTabs.value), connected: false, initialCommand }];
   activeTerminalTab.value = newId;
   persistTerminalWorkspace();
   return newId;
