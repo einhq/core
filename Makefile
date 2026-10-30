@@ -32,8 +32,7 @@ FILE_TMP_PATH           ?= ./files-tmp
 # around it. A host profile pins it rather than depending on the remote's configuration.
 TZ               ?= $(shell timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo UTC)
 # Passed in as CFG_HTTP_PORT / CFG_SSH_PORT, which the service start scripts read. With
-# --network=host these land straight on the host, so there is nothing to publish. A running
-# instance changes them from the settings page instead; these are only the starting values.
+# --network=host these land straight on the host, so there is nothing to publish.
 HTTP_PORT        ?= 8080
 SSH_PORT         ?= 2222
 # PostgreSQL is a service of its own, run beside this container; EiN only needs to reach it.

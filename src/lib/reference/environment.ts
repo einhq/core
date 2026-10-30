@@ -157,6 +157,20 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   { key: 'GUEST_GID', kind: 'system', description: "Its group's id." },
   { key: 'USERS_GROUPNAME', kind: 'system', description: 'The group every account belongs to: what "everyone" means when sharing.' },
   { key: 'USERS_GID', kind: 'system', description: 'Its id.' },
+  {
+    key: 'CFG_HTTP_PORT',
+    kind: 'system',
+    default: '8080',
+    description:
+      "The port the web interface listens on, as the deployment set it, which the http-server service reads at its start. In the installer's container it is always 8080: the machine publishes EIN_HTTP_PORT from .env onto it. It is not a setting, since only the deployment knows which port reaches it.",
+  },
+  {
+    key: 'CFG_SSH_PORT',
+    kind: 'system',
+    default: '2222',
+    description:
+      "The port the SSH and SFTP server listens on, as the deployment set it, which the ssh-server service reads at its start. In the installer's container it is always 2222: the machine publishes EIN_SSH_PORT from .env onto it.",
+  },
   { key: 'EIN_PATH_EXPORTS', kind: 'system', description: 'The layout variables as export lines, written into /etc/layout at boot.' },
   {
     key: 'EIN_FILE_ROOT_PATH',

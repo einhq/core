@@ -107,7 +107,7 @@ export function SettingsReference() {
         <Anchor component={Link} to='/profile?tab=preferences'>Profile › Preferences</Anchor>. Each is an environment variable in every shell, except the keys to other
         services, which no shell sees and nothing shows. The same values are in the terminal:
       </ReferenceIntro>
-      <HighlightedCode code={['config list', 'config get CFG_SSH_PORT', 'echo $HISTSIZE'].join('\n')} />
+      <HighlightedCode code={['config list', 'config get CFG_TRASH_RETENTION_DAYS', 'echo $HISTSIZE'].join('\n')} />
 
       {error && (
         <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />} my='md'>

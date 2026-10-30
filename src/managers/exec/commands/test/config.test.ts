@@ -189,13 +189,10 @@ Deno.test({
       assertStringIncludes(choice.error ?? '', 'expected one of');
     });
 
-    await t.step('a port change reports rather than restarting its server', async () => {
-      // Restarting http-server from here would drop the connection carrying the
-      // request, so the option names no services and explains itself instead.
-      const result = await admin.execJson<SetResult>('config set CFG_HTTP_PORT 9090');
-      assertEquals(result.restarted, []);
-      assert(result.restartNote, 'a port change should explain when it takes effect');
-      await admin.exec('config unset CFG_HTTP_PORT');
+    await t.step('the ports are not settings: the deployment publishes them', async () => {
+      const result = await admin.exec('config set CFG_SSH_PORT 2200');
+      assertEquals(result.success, false);
+      assertStringIncludes(result.error ?? '', 'unknown setting');
     });
 
     await t.step('an empty value is refused unless the option allows one', async () => {

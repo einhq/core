@@ -47,14 +47,10 @@ export type ConfigOption = {
   group: string;
   /**
    * Services that read this value at start and must be restarted for a change
-   * to take effect. `http-server` and `ssh-server` deliberately never appear
-   * here — see `restartNote`.
+   * to take effect.
    */
   restarts?: string[];
-  /**
-   * Shown instead of restarting, for a value whose service cannot be bounced
-   * from a settings page without dropping the connection the request came in on.
-   */
+  /** Shown after a change, for a value that takes effect later than when `config set` returns. */
   restartNote?: string;
   /** An empty value is meaningful (e.g. "the creator") rather than unset. */
   emptyMeans?: string;

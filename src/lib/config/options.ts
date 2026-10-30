@@ -297,28 +297,6 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Modules',
   },
 
-  /* Network — neither of these can restart its own service from here. */
-  {
-    key: 'CFG_HTTP_PORT',
-    scope: 'system',
-    type: 'number',
-    default: '8080',
-    label: 'HTTP port',
-    description: 'The port the web interface listens on.',
-    group: 'Network',
-    restartNote: 'Takes effect the next time the server starts — restarting it from here would drop this connection.',
-  },
-  {
-    key: 'CFG_SSH_PORT',
-    scope: 'system',
-    type: 'number',
-    default: '2222',
-    label: 'SSH port',
-    description: 'The port the SSH and SFTP server listens on.',
-    group: 'Network',
-    restartNote: 'Takes effect the next time the server starts.',
-  },
-
   /* Trash and /tmp */
   {
     key: 'CFG_TRASH_RETENTION_DAYS',

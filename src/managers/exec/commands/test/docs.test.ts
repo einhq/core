@@ -53,7 +53,7 @@ Deno.test({ name: 'docs', sanitizeResources: false, sanitizeOps: false }, async 
     });
 
     await t.step("env: descriptions with this shell's values; deployment and secrets never echoed", async () => {
-      const entries = await client.execJson<EnvReference[]>('SAILBOAT_WIND=north EXTRA_THING=1 SOME_TOKEN=hush lower_local=1 docs env');
+      const entries = await client.execJson<EnvReference[]>('SAILBOAT_WIND=north EXTRA_THING=1 SOME_TOKEN=hush lower_local=1 CFG_TRASH_RETENTION_DAYS=5 docs env');
       const find = (key: string, kind?: string) => entries.find((entry) => entry.key === key && (!kind || entry.kind === kind));
 
       assertEquals(find('SAILBOAT_WIND')?.owner, 'docs-fixture');
@@ -71,7 +71,9 @@ Deno.test({ name: 'docs', sanitizeResources: false, sanitizeOps: false }, async 
       assertEquals(find('lower_local'), undefined);
       assertEquals(find('ADMIN_USERNAME')?.kind, 'system');
       // Registered settings are `config list`'s; an unregistered CFG_* is a gap, and shown as one.
-      assert(!entries.some((entry) => entry.key === 'CFG_SSH_PORT' || entry.key === 'HISTSIZE'));
+      assert(!entries.some((entry) => entry.key === 'CFG_TRASH_RETENTION_DAYS' || entry.key === 'HISTSIZE'));
+      // The ports are the deployment's, not settings: described here.
+      assertEquals(find('CFG_SSH_PORT')?.kind, 'system');
       const stray = (await client.execJson<EnvReference[]>('CFG_NOT_REGISTERED=1 docs env')).find((entry) => entry.key === 'CFG_NOT_REGISTERED');
       assertEquals(stray?.undescribed, true);
     });

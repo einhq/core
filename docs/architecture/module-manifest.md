@@ -175,7 +175,7 @@ core's — to have a value of its choosing writes it in its `etc/config` (below)
 | `description` | what it does, for the reader of the settings page. Say what changes, not how it is implemented                          |
 | `group`       | the section of the settings page it is listed under                                                                     |
 | `restarts`    | services that read it at start, restarted when it changes                                                               |
-| `restartNote` | shown instead of restarting, for a service that cannot be bounced from a page                                           |
+| `restartNote` | shown after a change, for a value that takes effect later than when `config set` returns                                |
 | `emptyMeans`  | what an empty value means, when empty is a choice rather than "unset"                                                   |
 
 A `secret` is a key to another service. It is named `CFG_…_KEY`, a name only a secret may have,
