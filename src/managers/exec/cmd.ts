@@ -16,6 +16,16 @@ import { CmdOpts, CmdSpec } from './types.ts';
 
 const logger = createLogger('cmd');
 
+/**
+ * A prompt where no one can answer: the command has no terminal. The execution manager reports
+ * it as the command's own error, so a script gets a refusal instead of waiting on stdin for good.
+ */
+export class NoTerminalError extends Error {
+  constructor(instead?: string) {
+    super(`no terminal to answer on${instead ? `; ${instead}` : ''}`);
+  }
+}
+
 export class Cmd implements Command {
   private diposables = new Disposables();
   private encoder = new TextEncoder();
@@ -296,7 +306,10 @@ export class Cmd implements Command {
     }
   }
 
-  async prompt(prompt?: string, echoMode?: EchoMode) {
+  async prompt(prompt?: string, echoMode?: EchoMode, instead?: string) {
+    // Without a terminal stdin may be a channel that stays open with no one behind it, such as an
+    // ssh exec's, and a read would wait on it for good.
+    if (!this.tty) throw new NoTerminalError(instead);
     try {
       const rl = new Readline({
         in: await this.openStdin(),

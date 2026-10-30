@@ -57,7 +57,12 @@ export interface Command {
 
   setForground(forground: boolean): Promise<void>;
 
-  prompt(prompt?: string, echoMode?: EchoMode): Promise<string>;
+  /**
+   * Ask on the terminal and read the answer. A command with no terminal (no `tty`) is not asked: it
+   * fails at once with `<name>: no terminal to answer on; <instead>`, `instead` saying how to give
+   * the answer without one (`add --force`).
+   */
+  prompt(prompt?: string, echoMode?: EchoMode, instead?: string): Promise<string>;
   write(data: string): Promise<void>;
   writeLn(data: string): Promise<void>;
   writeJSON(data: any, pretty?: boolean): Promise<void>;

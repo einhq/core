@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.6.0
+MODULE_API_VERSION 0.6.1
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -829,7 +829,7 @@ src/client/mod.ts CmdFunction 0e9f1e8c3bac
 src/client/mod.ts CmdReturn c97d16222cac
 src/client/mod.ts CmdSpec 22e2a35d51f3 admin=e5caa4ef7900,args=e813fe48babe,daemon=246cd9d6fb9f,description=644be3c4d4da,effect=f7d5b5e17e8c,examples=84df1e35c90e,flags=b906855f84f7,group=23881e684876,guest=a56bf333f7e1,json=c94bd9bb3f68,name=6d0c36381511,returns=8685231c9cd2,words=a48e780d3e27
 src/client/mod.ts CmdWordDef f635e562219c runs=5e1179b9ad3b,word=0ba4e356732c,writes=b9f6af3816af
-src/client/mod.ts Command b3cf677b9efb access=7bd0b978a46e,args=38d3da5eae92,cols=b144a4e510fc,cwd=1a181c4de715,env=e4f7cd5b572a,execute=112e79e725cf,executeInline=034ffa010425,interrupted=b3604052a58a,json=c74596211ee0,name=d4da142d5ba2,onInterrupt=bd156835348d,openStdin=06062e99a1d3,prompt=ea620a2763bf,rows=a7ab123e23f5,stderr=391c61596477,stdin=7ea94ad2b2dc,stdout=eb16d918eca4,sys=861d7351bdac,tty=1053ab4d136b,write=6279091f0637,writeError=3d5675426ad6,writeJSON=0be10a16d0fa,writeLn=9ef1fcc2d392,writeYAML=a7c7a9340838
+src/client/mod.ts Command 02bd8b57c204 access=7bd0b978a46e,args=38d3da5eae92,cols=b144a4e510fc,cwd=1a181c4de715,env=e4f7cd5b572a,execute=112e79e725cf,executeInline=034ffa010425,interrupted=b3604052a58a,json=c74596211ee0,name=d4da142d5ba2,onInterrupt=bd156835348d,openStdin=06062e99a1d3,prompt=a4edcdfa40b8,rows=a7ab123e23f5,stderr=391c61596477,stdin=7ea94ad2b2dc,stdout=eb16d918eca4,sys=861d7351bdac,tty=1053ab4d136b,write=6279091f0637,writeError=3d5675426ad6,writeJSON=0be10a16d0fa,writeLn=9ef1fcc2d392,writeYAML=a7c7a9340838
 src/client/mod.ts CommentEntry 8c4d22ba211d author=6cf4daf6b274,body=4426c9c1e8cd,createdAt=87095eba9b73,slug=4f30a4f3a19e,uid=d8def3ee020e
 src/client/mod.ts ContainerListing 21d4642769fa members=71968da5e5fb,truncated=ee81b8046300
 src/client/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797ebe,memberPath=c769fc41a1c3,path=3fd20668ef6e,stackCount=a48b3d338e26

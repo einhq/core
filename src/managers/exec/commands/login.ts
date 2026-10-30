@@ -15,7 +15,7 @@ export const login = async (cmd: Command): CmdReturn => {
     return 1;
   }
 
-  const password = passwordArg ?? await cmd.prompt('Password: ', 'secret');
+  const password = passwordArg ?? await cmd.prompt('Password: ', 'secret', 'give the password after the username');
 
   try {
     await cmd.login(username, password, flags.session);

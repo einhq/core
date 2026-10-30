@@ -13,7 +13,7 @@ export const userElevate = async (cmd: Command): CmdReturn => {
     if (flags.off) {
       await cmd.unelevate(flags.session);
     } else {
-      await cmd.elevate(flags.password ?? await cmd.prompt('Password: ', 'secret'), flags.session);
+      await cmd.elevate(flags.password ?? await cmd.prompt('Password: ', 'secret', 'add --password'), flags.session);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

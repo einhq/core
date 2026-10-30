@@ -170,7 +170,7 @@ export const modRemove = async (cmd: Command): CmdReturn => {
     }
 
     if (!flags.force) {
-      const answer = await cmd.prompt(`Remove module '${manifest.name}' (${manifest.version})? (y/N) `);
+      const answer = await cmd.prompt(`Remove module '${manifest.name}' (${manifest.version})? (y/N) `, undefined, 'add --force');
       if (answer.toLowerCase() !== 'y') {
         if (cmd.json) {
           await cmd.writeJSON({ ok: true, removed: false });

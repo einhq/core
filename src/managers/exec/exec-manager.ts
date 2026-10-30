@@ -7,7 +7,7 @@ import { NodeType } from '../../vfs/mod.ts';
 import { NODE_TYPE_COMMAND } from '../../vfs/types/command.ts';
 import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { commandVariables } from '../shell/variables.ts';
-import { Cmd } from './cmd.ts';
+import { Cmd, NoTerminalError } from './cmd.ts';
 import { Command } from './command.ts';
 import { COMMAND_NAMES } from './commands/mod.ts';
 import { ExecutionManager, ExecutionManagerConfig, SignalOpts } from './execution-manager.ts';
@@ -181,7 +181,15 @@ export class ExecManager implements ExecutionManager {
 
         return finish(result);
       })
-      .catch((e) => command.signal === 'SIGPIPE' ? finish(signalExitCode('SIGPIPE')) : finish(255, e.message));
+      .catch(async (e) => {
+        if (command.signal === 'SIGPIPE') return finish(signalExitCode('SIGPIPE'));
+        // A prompt with no terminal is the command refusing, in its own name, as any usage error.
+        if (e instanceof NoTerminalError) {
+          await command.writeError(`${name}: ${e.message}\n`).catch(() => {});
+          return finish(1);
+        }
+        return finish(255, e.message);
+      });
 
     return { id, done: this.pending[command.id] };
   }

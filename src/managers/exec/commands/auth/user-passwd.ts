@@ -20,7 +20,7 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
   }
 
   const oldPassword = flags['old-password'];
-  const newPassword = flags['new-password'] ?? await cmd.prompt('Password: ', 'secret');
+  const newPassword = flags['new-password'] ?? await cmd.prompt('Password: ', 'secret', 'add --new-password');
 
   if (!newPassword) {
     await cmd.writeError('user passwd: new password is required (--new-password)\n');
