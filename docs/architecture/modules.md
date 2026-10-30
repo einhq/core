@@ -176,6 +176,27 @@ the prune undo it). The administrator's `/etc/ui/nav.json`, each group's
 built site (`ui/index.html`), and retires a link of its own that points at anything else, so page
 sources are never served under the module's host name.
 
+**Who a module is for.** A module is everyone's until `mod groups <name> <group>...` (or `mod install --groups`, or
+**Settings → Modules**) keeps it to groups, recorded in `/etc/modules/<name>.groups`, one name per
+line ([audience.ts](../../src/modules/audience.ts)). `mod setup` then places what makes it
+reachable for those groups and `admin` instead of for everyone, moving it when the groups change:
+
+- its PATH line goes in `/etc/bashrc.d/<group>`, which the shells of the group's members source
+  after `/etc/bashrc` ([path-line.ts](../../src/managers/exec/commands/mod/path-line.ts));
+- its `ui/nav.json` is linked as `/etc/ui/groups/<group>/nav.d/<name>.json`, which `ui-nav` reads
+  as a fragment for the group's members ([module-links.ts](../../src/managers/exec/commands/mod/module-links.ts)).
+
+Hiding is not the boundary. `Shell.execExternal` refuses a command named by a path under
+`/usr/modules/<name>/` to an access `mayUseModule` turns down, `#!ts` and bash alike. It is the
+same lexical test that confines `#!ts` to `MOD_PATH`, so a `#!ts` command has no other way in; a
+bash bin is a script its reader could run by hand, and calls commands that are checked in turn. The rest only stops offering it: `mod list` and
+`mod info` leave it out, `config list` its options, and `ui-build` writes the gids of its groups
+into the UI manifest, by which the browser leaves out its routes for a reader it is not for. Its
+services and pipelines run as the administrator and go on for everyone's data. A session's groups
+are fixed at sign-in, so membership changes reach it at the next one; an elevated session re-reads
+its shell setup and takes `admin`'s. `mod remove` and the prune take the lines and links out of
+every group and forget the groups.
+
 **Rebuilding pages.** `mod setup --all`, and any single `mod setup` or `mod remove`, end with
 `ui-build --all` where the shell is served (`/var/www/ui`; a test instance serves none)
 ([module-pages.ts](../../src/managers/exec/commands/mod/module-pages.ts)), which is how module pages

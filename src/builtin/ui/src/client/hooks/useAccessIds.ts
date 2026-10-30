@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AccessIds } from '../lib/access.ts';
 import { execCommand } from '../signals/shell-client.ts';
-import { shq } from '../lib/shquote.ts';
-import type { GroupEntry, Whoami as WhoamiResult } from '@ein/api';
+import type { Whoami as WhoamiResult } from '@ein/api';
 export type { GroupEntry, Whoami as WhoamiResult } from '@ein/api';
 
 // One fetch per page load; access ids only change on login/logout, which
@@ -16,12 +15,18 @@ async function fetchAccessIds(): Promise<AccessIds | null> {
     if (!who || typeof who.uid !== 'number') {
       return null;
     }
-    const groups = await execCommand<GroupEntry[]>(`user-groups ${shq(who.username)}`);
-    return { uid: who.uid, gids: (groups ?? []).map((g) => g.gid), admin: who.admin === true };
+    return { uid: who.uid, gids: who.gids, admin: who.admin === true };
   } catch {
     return null;
   }
 }
+
+/** The reader's uid and group ids, fetched once per page load; null when they cannot be read. */
+export const loadAccessIds = (): Promise<AccessIds | null> =>
+  pending ??= fetchAccessIds().then((result) => {
+    cached = result;
+    return result;
+  });
 
 /** The reader's uid and group ids — the guest's too, whom `canAccess` never lets write; null while loading. */
 export function useAccessIds(): AccessIds | null {
@@ -29,12 +34,8 @@ export function useAccessIds(): AccessIds | null {
 
   useEffect(() => {
     if (cached) return;
-    pending ??= fetchAccessIds().then((result) => {
-      cached = result;
-      return result;
-    });
     let cancelled = false;
-    pending.then((result) => {
+    loadAccessIds().then((result) => {
       if (!cancelled) setIds(result);
     });
     return () => {

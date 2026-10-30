@@ -4,8 +4,10 @@ import { useState } from 'react';
 import type { ModuleEntry, ModuleInstallResult, ModuleSearch, PublishedModule } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useCommand } from '../../../hooks/useCommand.ts';
+import { formatGroupList, parseGroupList } from '../../../lib/accounts.ts';
 import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
+import { GroupsMultiSelect } from '../AccountInputs.tsx';
 import { Done, Note } from '../Accounts/PanelParts.tsx';
 
 /** What is installed of a published module, by which the row says what can be done. */
@@ -50,14 +52,20 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
   const [problem, setProblem] = useState<{ repository: string; message: string } | null>(null);
   const [done, setDone] = useState<{ repository: string; message: string; names: string[] } | null>(null);
   const [address, setAddress] = useState('');
+  // Who what is installed here is for, a comma list of groups; empty for everyone.
+  const [groups, setGroups] = useState('');
 
-  /** `mod install <target>`, its outcome said under the row `key` names. */
-  const run = async (key: string, target: string, say: (names: string[]) => string): Promise<boolean> => {
+  /**
+   * `mod install <target>`, kept to the groups chosen unless it `update`s what is installed, which
+   * keeps its own; its outcome said under the row `key` names.
+   */
+  const run = async (key: string, target: string, say: (names: string[]) => string, update = false): Promise<boolean> => {
     setBusy(key);
     setProblem(null);
     setDone(null);
+    const kept = update ? [] : parseGroupList(groups);
     try {
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}`);
+      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}${kept.length > 0 ? ` --groups ${shq(formatGroupList(kept))}` : ''}`);
       const names = result.installed.map((each) => each.name);
       setDone({ repository: key, message: say(names), names });
       return true;
@@ -75,6 +83,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
       module.repository,
       module.repository,
       (names) => update ? 'Updated' : names.length > 1 ? `Installed, with ${names.filter((name) => name !== module.name).join(', ')}` : 'Installed',
+      update,
     );
 
   const installAddress = async () => {
@@ -118,6 +127,17 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
           An installed module is kept in the folder for installed modules, and stays when EiN is upgraded where the deployment mounts that folder from its own disk.
         </Text>
       </Box>
+
+      {admin && (
+        <Box>
+          <Title order={5}>Available to</Title>
+          <Text size='sm' c='dimmed' mb='xs'>
+            Who a module installed here is for: only members of these groups, and administrators, have its commands, its entries in the navigation and its pages. None is
+            everyone. The modules it needs are installed for everyone; each module's panel changes it later.
+          </Text>
+          <GroupsMultiSelect value={groups} onChange={setGroups} placeholder='Everyone' aria-label='Groups to install for' disabled={busy !== null} />
+        </Box>
+      )}
 
       {admin && (
         <Paper withBorder radius='md' p='sm'>

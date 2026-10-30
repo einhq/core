@@ -1145,7 +1145,7 @@ which is its own leaf so it can be imported without dragging core's graph behind
 ```
 /archive   albums/  people/  locations/  devices/  tracks/  tags/
 /home      <user>/ — staging, .chats/, .config, .bash_history, .password
-/etc       bashrc  layout  environment  config  groups/  files/  init/  services/
+/etc       bashrc  bashrc.d/  layout  environment  config  groups/  modules/  files/  init/  services/
 /var       logs/{system,metrics,services/}  sessions/  queues/  pools/  pipelines/  www/  lib/modules/
 /usr       bin/  lib/{core,ui}/  modules/  docs/
 /dev       null  events  pipeline-events
@@ -1229,6 +1229,12 @@ command rewrites `/etc/environment` whole at every boot from the `CFG_*` the con
 (`make container-run`, or the deployment's settings), so it holds exactly this boot's. `Shell.login()` sources `/etc/bashrc` a second time, because `$HOME` only names
 the signed-in person after authentication and the web UI's shell opens as guest.
 
+After `/etc/bashrc` a shell sources `/etc/bashrc.d/<group>` for each group of its sign-in that has
+one, by name (`groupEntriesFor` in [member-gids.ts](../src/lib/auth/member-gids.ts); an
+administrator is in `admin` whatever its gids say), and only then the interactive shell's
+`~/.bashrc`. It is where `mod setup` puts the PATH line of a module kept to groups
+([modules](architecture/modules.md)).
+
 `CFG_` is the prefix for anything a settings page can own. Bootstrap facts read before a VFS
 exists (`POSTGRES_URL`, `FILE_ROOT_PATH`, `TZ`, `LOG_LEVEL`) and the test gates
 (`EIN_TEST_PG`, `EIN_TEST_CONTAINER`) deliberately keep their own names.
@@ -1271,8 +1277,8 @@ administrator sets wins. Two modules setting the same key: the later file by nam
 does. `parse-search` and `docs find` read the setting when they run (`readSettings`), not from the
 shell's environment, since the web UI's shell outlives a settings change.
 
-**A shell re-reads its settings before its next command.** Every write to `/etc/bashrc` or a
-layer it sources counts up a version ([settings-version.ts](../src/lib/config/settings-version.ts));
+**A shell re-reads its settings before its next command.** Every write to `/etc/bashrc`, a
+layer it sources or a group's `/etc/bashrc.d/<group>` counts up a version ([settings-version.ts](../src/lib/config/settings-version.ts));
 a shell given a command on its own context — typed, from the web UI, or a step the pipeline
 engine or a pool worker runs — sources `/etc/bashrc` again first when the version moved since it
 last did. Every setting starts from what the shell was opened with, so one the files no longer
@@ -1550,6 +1556,8 @@ Key pieces ([src/testing/](../src/testing/)):
   the executable spec of the module interface: installs a fixture module and asserts every
   observable effect of `mod setup`/`mod list`/`mod info`/`mod remove`, including that
   `mod remove` reverses setup (bashrc PATH line, services, pipeline definitions, /var/www symlink).
+  `mod-groups.test.ts` pins where a module kept to groups puts its PATH line and navigation, and
+  that the shell, `ui-nav` and `mod list` give it to its groups' members alone.
 - **Reachability suite** ([src/modules/test/reachability.test.ts](../src/modules/test/reachability.test.ts)) —
   walks the import graph from the entry points (`src/*-main.ts`, the shell's client, every
   module's `bin/`, `services/` and `etc/`, its manifest `exports` and `ui.routes`, the files

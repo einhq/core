@@ -114,6 +114,7 @@ import { completePath } from './completion/completion-path.ts';
 import { completeSubcommand } from './completion/completion-subcommand.ts';
 import { completeUser } from './completion/completion-user.ts';
 import { completion } from './completion/completion.ts';
+import { modGroups } from './mod/mod-groups.ts';
 import { modInfo } from './mod/mod-info.ts';
 import { modInstall } from './mod/mod-install.ts';
 import { modList } from './mod/mod-list.ts';
@@ -333,6 +334,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
 
   // Module management
   mod,
+  modGroups,
   modInfo,
   modCache,
   modInstall,

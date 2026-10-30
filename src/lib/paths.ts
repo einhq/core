@@ -76,6 +76,17 @@ export const ETC_PATH = '/etc';
 export const USERS_PATH = `${ETC_PATH}/users`;
 export const GROUPS_PATH = `${ETC_PATH}/groups`;
 export const SERVICES_PATH = `${ETC_PATH}/services`;
+/**
+ * A group's own shell setup, as `<group>` here: sourced after `/etc/bashrc` by every shell of the
+ * group's members (and of an administrator, for `admin`). `mod setup` puts the PATH line of a module
+ * kept to some groups in theirs instead of in `/etc/bashrc`.
+ */
+export const BASHRC_GROUPS_PATH = `${ETC_PATH}/bashrc.d`;
+/**
+ * The groups a module is kept to, as `<module>.groups` here, one group name per line. A module
+ * without one is everyone's.
+ */
+export const MODULE_GROUPS_PATH = `${ETC_PATH}/modules`;
 /** The init-script *sources*, mounted read-write from the repo's `src/init/files`. */
 export const INIT_FILES_PATH = `${ETC_PATH}/files`;
 /** The symlinks `setup.sh` runs, one per `NN_*.sh` in the mode directory. */
@@ -91,6 +102,11 @@ export const UI_NAV_PATH = `${UI_ETC_PATH}/nav.json`;
  * for the group's members, under each member's own.
  */
 export const UI_GROUPS_PATH = `${UI_ETC_PATH}/groups`;
+/**
+ * In a group's directory under `UI_GROUPS_PATH`: the navigation entries of the modules kept to the
+ * group, each linked in by `mod setup` as `<name>.json` the way `UI_NAV_D_PATH` holds everyone's.
+ */
+export const UI_GROUP_NAV_D = 'nav.d';
 /** A user's own changes to the navigation, relative to their home directory; laid over the administrator's and their groups'. */
 export const USER_UI_NAV_FILE = '.ui/nav.json';
 

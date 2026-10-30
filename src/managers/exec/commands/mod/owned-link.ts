@@ -19,6 +19,8 @@ export type OwnedLink = {
   linkPath: string;
   /** What it is, for the setup log: "navigation", "settings", the drop-in's directory. */
   what: string;
+  /** The module no longer wants it here, as when its navigation moved to its groups': retired like a file it stopped shipping. */
+  retire?: boolean;
 };
 
 /** Where the link points, `undefined` when there is none, `null` when it is not a link. */
@@ -36,10 +38,10 @@ const unlink = async (cmd: Command, linkPath: string): Promise<void> => {
 };
 
 /** Link the module's file, or retire the link when it no longer ships one. Returns a problem, if any. */
-export const linkOwned = async (cmd: Command, modulePath: string, { source, linkPath, what }: OwnedLink): Promise<string | undefined> => {
+export const linkOwned = async (cmd: Command, modulePath: string, { source, linkPath, what, retire }: OwnedLink): Promise<string | undefined> => {
   const target = await currentTarget(cmd, linkPath);
   const owned = typeof target === 'string' && target.startsWith(`${modulePath}/`);
-  const ships = await cmd.sys.vfs.exists(cmd.access, source);
+  const ships = !retire && await cmd.sys.vfs.exists(cmd.access, source);
 
   if (!ships) {
     if (owned) {

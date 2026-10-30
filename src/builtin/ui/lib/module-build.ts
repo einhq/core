@@ -26,7 +26,7 @@
  */
 
 import type { Command } from '@ein/client';
-import { NodeNotFoundError } from '@ein/client';
+import { moduleGroupGids, NodeNotFoundError } from '@ein/client';
 import { dirname, join, normalize } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { SHARED_GLOBAL, sharedSpecifiers, uiRuntime } from './shared.ts';
@@ -430,12 +430,14 @@ export const writeUiManifest = async (cmd: Command, modules: string[]): Promise<
       continue;
     }
     for (const route of build.routes) owner.set(route.path, module);
+    const gids = await moduleGroupGids(cmd.sys.vfs, module);
     entries[module] = {
       url: build.url,
       ...(build.css ? { css: build.css } : {}),
       routes: build.routes,
       ...(build.open ? { open: build.open } : {}),
       ...(build.search ? { search: build.search } : {}),
+      ...(gids ? { gids } : {}),
     };
   }
   const manifest: UiManifest = { runtime: uiRuntime().id, modules: entries };

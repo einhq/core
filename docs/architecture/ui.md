@@ -114,7 +114,10 @@ Each answer is fetched once per page load and shared by every docs page (`useRef
 
 The sidebar and the top bar's buttons are configuration, not code. Every module may ship
 `ui/nav.json`, linked by `mod setup` as `/etc/ui/nav.d/<module>.json`, and the shell's own is
-`src/client/nav.json`, copied into the built shell and linked by boot as `/etc/ui/nav.d/ui.json`; the administrator's `/etc/ui/nav.json`, the
+`src/client/nav.json`, copied into the built shell and linked by boot as `/etc/ui/nav.d/ui.json`. A
+module kept to groups (`mod groups`) is linked as `/etc/ui/groups/<group>/nav.d/<module>.json`
+instead, for each of its groups and `admin`, and read as a fragment for those groups' members alone.
+The administrator's `/etc/ui/nav.json`, the
 `/etc/ui/groups/<group>/nav.json` of each group the reader is in (by the group's name) and the user's
 `~/.ui/nav.json` are laid over them in that order. `ui-nav` ([nav.ts](../../src/builtin/ui/lib/nav.ts))
 resolves the layers for the reader and the shell loads its answer before it draws anything

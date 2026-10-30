@@ -2,6 +2,7 @@ import { signal } from '@preact/signals-react';
 import { uiRuntime } from '@ui/shared';
 import type { ModuleRoute, SearchableKind, UiManifest } from '@ui/ui-cache';
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
+import { loadAccessIds } from '../hooks/useAccessIds.ts';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
 import { type DataRouter, type Location, matchPath, matchRoutes, type NavigationType, type RouteObject, type To } from 'react-router-dom';
 
@@ -83,13 +84,27 @@ let manifestPromise: Promise<UiManifest | null> | null = null;
 const bundles = new Map<string, Promise<ModuleBundle>>();
 
 /**
- * The manifest, fetched once until `reloadUiManifest`. A failed fetch is forgotten so the next call tries again:
- * before signing in, a guest may not be able to read it.
+ * The manifest without the modules kept to groups the reader is in none of (`mod groups`), unless
+ * the reader is an administrator. Only what the browser offers: the shell refuses such a module's
+ * commands, which is all its pages could do anything with.
+ */
+const forReader = async (manifest: UiManifest): Promise<UiManifest> => {
+  if (!Object.values(manifest.modules).some((entry) => entry.gids)) return manifest;
+  const ids = await loadAccessIds();
+  const mayUse = (gids: number[] | undefined) => !gids || ids?.admin === true || gids.some((gid) => ids?.gids.includes(gid));
+  return { ...manifest, modules: Object.fromEntries(Object.entries(manifest.modules).filter(([, entry]) => mayUse(entry.gids))) };
+};
+
+/**
+ * The manifest, fetched once until `reloadUiManifest`, with the modules the reader is given
+ * (`forReader`). A failed fetch is forgotten so the next call tries again: before signing in, a
+ * guest may not be able to read it.
  */
 export const loadUiManifest = (): Promise<UiManifest | null> => {
   manifestPromise ??= fetch(`/file${UI_MANIFEST_PATH}`, { cache: 'no-cache' })
     .then((res) => (res.ok ? res.json() as Promise<UiManifest> : null))
     .catch(() => null)
+    .then((manifest) => (manifest ? forReader(manifest) : null))
     .then((manifest) => {
       if (!manifest) manifestPromise = null;
       // Bundles built against another shell read names this one may not lend. ui-build

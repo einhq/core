@@ -1,13 +1,14 @@
 import { basename, dirname, join } from '@std/path';
 import { ADMIN_ACCESS } from '../access/constants.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
-import { HOMES_PATH } from '../paths.ts';
+import { BASHRC_GROUPS_PATH, HOMES_PATH } from '../paths.ts';
 import { environmentPath, moduleConfigDir, systemConfigPath } from './paths.ts';
 
 /**
  * How many times the files a shell's environment is built from have changed: `bashrc` in
  * `etcPath` and every layer it sources — the deployment's, the modules', the system's and each
- * user's `.config`. A shell that saw an earlier count holds settings older than the files.
+ * user's `.config` — and each group's setup in `/etc/bashrc.d`. A shell that saw an earlier count
+ * holds settings older than the files.
  */
 type Version = { count: number; watched: Promise<boolean> };
 
@@ -16,6 +17,7 @@ const versions = new WeakMap<NodeVFS, Map<string, Version>>();
 /** Whether a write to `path` changes what sourcing `etcPath`'s `bashrc` gives. */
 const changesSettings = (path: string, etcPath: string): boolean =>
   path === join(etcPath, 'bashrc') ||
+  dirname(path) === BASHRC_GROUPS_PATH ||
   path === environmentPath(etcPath) ||
   path === systemConfigPath(etcPath) ||
   dirname(path) === moduleConfigDir(etcPath) ||

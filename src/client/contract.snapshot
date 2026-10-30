@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.6.1
+MODULE_API_VERSION 0.6.2
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -258,7 +258,7 @@ src/builtin/ui/src/client/hooks/mod.ts MEDIA_KINDS f07881348eb9
 src/builtin/ui/src/client/hooks/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/hooks/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
 src/builtin/ui/src/client/hooks/mod.ts MediaSelection ff560ac39d6f
-src/builtin/ui/src/client/hooks/mod.ts ModuleReference e505cc039116 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/builtin/ui/src/client/hooks/mod.ts ModuleReference 184f7d5ceab4 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
 src/builtin/ui/src/client/hooks/mod.ts NodeOps 676f0d28b992 busy=b0a603736b4f,chmod=779fd88674bd,chown=94007c3dcd24,clearError=6252419979ec,copy=661dbd3af7d7,error=badebb2f202e,mkdir=c865cd0655b1,move=00eae30f0715,paste=2e9f7b9bdea3,remove=9cf2fd9bf814,rename=55211b61d380
 src/builtin/ui/src/client/hooks/mod.ts NodeStat 2c362fa56de3 node=ae3e4484800b,share=dc3632e25c60
 src/builtin/ui/src/client/hooks/mod.ts NodeTreeState 8db99b3ecc71 data=55269c8cf46b,entriesOf=358d8701ea41,entryAt=7ec53474eabc,error=badebb2f202e,loading=6ab16fe49a65,openDirs=2d8c56c57d33,reload=95c493fecf4c,tree=4897387a0a27
@@ -308,12 +308,13 @@ src/builtin/ui/src/client/hooks/mod.ts UserEntry 70b370991c46 description=644be3
 src/builtin/ui/src/client/hooks/mod.ts VerticalWindow 8ab8d01ff351 bottom=94309b541786,top=53cbd27c99c3
 src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_IDLE_MS ab6d0b9f6050
 src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_LIVE_MS 788cba558ddc
-src/builtin/ui/src/client/hooks/mod.ts WhoamiResult c7a2425a142f
+src/builtin/ui/src/client/hooks/mod.ts WhoamiResult 1792d69e7ad4
 src/builtin/ui/src/client/hooks/mod.ts buildSearchCommand 357e22a258bf
 src/builtin/ui/src/client/hooks/mod.ts forgetAlbumCover 3dda68d4cf97
 src/builtin/ui/src/client/hooks/mod.ts forgetCover 447d5d805193
 src/builtin/ui/src/client/hooks/mod.ts hasAnyFilter 6565685233be
 src/builtin/ui/src/client/hooks/mod.ts holdElement 96a6f6a98071
+src/builtin/ui/src/client/hooks/mod.ts loadAccessIds 86c5e8b91f6e
 src/builtin/ui/src/client/hooks/mod.ts reloadIdentities d371a1f4c626
 src/builtin/ui/src/client/hooks/mod.ts searchResultToMediaItem fbd32e98b36a
 src/builtin/ui/src/client/hooks/mod.ts useAccessIds 55c9e2a62a9b
@@ -916,6 +917,7 @@ src/client/mod.ts commandCatalogue f792d0142683
 src/client/mod.ts commandsIn 9638f072126e
 src/client/mod.ts forgetCommandCatalogues df01802e180a
 src/client/mod.ts formatOffset 0b78147b6e38
+src/client/mod.ts groupEntriesFor 90a7fa690d9c
 src/client/mod.ts guestMayBrowse 7ba8b4a387fe
 src/client/mod.ts haversineMeters 92a735fb0f6f
 src/client/mod.ts isAdmin 70860d386e5f
@@ -932,6 +934,8 @@ src/client/mod.ts judgeLine 8d3452bb525c
 src/client/mod.ts kindConditions 265b7b439e59
 src/client/mod.ts listCommands 35edfa0a960c
 src/client/mod.ts lowerBound c1c917c55e2a
+src/client/mod.ts mayUseModule dc77e3338bf0
+src/client/mod.ts moduleGroupGids d9d92a6f3052
 src/client/mod.ts moduleOf c234fba4d06a
 src/client/mod.ts nodeOwnership 6bb3cf997713 @signature=b6249f4a5a3b,props=21035dcfe863
 src/client/mod.ts offsetOf 5cff3d3e8883
@@ -1032,7 +1036,8 @@ src/lib/api/mod.ts LogLine 4eba4fe221cb extra=60751f7008e8,level=1fb3f1f81f7c,me
 src/lib/api/mod.ts LogStat 154da2a900f6 retention=35412828e732,routingKeys=11a47683d8fc,size=5d025bf53508
 src/lib/api/mod.ts MembershipChanged 74e9ebd9fa69 action=57ec527970ff,group=fa0113d0351a,user=f5dd46b51dfb
 src/lib/api/mod.ts MetricPoint 148c3764d23d at=8cd35eed1400,value=8dd8911155c9
-src/lib/api/mod.ts ModuleEntry e505cc039116 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/lib/api/mod.ts ModuleEntry 184f7d5ceab4 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/lib/api/mod.ts ModuleGroups 3ddc9b28ea52 groups=df5ef28e2a7f,name=6d0c36381511
 src/lib/api/mod.ts ModuleInstall efda086a5998 at=f9e6ea108483,commit=ff520a93c1b2,ref=5bab60719c93,repository=b87f65f27efe
 src/lib/api/mod.ts ModuleInstallResult ada7b9c3e3b0 failed=a1c764bbd71a,installed=420e5c6cdcef,ok=23e6985ecee8
 src/lib/api/mod.ts ModuleSearch d398b651cd14 failed=5c344902269d,modules=bf3d2fbeff73
@@ -1131,7 +1136,7 @@ src/lib/api/mod.ts UserInactive 88883091bf0c inactive=99060b4ec8f1,username=0235
 src/lib/api/mod.ts UserResolved 3bcf1429f6be title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
 src/lib/api/mod.ts UserRole ee233c346180
 src/lib/api/mod.ts UserUpdated 559f15e82855 updated=fdd29c0093ac,username=02356e67b2c7
-src/lib/api/mod.ts Whoami c7a2425a142f
+src/lib/api/mod.ts Whoami 1792d69e7ad4
 src/lib/api/mod.ts Wire 66ac924bb486
 src/lib/api/mod.ts accountNameProblem 3e60a4f617ea
 src/lib/api/mod.ts emailProblem 575f75ff7b21
@@ -1139,6 +1144,7 @@ src/lib/api/mod.ts normalizeEmail d358c7df85e2
 src/lib/api/mod.ts suggestUsername 3a2065bfbeb5
 src/lib/api/mod.ts usernameCandidates badb67306d54
 src/lib/paths.ts ARCHIVE_PATH 5d105d800e20
+src/lib/paths.ts BASHRC_GROUPS_PATH 629098147f14
 src/lib/paths.ts BIN_PATH 629098147f14
 src/lib/paths.ts CORE_BIN_PATH 629098147f14
 src/lib/paths.ts COVER_LINK_NAME f14ec0158712
@@ -1157,6 +1163,7 @@ src/lib/paths.ts LIB_PATH 629098147f14
 src/lib/paths.ts LINKS_PATH 629098147f14
 src/lib/paths.ts LOGS_PATH 629098147f14
 src/lib/paths.ts METRICS_PATH 629098147f14
+src/lib/paths.ts MODULE_GROUPS_PATH 629098147f14
 src/lib/paths.ts MOD_INSTALL_PATH 629098147f14
 src/lib/paths.ts MOD_PATH 629098147f14
 src/lib/paths.ts NEXT_LINK_NAME 837eeb6796ed
@@ -1176,6 +1183,7 @@ src/lib/paths.ts TAGS_ROOT 629098147f14
 src/lib/paths.ts TEMP_PATH 6cc73ebd4257
 src/lib/paths.ts UI_ETC_PATH 629098147f14
 src/lib/paths.ts UI_GROUPS_PATH 629098147f14
+src/lib/paths.ts UI_GROUP_NAV_D d6c772094002
 src/lib/paths.ts UI_NAV_D_PATH 629098147f14
 src/lib/paths.ts UI_NAV_PATH 629098147f14
 src/lib/paths.ts USERS_PATH 629098147f14

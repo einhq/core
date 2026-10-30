@@ -119,6 +119,10 @@ export { ADMIN_ACCESS, GUEST_ACCESS } from '../lib/access/constants.ts';
 export { isAdmin, isVisitor, nodeOwnership, verifyAccess } from '../lib/access/verify-access.ts';
 /** The access an account signs in with, for work done on its behalf: `accessOfUser(vfs, access, username)`. */
 export { accessOfUser } from '../lib/auth/member-gids.ts';
+/** The entries of a directory of per-group files named after a group the caller is in: `groupEntriesFor(vfs, access, dir)`. */
+export { groupEntriesFor } from '../lib/auth/member-gids.ts';
+/** Who a module is for: whether `access` may use it, and the gids of the groups it is kept to. */
+export { mayUseModule, moduleGroupGids } from '../modules/audience.ts';
 export { type DefaultOwnership, resolveDefaultOwnership } from '../lib/access/default-ownership.ts';
 export { applySharePreference, type SharePreference } from '../lib/access/share-preference.ts';
 

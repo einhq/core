@@ -24,7 +24,9 @@ import {
   VOLATILE_PARAMS,
 } from '@ein/bash-executor';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { ETC_PATH, homePath, LOGS_PATH, MOD_PATH, TEMP_PATH, USERS_PATH } from '../../lib/paths.ts';
+import { BASHRC_GROUPS_PATH, ETC_PATH, homePath, LOGS_PATH, MOD_PATH, TEMP_PATH, USERS_PATH } from '../../lib/paths.ts';
+import { groupEntriesFor } from '../../lib/auth/member-gids.ts';
+import { mayUseModule } from '../../modules/audience.ts';
 import { assert } from '@std/assert';
 import { basename, dirname, isAbsolute, join, resolve } from '@std/path';
 import { toText } from '@std/streams/to-text';
@@ -641,32 +643,50 @@ export class Shell implements TtyIf {
   }
 
   /**
-   * Source /etc/bashrc, which in turn sources the two configuration layers.
+   * The files a shell of this sign-in sources, in order: `/etc/bashrc`, which in turn sources the
+   * configuration layers, then `/etc/bashrc.d/<group>` for each group it is in, by name — those
+   * there are.
+   */
+  private async rcFiles(etcPath: string): Promise<string[]> {
+    const files: string[] = [];
+    const rcFile = join(etcPath, 'bashrc');
+    if (await this.config.vfs.exists(this.access!, rcFile)) files.push(rcFile);
+    try {
+      const { groups } = await groupEntriesFor(this.config.vfs, this.access!, BASHRC_GROUPS_PATH);
+      files.push(...groups.map((group) => join(BASHRC_GROUPS_PATH, group)));
+    } catch (error) {
+      logger.error("failed to list the groups' shell setup", { tty: this.name, error });
+    }
+    return files;
+  }
+
+  /**
+   * Source /etc/bashrc, which in turn sources the two configuration layers, and the setup of each
+   * of the sign-in's groups (`rcFiles`).
    *
    * Called again after `login`, because the user layer it reaches is
    * `$HOME/.config` and `HOME` only becomes the right one once we know who is
-   * signed in. Without the second pass a personal setting would apply to an SSH
-   * session (whose shell is constructed after authentication) but not to the
-   * web UI, whose shell opens as guest on connect and logs in afterwards.
+   * signed in, and the groups are the account's. Without the second pass a
+   * personal setting would apply to an SSH session (whose shell is constructed
+   * after authentication) but not to the web UI, whose shell opens as guest on
+   * connect and logs in afterwards.
    */
   private async sourceBashrc(timer?: StepTimer): Promise<void> {
     const etcPath = this.getEnv().ETC_PATH || ETC_PATH;
-    const rcFile = join(etcPath, 'bashrc');
     // Taken before reading, so a change while it is read is seen by the next refresh.
     this.settingsSeen = await settingsVersion(this.config.vfs, etcPath);
     try {
-      const exists = await this.config.vfs.exists(this.access!, rcFile);
+      const files = await this.rcFiles(etcPath);
       timer?.mark('bashrc-exists');
-      if (!exists) {
-        return;
-      }
       // Not `run()`: that persists the tty afterwards, and here the caller
       // decides when the tty is written — `open()` creates the node with the
       // sourced environment already in it, `login` persists once at its end.
-      try {
-        await shellSetup.run(true, () => this.executor.execute(`source "${rcFile}"`, this.ctx));
-      } catch (err) {
-        await this.pipeWrite('2', `Error: ${(err as Error).message}\n`);
+      for (const file of files) {
+        try {
+          await shellSetup.run(true, () => this.executor.execute(`source "${file}"`, this.ctx));
+        } catch (err) {
+          await this.pipeWrite('2', `Error: ${(err as Error).message}\n`);
+        }
       }
       timer?.mark('bashrc-source');
     } catch {
@@ -693,13 +713,13 @@ export class Shell implements TtyIf {
     if (version === undefined || version === this.settingsSeen) return;
     this.settingsSeen = version;
 
-    const rcFile = join(etcPath, 'bashrc');
     try {
-      if (!(await this.config.vfs.exists(this.access, rcFile))) return;
+      const files = await this.rcFiles(etcPath);
+      if (files.length === 0) return;
       const before = this.ctx.getEnv();
       const sub = this.ctx.subContext();
       sub.setEnv(Object.fromEntries(listConfigOptions().filter((option) => option.type !== 'secret').map((option) => [option.key, null])));
-      await shellSetup.run(true, () => this.executor.execute(`source "${rcFile}"`, sub));
+      for (const file of files) await shellSetup.run(true, () => this.executor.execute(`source "${file}"`, sub));
 
       const after = sub.getEnv();
       const changed: Record<string, string | null> = {};
@@ -1176,10 +1196,14 @@ export class Shell implements TtyIf {
     for (const shell of shells) await shell.markElevated(on);
   }
 
-  /** Set or clear `elevated` on this shell's access alone. */
+  /**
+   * Set or clear `elevated` on this shell's access alone. Its next command reads the shell setup
+   * again: an administrator's takes in the `admin` group's.
+   */
   async markElevated(on: boolean): Promise<void> {
     const { elevated: _, ...access } = this.access!;
     this.access = on ? { ...access, elevated: true } : access;
+    this.settingsSeen = undefined;
     await this.persist();
   }
 
@@ -1629,6 +1653,13 @@ export class Shell implements TtyIf {
       }
       assertAccess(this.access!, node, 'x');
 
+      // A module kept to groups is refused to anyone outside them, named on PATH or by its path in MOD_PATH.
+      const moduleRoot = moduleRootOf(commandPath, MOD_PATH);
+      if (moduleRoot && !await mayUseModule(this.config.vfs, this.access!, basename(moduleRoot))) {
+        await this.pipeWrite(ctx.getStderr(), `${name}: permission denied: module ${basename(moduleRoot)} is kept to groups you are not in\n`);
+        return 126;
+      }
+
       if (node.type === NODE_TYPE_COMMAND) {
         // The registry is keyed by command name, and `name` is whatever was typed — for
         // `/bin/uuid` the whole path. The node's own basename is the name.
@@ -1658,7 +1689,7 @@ export class Shell implements TtyIf {
         // A `#!ts` file runs inside this process, with all of its permissions, so only a module's
         // runs: `MOD_PATH` is the administrator's to write. The constant, not the caller's
         // `$MOD_PATH`, which anyone can point at their own home.
-        const inModule = moduleRootOf(commandPath, MOD_PATH) !== undefined;
+        const inModule = moduleRoot !== undefined;
 
         // Before the read, not after: a `#!ts` bin this process has already loaded and whose file
         // has not changed since needs neither its source nor anything it imports.

@@ -1,4 +1,5 @@
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { mayUseModule } from '../../../../modules/audience.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { resolveEntries, shownValue } from './store.ts';
@@ -13,7 +14,13 @@ export const configList = async (cmd: Command): CmdReturn => {
   }
 
   try {
-    const entries = (await resolveEntries(cmd)).filter((entry) => !scope || entry.scope === scope);
+    const entries = [];
+    for (const entry of await resolveEntries(cmd)) {
+      if (scope && entry.scope !== scope) continue;
+      // A module kept to groups the caller is in none of has no settings for them.
+      if (entry.owner && !await mayUseModule(cmd.sys.vfs, cmd.access, entry.owner)) continue;
+      entries.push(entry);
+    }
 
     if (cmd.json) {
       await cmd.writeJSON(entries);

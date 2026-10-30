@@ -13,7 +13,7 @@
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import type { ModuleEntry, ModuleInstallResult, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
+import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
 import { FakeForge, moduleFiles } from '../../../../testing/fake-forge.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
@@ -142,6 +142,24 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals(placed.answer?.installed.map((module) => module.name), ['quiet']);
       assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'quiet')?.setup, undefined);
       await client.execString('mod-remove --force quiet');
+    });
+
+    await t.step('--groups keeps the module named to its groups, not the dependency it brings; a group that is not there is refused', async () => {
+      await client.execString('group-create crew --gid 7300');
+      // Not a module source, so mod search below does not list them.
+      await forge.publish('harbour', 'module-deck', moduleFiles('deck', '1.0.0', 'deck'));
+      await forge.publish('harbour', 'module-helm', moduleFiles('helm', '1.0.0', 'helm', { dependencies: { deck: '^1.0.0' } }));
+      const helm = `${forge.url('harbour')}/module-helm`;
+      const refused = await install(`--groups nobody ${helm}`);
+      assertEquals(refused.success, false);
+      assertEquals((await client.execJson<string[]>('ls $MOD_INSTALL_PATH')).includes('helm'), false);
+
+      const kept = await install(`--groups crew ${helm}`);
+      assert(kept.success, kept.error);
+      assertEquals(kept.answer?.installed.map((module) => module.name), ['deck', 'helm']);
+      assertEquals((await client.execJson<ModuleGroups>('mod-groups helm')).groups, ['crew']);
+      assertEquals((await client.execJson<ModuleGroups>('mod-groups deck')).groups, []);
+      await client.execString('mod-remove --force helm && mod-remove --force deck');
     });
 
     await t.step("the deployment's module, one for another core, and a repository with no module leave nothing behind", async () => {

@@ -29,6 +29,8 @@ import { canParse, parse, parseRange, satisfies } from '@std/semver';
 import { ulid } from '@std/ulid';
 import type { InstalledModule, ModuleInstall, ModuleInstallResult, ServiceEntry } from '../../../../lib/api/mod.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { groupGid } from '../../../../lib/auth/member-gids.ts';
+import { writeModuleGroups } from '../../../../modules/audience.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { DEV_MODULES_PATH, MOD_INSTALL_PATH, MOD_PATH } from '../../../../lib/paths.ts';
 import {
@@ -346,12 +348,19 @@ const affectedBy = async (cmd: Command, changed: Set<string>, skip: Set<string>)
 };
 
 export const modInstall = async (cmd: Command): CmdReturn => {
-  const flags = parseArgs(cmd.args, { boolean: ['force', 'missing', 'no-setup'], alias: { f: 'force' } });
+  const flags = parseArgs(cmd.args, { boolean: ['force', 'missing', 'no-setup'], string: ['groups'], alias: { f: 'force' } });
   const targets = flags._.map(String);
   if (targets.length === 0) {
     await cmd.writeError('mod install: name a module or its repository\n');
-    await cmd.writeError('usage: mod install <name | https://host/owner/module-name>[@ref]... [--force] [--missing] [--no-setup]\n');
+    await cmd.writeError('usage: mod install <name | https://host/owner/module-name>[@ref]... [--groups a,b] [--force] [--missing] [--no-setup]\n');
     return 1;
+  }
+  const groups = typeof flags.groups === 'string' ? flags.groups.split(',').map((group) => group.trim()).filter(Boolean) : [];
+  for (const group of groups) {
+    if (await groupGid(cmd.sys.vfs, group) === undefined) {
+      await cmd.writeError(`mod install: no group ${group}\n`);
+      return 1;
+    }
   }
 
   const { sources, problems, tokens } = await moduleSources(cmd);
@@ -383,7 +392,9 @@ export const modInstall = async (cmd: Command): CmdReturn => {
       continue;
     }
     try {
-      await installTarget(run, target);
+      const installed = await installTarget(run, target);
+      // Kept to its groups before it is set up, so it is never everyone's on the way.
+      if (installed && groups.length > 0) await writeModuleGroups(cmd.sys.vfs, installed.name, groups);
     } catch (error) {
       if (!(error instanceof InstallError)) throw error;
       await fail(error.message);
@@ -439,6 +450,11 @@ modInstall.spec = {
       description: 'Fetch again what is installed at the same commit, and update even when an installed module does not accept the new version',
     },
     { name: 'missing', type: 'bool' as const, description: 'Install only modules not installed at all, leaving an installed one as it is without asking its forge' },
+    {
+      name: 'groups',
+      type: 'string' as const,
+      description: "Keep the modules named to these groups, comma-separated, as mod groups does; the dependencies it installs with them are everyone's",
+    },
     {
       name: 'no-setup',
       type: 'bool' as const,

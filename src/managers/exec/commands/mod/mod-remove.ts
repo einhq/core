@@ -14,13 +14,14 @@ import { NodeNotFoundError } from '../../../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import type { Command } from '../../command.ts';
 import { CmdReturn } from '../../types.ts';
-import { buildPathExportLine } from './path-line.ts';
+import { removePathLine } from './path-line.ts';
+import { writeModuleGroups } from '../../../../modules/audience.ts';
 import { unlinkModuleFiles } from './module-links.ts';
 import { rebuildModulePages } from './module-pages.ts';
 
 /**
- * Reverse the side effects of `mod setup` (bashrc PATH line, services,
- * pipeline definitions, /var/www symlink). Scans the still-present module
+ * Reverse the side effects of `mod setup` (bashrc PATH lines, services,
+ * pipeline definitions, /var/www symlink) and forget the groups it was kept to. Scans the still-present module
  * directory, mirroring mod-setup. Best-effort: a failure on one effect logs a
  * warning but never aborts removal.
  */
@@ -44,32 +45,13 @@ const undoModuleSetup = async (cmd: Command, modulePath: string, manifestName: s
   if (unregisterContributions(manifestName) && !cmd.json) await cmd.write(`  Unregistered contributions\n`);
   forgetModuleSetup(manifestName);
 
-  // 1. Remove bin/ from PATH in /etc/bashrc
+  // 1. Take bin/ off PATH, in /etc/bashrc and every group's, and forget the groups it was kept to
   const binPath = join(modulePath, 'bin');
-  if (await cmd.sys.vfs.exists(cmd.access, binPath)) {
-    const rcPath = join(cmd.env.ETC_PATH, 'bashrc');
-    const exportLine = buildPathExportLine(binPath);
-    try {
-      const handle = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'r' });
-      let content: string;
-      try {
-        content = await toText(handle.readable);
-      } finally {
-        await handle.close();
-      }
-      if (content.includes(exportLine)) {
-        const filtered = content.split('\n').filter((line) => line !== exportLine).join('\n');
-        const wh = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'w' });
-        try {
-          await wh.write(new TextEncoder().encode(filtered));
-        } finally {
-          await wh.close();
-        }
-        if (!cmd.json) await cmd.write(`  Removed ${binPath} from PATH\n`);
-      }
-    } catch (err) {
-      await cmd.writeError(`  failed to update bashrc: ${(err as Error).message}\n`);
-    }
+  if (await cmd.sys.vfs.exists(cmd.access, binPath)) await removePathLine(cmd, binPath);
+  try {
+    await writeModuleGroups(cmd.sys.vfs, manifestName, []);
+  } catch (error) {
+    await cmd.writeError(`  failed to forget its groups: ${(error as Error).message}\n`);
   }
 
   // 2. Stop, disable and remove services

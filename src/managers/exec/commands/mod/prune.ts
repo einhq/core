@@ -1,9 +1,9 @@
 import { PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
-import { toText } from '@std/streams/to-text';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import type { Command } from '../../command.ts';
-import { buildPathExportLine } from './path-line.ts';
+import { removePathLine } from './path-line.ts';
+import { writeModuleGroups } from '../../../../modules/audience.ts';
 import { unlinkModuleFiles } from './module-links.ts';
 
 /**
@@ -11,7 +11,7 @@ import { unlinkModuleFiles } from './module-links.ts';
  *
  * A module is installed as a link under `/usr/modules` into wherever its code lives — the image,
  * or the dev mount. When a deploy drops a module, the link is left pointing at nothing, and
- * everything `mod setup` registered for it stays: its bin/ line in `/etc/bashrc`, its services —
+ * everything `mod setup` registered for it stays: its bin/ line in `/etc/bashrc` or its groups', its services —
  * enabled, so every boot tries to start them — its pipeline definitions, its `/var/www` and
  * navigation links. `mod remove` cannot help: it reads the module's own directory to know what to
  * undo, and that directory is what went away. And a registration that points outside a module
@@ -98,28 +98,12 @@ const undoRegistrations = async (cmd: Command, name: string, modulePath: string)
     // No pipelines defined at all.
   }
 
-  // The bin/ line in /etc/bashrc.
-  const line = buildPathExportLine(join(modulePath, 'bin'));
-  const rcPath = join(cmd.env.ETC_PATH, 'bashrc');
+  // The bin/ line in /etc/bashrc or its groups', and the groups it was kept to.
+  await removePathLine(cmd, join(modulePath, 'bin'));
   try {
-    const handle = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'r' });
-    let content: string;
-    try {
-      content = await toText(handle.readable);
-    } finally {
-      await handle.close();
-    }
-    const kept = content.split('\n').filter((row) => row !== line);
-    if (kept.length !== content.split('\n').length) {
-      const write = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'w' });
-      try {
-        await write.write(new TextEncoder().encode(kept.join('\n')));
-      } finally {
-        await write.close();
-      }
-    }
+    await writeModuleGroups(cmd.sys.vfs, name, []);
   } catch (error) {
-    await cmd.writeError(`  failed to update bashrc: ${(error as Error).message}\n`);
+    await cmd.writeError(`  failed to forget the groups of ${name}: ${(error as Error).message}\n`);
   }
 
   await unlinkModuleFiles(cmd, name, modulePath);

@@ -1,7 +1,7 @@
 import { PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
-import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, ADMIN_GROUPNAME } from '../../../../lib/access/mod.ts';
 import { registerConfigOptions } from '../../../../lib/config/registry.ts';
 import { contributionsOf, registerContributions } from '../../../../lib/contributions/registry.ts';
 import { ensureArchiveRoots } from '../../../../lib/contributions/roots.ts';
@@ -12,11 +12,13 @@ import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { parsePipeline } from '../../../pipeline/mod.ts';
 import type { Command } from '../../command.ts';
 import { CmdReturn } from '../../types.ts';
-import { buildPathExportLine } from './path-line.ts';
+import { placePathLine } from './path-line.ts';
 import { pruneVanishedModules } from './prune.ts';
 import { isLinkedEtc, linkModuleFiles } from './module-links.ts';
 import { rebuildModulePages } from './module-pages.ts';
 import { recordModuleSetup } from '../../../../modules/setup-state.ts';
+import { clearModuleAudienceCache, readModuleGroups } from '../../../../modules/audience.ts';
+import { groupGid } from '../../../../lib/auth/member-gids.ts';
 
 /**
  * Set up every installed module, dependencies first: a module's setup fails when a dependency is
@@ -120,6 +122,18 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
 
   if (!cmd.json) await cmd.write(`Setting up module '${manifest.name}'...\n`);
 
+  // Who it is for (`mod groups`): its groups that exist. One kept only to groups there are none of
+  // is the administrators' alone.
+  clearModuleAudienceCache();
+  const kept = await readModuleGroups(cmd.sys.vfs, manifest.name);
+  const groups: string[] = [];
+  for (const group of kept) {
+    if (await groupGid(cmd.sys.vfs, group) === undefined) await cmd.writeError(`mod setup: ${manifest.name}: kept to group ${group}, which there is not\n`);
+    else groups.push(group);
+  }
+  if (kept.length > 0 && groups.length === 0) groups.push(ADMIN_GROUPNAME);
+  if (!cmd.json && groups.length > 0) await cmd.write(`  for groups: ${groups.join(', ')}\n`);
+
   // What went wrong, for the log as it happens and for `mod list` afterwards.
   const problems: string[] = [];
   const fail = async (message: string) => {
@@ -179,36 +193,14 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
     }
   }
 
-  // 2. Add bin/ to PATH in /etc/bashrc
+  // 2. Put bin/ on PATH: in /etc/bashrc, or for a module kept to groups in theirs
   const binPath = join(modulePath, 'bin');
   if (await cmd.sys.vfs.exists(cmd.access, binPath)) {
-    const rcPath = join(cmd.env.ETC_PATH, 'bashrc');
-    const exportLine = buildPathExportLine(binPath);
-
-    let alreadyAdded = false;
     try {
-      const handle = await cmd.sys.vfs.open(cmd.access, rcPath, { mode: 'r' });
-      try {
-        const content = await toText(handle.readable);
-        alreadyAdded = content.includes(binPath);
-      } finally {
-        await handle.close();
-      }
-    } catch {
-      // No bashrc yet: the append creates it.
-    }
-
-    if (alreadyAdded) {
-      if (!cmd.json) await cmd.write(`  bin/ already in PATH\n`);
-    } else {
-      const res = await cmd.execute(
-        `echo '${exportLine}' >> ${rcPath}`,
-      );
-      if (res.code !== 0) {
-        await cmd.writeError(`  failed to update bashrc: ${res.stderr}\n`);
-        return 1;
-      }
-      if (!cmd.json) await cmd.write(`  Added ${binPath} to PATH\n`);
+      await placePathLine(cmd, binPath, groups);
+    } catch (error) {
+      await cmd.writeError(`  failed to put bin/ on PATH: ${(error as Error).message}\n`);
+      return 1;
     }
   }
 
@@ -391,8 +383,8 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
     }
   }
 
-  // 6. Link its navigation entries into /etc/ui/nav.d, its settings into /etc/config.d and its drop-ins into /etc/<x>.d
-  for (const problem of await linkModuleFiles(cmd, manifest.name, modulePath)) await fail(problem);
+  // 6. Link its navigation entries into /etc/ui/nav.d (or its groups'), its settings into /etc/config.d and its drop-ins into /etc/<x>.d
+  for (const problem of await linkModuleFiles(cmd, manifest.name, modulePath, groups)) await fail(problem);
 
   // The `{ ok: true }` JSON belongs to the caller, not here — `--all` sets up many modules and
   // must emit one object, not one per module.

@@ -1,6 +1,6 @@
 import { Alert, Anchor, Badge, Box, Button, Group, Loader, Stack, Table, Tabs, Text } from '@mantine/core';
 import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ModuleEntry, ModuleInstallResult, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
@@ -9,12 +9,14 @@ import { useGuide } from '../../../hooks/useGuide.ts';
 import { useCommandReference, useNodeTypeReference } from '../../../hooks/useReference.ts';
 import { usePolledCommand } from '../../../hooks/useSystem.ts';
 import { formatCount, formatUptime } from '../../../lib/format.ts';
+import { formatGroupList, parseGroupList } from '../../../lib/accounts.ts';
 import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
 import { modulePages } from '../../../lib/guide.ts';
 import { GuidePageList } from '../../Docs/ModuleReference.tsx';
 import { moduleRoute } from '../../Docs/reference.tsx';
 import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
+import { GroupsMultiSelect } from '../AccountInputs.tsx';
 import { Done, Note, PanelHeader, PanelSection, useInlineConfirm } from '../Accounts/PanelParts.tsx';
 import { ModuleCommands } from './ModuleCommands.tsx';
 import { ModuleAvatar, moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
@@ -107,6 +109,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
         </Note>
       )}
       {module.installed && <Installed module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} onRemoved={onRemoved} />}
+      <AvailableTo module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} />
       <Box>
         <Button component={Link} to={moduleRoute(module.name)} variant='default' size='xs' leftSection={<IconBook2 size={16} />}>Reference and guide</Button>
       </Box>
@@ -232,6 +235,66 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
           <Group gap='xs'>
             <Button size='xs' color='red' loading={busy === 'remove'} onClick={remove} data-autofocus>Remove {module.name}</Button>
             <Button size='xs' variant='default' disabled={busy === 'remove'} onClick={confirm.cancel}>Cancel</Button>
+          </Group>
+        </Stack>
+      )}
+    </PanelSection>
+  );
+}
+
+type AvailableToProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boolean; onChanged: () => void };
+
+/**
+ * Who the module is for: everyone, or the groups it is kept to (`mod groups`), whose members alone
+ * have its commands, its entries in the navigation and its pages; administrators have every
+ * module. The administrator chooses the groups here, none for everyone.
+ */
+function AvailableTo({ module, usedBy, admin, onChanged }: AvailableToProps) {
+  const saved = formatGroupList(module.groups ?? []);
+  const [value, setValue] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  useEffect(() => setValue(saved), [saved]);
+
+  const groups = parseGroupList(value);
+  // What needs it and is everyone's calls it for people it would be refused to.
+  const exposed = groups.length > 0 ? usedBy.filter((entry) => !entry.groups?.length) : [];
+
+  const save = async () => {
+    setBusy(true);
+    setProblem(null);
+    setDone(false);
+    try {
+      await execCommand(`mod groups ${shq(module.name)} ${groups.length > 0 ? groups.map(shq).join(' ') : '--everyone'}`);
+      setDone(true);
+      onChanged();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const lead = module.groups?.length
+    ? `Only members of ${module.groups.join(', ')}, and administrators, have its commands, its entries in the navigation and its pages.`
+    : 'Everyone has its commands, its entries in the navigation and its pages.';
+
+  return (
+    <PanelSection title='Available to' lead={lead} error={problem} onDismiss={() => setProblem(null)}>
+      {admin && (
+        <Stack gap='xs'>
+          <GroupsMultiSelect value={value} onChange={setValue} placeholder='Everyone' aria-label='Groups it is kept to' disabled={busy} />
+          {exposed.length > 0 && (
+            <Note warn>
+              {exposed.map((entry) => entry.name).join(', ')} {exposed.length > 1 ? 'need' : 'needs'} {module.name} and {exposed.length > 1 ? 'are' : 'is'} everyone's: what
+              {' '}
+              {exposed.length > 1 ? 'they run' : 'it runs'} of {module.name} fails for anyone outside these groups.
+            </Note>
+          )}
+          <Group gap='xs'>
+            <Button size='xs' variant='default' loading={busy} disabled={value === saved} onClick={save}>Save</Button>
+            {done && value === saved && <Done>Saved</Done>}
           </Group>
         </Stack>
       )}

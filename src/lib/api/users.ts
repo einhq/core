@@ -211,6 +211,8 @@ export type Whoami = {
   mustResetPassword?: boolean;
   /** A property of this session's access, not a file mode bit. */
   admin: boolean;
+  /** The groups this session's access carries, by gid, as of its sign-in: what access to a node or a module is judged by. */
+  gids: GroupId[];
   /** Whether the sign-in is an administrator's because its account elevated it (`user-elevate`). */
   elevated: boolean;
   /** Whether the account may elevate the sign-in (`user-elevate`), being in the `sudo` group; elevated or not. */
@@ -245,7 +247,12 @@ export type ModuleEntry = {
   setup?: ModuleSetup;
   /** Where `mod install` fetched it from; absent for a module the deployment provides. */
   installed?: ModuleInstall;
+  /** The groups it is kept to (`mod groups`); absent when it is everyone's. */
+  groups?: string[];
 };
+
+/** `mod groups <name>`: the groups a module is kept to, none when it is everyone's. */
+export type ModuleGroups = { name: string; groups: string[] };
 
 /** Where `mod install` fetched a module from, as it records it beside the module (`.install.json`). */
 export type ModuleInstall = {

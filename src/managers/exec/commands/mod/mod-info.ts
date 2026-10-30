@@ -1,4 +1,5 @@
 import { join } from '@std/path';
+import { mayUseModule, readModuleGroups } from '../../../../modules/audience.ts';
 import { MODULE_API_VERSION, type ModuleManifest, readManifests, readModJson } from '../../../../modules/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
@@ -32,10 +33,11 @@ export const modInfo = async (cmd: Command): CmdReturn => {
 
     const manifest = await readModJson(cmd.sys.vfs, cmd.access, modulePath);
 
-    if (!manifest) {
+    if (!manifest || !await mayUseModule(cmd.sys.vfs, cmd.access, manifest.name || name)) {
       await cmd.writeError(`mod-info: ${name} is not a module (no mod.json found)\n`);
       return 1;
     }
+    const groups = await readModuleGroups(cmd.sys.vfs, manifest.name || name);
 
     if (cmd.json) {
       let commands: string[] = [];
@@ -49,7 +51,7 @@ export const modInfo = async (cmd: Command): CmdReturn => {
         webUis = wwwDirs.filter((d) => d.node.type === NODE_TYPE_DIRECTORY).map((d) => d.name);
       } catch { /* no www/ */ }
       const usedBy = dependentsOf(manifest.name, await readManifests(cmd.sys.vfs, cmd.access, cmd.env.MOD_PATH));
-      await cmd.writeJSON({ ...manifest, commands, webUis, usedBy });
+      await cmd.writeJSON({ ...manifest, commands, webUis, usedBy, ...(groups.length > 0 ? { groups } : {}) });
       return 0;
     }
 
@@ -66,6 +68,7 @@ export const modInfo = async (cmd: Command): CmdReturn => {
       await cmd.write(`License:     ${manifest.license}\n`);
     }
     await cmd.write(`Core API:    ${manifest.coreApi ?? `(undeclared, assumed ${MODULE_API_VERSION})`}\n`);
+    await cmd.write(`For:         ${groups.length > 0 ? groups.join(', ') : 'everyone'}\n`);
 
     const deps = Object.entries(manifest.dependencies ?? {});
     if (deps.length > 0) {

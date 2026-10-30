@@ -44,6 +44,7 @@ export const userWhoami = async (cmd: Command): CmdReturn => {
             // not a file mode bit or necessarily a persisted user attribute. Each is
             // set whatever its value, over any attr of that name the user gave their node.
             admin: isAdmin(cmd.access),
+            gids: cmd.access.gids,
             elevated: cmd.access.elevated === true,
             mayElevate,
             // Whether visitors who have not signed in browse: the web UI lets the guest in on it, and

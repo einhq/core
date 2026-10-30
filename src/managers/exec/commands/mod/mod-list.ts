@@ -1,5 +1,6 @@
 import { join } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { mayUseModule, readModuleGroups } from '../../../../modules/audience.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
 import { readModJson } from '../../../../modules/mod.ts';
 import { moduleSetupOf } from '../../../../modules/setup-state.ts';
@@ -40,7 +41,9 @@ export const modList = async (cmd: Command): CmdReturn => {
         const manifest = await readModJson(cmd.sys.vfs, cmd.access, modulePath);
         if (!manifest) continue;
         const name = manifest.name || dir.name;
+        if (!await mayUseModule(cmd.sys.vfs, cmd.access, name)) continue;
         const installed = await readInstallRecord(cmd.sys.vfs, cmd.access, modulePath);
+        const groups = await readModuleGroups(cmd.sys.vfs, name);
         modules.push({
           name,
           version: manifest.version || null,
@@ -55,6 +58,7 @@ export const modList = async (cmd: Command): CmdReturn => {
           routes: Object.keys(manifest.ui?.routes ?? {}).sort(),
           setup: moduleSetupOf(name),
           ...(installed ? { installed } : {}),
+          ...(groups.length > 0 ? { groups } : {}),
         });
       }
       await cmd.writeJSON(modules);
@@ -76,8 +80,9 @@ export const modList = async (cmd: Command): CmdReturn => {
         continue;
       }
 
-      foundModules++;
       const name = manifest.name || dir.name;
+      if (!await mayUseModule(cmd.sys.vfs, cmd.access, name)) continue;
+      foundModules++;
       const version = manifest.version || 'N/A';
 
       // Installed is not the same as working: boot carries on past a module whose setup failed.
@@ -95,6 +100,8 @@ export const modList = async (cmd: Command): CmdReturn => {
         await cmd.write(`  Path: ${modulePath}\n`);
         const installed = await readInstallRecord(cmd.sys.vfs, cmd.access, modulePath);
         if (installed) await cmd.write(`  Installed from: ${installed.repository} at ${installed.commit.slice(0, 9)} (${installed.ref})\n`);
+        const groups = await readModuleGroups(cmd.sys.vfs, name);
+        if (groups.length > 0) await cmd.write(`  For groups: ${groups.join(', ')}\n`);
 
         const lines: [string, string[]][] = [
           ['Commands', await namesIn(cmd, join(modulePath, 'bin'), NODE_TYPE_FILE)],
@@ -125,7 +132,7 @@ export const modList = async (cmd: Command): CmdReturn => {
 modList.spec = {
   name: 'mod-list',
   effect: 'read' as const,
-  description: 'List installed modules',
+  description: 'List installed modules, those kept to groups only for their members and administrators',
   flags: [
     { name: 'long', type: 'bool' as const, description: 'Show detailed information' },
   ],

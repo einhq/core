@@ -28,6 +28,11 @@ export type ModuleUi = {
   open?: Record<string, string>;
   /** Its node types the Search page finds (`mod.json` `nodeTypes` marked `searchable`), in their order. */
   search?: SearchableKind[];
+  /**
+   * The gids of the groups it is kept to (`mod groups`), when it is not everyone's: its routes are
+   * a reader's when the reader is in one of them or an administrator. In the manifest only.
+   */
+  gids?: number[];
 };
 
 /** `/var/cache/ui/manifest.json`. */

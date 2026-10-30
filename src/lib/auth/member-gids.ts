@@ -1,8 +1,10 @@
 import { join, resolve } from '@std/path';
-import { USERS_GID } from '../access/constants.ts';
+import { ADMIN_ACCESS, ADMIN_GROUPNAME, USERS_GID } from '../access/constants.ts';
 import type { Access } from '../access/types.ts';
+import { isAdmin } from '../access/verify-access.ts';
 import type { GroupId } from '../mode/types.ts';
 import { GROUPS_PATH, USERS_PATH } from '../paths.ts';
+import { NodeNotFoundError } from '../../vfs/errors.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { Node } from '../../vfs/node.ts';
 import type { NodeChildEntry } from '../../vfs/types.ts';
@@ -107,4 +109,44 @@ export const accessOfUser = async (vfs: NodeVFS, access: Access, username: strin
   const userNode = await vfs.get(access, join(USERS_PATH, username));
   if (!isUserNode(userNode)) throw new Error(`not a user: ${username}`);
   return await userAccess(vfs, access, username, userNode);
+};
+
+/**
+ * The gid of the group `name`, undefined when there is no such group. Looked up as the
+ * administrator: a group's members need not be able to read `/etc/groups`.
+ */
+export const groupGid = async (vfs: NodeVFS, name: string): Promise<number | undefined> => {
+  try {
+    const node = await vfs.get(ADMIN_ACCESS, join(GROUPS_PATH, name));
+    return isGroupNode(node) ? node.attrs.gid : undefined;
+  } catch (error) {
+    if (error instanceof NodeNotFoundError) return undefined;
+    throw error;
+  }
+};
+
+/** Whether `access` is in the group `gid`; an administrator is in `admin` whatever the gids say. */
+const inGroup = (access: Access, name: string, gid: number): boolean => access.gids.includes(gid) || (name === ADMIN_GROUPNAME && isAdmin(access));
+
+/**
+ * The entries of `dir` named after a group `access` is in, by name: what a directory of per-group
+ * files (`/etc/ui/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed with
+ * `access`. An entry naming no group is in `unknown`, for the caller to warn of.
+ */
+export const groupEntriesFor = async (vfs: NodeVFS, access: Access, dir: string): Promise<{ groups: string[]; unknown: string[] }> => {
+  let names: string[];
+  try {
+    names = (await vfs.children(access, dir)).map((child) => child.name).sort();
+  } catch (error) {
+    if (error instanceof NodeNotFoundError) return { groups: [], unknown: [] };
+    throw error;
+  }
+  const groups: string[] = [];
+  const unknown: string[] = [];
+  for (const name of names) {
+    const gid = await groupGid(vfs, name);
+    if (gid === undefined) unknown.push(name);
+    else if (inGroup(access, name, gid)) groups.push(name);
+  }
+  return { groups, unknown };
 };
