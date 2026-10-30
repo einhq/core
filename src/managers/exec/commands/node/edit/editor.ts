@@ -201,6 +201,12 @@ export class Editor {
       }
       return false;
     }
+    // Readline's word moves, which reach the editor where Alt with an arrow is the terminal panel's.
+    if (key.alt && !key.ctrl && (key.name === 'b' || key.name === 'f')) {
+      if (key.name === 'b') buffer.wordLeft();
+      else buffer.wordRight();
+      return false;
+    }
     switch (key.name) {
       case 'enter':
         buffer.newline();

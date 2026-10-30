@@ -68,6 +68,16 @@ Deno.test('Editor', async (t) => {
     assertEquals(saves, ['yx']);
   });
 
+  await t.step('Alt+B and Alt+F move a word, as in the shell', async () => {
+    const { editor, keys } = await open('one two three');
+    await keys(END);
+    await keys('\x1bb\x1bb');
+    assertEquals(editor.buffer.cursor, { line: 0, col: 4 });
+    await keys('\x1bf');
+    assertEquals(editor.buffer.cursor, { line: 0, col: 7 });
+    assertEquals(editor.buffer.text, 'one two three');
+  });
+
   await t.step('an unmodified buffer quits at once', async () => {
     const { keys } = await open('x');
     assertEquals(await keys(CTRL('q')), true);
