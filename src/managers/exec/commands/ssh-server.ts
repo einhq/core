@@ -9,10 +9,10 @@ import { type FileAttrs, NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
 import type { Command } from '../command.ts';
 import { CmdReturn } from '../types.ts';
 
-const writeFile = async (cmd: Command, path: string, data: string, mimetype: string): Promise<void> => {
+const writeFile = async (cmd: Command, path: string, data: string, mimetype: string, mode: number): Promise<void> => {
   // Every file node carries name/mimetype/size; the size follows the write.
   await cmd.sys.vfs.ensure<FileAttrs>(cmd.access, NODE_TYPE_FILE, dirname(path), basename(path), {
-    props: { mode: 0o700, tier: 'db' },
+    props: { mode, tier: 'db' },
     attrs: { name: basename(path), mimetype, size: 0 },
   });
 
@@ -38,10 +38,10 @@ export const sshServer = async (cmd: Command): CmdReturn => {
     const kp = await generateKeyPair('ed25519');
 
     try {
-      await writeFile(cmd, keyPath, kp.private, 'application/x-pem-file');
-      await writeFile(cmd, keyPath + '.pub', kp.public, 'text/plain');
+      await writeFile(cmd, keyPath, kp.private, 'application/x-pem-file', 0o600);
+      await writeFile(cmd, keyPath + '.pub', kp.public, 'text/plain', 0o644);
     } catch (err) {
-      await cmd.writeError(`ssh-server: ${(err as Error).message}`);
+      await cmd.writeError(`ssh-server: ${(err as Error).message}\n`);
       return 1;
     }
   }
@@ -53,9 +53,9 @@ export const sshServer = async (cmd: Command): CmdReturn => {
     key = await toText(keyHandle.readable);
   } catch (err) {
     if (err instanceof NodeNotFoundError) {
-      await cmd.writeError('ssh-server: no host key found:' + keyPath);
+      await cmd.writeError(`ssh-server: no host key found: ${keyPath}\n`);
     } else {
-      await cmd.writeError('ssh-server: error opening key:' + (err as Error).message);
+      await cmd.writeError(`ssh-server: error opening key: ${(err as Error).message}\n`);
     }
 
     return 1;
