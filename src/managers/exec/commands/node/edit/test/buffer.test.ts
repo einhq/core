@@ -48,6 +48,15 @@ Deno.test('TextBuffer', async (t) => {
     assertEquals(detectIndent(['all:', '    x'], true), '\t');
   });
 
+  await t.step('Tab follows the indent the text has now, not the one it opened with', () => {
+    const buffer = new TextBuffer('notes');
+    buffer.end();
+    buffer.paste('\nif x:\n    y');
+    buffer.newline();
+    buffer.indent();
+    assertEquals(buffer.lines[3], '        ');
+  });
+
   await t.step('cut takes the whole line', () => {
     const buffer = new TextBuffer('one\ntwo\nthree');
     buffer.moveTo({ line: 1, col: 1 });

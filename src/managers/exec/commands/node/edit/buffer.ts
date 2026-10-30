@@ -42,7 +42,7 @@ export class TextBuffer {
   cursor: Pos = { line: 0, col: 0 };
   /** Changes with every edit and comes back with undo: equal versions are equal texts. */
   version = 0;
-  readonly indentUnit: string;
+  private readonly indentWithTabs: boolean;
 
   private nextVersion = 1;
   private undoStack: Snapshot[] = [];
@@ -53,7 +53,7 @@ export class TextBuffer {
 
   constructor(text: string, opts: { indentWithTabs?: boolean; now?: () => number } = {}) {
     this.lines = text.split('\n');
-    this.indentUnit = detectIndent(this.lines, opts.indentWithTabs);
+    this.indentWithTabs = opts.indentWithTabs ?? false;
     this.now = opts.now ?? Date.now;
   }
 
@@ -150,9 +150,11 @@ export class TextBuffer {
     this.cursor = { line: line + 1, col: indent.length };
   }
 
+  /** Inserts one step of the indent the text has now, so it follows a paste or a first indent typed. */
   indent() {
+    const unit = detectIndent(this.lines, this.indentWithTabs);
     this.begin('other');
-    this.insertRaw(this.indentUnit);
+    this.insertRaw(unit);
   }
 
   backspace() {
