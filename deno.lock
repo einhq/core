@@ -3,7 +3,7 @@
   "specifiers": {
     "jsr:@ein/bash-executor@3": "3.0.0",
     "jsr:@ein/bash-parser@3": "3.0.0",
-    "jsr:@ein/ssh2-ts@1.1.1": "1.1.1",
+    "jsr:@ein/ssh2-ts@1.1.2": "1.1.2",
     "jsr:@noble/hashes@^2.0.1": "2.0.1",
     "jsr:@std/assert@^1.0.16": "1.0.19",
     "jsr:@std/assert@^1.0.2": "1.0.19",
@@ -103,8 +103,8 @@
         "jsr:@std/assert@^1.0.2"
       ]
     },
-    "@ein/ssh2-ts@1.1.1": {
-      "integrity": "1719a944362c4dc983a8453c22b5e0378b38f936318fe19d6f5f30eca3b61252"
+    "@ein/ssh2-ts@1.1.2": {
+      "integrity": "68191c52e59a5aac45249a49b1b7d49cd07898fc8828018732c75d54e1fe6015"
     },
     "@noble/hashes@2.0.1": {
       "integrity": "e0e908292a0bf91099cf8ba0720a1647cef82ab38b588815b5e9535b4ff4d7bb"
@@ -2157,7 +2157,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@ein/bash-executor@3",
-      "jsr:@ein/ssh2-ts@1.1.1",
+      "jsr:@ein/ssh2-ts@1.1.2",
       "jsr:@noble/hashes@^2.0.1",
       "jsr:@std/assert@^1.0.16",
       "jsr:@std/cli@^1.0.24",

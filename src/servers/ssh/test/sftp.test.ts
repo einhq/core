@@ -110,11 +110,14 @@ Deno.test({
       });
 
       await t.step('types a file created without content as an empty upload is', async () => {
-        const handle = await sftp.open('/home/admin/empty.md', 'w');
+        const handle = await sftp.open('/home/admin/created.md', 'w');
         await sftp.close(handle);
+        await sftp.writeFile('/home/admin/empty.md', new Uint8Array());
 
-        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/empty.md');
-        assertEquals(node.attrs.mimetype, 'application/octet-stream');
+        for (const path of ['/home/admin/created.md', '/home/admin/empty.md']) {
+          const node = await harness.primary!.vfs.get(ADMIN_ACCESS, path);
+          assertEquals(node.attrs.mimetype, 'application/octet-stream');
+        }
       });
 
       await t.step('lists directory contents', async () => {

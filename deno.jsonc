@@ -122,7 +122,7 @@
     "remark-gfm": "npm:remark-gfm@^4.0.1",
     "rehype-sanitize": "npm:rehype-sanitize@^6.0.0",
 
-    "ssh2": "jsr:@ein/ssh2-ts@1.1.1",
+    "ssh2": "jsr:@ein/ssh2-ts@1.1.2",
 
     /* Local */
     // The published module contract. Modules import this and nothing else from core;
