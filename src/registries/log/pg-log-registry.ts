@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
@@ -22,6 +21,38 @@ type PgLogRegistryConfig = {
 };
 
 /**
+ * The table a log's entries live in, shared by every log with the same retention.
+ *
+ * `count` logs share a plain table, trimmed per log after each append. Every other class is a
+ * hypertable whose expired chunks TimescaleDB drops whole; `compressAfter` is set where the data
+ * stays long enough for compression by log to pay.
+ */
+type EntryClass = {
+  table: string;
+  hypertable: boolean;
+  /** Seconds per chunk. */
+  chunk?: number;
+  /** Seconds after which a chunk is dropped; unset keeps it. */
+  dropAfter?: number;
+  /** Seconds after which a chunk is compressed; unset never compresses. */
+  compressAfter?: number;
+};
+
+/** A registered log: its key in the entry tables and where its entries are. */
+type Log = { key: number; retention: ParsedRetention; cls: EntryClass };
+
+const DAY = 24 * 60 * 60;
+
+/** Chunk length for logs kept forever. Long chunks hold enough of each log to read and compress it as one run. */
+const FOREVER_CHUNK = 90 * DAY;
+
+/** How long a closed chunk waits before it is compressed, for late and backdated appends. */
+const COMPRESS_DELAY = 7 * DAY;
+
+/** A duration class is compressed only when its data is kept at least this long. */
+const COMPRESS_MIN_RETENTION = 30 * DAY;
+
+/**
  * How many relayed events one flush carries.
  *
  * The relay is a fan-in: every `logger.*` call in the process publishes, and nothing on that
@@ -42,15 +73,32 @@ const RELAY_QUEUE_MAX = 20_000;
 /** Minimum gap between "dropped N events" reports, so the report cannot itself be the flood. */
 const RELAY_DROP_REPORT_MS = 10_000;
 
+/**
+ * Logs in PostgreSQL: a row per log in `{name}_logs`, its entries in one table per retention class.
+ *
+ * Entry ids come from one sequence shared by all logs, so they increase within each log and a
+ * cursor is the last id read. Blocking readers are woken by this registry's own appends, not by
+ * `pg_notify`: a commit that notifies cannot be group-committed, which caps every writer at once
+ * (ein/core#811). Entries written to these tables by anything else are seen only by a reader's
+ * next read.
+ */
 export class PgLogRegistry implements LogRegistryIf {
   private initialized = false;
-  private logs = new Map<string, ParsedRetention>();
+  private logs = new Map<string, Log>();
   private pool: Pool;
   private listenPool: Pool;
   private tablePrefix: string;
   private relayUnsubscribe: RelayEventUnsubscriber | undefined;
 
-  // Shared LISTEN connection — one connection for all log consumers
+  /** Entry tables created or found, by table name. */
+  private classes = new Map<string, Promise<void>>();
+  /** Seconds in a duration retention, by its text. */
+  private durations = new Map<string, number>();
+
+  /** Blocking readers waiting for an append, by log id. */
+  private waiters = new Map<string, Set<() => void>>();
+
+  // Shared LISTEN connection, for changes to the logs table made by another writer
   private listenerConn?: PoolClient;
   private listenerReady?: Promise<void>;
   private listeners = new Map<string, Set<() => void>>();
@@ -80,7 +128,7 @@ export class PgLogRegistry implements LogRegistryIf {
     this.listenPool = config.listenPool ?? config.pool;
   }
 
-  /** Create the logs metadata table and start listening for relay events. */
+  /** Create the logs table and the entry id sequence, and start listening for relay events. */
   async init(): Promise<void> {
     if (this.initialized) {
       return;
@@ -93,12 +141,16 @@ export class PgLogRegistry implements LogRegistryIf {
     await this.query(`
       CREATE TABLE IF NOT EXISTS ${this.logsTable} (
         id                VARCHAR(26) PRIMARY KEY,
+        key               INTEGER GENERATED ALWAYS AS IDENTITY UNIQUE,
         retention         TEXT NOT NULL,
         routing_keys      TEXT[] NOT NULL DEFAULT '{}',
         routing_patterns  TEXT[] NOT NULL DEFAULT '{}',
         created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+
+    // Owned by the logs table so that dropping the registry's tables drops it too.
+    await this.query(`CREATE SEQUENCE IF NOT EXISTS ${this.entryIdSeq} OWNED BY ${this.logsTable}.id`);
 
     await this.query(`
       CREATE INDEX IF NOT EXISTS ${this.logsTable}_routing_keys_idx
@@ -187,56 +239,79 @@ export class PgLogRegistry implements LogRegistryIf {
     this.relayQueue = [];
   }
 
-  /** Create or update a log's retention policy and routing keys. Returns true if a change was made. */
+  /**
+   * Create or update a log's retention policy and routing keys. Returns true if a change was made.
+   *
+   * A retention in another class moves the log's entries to that class's table.
+   */
   async touch(id: string, opts: LogResourceOptions): Promise<boolean> {
     const retention = opts.retention ?? '';
     const routingKeys = opts.routingKeys ?? [];
+    const patterns = routingPatternSources(routingKeys);
 
     // Widened before the write so an event racing this upsert is not dropped.
     this.bound.add(routingKeys);
 
-    await this.registerLog(id, retention);
-
     const parsed = parseRetention(retention);
+    const cls = await this.classOf(parsed);
+    await this.ensureClass(cls);
 
-    const result = await this.query(
-      `
-      INSERT INTO ${this.logsTable} (id, retention, routing_keys, routing_patterns)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (id) DO UPDATE
-        SET
-          retention = EXCLUDED.retention,
-          routing_keys = EXCLUDED.routing_keys,
-          routing_patterns = EXCLUDED.routing_patterns
-      WHERE
-        ${this.logsTable}.retention IS DISTINCT FROM EXCLUDED.retention
-        OR
-        ${this.logsTable}.routing_keys IS DISTINCT FROM EXCLUDED.routing_keys
-        OR
-        ${this.logsTable}.routing_patterns IS DISTINCT FROM EXCLUDED.routing_patterns
-      `,
-      [id, retention, routingKeys, routingPatternSources(routingKeys)],
-    );
+    const result = await this.transaction(async (client) => {
+      const inserted = await client.query<{ key: number }>(
+        `
+        INSERT INTO ${this.logsTable} (id, retention, routing_keys, routing_patterns)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id) DO NOTHING
+        RETURNING key
+        `,
+        [id, retention, routingKeys, patterns],
+      );
 
-    const upserted = result.rowCount === 1;
-
-    if (upserted) {
-      const logTable = this.getLogTable(id);
-
-      await this.query(`
-        SELECT remove_retention_policy('${logTable}', if_exists => TRUE);
-      `);
-
-      if (parsed.type === 'duration') {
-        await this.query(`
-          SELECT add_retention_policy('${logTable}', INTERVAL '${parsed.interval}');
-        `);
+      if (inserted.rows.length === 1) {
+        return { key: inserted.rows[0].key, changed: true };
       }
 
-      this.logs.set(id, parsed);
+      const current = await client.query<{ key: number; retention: string }>(
+        `SELECT key, retention FROM ${this.logsTable} WHERE id = $1 FOR UPDATE`,
+        [id],
+      );
+      const { key, retention: before } = current.rows[0];
+
+      const updated = await client.query(
+        `
+        UPDATE ${this.logsTable}
+        SET retention = $2, routing_keys = $3, routing_patterns = $4
+        WHERE id = $1 AND (
+          retention IS DISTINCT FROM $2
+          OR routing_keys IS DISTINCT FROM $3
+          OR routing_patterns IS DISTINCT FROM $4
+        )
+        `,
+        [id, retention, routingKeys, patterns],
+      );
+
+      const from = await this.classOf(parseRetention(before));
+
+      if (from.table !== cls.table) {
+        await this.ensureClass(from);
+        await client.query(
+          `INSERT INTO ${cls.table} (log_key, id, created_at, data) SELECT log_key, id, created_at, data FROM ${from.table} WHERE log_key = $1`,
+          [key],
+        );
+        await client.query(`DELETE FROM ${from.table} WHERE log_key = $1`, [key]);
+      }
+
+      return { key, changed: (updated.rowCount ?? 0) > 0 };
+    });
+
+    const log = { key: result.key, retention: parsed, cls };
+    this.logs.set(id, log);
+
+    if (result.changed && parsed.type === 'count') {
+      await this.trimToCount(log, parsed.limit);
     }
 
-    return upserted;
+    return result.changed;
   }
 
   /** Open a log for reading/writing, returning a LogHandle. Creates the log if it does not exist. */
@@ -282,7 +357,7 @@ export class PgLogRegistry implements LogRegistryIf {
   /** Return metadata for a log including retention policy, entry count, and routing keys. */
   async stat(id: string): Promise<LogStat> {
     const result = await this.query<{ retention: string; routing_keys: string[] }>(
-      `SELECT * FROM ${this.logsTable} WHERE id = $1`,
+      `SELECT retention, routing_keys FROM ${this.logsTable} WHERE id = $1`,
       [id],
     );
 
@@ -290,9 +365,10 @@ export class PgLogRegistry implements LogRegistryIf {
       throw new Error(`no log found: ${id}`);
     }
 
-    const logTable = this.getLogTable(id);
+    const log = await this.resolve(id);
     const result2 = await this.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM ${logTable}`,
+      `SELECT COUNT(*) AS count FROM ${log.cls.table} WHERE log_key = $1`,
+      [log.key],
     );
 
     return {
@@ -307,23 +383,31 @@ export class PgLogRegistry implements LogRegistryIf {
     return this.stat(id);
   }
 
-  /** Delete a log and its backing table, trigger, and metadata row. */
+  /** Delete a log: its entries and its row. Readers blocked on it return empty. */
   async delete(id: string): Promise<boolean> {
-    const logTable = this.getLogTable(id);
+    let log: Log | undefined;
+    try {
+      log = await this.resolve(id);
+    } catch {
+      log = undefined;
+    }
 
-    await this.query(`DROP TABLE IF EXISTS ${logTable} CASCADE`);
-    await this.query(`DROP FUNCTION IF EXISTS ${logTable}_notify_trigger() CASCADE`);
+    const deleted = await this.transaction(async (client) => {
+      if (log) {
+        await client.query(`DELETE FROM ${log.cls.table} WHERE log_key = $1`, [log.key]);
+      }
+      const result = await client.query(`DELETE FROM ${this.logsTable} WHERE id = $1`, [id]);
+      return (result.rowCount ?? 0) > 0;
+    });
 
-    const result = await this.query(
-      `DELETE FROM ${this.logsTable} WHERE id = $1`,
-      [id],
-    );
+    this.logs.delete(id);
+    this.wake(id);
 
     // Reloaded rather than subtracted: another log may still bind a key this one
     // had, and a key removed in error is a silently dropped relay.
     await this.bound.refresh();
 
-    return (result.rowCount ?? 0) > 0;
+    return deleted;
   }
 
   /** List all log ids as an async iterable. */
@@ -347,20 +431,21 @@ export class PgLogRegistry implements LogRegistryIf {
   }
 
   private async truncate(id: string) {
-    const logTable = this.getLogTable(id);
-    await this.query(`TRUNCATE TABLE ${logTable} RESTART IDENTITY CASCADE`);
+    const log = await this.resolve(id);
+    await this.transaction((client) => client.query(`DELETE FROM ${log.cls.table} WHERE log_key = $1`, [log.key]));
   }
 
+  /** The id `offset` entries from `whence`: the first entry, the cursor, or past the last entry. */
   private async seek(id: string, offset: number, whence: ResourceSeekMode, startId?: LogEntryId): Promise<LogEntryId> {
-    const logTable = this.getLogTable(id);
-    let sql = '';
-    // deno-lint-ignore no-explicit-any
-    const params: any[] = [];
+    const { key, cls } = await this.resolve(id);
+    const t = cls.table;
+    let sql: string;
+    let params: unknown[];
 
     switch (whence) {
       case ResourceSeekMode.Start: {
-        params.push(offset);
-        sql = `SELECT id FROM ${logTable} ORDER BY id ASC OFFSET $1 LIMIT 1`;
+        sql = `SELECT id FROM ${t} WHERE log_key = $1 ORDER BY id ASC OFFSET $2 LIMIT 1`;
+        params = [key, offset];
         break;
       }
 
@@ -368,27 +453,22 @@ export class PgLogRegistry implements LogRegistryIf {
         if (startId === undefined) {
           throw new Error('current seek requires startId');
         }
-        params.push(startId);
-        params.push(offset);
-        sql = `
-          WITH ranked AS (
-            SELECT id, ROW_NUMBER() OVER (ORDER BY id ASC) - 1 AS rn
-            FROM ${logTable}
-          ),
-          base AS (
-            SELECT rn FROM ranked WHERE id = $1
-          )
-          SELECT r.id
-          FROM ranked r, base b
-          WHERE r.rn = b.rn + $2
-          LIMIT 1
-        `;
+        if (offset === 0) {
+          sql = `SELECT id FROM ${t} WHERE log_key = $1 AND id = $2`;
+          params = [key, startId];
+        } else if (offset > 0) {
+          sql = `SELECT id FROM ${t} WHERE log_key = $1 AND id > $2 ORDER BY id ASC OFFSET $3 LIMIT 1`;
+          params = [key, startId, offset - 1];
+        } else {
+          sql = `SELECT id FROM ${t} WHERE log_key = $1 AND id < $2 ORDER BY id DESC OFFSET $3 LIMIT 1`;
+          params = [key, startId, -offset - 1];
+        }
         break;
       }
 
       case ResourceSeekMode.End: {
-        params.push(Math.abs(offset));
-        sql = `SELECT id FROM ${logTable} ORDER BY id DESC OFFSET $1 LIMIT 1`;
+        sql = `SELECT id FROM ${t} WHERE log_key = $1 ORDER BY id DESC OFFSET $2 LIMIT 1`;
+        params = [key, Math.abs(offset)];
         break;
       }
 
@@ -500,18 +580,21 @@ export class PgLogRegistry implements LogRegistryIf {
 
   /** Insert already-serialised entries into one log, oldest first. */
   private async appendMany(id: string, rows: string[]): Promise<void> {
-    const logTable = this.getLogTable(id);
+    const log = await this.resolve(id);
 
     await this.query(
-      `INSERT INTO ${logTable} (data) SELECT value::jsonb FROM unnest($1::text[]) AS value`,
-      [rows],
+      `
+      INSERT INTO ${log.cls.table} (log_key, id, data)
+      SELECT $1, nextval('${this.entryIdSeq}'), value::jsonb FROM unnest($2::text[]) AS value
+      `,
+      [log.key, rows],
     );
 
-    const parsed = this.logs.get(id);
-
-    if (parsed?.type === 'count') {
-      await this.trimToCount(logTable, parsed.limit);
+    if (log.retention.type === 'count') {
+      await this.trimToCount(log, log.retention.limit);
     }
+
+    this.wake(id);
   }
 
   private reportRelayDrops(): void {
@@ -528,94 +611,78 @@ export class PgLogRegistry implements LogRegistryIf {
   }
 
   private async append(id: string, data: unknown, createdAt?: Date): Promise<LogEntryId> {
-    const logTable = this.getLogTable(id);
+    const log = await this.resolve(id);
 
-    const res = createdAt
-      ? await this.query<{ id: LogEntryId }>(
-        `INSERT INTO ${logTable} (data, created_at) VALUES ($1::jsonb, $2) RETURNING id`,
-        [JSON.stringify(data), createdAt],
-      )
-      : await this.query<{ id: LogEntryId }>(
-        `INSERT INTO ${logTable} (data) VALUES ($1::jsonb) RETURNING id`,
-        [JSON.stringify(data)],
-      );
+    const res = await this.query<{ id: LogEntryId }>(
+      `
+      INSERT INTO ${log.cls.table} (log_key, id, created_at, data)
+      VALUES ($1, nextval('${this.entryIdSeq}'), COALESCE($2, now()), $3::jsonb)
+      RETURNING id
+      `,
+      [log.key, createdAt ?? null, JSON.stringify(data)],
+    );
 
-    const entryId = res.rows[0].id;
-    const parsed = this.logs.get(id);
-
-    if (parsed?.type === 'count') {
-      await this.trimToCount(logTable, parsed.limit);
+    if (log.retention.type === 'count') {
+      await this.trimToCount(log, log.retention.limit);
     }
 
-    return entryId;
+    this.wake(id);
+
+    return res.rows[0].id;
   }
 
-  /** Drop everything older than the newest `limit` entries. */
-  private async trimToCount(logTable: string, limit: number): Promise<void> {
-    await this.query(`
-      DELETE FROM ${logTable}
-      WHERE id <= (
-        SELECT id FROM ${logTable}
+  /** Drop everything of one log older than its newest `limit` entries. */
+  private async trimToCount(log: Log, limit: number): Promise<void> {
+    await this.query(
+      `
+      DELETE FROM ${log.cls.table}
+      WHERE log_key = $1 AND id <= (
+        SELECT id FROM ${log.cls.table}
+        WHERE log_key = $1
         ORDER BY id DESC
-        OFFSET ${limit}
+        OFFSET $2
         LIMIT 1
       )
-    `);
+      `,
+      [log.key, limit],
+    );
+  }
+
+  private async fetch(id: string, limit: number, startId?: LogEntryId): Promise<LogEntry[]> {
+    const { key, cls } = await this.resolve(id);
+
+    const res = await this.query<{ id: LogEntryId; data: unknown; created_at: Date }>(
+      `
+      SELECT id, data, created_at
+      FROM ${cls.table}
+      WHERE log_key = $1 AND id > $2
+      ORDER BY id ASC
+      LIMIT $3
+      `,
+      [key, startId !== undefined && startId > 0 ? startId : 0, limit],
+    );
+
+    return res.rows.map((r) => ({ id: r.id, data: r.data, createdAt: r.created_at }));
   }
 
   private async read(id: string, limit: number, startId?: LogEntryId, signal?: AbortSignal): Promise<LogEntry[] | null> {
-    const logTable = this.getLogTable(id);
+    const entries = await this.fetch(id, limit, startId);
 
-    // deno-lint-ignore no-explicit-any
-    const params: any[] = [];
-    let whereClause = '';
-
-    if (startId !== undefined && startId > 0) {
-      params.push(startId);
-      whereClause = `WHERE id > $${params.length}`;
+    if (entries.length > 0 || !signal) {
+      return entries;
     }
 
-    params.push(limit);
-
-    const query = `
-      SELECT id, data, created_at
-      FROM ${logTable}
-      ${whereClause}
-      ORDER BY id ASC
-      LIMIT $${params.length}
-    `;
-
-    // Initial query
-    const res = await this.query<{ id: LogEntryId; data: unknown; created_at: Date }>(query, params);
-
-    if (res.rows.length > 0 || !signal) {
-      return res.rows.map((r) => ({
-        id: r.id,
-        data: r.data,
-        createdAt: r.created_at,
-      }));
-    }
-
-    // Blocking mode: wait via shared listener
-    const channel = this.getLogChannel(logTable);
-    await this.ensureListener(channel);
-
+    // Blocking mode: wait for this registry's next append to the log
     return await new Promise<LogEntry[] | null>((resolve) => {
       const tryRead = async () => {
         try {
-          const inner = await this.query<{ id: LogEntryId; data: unknown; created_at: Date }>(query, params);
+          const inner = await this.fetch(id, limit, startId);
 
-          if (inner.rows.length > 0) {
+          if (inner.length > 0) {
             cleanup();
-            resolve(
-              inner.rows.map((r) => ({
-                id: r.id,
-                data: r.data,
-                createdAt: r.created_at,
-              })),
-            );
+            resolve(inner);
           }
-          // If still no rows, keep waiting for next notification
+          // If still no rows, keep waiting for the next append
         } catch {
           cleanup();
           resolve(null);
@@ -627,10 +694,16 @@ export class PgLogRegistry implements LogRegistryIf {
         resolve(null);
       };
 
-      const removeListener = this.addListener(channel, tryRead);
+      let set = this.waiters.get(id);
+      if (!set) {
+        set = new Set();
+        this.waiters.set(id, set);
+      }
+      set.add(tryRead);
 
       const cleanup = () => {
-        removeListener();
+        set.delete(tryRead);
+        if (set.size === 0 && this.waiters.get(id) === set) this.waiters.delete(id);
         signal.removeEventListener('abort', onAbort);
       };
 
@@ -641,9 +714,159 @@ export class PgLogRegistry implements LogRegistryIf {
         return;
       }
 
-      // Immediate retry to catch inserts between initial query and listener registration
+      // Immediate retry to catch an append between the first read and registering
       tryRead();
     });
+  }
+
+  /** Let every reader blocked on this log read again. */
+  private wake(id: string): void {
+    const set = this.waiters.get(id);
+    if (!set) return;
+    for (const cb of [...set]) cb();
+  }
+
+  /** The log's key and class, from memory or from the logs table. */
+  private async resolve(id: string): Promise<Log> {
+    const cached = this.logs.get(id);
+    if (cached) return cached;
+
+    const res = await this.query<{ key: number; retention: string }>(
+      `SELECT key, retention FROM ${this.logsTable} WHERE id = $1`,
+      [id],
+    );
+
+    if (res.rows.length === 0) {
+      throw new Error(`no log found: ${id}`);
+    }
+
+    const retention = parseRetention(res.rows[0].retention);
+    const cls = await this.classOf(retention);
+    await this.ensureClass(cls);
+
+    const log = { key: res.rows[0].key, retention, cls };
+    this.logs.set(id, log);
+    return log;
+  }
+
+  /**
+   * The entry table for a retention.
+   *
+   * A duration's chunks are a quarter of it, between an hour and the forever chunk, so a dropped
+   * chunk keeps nothing much past the retention.
+   */
+  private async classOf(retention: ParsedRetention): Promise<EntryClass> {
+    switch (retention.type) {
+      case 'forever':
+        return { table: this.entryTable('forever'), hypertable: true, chunk: FOREVER_CHUNK, compressAfter: COMPRESS_DELAY };
+      case 'count':
+        return { table: this.entryTable('count'), hypertable: false };
+      case 'duration': {
+        const seconds = await this.durationSeconds(retention.interval);
+        const chunk = Math.min(FOREVER_CHUNK, Math.max(60 * 60, Math.round(seconds / 4)));
+        return {
+          table: this.entryTable(`d${seconds}`),
+          hypertable: true,
+          chunk,
+          dropAfter: seconds,
+          compressAfter: seconds >= COMPRESS_MIN_RETENTION ? chunk : undefined,
+        };
+      }
+    }
+  }
+
+  /** Seconds in an interval, as PostgreSQL reads it. */
+  private async durationSeconds(interval: string): Promise<number> {
+    const known = this.durations.get(interval);
+    if (known !== undefined) return known;
+
+    const res = await this.query<{ seconds: string }>(
+      `SELECT extract(epoch FROM $1::interval)::bigint AS seconds`,
+      [interval],
+    );
+    const seconds = Number(res.rows[0].seconds);
+    if (!(seconds > 0)) {
+      throw new Error(`invalid retention: ${interval}`);
+    }
+
+    this.durations.set(interval, seconds);
+    return seconds;
+  }
+
+  /** Create a class's table and its TimescaleDB policies once per registry. */
+  private ensureClass(cls: EntryClass): Promise<void> {
+    let ready = this.classes.get(cls.table);
+    if (!ready) {
+      ready = this.createClass(cls);
+      this.classes.set(cls.table, ready);
+      ready.catch(() => this.classes.delete(cls.table));
+    }
+    return ready;
+  }
+
+  private async createClass(cls: EntryClass): Promise<void> {
+    const t = cls.table;
+
+    if (!cls.hypertable) {
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS ${t} (
+          log_key     INTEGER NOT NULL,
+          id          BIGINT NOT NULL,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          data        JSONB,
+          PRIMARY KEY (log_key, id)
+        )
+      `);
+      return;
+    }
+
+    // No unique index: a hypertable's would have to include `created_at`. Ids are unique by
+    // coming from one sequence.
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS ${t} (
+        log_key     INTEGER NOT NULL,
+        id          BIGINT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        data        JSONB
+      )
+    `);
+
+    // Without the default index on created_at: nothing reads by time alone, and it would be the
+    // larger part of the table's indexes.
+    await this.query(
+      `SELECT create_hypertable($1::regclass, 'created_at', chunk_time_interval => make_interval(secs => $2), create_default_indexes => false, if_not_exists => true)`,
+      [t, cls.chunk],
+    );
+    await this.query(`CREATE INDEX IF NOT EXISTS ${t}_log_id ON ${t} (log_key, id)`);
+
+    if (cls.dropAfter !== undefined) {
+      await this.query(
+        `SELECT add_retention_policy($1::regclass, make_interval(secs => $2), if_not_exists => true)`,
+        [t, cls.dropAfter],
+      );
+    }
+
+    if (cls.compressAfter !== undefined) {
+      // Settings cannot change once a chunk is compressed, so they are set only the first time.
+      const res = await this.query<{ enabled: boolean }>(
+        `SELECT compression_enabled AS enabled FROM timescaledb_information.hypertables
+         WHERE hypertable_schema = current_schema() AND hypertable_name = $1`,
+        [t],
+      );
+      if (!res.rows[0]?.enabled) {
+        await this.query(`
+          ALTER TABLE ${t} SET (
+            timescaledb.compress,
+            timescaledb.compress_segmentby = 'log_key',
+            timescaledb.compress_orderby = 'id'
+          )
+        `);
+      }
+      await this.query(
+        `SELECT add_compression_policy($1::regclass, make_interval(secs => $2), if_not_exists => true)`,
+        [t, cls.compressAfter],
+      );
+    }
   }
 
   private ensureListener(channel: string): Promise<void> {
@@ -696,71 +919,43 @@ export class PgLogRegistry implements LogRegistryIf {
     return await this.pool.query<T>(sql, params);
   }
 
-  private getLogTable(id: string): string {
-    return `${this.tablePrefix}_${id}`;
+  /**
+   * Run `fn` in a transaction on one client.
+   *
+   * A write that reaches compressed chunks decompresses them, and TimescaleDB refuses one that
+   * decompresses more than its per-transaction limit; these writes take a whole log, so the
+   * limit is lifted for them.
+   */
+  private async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL timescaledb.max_tuples_decompressed_per_dml_transaction = 0`);
+      const out = await fn(client);
+      await client.query('COMMIT');
+      return out;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
-  /**
-   * Channel a log's insert trigger notifies on.
-   *
-   * A hash of the table name, so its length does not grow with the registry name and the
-   * log id: `pg_notify` rejects a channel of 64 bytes or more, and LISTEN
-   * truncates it.
-   */
-  private getLogChannel(logTable: string): string {
-    return `log_${createHash('md5').update(logTable.toLowerCase()).digest('hex')}`;
+  private entryTable(cls: string): string {
+    return `${this.tablePrefix}_e_${cls}`;
   }
 
   private get logsTable() {
     return `${this.tablePrefix}`;
   }
 
+  private get entryIdSeq() {
+    return `${this.tablePrefix}_entry_id`;
+  }
+
   /** Channel the logs-table trigger notifies on when a routing-key binding changes. */
   private get bindingsChannel() {
     return `${this.tablePrefix}_bind`;
-  }
-
-  private async registerLog(id: string, retention?: string): Promise<void> {
-    if (this.logs.has(id)) {
-      return;
-    }
-
-    const parsed = parseRetention(retention ?? '');
-    const logTable = this.getLogTable(id);
-
-    await this.query(`
-      CREATE TABLE IF NOT EXISTS ${logTable} (
-        id            BIGSERIAL,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-        data          JSONB,
-        PRIMARY KEY (id, created_at)
-      )
-    `);
-
-    await this.query(`SELECT create_hypertable('${logTable}', 'created_at', if_not_exists => true)`);
-    await this.query(`SELECT remove_retention_policy('${logTable}', if_exists => TRUE)`);
-
-    if (parsed.type === 'duration') {
-      await this.query(`SELECT add_retention_policy('${logTable}', INTERVAL '${parsed.interval}')`);
-    }
-
-    await this.query(`
-      CREATE OR REPLACE FUNCTION ${logTable}_notify_trigger()
-      RETURNS trigger AS $$
-      BEGIN
-        PERFORM pg_notify('${this.getLogChannel(logTable)}', NEW.id::text);
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql
-    `);
-
-    await this.query(`
-      DROP TRIGGER IF EXISTS ${logTable}_notify ON ${logTable};
-      CREATE TRIGGER ${logTable}_notify
-      AFTER INSERT ON ${logTable}
-      FOR EACH ROW EXECUTE FUNCTION ${logTable}_notify_trigger()
-    `);
-
-    this.logs.set(id, parsed);
   }
 }
