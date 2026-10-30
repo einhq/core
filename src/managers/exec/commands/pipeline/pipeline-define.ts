@@ -1,18 +1,20 @@
 import { PIPELINES_PATH } from '../../../../lib/paths.ts';
-import { basename, dirname, join } from '@std/path';
+import { basename, dirname, join, resolve } from '@std/path';
 import { toText } from '@std/streams/to-text';
+import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { parsePipeline } from '../../../pipeline/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
 export const pipelineDefine = async (cmd: Command): CmdReturn => {
-  const yamlPath = cmd.args[0];
-
-  if (!yamlPath) {
+  if (!cmd.args[0]) {
     await cmd.writeError('pipeline-define: missing yaml path\n');
     return 1;
   }
+  // Absolute, because the definition is a link to it and a relative link resolves from the
+  // definitions directory.
+  const yamlPath = resolve(cmd.cwd, cmd.args[0]);
 
   let yamlContent: string;
   try {
@@ -50,7 +52,7 @@ export const pipelineDefine = async (cmd: Command): CmdReturn => {
     await cmd.sys.vfs.unlink(cmd.access, linkPath, defsPath, { readlink: true });
   }
 
-  await cmd.execute(`ln -s ${yamlPath} ${linkPath}`);
+  await cmd.execute(`ln -s ${shq(yamlPath)} ${shq(linkPath)}`);
   if (cmd.json) {
     await cmd.writeJSON({ ok: true, name: def.name });
   } else {
