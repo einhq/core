@@ -297,11 +297,22 @@ async function mountAll(cmd: Command): Promise<number> {
   return failed ? 1 : 0;
 }
 
+/** Makes a missing mount point, and its missing parents, as directories, as `mkdir -p` would. */
+async function ensureMountPoint(cmd: Command, point: string): Promise<void> {
+  let current = '';
+  for (const part of point.split('/').filter(Boolean)) {
+    const parent = current || '/';
+    current = `${current}/${part}`;
+    if (!(await cmd.sys.vfs.exists(cmd.access, current))) await cmd.sys.vfs.ensure(cmd.access, 'directory', parent, part, {});
+  }
+}
+
 async function mountOne(cmd: Command, entry: FstabEntry, lazy: boolean): Promise<void> {
   const options = parseOptions(entry.options);
   const { vfs, publish } = await buildVfs(cmd, entry.type, options, lazy);
 
   try {
+    await ensureMountPoint(cmd, entry.point);
     await cmd.sys.vfs.mount(cmd.access, entry.point, vfs, {
       readonly: options.readonly === '1',
       publish,
@@ -415,7 +426,7 @@ mount.spec = {
     {
       name: 'path',
       type: 'path' as const,
-      description: 'mount point',
+      description: 'mount point, made as a directory when it is missing',
     },
     {
       name: 'type',

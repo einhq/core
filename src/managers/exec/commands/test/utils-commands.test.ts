@@ -1,7 +1,7 @@
 /**
  * Utility command coverage — the commands pipeline filter/skipIf/condition
  * scripts and module scripts depend on: jq, grep, head, tail, wc, seq,
- * uuid, date, env, plus mount listing and its admin gate.
+ * uuid, date, env, plus mount listing, its mount point and its admin gate.
  */
 
 import { assertEquals, assertMatch } from '@std/assert';
@@ -126,6 +126,17 @@ Deno.test({
     await t.step('mount lists mounts for admin', async () => {
       const out = await client.exec('mount');
       assertEquals(out.success, true);
+    });
+
+    await t.step('mount makes a missing mount point and its parents', async () => {
+      const point = `/tmp/mount-${crypto.randomUUID()}/scratch`;
+      await cmd.shouldSucceed(`mount ${point} memory`);
+      try {
+        await cmd.shouldSucceed(`echo hello > ${point}/note.txt`);
+        assertEquals((await client.execString(`cat ${point}/note.txt`)).trim(), 'hello');
+      } finally {
+        await client.exec(`unmount ${point}`);
+      }
     });
 
     await t.step('mount is denied for non-admin', async () => {
