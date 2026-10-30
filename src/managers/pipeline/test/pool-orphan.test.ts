@@ -7,7 +7,9 @@
  *
  *  - a pooled step left `running` by a worker whose job is gone. Nothing holds a
  *    lease, so the pool's sweep never reclaims it, and read at face value the
- *    status would call the step in flight forever.
+ *    status would call the step in flight forever. Its milder cousin, the job
+ *    requeued by that sweep, is covered too: nothing is lost, but the step must
+ *    say `waiting` again, or the next worker drops the job as stale.
  *  - an instance whose `steps` were never written. The empty-steps guard exists
  *    for a real create-time race, but it cannot tell "not yet" from "never".
  *
@@ -195,13 +197,14 @@ Deno.test({
     });
 
     await t.step('a live pooled step is left alone', async () => {
-      const [instance] = await vfs.children(ADMIN_ACCESS, INSTANCES);
-      const stepPath = join(INSTANCES, instance.name, 'steps', 'heavy');
+      // Claimed as a worker claims it, with a lease that outlasts the test, and marked `running`
+      // as that worker would. The pool owns it, and the engine must not double-book by re-queueing.
+      const job = await vfs.poolClaim(ADMIN_ACCESS, POOL, { owner: 'test-live', offer: { slots: 1 }, leaseMs: 10 * 60_000 });
+      const stepPath = job!.dedupKey!;
+      const instancePath = join(stepPath, '..', '..');
 
-      // Same `running` status, but this time the job is still there — the pool
-      // owns it, and the engine must not double-book by re-queueing.
       await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, { attrs: { status: 'running', startedAt: Date.now() } });
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, SWEEP_MS * 2));
 
       assertEquals((await vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, stepPath)).attrs.status, 'running');
       assertEquals(await liveJobs(stepPath), 1);
@@ -210,8 +213,38 @@ Deno.test({
       // so the instance reads 'running'. Pinned next to the queued case above because the two
       // differ only in whether the job is claimed, and that is the whole distinction.
       await waitFor(
-        async () => (await vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, join(INSTANCES, instance.name))).attrs.status === 'running',
+        async () => (await vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs.status === 'running',
         'the instance to read running while its step is claimed',
+      );
+    });
+
+    await t.step('a step whose worker died goes back to waiting once its job is requeued', async () => {
+      // The other instance's job, claimed by a worker that then dies: its lease lapses, the
+      // pool's sweep puts the job back to `ready`, and the step still says `running`.
+      const job = await vfs.poolClaim(ADMIN_ACCESS, POOL, { owner: 'test-dead', offer: { slots: 1 }, leaseMs: 1 });
+      const stepPath = job!.dedupKey!;
+      const instancePath = join(stepPath, '..', '..');
+
+      await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, { attrs: { status: 'running', startedAt: Date.now() } });
+      // Let the advance this update triggers settle while the job is still claimed, so the
+      // repair below is the engine's own sweep finding a requeued job.
+      await new Promise((r) => setTimeout(r, 1000));
+      await vfs.poolSweep(ADMIN_ACCESS, POOL);
+      const [requeued] = await vfs.poolJobs(ADMIN_ACCESS, POOL, { state: ['ready', 'claimed'], dedupKey: stepPath });
+      assertEquals(requeued.state, 'ready');
+
+      await waitFor(
+        async () => (await vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, stepPath)).attrs.status === 'waiting',
+        'the step to wait on its requeued job',
+        SWEEP_MS * 10,
+      );
+      assertEquals((await vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, stepPath)).attrs.startedAt, undefined);
+      // The same job waits for the next worker, not a new one.
+      const [after] = await vfs.poolJobs(ADMIN_ACCESS, POOL, { state: ['ready', 'claimed'], dedupKey: stepPath });
+      assertEquals(after.id, requeued.id);
+      await waitFor(
+        async () => (await vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs.status === 'queued',
+        'the instance to read queued, nothing executing',
       );
     });
 

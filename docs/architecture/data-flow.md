@@ -413,7 +413,10 @@ Per-step retry lives on the step node (`attempts`/`maxAttempts`); on restart, st
 left `running` are reset to `pending` and re-run (step commands are idempotent,
 guarded by their `condition`). A pooled step is exempt while its job exists — the
 lease is real crash detection and resetting would race a live worker — but not once
-the job is gone, which is the orphan case above. The fresh job carries the runs the step
+the job is gone, which is the orphan case above, nor once the pool's sweep has put the
+job back to `ready`: no worker has it then, so the step goes back to `waiting` beside
+the same job (keeping the attempt the dead run spent) instead of reading `running` until
+the next claimer drops the job as stale. The fresh job carries the runs the step
 already had (`attempts` on the pool job input), so a step that kills its worker every time
 runs out of attempts instead of starting its count over forever.
 
@@ -592,7 +595,9 @@ by setting the step `skipped`; removing an instance additionally cancels its job
 since a pool job is a durable row that outlives the step node it points at. A claim
 takes a **lease** the worker renews while it runs: a worker that dies stops renewing
 and the pool's sweep returns the job within seconds, replacing the old
-reset-on-engine-restart heuristic. Because the job is keyed on the step path and
+reset-on-engine-restart heuristic; the engine's next advance of the instance (at the
+latest its stuck sweep, `CFG_PIPELINE_STUCK_SWEEP_MS`) sees the job `ready` and puts the
+step from `running` back to `waiting`. Because the job is keyed on the step path and
 upserted, the step and the job cannot drift into disagreement — a step left `waiting`
 with no job behind it is restored by the next advance instead of stalling forever.
 Losing the lease hangs up the step's command, so the next claimer never runs

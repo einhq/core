@@ -157,6 +157,7 @@ Deno.test({
       await waitFor(async () => await status(step('gate')) === 'waiting' && await status(step('hold')) === 'waiting', 'both pooled steps to wait');
 
       // As a worker would on claiming it: the next advance takes the instance to running.
+      assertEquals((await vfs.poolClaim(ADMIN_ACCESS, POOL, { owner: 'race-worker', kinds: ['hold'], leaseMs: 10 * 60_000 }))?.dedupKey, step('hold'));
       await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, step('hold'), { attrs: { status: 'running', startedAt: Date.now() } });
       await waitFor(async () => await status(instancePath) === 'running', 'the instance to run');
 

@@ -727,28 +727,62 @@ export class PipelineEngine {
   }
 
   /**
-   * Has a pooled step lost the job that was supposed to carry it?
+   * Where the job carrying a pooled step stands: `claimed` by a worker, `ready` for one, or
+   * `gone` — neither, so nothing is behind the step and no sweep will ever come for it.
    *
-   * `ready`/`claimed` is the whole of "in flight": a claimed job's lease is
-   * heartbeated while the step runs and returned to `ready` by the pool's sweep
-   * if the worker dies, so a step with neither has nothing behind it and no
-   * sweep will ever come for it. A point lookup on the dedup index, not a scan
-   * of the backlog.
+   * `ready`/`claimed` is the whole of "in flight": a claimed job's lease is heartbeated while
+   * the step runs and returned to `ready` by the pool's sweep if the worker dies. A point lookup
+   * on the dedup index, not a scan of the backlog.
    *
-   * False when the pool cannot be read, so an unreadable pool leaves the step
-   * alone rather than duplicating work.
+   * Undefined when the pool cannot be read, so an unreadable pool leaves the step alone rather
+   * than duplicating work.
    */
-  private async pooledStepIsOrphaned(pool: string, stepPath: string): Promise<boolean> {
+  private async pooledJobState(pool: string, stepPath: string): Promise<'claimed' | 'ready' | 'gone' | undefined> {
     try {
-      const live = await this.vfs.poolJobs(ADMIN_ACCESS, join(this.poolsRoot, pool), {
+      const [live] = await this.vfs.poolJobs(ADMIN_ACCESS, join(this.poolsRoot, pool), {
         state: ['ready', 'claimed'],
         dedupKey: stepPath,
         limit: 1,
       });
-      return live.length === 0;
+      return live === undefined ? 'gone' : live.state === 'claimed' ? 'claimed' : 'ready';
     } catch {
-      return false;
+      return undefined;
     }
+  }
+
+  /**
+   * Put a pooled step a worker had started back to what its job says, when no worker has it.
+   *
+   * Job `gone`: back to `pending`, to be pooled afresh — re-adding the job alone would not do,
+   * because `staleReason` drops any job whose step is not `waiting`. Job `ready`: the pool's
+   * sweep reclaimed the lease of a worker that died, and the job waits for the next one; the
+   * step goes back to `waiting` with it, or that worker would drop the job as stale and nobody
+   * would be doing the work the step still claims as `running`. `attempts` stays: the dead
+   * worker's run is counted, as the pool counted it.
+   *
+   * Returns the status written, or undefined when the step was left as it was.
+   */
+  private async repairStartedPooledStep(instancePath: string, stepsPath: string, stepName: string, pool: string): Promise<'pending' | 'waiting' | undefined> {
+    const stepPath = join(stepsPath, stepName);
+    const job = await this.pooledJobState(pool, stepPath);
+
+    if (job === 'gone') {
+      await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
+        attrs: { status: 'pending', startedAt: undefined },
+      });
+      logger.warn('pooled step lost its job, re-queued', { step: stepName, instance: instancePath });
+      return 'pending';
+    }
+
+    if (job === 'ready') {
+      await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
+        attrs: { status: 'waiting', startedAt: undefined, outputAt: undefined },
+      });
+      logger.info('pooled step lost its worker, waiting on its requeued job', { step: stepName, instance: instancePath });
+      return 'waiting';
+    }
+
+    return undefined;
   }
 
   /**
@@ -769,7 +803,7 @@ export class PipelineEngine {
   ): Promise<void> {
     const stepPath = join(stepsPath, stepName);
 
-    if (!await this.pooledStepIsOrphaned(attrs.pool!, stepPath)) return;
+    if (await this.pooledJobState(attrs.pool!, stepPath) !== 'gone') return;
 
     // The scheduling half of the step — kind, requirements, priority, mutex class — is taken
     // from the definition as it is *now*, not from the snapshot the instance was created with,
@@ -1029,15 +1063,11 @@ export class PipelineEngine {
       // It stops being true the moment the job itself is gone. Then no lease
       // exists to expire, no sweep will ever reclaim anything, and the step
       // stays 'running' for good — holding its instance open, and with it an
-      // admission slot. So check instead of assuming; the check is one indexed
-      // lookup.
+      // admission slot. And once the sweep has reclaimed the lease, the job is
+      // `ready` again while the step still says 'running'. So check instead of
+      // assuming; the check is one indexed lookup.
       if (attrs.pool) {
-        if (status === 'running' && await this.pooledStepIsOrphaned(attrs.pool, join(stepsPath, step.name))) {
-          await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, join(stepsPath, step.name), {
-            attrs: { status: 'pending', startedAt: undefined },
-          });
-          logger.warn('pooled step lost its job, re-queued', { step: step.name, instance: instancePath });
-        }
+        if (status === 'running') await this.repairStartedPooledStep(instancePath, stepsPath, step.name, attrs.pool);
         continue;
       }
 
@@ -2036,19 +2066,21 @@ export class PipelineEngine {
           // only the second is execution. The pooled repair below applies to either, because a
           // worker that died leaves its step in whichever it had reached.
           // Same reconciliation as 'waiting' above, and for the same reason —
-          // only the repair differs. A 'waiting' step has no owner yet, so
-          // re-adding the job is enough. A 'running' one was claimed by a worker
-          // that has since died with its job, and `staleReason` drops any job
-          // whose step is not 'waiting' — so re-adding would be dropped on
-          // arrival. It has to go back to 'pending' and be pooled afresh.
-          if (attrs.pool && await this.pooledStepIsOrphaned(attrs.pool, join(stepsPath, step.name))) {
-            await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, join(stepsPath, step.name), {
-              attrs: { status: 'pending', startedAt: undefined },
-            });
-            stepMap.set(step.name, { ...attrs, status: 'pending' });
-            logger.warn('pooled step lost its job, re-queued', { step: step.name, instance: instancePath });
-            anyQueued = true;
-            continue;
+          // only the repair differs: a step whose worker died goes back to
+          // 'pending' when its job went with it, and to 'waiting' when the
+          // pool's sweep requeued the job (`repairStartedPooledStep`).
+          if (attrs.pool) {
+            const repaired = await this.repairStartedPooledStep(instancePath, stepsPath, step.name, attrs.pool);
+            if (repaired === 'pending') {
+              stepMap.set(step.name, { ...attrs, status: 'pending' });
+              anyQueued = true;
+              continue;
+            }
+            if (repaired === 'waiting') {
+              stepMap.set(step.name, { ...attrs, status: 'waiting' });
+              anyWaiting = true;
+              continue;
+            }
           }
           if (attrs.status === 'running') anyRunning = true;
           else anyWaiting = true;
