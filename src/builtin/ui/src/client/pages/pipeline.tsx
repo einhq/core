@@ -245,7 +245,7 @@ export default function PipelineDetailPage() {
         <Dialog opened={pruneOpen} onClose={pruneModal.close} title='Prune instances?' icon='trash' pattern='danger' size='sm' floating>
           <Text size='sm'>
             {statusFilter === 'all'
-              ? `Every terminal ${pipeline} instance (completed, failed, cancelled) is removed.`
+              ? `Every completed and cancelled ${pipeline} instance is removed; failed ones stay, for the Failed tab to prune.`
               : `Every ${statusFilter} ${pipeline} instance is removed.`} This cannot be undone.
           </Text>
           <DialogActions>

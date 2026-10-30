@@ -11,10 +11,11 @@
  * Retention goes through `vfs.query` on `completedAt` rather than `children()`,
  * so it never materialises the directory it is there to bound.
  * Running instances have no `completedAt` and `vfs.query` excludes rows lacking
- * the ordering attr — so retention structurally cannot touch live work. Nor does
- * it touch a failed instance unless asked (`--status failed`): those are
- * `pipeline heal`'s, run again or marked for a person, and on a busy pipeline the
- * cap used to remove a failure within the hour, before anything could look at it.
+ * the ordering attr — so retention structurally cannot touch live work.
+ *
+ * Neither mode touches a failed instance unless asked (`--status failed`, or `--all` in a
+ * sweep): those are `pipeline heal`'s, run again or marked for a person, and on a busy
+ * pipeline the cap used to remove a failure within the hour, before anything could look at it.
  *
  * `--budget` bounds retention by wall time as well as by count: a removal
  * costs ~0.3 s, and a first pass over a backlog bounded only by `--max` once
@@ -36,10 +37,8 @@ import type { AttrCondition, NodeQueryCursor } from '../../../../vfs/query.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
-const TERMINAL = ['completed', 'failed', 'cancelled'];
-
-/** What retention removes when no status is named: the terminal states nothing else is waiting on. */
-const RETAINED_TERMINAL = ['completed', 'cancelled'];
+/** What a prune removes when no status is named: the terminal states nothing else is waiting on. */
+const SETTLED = ['completed', 'cancelled'];
 
 /** Rows per query while walking the tail. */
 const PAGE = 200;
@@ -272,11 +271,11 @@ async function pruneAll(
   pipelineNames: string[],
   flags: { status?: string; all?: boolean },
 ): Promise<number> {
-  const terminal = new Set(TERMINAL);
+  const settled = new Set(SETTLED);
   const shouldRemove = (status: string): boolean => {
     if (flags.status) return status === flags.status;
     if (flags.all) return true;
-    return terminal.has(status);
+    return settled.has(status);
   };
 
   let removed = 0;
@@ -342,7 +341,7 @@ async function pruneRetained(
   for (const pName of pipelineNames) {
     const where: AttrCondition[] = [{ ref: 'pipelineName', op: 'eq', value: pName }];
     if (status) where.push({ ref: 'status', op: 'eq', value: status });
-    else where.push({ ref: 'status', op: 'in', value: RETAINED_TERMINAL });
+    else where.push({ ref: 'status', op: 'in', value: SETTLED });
 
     if (keep === undefined) {
       sweeps.push({ name: pName, query: queryOf([...where, ...older]), cursor: undefined, removed: 0 });
@@ -404,13 +403,13 @@ pipelinePrune.spec = {
   name: 'pipeline-prune',
   admin: true,
   effect: 'write' as const,
-  description: 'Remove terminal pipeline instances (completed/failed/cancelled)',
+  description: 'Remove completed and cancelled pipeline instances; failed ones only when asked',
   args: [
     { name: 'name', type: 'string' as const, description: 'Pipeline name (optional; all if omitted)' },
   ],
   flags: [
-    { name: 's', type: 'string' as const, description: 'Only remove instances with this status' },
-    { name: 'all', type: 'bool' as const, description: 'Remove all instances, including running (cancels first)' },
+    { name: 's', type: 'string' as const, description: 'Only remove instances with this status, such as failed' },
+    { name: 'all', type: 'bool' as const, description: 'Remove all instances, failed and running too (cancels first)' },
     { name: 'keep', type: 'string' as const, description: 'Retention cap: keep this many newest per pipeline, remove the rest' },
     { name: 'max', type: 'string' as const, description: 'Stop after removing this many per pipeline (with --keep or --older-than)' },
     { name: 'older-than', type: 'string' as const, description: 'Retention by age: remove those completed longer ago than this, e.g. 30d' },
