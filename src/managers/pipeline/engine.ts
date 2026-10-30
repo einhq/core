@@ -202,6 +202,8 @@ export class PipelineEngine {
   private pendingWork = new Set<string>();
   /** Instances with a step waiting for its `notBefore`, and the timer that advances each then. */
   private wakeups = new Map<string, { at: number; timer: ReturnType<typeof setTimeout> }>();
+  /** The inline steps executing now, by step node id, each with what hangs its command up. */
+  private runningInline = new Map<NodeId, AbortController>();
   /** Routing keys currently bound on the trigger queue. */
   private boundKeys: string[] = [];
   /** Root dir holding work pools. */
@@ -530,7 +532,10 @@ export class PipelineEngine {
         if (!instancePath) return;
 
         if (instancePath === event.path) this.observeInstance(event as NodeEvent<PipelineInstanceAttrs>);
-        else this.observeStep(instancePath, event as NodeEvent<PipelineStepAttrs>);
+        else {
+          this.observeStep(instancePath, event as NodeEvent<PipelineStepAttrs>);
+          this.hangUpOverruled(event as NodeEvent<PipelineStepAttrs>);
+        }
 
         this.schedule(instancePath, () => this.advanceDAG(instancePath));
       }, { pathPrefix: instancesPath, eventTypes: ['created', 'updated'] }),
@@ -939,6 +944,16 @@ export class PipelineEngine {
         ...(attrs.status === 'failed' && attrs.cause ? { cause: attrs.cause } : {}),
       });
     });
+  }
+
+  /**
+   * Hang up an inline step's command when someone else moves its step out of `running` under it:
+   * `pipeline-step-restart` sets it back to `pending`, a cancel to `skipped`. The run's outcome is
+   * then not written (`dispatchStep`), so the step keeps what was set.
+   */
+  private hangUpOverruled(event: NodeEvent<PipelineStepAttrs>): void {
+    if (event.node.attrs.status === 'running') return;
+    this.runningInline.get(event.node.id)?.abort();
   }
 
   /**
@@ -2361,6 +2376,7 @@ export class PipelineEngine {
     // parked step gets the next freed permit, so a flood of low-priority instances
     // cannot starve a higher-priority pipeline purely by arriving first.
     await this.sem.acquire(priority);
+    const hangUp = new AbortController();
     try {
       if (!this.running) return; // stopped while parked — leave 'queued' for recovery
 
@@ -2380,20 +2396,32 @@ export class PipelineEngine {
         attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined },
       });
       this.schedule(instancePath, () => this.advanceDAG(instancePath));
-      const { code, stdout, stderr } = await this.runStep(command, join(instancePath, 'steps', stepName), ticket.attribution);
-      if (code !== 0) {
-        const detail = stepErrorDetail(code, stdout, stderr);
-        // A step that could not run yet is not a failure; completeStep says it is waiting.
-        if (code !== STEP_EXIT_TEMPORARY) {
-          logger.error('step command failed', { step: stepName, command, code, detail: stepErrorLogDetail(code, stdout, stderr) });
-        }
-        await this.completeStep(ticket, code, detail);
+      this.runningInline.set(ticket.stepId, hangUp);
+      let result;
+      try {
+        result = await this.runStep(command, join(instancePath, 'steps', stepName), ticket.attribution, hangUp.signal);
+      } finally {
+        this.runningInline.delete(ticket.stepId);
+      }
+      // The step was restarted or cancelled while it ran; what it says now stands.
+      if (hangUp.signal.aborted) {
+        logger.info('step overruled while running, its run dropped', { step: stepName, instance: instancePath });
       } else {
-        await this.completeStep(ticket, code);
+        const { code, stdout, stderr } = result;
+        if (code !== 0) {
+          const detail = stepErrorDetail(code, stdout, stderr);
+          // A step that could not run yet is not a failure; completeStep says it is waiting.
+          if (code !== STEP_EXIT_TEMPORARY) {
+            logger.error('step command failed', { step: stepName, command, code, detail: stepErrorLogDetail(code, stdout, stderr) });
+          }
+          await this.completeStep(ticket, code, detail);
+        } else {
+          await this.completeStep(ticket, code);
+        }
       }
     } catch (err) {
       logger.error('step command threw', { step: stepName, command, error: String(err) });
-      await this.completeStep(ticket, 255, String(err));
+      if (!hangUp.signal.aborted) await this.completeStep(ticket, 255, String(err));
     } finally {
       this.sem.release();
     }
@@ -2423,13 +2451,14 @@ export class PipelineEngine {
     command: string,
     stepPath: string,
     attribution: Attribution,
+    signal: AbortSignal,
   ): Promise<{ code: number; stdout: string; stderr: string }> {
     // runAndCapture spawns a child exec context per call (output isolated); step
     // commands are #!ts builtins using absolute paths, so they don't mutate the
     // shared cwd/env — safe to run concurrently. `runStep` is shared with the pool worker.
     const output = markOutput(this.vfs, stepPath);
     try {
-      return await runStep(this.tty, command, { onOutput: output.onOutput, attribution });
+      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, attribution });
     } finally {
       output.stop();
     }

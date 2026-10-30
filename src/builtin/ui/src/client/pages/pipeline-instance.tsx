@@ -8,11 +8,14 @@ import { type PipelineStep, useAccessIds, usePipelineActions, usePipelineStatus 
 const formatTime = (ts?: number) => ts ? new Date(ts).toLocaleString() : '-';
 const duration = (start?: number, end?: number) => start ? elapsed(start, end ?? Date.now()) : '-';
 
-/** A step row; without `onRestart` — anyone but the administrator — a failed step offers no retry. */
+/**
+ * A step row. A failed or skipped step offers **Retry**, a running one **Restart**, which stops
+ * its command first; without `onRestart` — anyone but the administrator — neither.
+ */
 function StepRow({ step, onRestart, busy }: { step: PipelineStep; onRestart?: () => void; busy: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetail = Boolean(step.error || step.exitCode !== undefined || step.attempts || step.pool);
-  const restartable = onRestart !== undefined && (step.status === 'failed' || step.status === 'skipped');
+  const restartable = onRestart !== undefined && (step.status === 'failed' || step.status === 'skipped' || step.status === 'running');
 
   return (
     <>
@@ -50,7 +53,11 @@ function StepRow({ step, onRestart, busy }: { step: PipelineStep; onRestart?: ()
           </Text>
         </Table.Td>
         <Table.Td onClick={(e) => e.stopPropagation()}>
-          {restartable && <Button size='compact-xs' variant='subtle' loading={busy} onClick={onRestart}>Retry</Button>}
+          {restartable && (
+            <Button size='compact-xs' variant='subtle' loading={busy} onClick={onRestart}>
+              {step.status === 'running' ? 'Restart' : 'Retry'}
+            </Button>
+          )}
         </Table.Td>
       </Table.Tr>
 

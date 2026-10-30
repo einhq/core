@@ -400,6 +400,89 @@ Deno.test({
       assertStringIncludes(String(bad.error), 'NAME=VALUE');
     });
 
+    await t.step('prune without a status keeps failed instances', async () => {
+      await writeYaml(
+        '/work/mgmt-fail.yaml',
+        [
+          'name: mgmt-fail',
+          'trigger:',
+          '  event: updated',
+          '  nodeType: file',
+          '  filter: |',
+          '    exit 1',
+          'steps:',
+          '  only:',
+          '    command: exit 65',
+        ].join('\n'),
+      );
+      assertEquals((await client.exec('pipeline define /work/mgmt-fail.yaml')).success, true);
+
+      const failed = await startFor('mgmt-fail', '/work/a.bin');
+      await waitFor(async () => (await statusOf('mgmt-fail', failed)) === 'failed', 'instance fails');
+
+      assertEquals((await client.exec('pipeline prune')).success, true);
+      assertEquals(await listInstances('mgmt-fail'), [failed], 'a failed instance is left for heal');
+
+      assertEquals((await client.exec('pipeline prune mgmt-fail -s failed')).success, true);
+      assertEquals(await listInstances('mgmt-fail'), [], 'asked for by status, it goes');
+    });
+
+    await t.step('define stores a relative path as an absolute one', async () => {
+      await writeYaml('/work/mgmt-rel.yaml', yaml.replace('name: mgmt', 'name: mgmt-rel'));
+      assertEquals((await client.exec('cd /work && pipeline define mgmt-rel.yaml')).success, true);
+
+      const link = await vfs.get(ADMIN_ACCESS, '/var/pipelines/definitions/mgmt-rel', { follow: false });
+      assertEquals(link.props.softlink, '/work/mgmt-rel.yaml');
+    });
+
+    await t.step('step-restart stops a running step and runs it again', async () => {
+      await writeYaml(
+        '/work/mgmt-hang.yaml',
+        [
+          'name: mgmt-hang',
+          'trigger:',
+          '  event: updated',
+          '  nodeType: file',
+          '  filter: |',
+          '    exit 1',
+          'steps:',
+          '  only:',
+          '    command: sleep 600',
+        ].join('\n'),
+      );
+      assertEquals((await client.exec('pipeline define /work/mgmt-hang.yaml')).success, true);
+
+      const id = await startFor('mgmt-hang', '/work/a.bin');
+      const stepPath = `${PIPELINE_INSTANCES_PATH}/mgmt-hang/${id}/steps/only`;
+      const step = () => client.execJson<{ status: string; startedAt?: number }>(`attrs ${stepPath}`);
+      await waitFor(async () => (await step()).status === 'running', 'step runs');
+      const first = (await step()).startedAt!;
+
+      const res = await client.exec(`pipeline step-restart mgmt-hang/${id} only`);
+      assertEquals(res.success, true, String(res.error));
+      await waitFor(async () => {
+        const now = await step();
+        return now.status === 'running' && now.startedAt! > first;
+      }, 'step runs again');
+
+      // The first run was hung up, not left to finish: its outcome would have ended the step.
+      await new Promise((r) => setTimeout(r, 300));
+      assertEquals((await step()).status, 'running');
+
+      // Cancelling hangs the second run up too, so nothing is left running at the end.
+      assertEquals((await client.exec(`pipeline cancel mgmt-hang/${id}`)).success, true);
+      assertEquals((await step()).status, 'skipped');
+    });
+
+    await t.step('step-restart refuses a completed step', async () => {
+      const id = await startFor('mgmt', '/work/a.bin');
+      await waitFor(async () => (await statusOf('mgmt', id)) === 'completed', 'instance completes');
+
+      const res = await client.exec(`pipeline step-restart mgmt/${id} only`);
+      assertEquals(res.success, false);
+      assertStringIncludes(String(res.error), 'expected failed, skipped or running');
+    });
+
     await t.step('prune rejects a non-numeric --keep', async () => {
       const res = await client.exec('pipeline prune mgmt --keep soon');
       assertEquals(res.success, false);

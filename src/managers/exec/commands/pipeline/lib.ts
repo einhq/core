@@ -153,8 +153,9 @@ async function cancelPoolJobs(cmd: Command, instancePath: string): Promise<void>
 
 /**
  * Cancel a running instance: set the instance status to cancelled, then mark
- * every non-terminal step skipped. Steps mid-execution finish on their own;
- * completeStep then no-ops because the step is no longer pending/running.
+ * every non-terminal step skipped. A step mid-execution is stopped by whoever
+ * runs it: the engine hangs up an inline step it sees skipped, and a pool worker
+ * hangs up when the job dropped below loses it its lease.
  *
  * The instance goes first because the engine's advance does not share a lock
  * with this command. An advance writes a step live and then re-reads the
