@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import type { ShareSetResult } from '@ein/api';
+import type { ShareInfo, ShareSetResult } from '@ein/api';
 import { useAccessIds } from '../../hooks/useAccessIds.ts';
 import { useShare, useShareHolder } from '../../hooks/useShare.ts';
 import { countOf } from '../../lib/count-of.ts';
@@ -54,6 +54,16 @@ export function ShareSection({ title, aside, children }: { title: ReactNode; asi
     </Stack>
   );
 }
+
+/** What the Default preset does to the node: whom the configured default shares it with, and who then owns it. */
+const defaultExplain = (info: ShareInfo): string => {
+  const { uid, gid, ownerName, groupName } = info.default;
+  const group = info.groups.find((each) => each.gid === gid);
+  const shared = `Shared as new things are, with ${group?.title ?? group?.groupname ?? groupName ?? `group ${gid}`}`;
+  if (uid === info.owner.uid) return shared;
+  const owner = info.users.find((user) => user.uid === uid);
+  return `${shared}, and owned by ${owner?.title ?? owner?.username ?? ownerName ?? `user ${uid}`}`;
+};
 
 /** What a save did, in a sentence or two; failures make it a warning. */
 const saveReport = (result: ShareSetResult): { text: string; warn: boolean } => {
@@ -110,7 +120,7 @@ type SharePanelProps = {
  * People are changed in a draft and saved together, in one walk over everything below the node; a link is made,
  * changed and deleted at once, since one copied before a save would open nothing. Its visibility —
  * public, restricted, private — is what the rows and links add up to, shown as they change; two
- * presets set the rows to the default, every account reading it, or to the owner alone.
+ * presets set the rows to the configured default sharing, or to the owner alone.
  */
 export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) {
   const share = useShare(path, enabled);
@@ -158,12 +168,13 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
   const editable = info.canEdit;
   const noun = nounOf(info.type);
   const ownerName = info.owner.title ?? info.owner.username ?? `user ${info.owner.uid}`;
+  // The owner a save leaves it with: the configured one, when the draft gives it that.
+  const defaultOwner = draft.defaultOwner && info.default.uid !== info.owner.uid ? info.users.find((user) => user.uid === info.default.uid) : undefined;
   const changed = follow || buildShareCommand(path, draft) !== buildShareCommand(path, openingDraft(info));
   const visibility = draftVisibility(draft, info.links.length > 0, info.guestBrowsing);
-  const usersGroup = info.groups.find((group) => group.role === 'everyone');
   const holderNoun = holder && nounOf(holder.type);
   const presets = [
-    ...(usersGroup ? [{ label: 'Default', explain: 'Everyone with an account can see it', draft: defaultDraft(draft, usersGroup) }] : []),
+    { label: 'Default', explain: defaultExplain(info), draft: defaultDraft(info) },
     { label: 'Private', explain: 'Only the owner can see it', draft: privateDraft(draft) },
     ...(holder ? [{ label: `Like the ${holderNoun}`, explain: `Shared as “${holder.title}” is, and changed with it`, draft: openingDraft(holder), follow: true }] : []),
   ];
@@ -238,14 +249,23 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
             draft={draft}
             onChange={edit}
             info={info}
-            owner={{
-              uid: info.owner.uid,
-              name: ownerName,
-              username: info.owner.username,
-              path: info.owner.path,
-              personPath: info.owner.personPath,
-              you: access?.uid === info.owner.uid,
-            }}
+            owner={defaultOwner
+              ? {
+                uid: defaultOwner.uid,
+                name: defaultOwner.title ?? defaultOwner.username,
+                username: defaultOwner.username,
+                path: defaultOwner.path,
+                personPath: defaultOwner.personPath,
+                you: access?.uid === defaultOwner.uid,
+              }
+              : {
+                uid: info.owner.uid,
+                name: ownerName,
+                username: info.owner.username,
+                path: info.owner.path,
+                personPath: info.owner.personPath,
+                you: access?.uid === info.owner.uid,
+              }}
             editable={editable}
             showMembers={access?.admin === true}
           />

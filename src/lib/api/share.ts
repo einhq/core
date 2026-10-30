@@ -23,7 +23,7 @@ export type ShareInfo = {
   pinned: boolean;
   grants: ShareGrant[];
   /**
-   * The system default, resolved against the caller, and whether this node is
+   * The system default, resolved against the node's owner, and whether this node is
    * already on it. Sent with the rest so the dialog can offer "Default" without
    * a second round trip.
    */

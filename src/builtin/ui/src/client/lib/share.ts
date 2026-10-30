@@ -59,6 +59,8 @@ export const withEveryoneLevel = (mode: number, level: ShareLevel): number => wi
 export type ShareDraft = {
   mode: number;
   grants: ShareGrant[];
+  /** Give the node the configured default owner and group, which the Default preset sets when they differ from its own. */
+  defaultOwner?: boolean;
 };
 
 /**
@@ -145,24 +147,32 @@ const octal = (mode: number): string => (mode & 0o7777).toString(8).padStart(4, 
 
 /** Nobody but the owner: no group, person, or visitor reads it. Its links are not in the draft. */
 export const privateDraft = (draft: ShareDraft): ShareDraft => ({
+  ...draft,
   mode: withEveryoneLevel(draft.mode, 'none'),
   grants: draft.grants.flatMap((grant) => (grant.source === 'primary' ? [{ ...grant, level: 'none' as const }] : [])),
 });
 
-/** The group every account belongs to, as the dialog lists groups. */
-type UsersGroup = Pick<ShareInfo['groups'][number], 'gid' | 'groupname' | 'title' | 'members' | 'role'>;
-
-/** Everyone with an account reads it, through the Users group, and nobody is granted more. */
-export const defaultDraft = (draft: ShareDraft, users: UsersGroup): ShareDraft =>
-  withGrant(privateDraft(draft), {
+/**
+ * The configured default sharing (`CFG_DEFAULT_SHARE_*`), as `share-info` resolves it for the node:
+ * its bits and group, with no other grants, and its owner and group given to the node where they
+ * are not already the node's.
+ */
+export const defaultDraft = (info: Pick<ShareInfo, 'default' | 'owner' | 'group' | 'groups'>): ShareDraft => {
+  const { mode, uid, gid, groupName } = info.default;
+  const group = info.groups.find((each) => each.gid === gid);
+  const primary: ShareGrant = {
     kind: 'group',
-    id: users.gid,
-    name: users.groupname,
-    ...(users.title ? { title: users.title } : {}),
-    members: users.members,
-    ...(users.role ? { role: users.role } : {}),
-    level: 'view',
-  });
+    id: gid,
+    name: group?.groupname ?? groupName ?? String(gid),
+    ...(group?.title ? { title: group.title } : {}),
+    ...(group ? { members: group.members } : {}),
+    ...(group?.role ? { role: group.role } : {}),
+    level: groupLevel(mode),
+    source: 'primary',
+  };
+  const draft = openingDraft({ mode, grants: [primary], groups: info.groups });
+  return uid === info.owner.uid && gid === info.group.gid ? draft : { ...draft, defaultOwner: true };
+};
 
 /** What a draft is saved with besides itself. */
 export type ShareSaveOptions = {
@@ -190,6 +200,7 @@ export const buildShareCommand = (paths: string | readonly string[], draft: Shar
   const mode = withGroupLevel(draft.mode, primary?.level ?? 'none');
 
   const parts = ['share-set', ...(typeof paths === 'string' ? [paths] : paths).map(quote), '--mode', octal(mode), '-b'];
+  if (draft.defaultOwner) parts.push('--default-owner');
   if (opts.dropLinks) parts.push('--drop-links');
   if (opts.pin) parts.push('--pin');
 

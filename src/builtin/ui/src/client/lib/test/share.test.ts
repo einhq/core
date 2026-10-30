@@ -106,17 +106,26 @@ Deno.test('grants are identified by grantee and source together', () => {
   assertEquals(command, "share-set '/x' --mode 0750 -b -m 'g:family:rwx'");
 });
 
-Deno.test('the presets replace the rows: every account reads it, or the owner alone', () => {
+Deno.test('the presets replace the rows: the configured default, or the owner alone', () => {
   const users = { gid: 1002, groupname: 'users', title: 'Users', members: 5, role: 'everyone' as const };
+  const friends = { gid: 2001, groupname: 'friends', members: 3 };
   const family: ShareGrant = { kind: 'group', id: 2000, name: 'family', source: 'primary', level: 'edit' };
   const anna: ShareGrant = { kind: 'user', id: 42, name: 'anna', source: 'acl', level: 'view' };
   const start = draft(0o775, [family, anna]);
+  const node = { owner: { uid: 42, level: 'edit' as const }, group: { gid: 2000 }, groups: [users, friends] };
+  const configured = (mode: number, gid: number, uid = 42) => ({ ...node, default: { mode, uid, gid, active: false } });
 
   assertEquals(buildShareCommand('/x', privateDraft(start)), "share-set '/x' --mode 0700 -b");
-  assertEquals(buildShareCommand('/x', defaultDraft(start, users)), "share-set '/x' --mode 0700 -b -m 'g:users:rx'");
-  // Where Users is the node's own group, the default is written in its bits.
-  const own = draft(0o700, [{ kind: 'group', id: 1002, name: 'users', source: 'primary', level: 'none' }]);
-  assertEquals(buildShareCommand('/x', defaultDraft(own, users)), "share-set '/x' --mode 0750 -b");
+  // The node's own owner and group: only the bits and the grants change.
+  assertEquals(buildShareCommand('/x', defaultDraft(configured(0o750, 2000))), "share-set '/x' --mode 0750 -b");
+  // Another group or owner is given by the server, as the settings name them.
+  assertEquals(buildShareCommand('/x', defaultDraft(configured(0o750, 1002))), "share-set '/x' --mode 0750 -b --default-owner");
+  assertEquals(buildShareCommand('/x', defaultDraft(configured(0o700, 2000, 7))), "share-set '/x' --mode 0700 -b --default-owner");
+  // The other bits are shown, and written, as the Users group's grant, as a node opened with them is.
+  assertEquals(buildShareCommand('/x', defaultDraft(configured(0o755, 2001))), "share-set '/x' --mode 0750 -b --default-owner -m 'g:users:rx'");
+  // A node already on the default opens on the default's draft, so the preset reads as chosen.
+  const stored = { mode: 0o750, grants: [{ ...family, id: 1002, name: 'users', level: 'view' as const }], groups: [users] };
+  assertEquals(buildShareCommand('/x', openingDraft(stored)), buildShareCommand('/x', defaultDraft({ ...configured(0o750, 1002), group: { gid: 1002 } })));
 });
 
 Deno.test('a selection is saved in one share-set, kept apart from the album and its link', () => {
