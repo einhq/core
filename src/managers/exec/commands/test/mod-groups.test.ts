@@ -55,7 +55,15 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
     });
 
     await t.step('kept to a group: its lines and links move to the group and the administrators', async () => {
-      assertEquals((await admin.exec(`mod-groups ${name} sailors-${id}`)).success, true);
+      // A shell open since it was everyone's has it on its PATH, until its next command.
+      const early = await testCtx.server.createShellClient({ username: `bert-${id}`, password: 'secret1' });
+      try {
+        assertStringIncludes(`${(await early.exec('echo $PATH')).data}`, bin);
+        assertEquals((await admin.exec(`mod-groups ${name} sailors-${id}`)).success, true);
+        assertEquals(`${(await early.exec('echo $PATH')).data}`.includes(bin), false);
+      } finally {
+        early.close();
+      }
       assertEquals(`${await read(`${MODULE_GROUPS_PATH}/${name}.groups`)}`.trim(), `sailors-${id}`);
       assertEquals((await read('/etc/bashrc'))?.includes(bin), false);
       assertStringIncludes((await read(`${BASHRC_GROUPS_PATH}/sailors-${id}`)) ?? '', bin);

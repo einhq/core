@@ -661,6 +661,18 @@ export class Shell implements TtyIf {
   }
 
   /**
+   * `env`'s PATH without the modules' bin directories. A shell inherits its PATH from whoever opened
+   * it — the SSH and HTTP servers, which run as the administrator — so which modules it has is the
+   * rc files' to say, for its own sign-in (`rcFiles`): they put the bin directories back. A shell
+   * with no rc file to source keeps the PATH it was given.
+   */
+  private static withoutModuleBins(env: Record<string, string | undefined>): Record<string, string> {
+    const path = env.PATH;
+    if (!path) return {};
+    return { PATH: path.split(':').filter((dir) => !dir.startsWith(`${MOD_PATH}/`)).join(':') };
+  }
+
+  /**
    * Source /etc/bashrc, which in turn sources the two configuration layers, and the setup of each
    * of the sign-in's groups (`rcFiles`).
    *
@@ -678,6 +690,7 @@ export class Shell implements TtyIf {
     try {
       const files = await this.rcFiles(etcPath);
       timer?.mark('bashrc-exists');
+      if (files.length > 0) this.ctx.setEnv(Shell.withoutModuleBins(this.ctx.getEnv()));
       // Not `run()`: that persists the tty afterwards, and here the caller
       // decides when the tty is written — `open()` creates the node with the
       // sourced environment already in it, `login` persists once at its end.
@@ -719,6 +732,7 @@ export class Shell implements TtyIf {
       const before = this.ctx.getEnv();
       const sub = this.ctx.subContext();
       sub.setEnv(Object.fromEntries(listConfigOptions().filter((option) => option.type !== 'secret').map((option) => [option.key, null])));
+      sub.setEnv(Shell.withoutModuleBins(before));
       for (const file of files) await shellSetup.run(true, () => this.executor.execute(`source "${file}"`, sub));
 
       const after = sub.getEnv();

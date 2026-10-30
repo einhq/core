@@ -16,6 +16,7 @@ import { ServiceManager } from '../managers/services/mod.ts';
 import { ShellManager } from '../managers/shell/mod.ts';
 import { Shell } from '../managers/shell/shell.ts';
 import { boot } from '../init/boot.ts';
+import { buildPathExportLine } from '../managers/exec/commands/mod/path-line.ts';
 import { contributionsOf, registerContributions, unregisterContributions } from '../lib/contributions/registry.ts';
 import { ensureArchiveRoots } from '../lib/contributions/roots.ts';
 import type { SystemCore } from '../system-core.ts';
@@ -260,6 +261,9 @@ export class SystemTestHarness {
       for (const name of modules) {
         await vfs.ensure(ADMIN_ACCESS, 'directory', MOD_PATH, name, { props: { mode: 0o755 } });
         await shell.runAndCapture(`mount ${MOD_PATH}/${name} filesystem "filesPath=${moduleSourceDir(name)},readonly"`);
+        // Where `mod setup` puts it: a shell that sources /etc/bashrc takes the modules' bins off
+        // the PATH it inherits, and has them back from there.
+        await shell.runAndCapture(`echo '${buildPathExportLine(`${MOD_PATH}/${name}/bin`)}' >> ${ETC_PATH}/bashrc`);
       }
 
       // What `mod setup` would register in memory and a mounted module needs to work: its

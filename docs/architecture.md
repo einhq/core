@@ -1232,7 +1232,10 @@ the signed-in person after authentication and the web UI's shell opens as guest.
 After `/etc/bashrc` a shell sources `/etc/bashrc.d/<group>` for each group of its sign-in that has
 one, by name (`groupEntriesFor` in [member-gids.ts](../src/lib/auth/member-gids.ts); an
 administrator is in `admin` whatever its gids say), and only then the interactive shell's
-`~/.bashrc`. It is where `mod setup` puts the PATH line of a module kept to groups
+`~/.bashrc`. Before it sources them a shell drops the modules' bin directories from the PATH it
+inherited — the SSH and HTTP servers open users' shells from their own environment, which is the
+administrator's — so the files of its own sign-in alone put them back, and a re-read takes away one
+that moved out of its groups. It is where `mod setup` puts the PATH line of a module kept to groups
 ([modules](architecture/modules.md)).
 
 `CFG_` is the prefix for anything a settings page can own. Bootstrap facts read before a VFS
