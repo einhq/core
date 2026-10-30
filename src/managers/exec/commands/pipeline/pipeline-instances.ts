@@ -159,7 +159,7 @@ pipelineInstances.spec = {
   effect: 'read' as const,
   description: 'List pipeline instances — running, failed or completed — newest first',
   args: [
-    { name: 'name', type: 'string' as const, description: 'Pipeline name (optional, repeatable)' },
+    { name: 'name', type: 'string' as const, description: 'Pipeline name (optional, repeatable)', optional: true },
   ],
   flags: [
     { name: 's', type: 'string' as const, description: 'Filter by status' },

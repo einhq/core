@@ -49,7 +49,7 @@ onthisday.spec = {
   effect: 'read' as const,
   description: 'What the archive has from a calendar day (MM-DD, default today) in earlier years, from every onthisday-* command on PATH',
   args: [
-    { name: 'day', type: 'string' as const, description: 'day as MM-DD (default today, UTC)' },
+    { name: 'day', type: 'string' as const, description: 'day as MM-DD (default today, UTC)', optional: true },
   ],
   flags: [
     { name: 'limit', type: 'number' as const, description: `entries returned across all providers (default ${DEFAULT_LIMIT})` },

@@ -682,6 +682,7 @@ find.spec = {
       name: 'path',
       type: 'path' as const,
       description: 'starting point, printed itself at depth 0; several may be given (default: .)',
+      optional: true,
     },
   ],
   flags: [

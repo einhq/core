@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.6.2
+MODULE_API_VERSION 0.6.3
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -823,7 +823,7 @@ src/client/mod.ts COVER_LINK_NAME f14ec0158712
 src/client/mod.ts CaptureTimeParts 21e2eb1171bf day=7908a498e835,hour=48280196a71c,minute=05cfcf654183,month=9e2a78a7ccbb,offset=65e81354bda9,precision=35321eec9e0f,second=38eb9bc66836,year=e5b25b3a5c65
 src/client/mod.ts CatalogueEntry 1131b339301c dir=71747dad87c2,fingerprint=3fdf3c8b7bd6,name=6d0c36381511,spec=0c214b035dc8
 src/client/mod.ts ChildrenOptions bf0d48faab91
-src/client/mod.ts CmdArgDef 724e2c626173 description=c4833b0d92ac,name=6d0c36381511,runs=8030aadf6c96,type=d075bcabdd84,variadic=ffa3009ebe86,writes=7f060016df2c
+src/client/mod.ts CmdArgDef 6764c2614818 description=c4833b0d92ac,name=6d0c36381511,optional=e098158fc261,runs=8030aadf6c96,type=d075bcabdd84,variadic=ffa3009ebe86,writes=7f060016df2c
 src/client/mod.ts CmdEffect f6d2882913d2
 src/client/mod.ts CmdFlagDef 6f82ffb3a49c description=c4833b0d92ac,dryRun=f4d09218461c,name=6d0c36381511,repeatable=93c02ac9ad97,type=7b359a6eff99,writes=b9f6af3816af
 src/client/mod.ts CmdFunction 0e9f1e8c3bac
@@ -977,7 +977,7 @@ src/lib/api/mod.ts AuditOp 46e7f0132b72
 src/lib/api/mod.ts AuditQuery d93ed930b587 after=e4bacfe86e34,cause=78aea5e4feb6,id=8928287dddd7,limit=5762b15e167e,nodeId=a65255847853,nodeTypes=cfdf034e1bd8,op=43de097df60b,pathPrefix=ef0fcc2fd4b8,since=cd1f8da9a999,uid=af4adc33e4ac,until=e8b9162312a1
 src/lib/api/mod.ts AuditRecord 6eda08eae292 attrs=625630f484bf,cause=78aea5e4feb6,fromPath=bdc083ec368e,id=752fa5797ebe,nodeId=38932a4289d1,nodeType=10a92ae7d518,op=8bd22bed33af,path=19720370ab88,props=54a11ee5fc2f,sid=08f4ee703802,timestamp=7c04c15af263,uid=fccc8afd13b7
 src/lib/api/mod.ts AuditedWrite 3474be4aa0aa auditId=2defd44603bc,uid=fccc8afd13b7
-src/lib/api/mod.ts CmdArgDef 724e2c626173 description=c4833b0d92ac,name=6d0c36381511,runs=8030aadf6c96,type=d075bcabdd84,variadic=ffa3009ebe86,writes=7f060016df2c
+src/lib/api/mod.ts CmdArgDef 6764c2614818 description=c4833b0d92ac,name=6d0c36381511,optional=e098158fc261,runs=8030aadf6c96,type=d075bcabdd84,variadic=ffa3009ebe86,writes=7f060016df2c
 src/lib/api/mod.ts CmdEffect f6d2882913d2
 src/lib/api/mod.ts CmdFlagDef 6f82ffb3a49c description=c4833b0d92ac,dryRun=f4d09218461c,name=6d0c36381511,repeatable=93c02ac9ad97,type=7b359a6eff99,writes=b9f6af3816af
 src/lib/api/mod.ts CmdSpec 22e2a35d51f3 admin=e5caa4ef7900,args=e813fe48babe,daemon=246cd9d6fb9f,description=644be3c4d4da,effect=f7d5b5e17e8c,examples=84df1e35c90e,flags=b906855f84f7,group=23881e684876,guest=a56bf333f7e1,json=c94bd9bb3f68,name=6d0c36381511,returns=8685231c9cd2,words=a48e780d3e27

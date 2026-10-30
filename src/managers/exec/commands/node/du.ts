@@ -142,6 +142,7 @@ du.spec = {
       name: 'path',
       type: 'path' as const,
       description: 'one or more structures to measure (default: .)',
+      optional: true,
     },
   ],
   flags: [

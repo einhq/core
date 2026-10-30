@@ -21,6 +21,8 @@ export type CmdArgDef = {
    * declares has nothing to complete them with.
    */
   variadic?: boolean;
+  /** The call may leave this argument out. Without it, a tool schema makes the model give one. */
+  optional?: boolean;
   /**
    * This argument makes the call a write: given at all (`true` — the value to set, the name to
    * create), or given one of these values (a subcommand: `album create`, not `album info`). See

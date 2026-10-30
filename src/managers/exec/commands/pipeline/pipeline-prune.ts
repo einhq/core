@@ -405,7 +405,7 @@ pipelinePrune.spec = {
   effect: 'write' as const,
   description: 'Remove completed and cancelled pipeline instances; failed ones only when asked',
   args: [
-    { name: 'name', type: 'string' as const, description: 'Pipeline name (optional; all if omitted)' },
+    { name: 'name', type: 'string' as const, description: 'Pipeline name (optional; all if omitted)', optional: true },
   ],
   flags: [
     { name: 's', type: 'string' as const, description: 'Only remove instances with this status, such as failed' },

@@ -384,6 +384,7 @@ xargs.spec = {
       name: 'command',
       type: 'command' as const,
       description: 'the command to run and its first arguments; the items follow them (default: echo)',
+      optional: true,
       variadic: true,
       runs: true,
     },

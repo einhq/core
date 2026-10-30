@@ -90,9 +90,7 @@ export const toolSchema = (spec: CmdSpec): ToolSchema => {
   const required: string[] = [];
   for (const arg of spec.args ?? []) {
     properties[arg.name] = fromArg(arg);
-    // The help is the only signal a spec carries about this: "(optional)", or a default
-    // ("day as MM-DD (default today)"), which an argument only has when it may be left out.
-    if (!/optional|\bdefault\b/i.test(arg.description)) required.push(arg.name);
+    if (!arg.optional) required.push(arg.name);
   }
   for (const flag of withoutAliases(spec.flags ?? [])) {
     // A flag never shadows a positional of the same name: the positional is the call's subject.

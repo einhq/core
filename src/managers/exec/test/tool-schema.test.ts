@@ -7,7 +7,7 @@ import type { CmdSpec } from '../types.ts';
 const SEARCH: CmdSpec = {
   name: 'search',
   description: 'Faceted search over content: text, time, region, kind, tags, subjects and containers',
-  args: [{ name: 'query', type: 'string', description: 'search query text (optional)' }],
+  args: [{ name: 'query', type: 'string', description: 'search query text', optional: true }],
   flags: [
     { name: 'l', type: 'number', description: 'page size (default 60, max 200)' },
     { name: 'limit', type: 'number', description: 'page size (default 60, max 200)' },
@@ -28,7 +28,7 @@ Deno.test('a spec becomes a schema a model can call', () => {
   assertEquals(schema.parameters.properties.subject.type, 'array');
   assertEquals(schema.parameters.properties.subject.items, { type: 'string' });
   assertEquals(schema.parameters.properties.facets.type, 'boolean');
-  assert(!schema.parameters.required.includes('query'), 'an argument whose help says optional is not required');
+  assert(!schema.parameters.required.includes('query'), 'an argument the spec marks optional is not required');
   assert(schema.description.includes('Returns:'), 'the description carries what comes back');
   assert(schema.description.includes('search segelbåt'), 'and an example');
   // -l and --limit say the same thing; offering both makes a model pick at random.
@@ -36,9 +36,11 @@ Deno.test('a spec becomes a schema a model can call', () => {
   assert(schema.parameters.properties.limit, 'the long name survives');
 });
 
-Deno.test('an argument with a default is not required', () => {
-  const schema = toolSchema({ name: 'dayinhistory', args: [{ name: 'day', type: 'string', description: 'day as MM-DD (default today)' }] });
-  assertEquals(schema.parameters.required, []);
+Deno.test('an argument is required unless the spec marks it optional, whatever its help says', () => {
+  const optional = toolSchema({ name: 'dayinhistory', args: [{ name: 'day', type: 'string', description: 'day as MM-DD', optional: true }] });
+  assertEquals(optional.parameters.required, []);
+  const served = toolSchema({ name: 'http-server', args: [{ name: 'path', type: 'path', description: 'root to serve, "default" in it the default host' }] });
+  assertEquals(served.parameters.required, ['path']);
 });
 
 Deno.test('a required argument is required', () => {

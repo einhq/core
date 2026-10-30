@@ -64,6 +64,7 @@ basename.spec = {
       name: 'SUFFIX',
       type: 'string' as const,
       description: 'optional suffix to remove',
+      optional: true,
     },
   ],
   flags: [

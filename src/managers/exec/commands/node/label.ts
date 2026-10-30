@@ -220,7 +220,7 @@ labels.spec = {
   effect: 'read' as const,
   description: 'List labels (all, or of a node); search --tag <label> finds what carries one',
   args: [
-    { name: 'path', type: 'path' as const, description: 'node path (optional)' },
+    { name: 'path', type: 'path' as const, description: 'node path (optional)', optional: true },
   ],
   flags: [],
   examples: [

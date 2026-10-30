@@ -2066,7 +2066,7 @@ search.spec = {
   effect: 'read' as const,
   description: 'Faceted search over content: text, time, region, kind, tags, subjects (people, locations, devices) and containers',
   args: [
-    { name: 'query', type: 'string' as const, description: 'search query text (optional)' },
+    { name: 'query', type: 'string' as const, description: 'search query text (optional)', optional: true },
   ],
   flags: [
     { name: 'l', type: 'number' as const, description: `page size (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT})` },

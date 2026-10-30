@@ -217,6 +217,7 @@ cat.spec = {
       name: 'path',
       type: 'path' as const,
       description: 'nodes to output, one after the other; without one, or for -, stdin is copied',
+      optional: true,
       variadic: true,
     },
   ],

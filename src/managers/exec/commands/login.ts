@@ -49,6 +49,7 @@ login.spec = {
       name: 'password',
       type: 'string' as const,
       description: 'password (optional, prompts if not provided)',
+      optional: true,
     },
   ],
   flags: [

@@ -257,6 +257,7 @@ ls.spec = {
       type: 'path' as const,
       variadic: true,
       description: 'paths to list, each under its own header when there are several',
+      optional: true,
     },
   ],
   flags: [
