@@ -2,7 +2,7 @@ import { extname } from '@std/path';
 import mimeBytes from 'mime-bytes';
 import mimeBytesRegistry from 'mime-bytes/file-types-registry.js';
 import { Buffer } from 'node:buffer';
-import { getRawMimeFromName, refineMimeByName } from './raw.ts';
+import { getRawMimeFromName, OLE_STORAGE_MIMETYPE, refineMimeByName } from './raw.ts';
 
 export const MIME_DEFAULT_TYPE = 'application/octet-stream' as const;
 /** How much of a file's head `getMimeFromBuffer` reads: the text sample, and three transport-stream packets. */
@@ -50,6 +50,9 @@ const TEXT_HEADED_MIMETYPES = new Set([
 
 const TS_SYNC_BYTE = 0x47;
 
+// A Compound File (OLE2) container opens with these 8 bytes; mime-bytes knows no signature for it.
+const OLE_STORAGE_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+
 // MPEG transport-stream packets: 188 bytes, or 192 behind a 4-byte timestamp (`.mts`, `.m2ts`)
 const TS_PACKETS = [{ size: 188, offset: 0 }, { size: 192, offset: 4 }];
 
@@ -70,7 +73,8 @@ function isTransportStream(bytes: Uint8Array): boolean {
 
 /**
  * The mimetype the head of a file sniffs as. Given the file's `name`, a name that decides over a
- * weak sniff — a camera RAW's, a `.json` or an `.xmp` sidecar's — does (`refineMimeByName`).
+ * weak sniff — a camera RAW's, a `.json` or an `.xmp` sidecar's, an office document's — does
+ * (`refineMimeByName`).
  */
 export async function getMimeFromBuffer(bytes: Uint8Array, name?: string): Promise<string> {
   const sniffed = await sniffMime(bytes);
@@ -97,6 +101,10 @@ async function sniffMime(bytes: Uint8Array): Promise<string> {
   // header. Text mime-bytes knows by its byte-order mark (UTF-16) is a signature, not a guess.
   if (mimetype === 'text/plain' && mimeResult && mimeResult.confidence < 1 && bytes.subarray(0, MIME_SAMPLE_BYTES).includes(0)) {
     return MIME_DEFAULT_TYPE;
+  }
+
+  if (mimetype === MIME_DEFAULT_TYPE && OLE_STORAGE_SIGNATURE.every((byte, at) => bytes[at] === byte)) {
+    return OLE_STORAGE_MIMETYPE;
   }
 
   // mime-bytes takes any leading 0x47 for MPEG-TS and never looks for 192-byte packets; the

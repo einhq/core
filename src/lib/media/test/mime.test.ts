@@ -280,3 +280,27 @@ Deno.test('sidecar names', async (t) => {
     assertEquals(await getMimeFromBuffer(png, 'photo.constructor'), 'image/png');
   });
 });
+
+Deno.test('office document names', async (t) => {
+  const zip = new Uint8Array(64);
+  zip.set([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00, 0x08, 0x00]);
+  const ole = new Uint8Array(64);
+  ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
+  await t.step('a Compound File container sniffs as one', async () => {
+    assertEquals(await getMimeFromBuffer(ole), 'application/x-ole-storage');
+    assertEquals(await getMimeFromBuffer(ole, 'Thumbs.db'), 'application/x-ole-storage');
+  });
+
+  await t.step('an office name decides over the container its bytes are, and over nothing else', async () => {
+    assertEquals(await getMimeFromBuffer(ole, 'letter.doc'), 'application/msword');
+    assertEquals(await getMimeFromBuffer(ole, 'budget.XLS'), 'application/vnd.ms-excel');
+    assertEquals(await getMimeFromBuffer(zip, 'letter.docx'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    assertEquals(await getMimeFromBuffer(zip, 'letter.odt'), 'application/vnd.oasis.opendocument.text');
+    assertEquals(await getMimeFromBuffer(zip, 'photos.zip'), 'application/zip');
+    assertEquals(await getMimeFromBuffer(zip, 'letter.doc'), 'application/zip');
+    assertEquals(await getMimeFromBuffer(ole, 'letter.docx'), 'application/x-ole-storage');
+    assertEquals(refineMimeByName(MIME_DEFAULT_TYPE, 'letter.doc'), MIME_DEFAULT_TYPE);
+    assertEquals(refineMimeByName('text/plain', 'letter.docx'), 'text/plain');
+  });
+});

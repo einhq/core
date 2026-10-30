@@ -53,23 +53,42 @@ export function getRawMimeFromName(filename: string): string | undefined {
   return RAW_IMAGE_MIMETYPE_BY_EXTENSION.get(extname(filename).slice(1).toLowerCase());
 }
 
-// Sidecar names: each extension with its mimetype and the weak sniffs it decides over. A sniff
-// reads a JSON or an XMP packet as text (an XMP that opens with an XML declaration as XML), and
-// typed as text a sidecar would be taken for a document.
-const SIDECAR_MIMETYPES_BY_EXTENSION: ReadonlyMap<string, { mimetype: string; over: ReadonlySet<string> }> = new Map([
+/** What a sniff calls a Compound File (OLE2) container, the format of old Word, Excel and PowerPoint files. */
+export const OLE_STORAGE_MIMETYPE = 'application/x-ole-storage';
+
+// Names that decide over a weak sniff: each extension with its mimetype and the sniffs it decides
+// over. A sniff reads a JSON or an XMP packet as text (an XMP that opens with an XML declaration
+// as XML), and typed as text a sidecar would be taken for a document. An office document is a zip
+// or a Compound File container, which is all its first bytes say.
+const NAMED_MIMETYPES_BY_EXTENSION: ReadonlyMap<string, { mimetype: string; over: ReadonlySet<string> }> = new Map([
   ['json', { mimetype: 'application/json', over: new Set(['text/plain']) }],
   ['xmp', { mimetype: 'application/rdf+xml', over: new Set(['text/plain', 'application/xml']) }],
+  ...Object.entries({
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    odt: 'application/vnd.oasis.opendocument.text',
+    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+    odp: 'application/vnd.oasis.opendocument.presentation',
+    epub: 'application/epub+zip',
+  }).map(([ext, mimetype]) => [ext, { mimetype, over: new Set(['application/zip']) }] as const),
+  ...Object.entries({
+    doc: 'application/msword',
+    xls: 'application/vnd.ms-excel',
+    ppt: 'application/vnd.ms-powerpoint',
+  }).map(([ext, mimetype]) => [ext, { mimetype, over: new Set([OLE_STORAGE_MIMETYPE]) }] as const),
 ]);
 
 /**
  * The mimetype of a file called `filename` whose bytes were identified as `mimetype`, for the
  * names that decide over a weak sniff: a camera RAW name over text, bytes or TIFF, a `.json`
- * name over text, and an `.xmp` name over text or XML (case-insensitive). Any other answer, and
- * any other name, leaves `mimetype` as it is.
+ * name over text, an `.xmp` name over text or XML, an office document's name over the zip or
+ * Compound File container it is (case-insensitive). Any other answer, and any other name, leaves
+ * `mimetype` as it is.
  */
 export function refineMimeByName(mimetype: string, filename: string): string {
-  const sidecar = SIDECAR_MIMETYPES_BY_EXTENSION.get(extname(filename).slice(1).toLowerCase());
-  if (sidecar) return sidecar.over.has(mimetype) ? sidecar.mimetype : mimetype;
+  const named = NAMED_MIMETYPES_BY_EXTENSION.get(extname(filename).slice(1).toLowerCase());
+  if (named) return named.over.has(mimetype) ? named.mimetype : mimetype;
   if (!RAW_UNRECOGNISED_MIMETYPES.has(mimetype)) return mimetype;
   return getRawMimeFromName(filename) ?? mimetype;
 }
