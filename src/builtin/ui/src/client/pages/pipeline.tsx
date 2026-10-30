@@ -37,8 +37,8 @@ export default function PipelineDetailPage() {
   const selectedIds = useMemo(() => [...selected].filter((id) => visibleIds.has(id)), [selected, visibleIds]);
   // Ids are only unique within a pipeline, so every action is sent qualified.
   const selectedRefs = useMemo(() => selectedIds.map((id) => `${pipeline}/${id}`), [selectedIds, pipeline]);
-  const selectedRunning = useMemo(
-    () => instances.some((i) => selected.has(i.id) && i.status === 'running'),
+  const selectedLive = useMemo(
+    () => instances.some((i) => selected.has(i.id) && (i.status === 'running' || i.status === 'queued')),
     [instances, selected],
   );
 
@@ -152,7 +152,7 @@ export default function PipelineDetailPage() {
                   leftSection={<IconPlayerStop size={14} />}
                   onClick={() => run(() => cancel(selectedRefs))}
                   loading={busy}
-                  disabled={!selectedRunning}
+                  disabled={!selectedLive}
                 >
                   Cancel
                 </Button>

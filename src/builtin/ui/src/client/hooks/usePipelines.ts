@@ -177,7 +177,7 @@ export function usePipelineStatus(pipeline: string | null, instanceId: string | 
 export function usePipelineActions() {
   const rerun = useCallback((refs: string[]) => execCommand(`pipeline-rerun ${refs.map(shq).join(' ')}`), []);
   const cancel = useCallback(async (refs: string[]) => {
-    // cancel refuses on non-running instances; run per-id so one failure doesn't
+    // cancel refuses a finished instance; run per-id so one failure doesn't
     // abort the rest.
     await Promise.allSettled(refs.map((ref) => execCommand(`pipeline-cancel ${shq(ref)}`)));
   }, []);

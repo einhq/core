@@ -124,7 +124,7 @@ export default function InstanceDetailPage() {
               <Button size='xs' variant='light' leftSection={<IconRefresh size={14} />} onClick={() => act(() => rerun([ref]))} loading={busy}>
                 Rerun
               </Button>
-              {data?.status === 'running' && (
+              {(data?.status === 'running' || data?.status === 'queued') && (
                 <Button
                   size='xs'
                   variant='light'
