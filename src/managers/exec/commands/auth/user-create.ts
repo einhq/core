@@ -79,15 +79,17 @@ export const userCreate = async (cmd: Command): CmdReturn => {
   const gidHolder = (gid: number) => groups.find((entry) => entry.node.attrs.gid === gid && entry.name !== name);
 
   // A group already named like the user becomes its own group, so the uid is that group's gid.
-  // Boot makes `admin` and `guest` this way; `users` and `ssh` are never one account's own.
+  // Boot makes `admin` and `guest` this way. `users`, `ssh` and `sudo` are never one account's
+  // own, whether or not the group exists yet: its primary group would be that group, and `sudo`'s
+  // would let it elevate.
   const ownGroup = groups.find((entry) => entry.name === name);
+  const role = groupRole(name, ownGroup?.node.attrs.gid);
+  if (role === 'everyone' || role === 'ssh' || role === 'sudo') {
+    await cmd.writeError(`user create: '${name}' is the name of a built-in group\n`);
+    return 1;
+  }
   if (ownGroup) {
     const gid = ownGroup.node.attrs.gid;
-    const role = groupRole(name, gid);
-    if (role === 'everyone' || role === 'ssh') {
-      await cmd.writeError(`user create: '${name}' is the name of a built-in group\n`);
-      return 1;
-    }
     if (uid !== -1 && uid !== gid) {
       await cmd.writeError(`user create: a group '${name}' exists with gid ${gid}; the user's uid must match it\n`);
       return 1;

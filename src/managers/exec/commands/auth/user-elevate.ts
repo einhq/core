@@ -24,7 +24,9 @@ export const userElevate = async (cmd: Command): CmdReturn => {
   if (cmd.json) {
     await cmd.writeJSON({ elevated: !flags.off } satisfies UserElevated);
   } else {
-    await cmd.write(flags.off ? 'You are no longer an administrator\n' : 'You are an administrator until you sign out or run user-elevate --off\n');
+    const what = flags.session ? 'This sign-in' : 'This shell';
+    const off = flags.session ? 'user-elevate --off --session' : 'user-elevate --off';
+    await cmd.write(flags.off ? `${what} is no longer an administrator's\n` : `${what} is an administrator's until you sign out or run ${off}\n`);
   }
 
   return 0;
@@ -33,7 +35,7 @@ export const userElevate = async (cmd: Command): CmdReturn => {
 userElevate.spec = {
   name: 'user-elevate',
   effect: 'write' as const,
-  description: "Make this sign-in an administrator's, for a member of the sudo group, after entering the password again",
+  description: "Make this shell an administrator's, or with --session the whole sign-in, for a member of the sudo group, after entering the password again",
   flags: [
     {
       name: 'password',
@@ -48,7 +50,7 @@ userElevate.spec = {
     {
       name: 'off',
       type: 'bool' as const,
-      description: "make the sign-in no longer an administrator's",
+      description: "make the shell, or with --session the sign-in, no longer an administrator's",
     },
   ],
 };

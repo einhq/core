@@ -1033,8 +1033,8 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 | `command`   | name, args, flags                                                            | CommandStore                             |
 | `session`   | secret, access, env, expiresSec, bootId                                      | PgStore                                  |
 | `tty`       | rows, cols, env, cwd, bootId                                                 | PgStore                                  |
-| `user`      | uid, name, description, lastLogin                                            | PgStore                                  |
-| `group`     | gid, name, members                                                           | PgStore                                  |
+| `user`      | uid, gid, name, email, description, inactive, mustResetPassword              | PgStore                                  |
+| `group`     | gid, title, description; members are softlinks in its `users` directory      | PgStore                                  |
 | `softlink`  | target (path)                                                                | PgStore                                  |
 
 Node types are free-form strings; modules define their own (e.g. `exif` and `album` in

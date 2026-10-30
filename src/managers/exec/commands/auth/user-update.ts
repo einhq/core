@@ -26,6 +26,11 @@ export const userUpdate = async (cmd: Command): CmdReturn => {
     return 1;
   }
 
+  if (name !== undefined && name.trim() === '') {
+    await cmd.writeError('user update: a display name cannot be empty\n');
+    return 1;
+  }
+
   const parsed = flags.email === undefined ? undefined : parseEmailFlag(flags.email);
   if (parsed && 'problem' in parsed) {
     await cmd.writeError(`user update: ${parsed.problem}\n`);
@@ -112,7 +117,7 @@ userUpdate.spec = {
     {
       name: 'name',
       type: 'string' as const,
-      description: 'set display name',
+      description: 'set the display name, which cannot be empty',
     },
     {
       name: 'email',

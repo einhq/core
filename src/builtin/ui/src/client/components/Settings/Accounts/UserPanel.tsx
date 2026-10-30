@@ -167,7 +167,7 @@ function ProfileSection({ user, users, run }: SectionProps & { users: UserEntry[
           }}
         />
         <Group gap='sm'>
-          <Button type='submit' leftSection={<IconDeviceFloppy size={16} />} loading={busy} disabled={!dirty || !!emailIssue}>Save profile</Button>
+          <Button type='submit' leftSection={<IconDeviceFloppy size={16} />} loading={busy} disabled={!dirty || !title.trim() || !!emailIssue}>Save profile</Button>
           {saved && !dirty && <Done>Saved</Done>}
         </Group>
       </Stack>

@@ -44,19 +44,21 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
     }
 
     // Only the user themselves or an admin.
-    if (cmd.access.uid !== user.attrs.uid && !isAdmin(cmd.access)) {
+    const admin = isAdmin(cmd.access);
+    if (cmd.access.uid !== user.attrs.uid && !admin) {
       await cmd.writeError('user passwd: permission denied\n');
       return 1;
     }
 
-    // Anyone but an admin proves the current password.
-    if (!isAdmin(cmd.access)) {
+    // Anyone but an admin proves the current password, and a current password given is checked
+    // whoever gives it: an admin may leave it out, not get a wrong one past.
+    if (!admin || oldPassword !== undefined) {
       if (!oldPassword) {
         await cmd.writeError('user passwd: current password must be provided (--old-password)\n');
         return 1;
       }
 
-      if (!await hasAccountPassword(cmd.sys.vfs, userPath)) {
+      if (!admin && !await hasAccountPassword(cmd.sys.vfs, userPath)) {
         await cmd.writeError('user passwd: no existing password found, contact admin\n');
         return 1;
       }
@@ -106,7 +108,7 @@ userPasswd.spec = {
     {
       name: 'old-password',
       type: 'string' as const,
-      description: 'current password (required for non-admin)',
+      description: 'current password: required but for an administrator, and checked whenever given',
     },
     {
       name: 'new-password',

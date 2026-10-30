@@ -217,9 +217,12 @@ Deno.test({
       await cmd.shouldFailWith('user-create jon', "which is already the uid of 'ida'");
       await cmd.shouldFail('user-exists jon');
 
-      // `users` and `ssh` are every member's, never one account's own.
+      // `users`, `ssh` and `sudo` are every member's, never one account's own: an account named
+      // `sudo` would have it as its primary group and could elevate.
       await cmd.shouldFailWith('user-create users', "user create: 'users' is the name of a built-in group");
       await cmd.shouldFailWith('user-create ssh', "user create: 'ssh' is the name of a built-in group");
+      await cmd.shouldFailWith('user-create sudo', "user create: 'sudo' is the name of a built-in group");
+      await cmd.shouldFail('user-exists sudo');
     });
 
     await t.step("an account's number is fixed once it exists, for the administrator too", async () => {
@@ -373,6 +376,24 @@ Deno.test({
       await pia.shouldSucceed('acl -r -m u:ulf:rx ~/shared');
       await ulf.shouldSucceed('ls /home/pia/shared');
       assertEquals((await ulfClient.execString('cat /home/pia/shared/b.txt', { json: false })).trim(), 'hej');
+    });
+
+    await t.step("a current password given to user-passwd is checked, an administrator's too", async () => {
+      await cmd.shouldSucceed('user-create tove && user-passwd tove --new-password first');
+      await cmd.shouldFailWith('user-passwd tove --old-password=wrong --new-password=second', 'user passwd: authentication failed');
+      await cmd.shouldFailWith("user-passwd tove --old-password='' --new-password=second", 'user passwd: current password must be provided');
+      await cmd.shouldSucceed('user-passwd tove --old-password=first --new-password=second');
+      await cmd.shouldSucceed('user-passwd tove --new-password=third');
+
+      const tove = testCommands(await signIn('tove', 'third'));
+      await tove.shouldFailWith('user-passwd tove --new-password=fourth', 'user passwd: current password must be provided');
+      await tove.shouldFailWith('user-passwd tove --old-password=wrong --new-password=fourth', 'user passwd: authentication failed');
+      await tove.shouldSucceed('user-passwd tove --old-password=third --new-password=fourth');
+    });
+
+    await t.step('user-update refuses an empty display name, from the administrator too', async () => {
+      await cmd.shouldFailWith("user-update bo --name ''", 'user update: a display name cannot be empty');
+      await cmd.shouldFailWith("user-update bo --name '  '", 'user update: a display name cannot be empty');
     });
 
     await t.step('the other account writes answer with their declared shapes', async () => {

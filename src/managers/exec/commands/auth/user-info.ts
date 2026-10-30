@@ -30,7 +30,6 @@ export const userInfo = async (cmd: Command): CmdReturn => {
         email: user.attrs.email,
         description: user.attrs.description,
         inactive: user.attrs.inactive || false,
-        lastLogin: user.attrs.lastLogin,
       });
     } else {
       await cmd.write(`User: ${user.attrs.name || username}\n`);
@@ -47,10 +46,6 @@ export const userInfo = async (cmd: Command): CmdReturn => {
 
       if (user.attrs.inactive) {
         await cmd.write(`Status: inactive\n`);
-      }
-
-      if (user.attrs.lastLogin) {
-        await cmd.write(`Last login: ${user.attrs.lastLogin}\n`);
       }
     }
 

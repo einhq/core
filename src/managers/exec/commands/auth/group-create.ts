@@ -116,7 +116,7 @@ groupCreate.spec = {
     {
       name: 'groupname',
       type: 'string' as const,
-      description: 'name of the group to create: letters, digits and . _ - @, starting with a letter or _',
+      description: 'name of the group to create: lower-case letters, digits and . _ -, starting with a letter or _',
     },
   ],
   flags: [
