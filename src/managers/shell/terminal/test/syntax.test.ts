@@ -51,6 +51,14 @@ Deno.test('highlightLines', async (t) => {
     assertEquals(styleOf(lines[5], '```'), '90');
   });
 
+  await t.step('a console block is a session: the prompt dimmed, the command as bash, its output plain', () => {
+    const lines = highlightLines('```console\n$ echo "hi"\nhi (done\n```', 'markdown');
+    assertEquals(styleOf(lines[1], '$ '), '90');
+    assertEquals(styleOf(lines[1], 'echo'), '35');
+    assertEquals(styleOf(lines[1], '"hi"'), '32');
+    assertEquals(styleOf(lines[2], 'hi (done'), '');
+  });
+
   await t.step('an unclosed fence runs to the end', () => {
     const lines = highlightLines('```json\n{"a": 1}\n# not a heading', 'markdown');
     assertEquals(styleOf(lines[1], '"a"'), '34');

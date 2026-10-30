@@ -34,7 +34,7 @@ Deno.test('check', async (t) => {
     assertEquals(await check('bash', 'echo a\ncat <<EOF\nabc\n'), [{ line: 2, message: "here-document not closed (wanted 'EOF')" }]);
   });
 
-  await t.step('Markdown is checked fence by fence, at the lines of the document', async () => {
+  await t.step('Markdown is checked fence by fence, at the lines of the document; a console transcript is not', async () => {
     const text = [
       '# Notes',
       '',
@@ -48,6 +48,11 @@ Deno.test('check', async (t) => {
       '',
       '```python',
       'def (',
+      '```',
+      '',
+      '```console',
+      '$ ls',
+      'a (b',
       '```',
     ].join('\n');
     assertEquals(await check('markdown', text), [

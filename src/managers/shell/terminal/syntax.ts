@@ -81,7 +81,6 @@ const ALIASES: Record<string, string> = {
   sh: 'bash',
   shell: 'bash',
   zsh: 'bash',
-  console: 'bash',
   yml: 'yaml',
   json5: 'jsonc',
   md: 'markdown',
