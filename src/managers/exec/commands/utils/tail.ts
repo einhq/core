@@ -12,6 +12,12 @@ const LOG_BATCH = 1000;
 const READ_CHUNK = 65536;
 const LINE_CHUNK = 8192;
 
+/** A -n/-c count: 0 is a count, the default applies only when the flag is absent or not a number. */
+const parseCount = (spec: string | undefined, fallback: number): number => {
+  const n = spec === undefined ? NaN : parseInt(spec, 10);
+  return Number.isNaN(n) ? fallback : Math.abs(n);
+};
+
 export const tail = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(expandCountFlag(cmd.args), {
     boolean: ['f'],
@@ -54,13 +60,14 @@ const tailLog = async (
   flags: ReturnType<typeof parseArgs>,
   follow: boolean,
 ): Promise<number> => {
-  const count = flags.lines ? parseInt(flags.lines, 10) || 10 : 10;
+  const count = parseCount(flags.lines, 10);
   const decoder = new TextDecoder();
 
   const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
   try {
-    // History: the cursor goes N entries before the end. On a short or empty log
-    // that throws and leaves the cursor at the start, so everything is read.
+    // History: the cursor goes N entries before the end (0: onto the last entry, so
+    // nothing is read). On a short or empty log that throws and leaves the cursor at
+    // the start, so everything is read.
     try {
       await handle.seek(-count, ResourceSeekMode.End);
     } catch {
@@ -140,8 +147,7 @@ const tailFileBlob = async (
     if (flags.bytes) {
       await tailBytes(cmd, handle, flags.bytes);
     } else {
-      const count = flags.lines ? parseInt(flags.lines, 10) || 10 : 10;
-      await tailLines(cmd, handle, count);
+      await tailLines(cmd, handle, parseCount(flags.lines, 10));
     }
 
     offset = await handle.size();
@@ -265,7 +271,7 @@ const tailLines = async (cmd: Command, handle: ResourceHandleIf, count: number):
 const tailBytes = async (cmd: Command, handle: ResourceHandleIf, spec: string): Promise<void> => {
   const size = await handle.size();
   const fromStart = spec.startsWith('+');
-  const count = parseInt(fromStart ? spec.slice(1) : spec, 10) || (fromStart ? 1 : 0);
+  const count = parseCount(fromStart ? spec.slice(1) : spec, fromStart ? 1 : 0);
 
   const start = fromStart ? Math.min(size, Math.max(0, count - 1)) : Math.max(0, size - count);
   await handle.seek(start, ResourceSeekMode.Start);
@@ -288,26 +294,18 @@ const tailStdin = async (cmd: Command, flags: ReturnType<typeof parseArgs>): Pro
   }
 
   if (flags.bytes) {
-    let count = parseInt(flags.bytes, 10);
     const fromStart = flags.bytes.startsWith('+');
-
-    if (fromStart) {
-      count = parseInt(flags.bytes.slice(1), 10) || 1;
-      const bytes = new TextEncoder().encode(input);
-      const slice = bytes.slice(count - 1);
-      await cmd.write(new TextDecoder().decode(slice));
-    } else {
-      const bytes = new TextEncoder().encode(input);
-      const slice = bytes.slice(-count);
-      await cmd.write(new TextDecoder().decode(slice));
-    }
+    const count = parseCount(fromStart ? flags.bytes.slice(1) : flags.bytes, fromStart ? 1 : 0);
+    const bytes = new TextEncoder().encode(input);
+    const slice = fromStart ? bytes.slice(Math.max(0, count - 1)) : bytes.slice(Math.max(0, bytes.length - count));
+    await cmd.write(new TextDecoder().decode(slice));
   } else {
     let count = 10;
     let fromStart = false;
 
     if (flags.lines) {
       fromStart = flags.lines.startsWith('+');
-      count = parseInt(fromStart ? flags.lines.slice(1) : flags.lines, 10) || 10;
+      count = parseCount(fromStart ? flags.lines.slice(1) : flags.lines, 10);
     }
 
     const endsWithNewline = input.endsWith('\n');
@@ -316,11 +314,7 @@ const tailStdin = async (cmd: Command, flags: ReturnType<typeof parseArgs>): Pro
       lines.pop();
     }
 
-    if (fromStart) {
-      lines = lines.slice(count - 1);
-    } else {
-      lines = lines.slice(-count);
-    }
+    lines = fromStart ? lines.slice(Math.max(0, count - 1)) : lines.slice(Math.max(0, lines.length - count));
 
     for (const line of lines) {
       await cmd.write(`${line}\n`);

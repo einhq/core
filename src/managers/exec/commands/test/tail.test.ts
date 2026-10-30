@@ -17,6 +17,10 @@ Deno.test({
   await testCtx.setup();
   client = await testCtx.server.createShellClient();
   const cmd = testCommands(client);
+  const printsNothing = async (command: string) => {
+    const result = await client.exec(command);
+    assertEquals([result.success, result.data ?? null], [true, null]);
+  };
 
   try {
     await t.step('slices a stdin pipe (regression)', async () => {
@@ -29,6 +33,16 @@ Deno.test({
       await client.exec(`echo -e "${content}" > /f`);
       const out = await client.execString('tail -n 2 /f');
       assertEquals(out.trim().split('\n'), ['11', '12']);
+    });
+
+    await t.step('-n 0 prints nothing: stdin, file', async () => {
+      await printsNothing('seq 5 | tail -n 0');
+      await printsNothing('seq 5 | tail -c 0');
+      await printsNothing('tail -n 0 /f');
+    });
+
+    await t.step('stdin: -n larger than the input prints all of it', async () => {
+      assertEquals((await client.execString('seq 3 | tail -n 7')).trim().split('\n'), ['1', '2', '3']);
     });
 
     await t.step('file: default is last 10 lines', async () => {
@@ -57,6 +71,10 @@ Deno.test({
       const out = await client.execString('tail -n 100 /mylog');
       const lines = out.trim().split('\n').map((l) => JSON.parse(l));
       assertEquals(lines, [{ value: 1 }, { value: 2 }, { value: 3 }]);
+    });
+
+    await t.step('log: -n 0 prints no entries', async () => {
+      await printsNothing('tail -n 0 /mylog');
     });
 
     await t.step('unsupported node type fails', async () => {

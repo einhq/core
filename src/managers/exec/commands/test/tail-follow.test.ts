@@ -124,6 +124,38 @@ Deno.test({ name: 'tail -f follow', sanitizeResources: false, sanitizeOps: false
       m.interrupt();
       assertEquals(await p, 130);
     });
+
+    await t.step('log: -n 0 -f prints only new entries', async () => {
+      const m = makeCmd(vfs, ['-n', '0', '-f', '/mylog']);
+      const p = tail(m.cmd);
+
+      // Give tail time to place its cursor, so the append comes after it
+      await new Promise((r) => setTimeout(r, 50));
+      await appendLog(vfs, '/mylog', { value: 'next' });
+      await waitFor(() => m.output().includes('"value":"next"'));
+      assertEquals(m.output(), '{"value":"next"}\n');
+
+      m.interrupt();
+      assertEquals(await p, 130);
+    });
+
+    await t.step('file: -n 0 -f prints only appended lines', async () => {
+      const m = makeCmd(vfs, ['-n', '0', '-f', '/f.txt']);
+      const p = tail(m.cmd);
+
+      // Give the subscription time to start, so the append is not part of the snapshot
+      await new Promise((r) => setTimeout(r, 50));
+      {
+        const h = await vfs.open(ADMIN_ACCESS, '/f.txt', { mode: 'a' });
+        await h.write(enc.encode('e\n'));
+        await h.close();
+      }
+      await waitFor(() => m.output().includes('e'));
+      assertEquals(m.output(), 'e\n');
+
+      m.interrupt();
+      assertEquals(await p, 130);
+    });
   } finally {
     await ctx.dispose();
   }
