@@ -203,7 +203,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: '',
     emptyMeans: 'the person who creates it',
     label: 'Default owner',
-    description: 'Who owns anything created as shared. Leave empty to let whoever creates it own it.',
+    description: "Who owns anything created as shared; a private album stays its creator's. Leave empty to let whoever creates it own it.",
     group: 'Users and sharing',
   },
   {
