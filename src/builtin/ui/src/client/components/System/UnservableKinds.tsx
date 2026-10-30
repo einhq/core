@@ -18,7 +18,10 @@ type Props = {
  * has gone wrong — the jobs are simply `ready`, growing at the arrival rate.
  *
  * Named by the pipelines that feed the kind, from the definitions. When none does, the jobs
- * are from a pipeline that has since been retired, and the fix is `pool cancel`, not a worker.
+ * belong to open instances whose step no definition queues under this kind any more. The engine
+ * queues a cancelled job of an open instance again, under the kind its definition names now: so
+ * `pool cancel` moves the jobs of a step given another kind, and those of a pipeline no longer
+ * defined come back as they were until `pipeline prune` retires it, instances and jobs together.
  */
 export function UnservableKinds({ pools, definitions }: Props) {
   const entries = pools.flatMap((pool) =>
@@ -51,8 +54,10 @@ export function UnservableKinds({ pools, definitions }: Props) {
                 )
                 : (
                   <>
-                    No defined pipeline queues this kind any more — these jobs are left over and want{' '}
-                    <Text span ff='monospace'>pool cancel {entry.path} --kind {entry.kind}</Text>.
+                    No defined pipeline queues this kind any more. If a pipeline now queues this step under another kind,{' '}
+                    <Text span ff='monospace'>pool cancel {entry.path} --kind {entry.kind}</Text>{' '}
+                    and the jobs are queued again under that kind; if the pipeline is no longer defined, <Text span ff='monospace'>pipeline prune</Text>{' '}
+                    removes its instances and their jobs once it has been gone for ten minutes.
                   </>
                 )}
             </Text>
