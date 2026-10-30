@@ -14,7 +14,6 @@ export type UserAttrs = NodeAttrs & {
   email?: string;
   description?: string;
   inactive?: boolean;
-  lastLogin?: Date;
   /**
    * When true the user has no usable password (e.g. imported from the old
    * system) and must set one via a reset before they can authenticate. Cleared

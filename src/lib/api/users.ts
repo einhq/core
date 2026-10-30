@@ -207,7 +207,6 @@ export type Whoami = {
   /** The person this account is, when it is linked to one. */
   personPath?: string;
   inactive?: boolean;
-  lastLogin?: unknown;
   mustResetPassword?: boolean;
   /** A property of this session's access, not a file mode bit. */
   admin: boolean;
