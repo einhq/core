@@ -60,9 +60,10 @@ export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
   const clauses = chown.split(',');
 
   for (const clause of clauses) {
-    const match = clause.match(/^([ugoa]*)([+=-])([rwx]+)$/);
+    // An empty `=` clears the class, as `chmod o=` does; an empty `+` or `-` changes nothing.
+    const match = clause.match(/^([ugoa]*)([+=-])([rwx]*)$/);
     if (!match) {
-      throw new Error(`Invalid mode clause: "${clause}"`);
+      throw new Error(`invalid mode clause: "${clause}"`);
     }
 
     const [, who, op, perms] = match;
@@ -98,7 +99,7 @@ export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
 
 export const parseChown = async (spec: string, lookup: ChownLookup): Promise<SimpleOwnership> => {
   if (!spec) {
-    throw new Error('Empty chown spec');
+    throw new Error('empty chown spec');
   }
 
   const sep = spec.includes(':') ? ':' : spec.includes('.') ? '.' : null;
@@ -123,7 +124,7 @@ export const parseChown = async (spec: string, lookup: ChownLookup): Promise<Sim
   }
 
   if (result.uid === undefined && result.gid === undefined) {
-    throw new Error(`Invalid chown spec: "${spec}"`);
+    throw new Error(`invalid chown spec: "${spec}"`);
   }
 
   return result;
@@ -137,7 +138,7 @@ async function resolveUser(value: string, lookup: ChownLookup): Promise<UserId> 
 
   const uid = await lookup.user(value);
   if (uid === undefined) {
-    throw new Error(`Unknown user: "${value}"`);
+    throw new Error(`unknown user: "${value}"`);
   }
 
   return uid;
@@ -151,7 +152,7 @@ async function resolveGroup(value: string, lookup: ChownLookup): Promise<GroupId
 
   const gid = await lookup.group(value);
   if (gid === undefined) {
-    throw new Error(`Unknown group: "${value}"`);
+    throw new Error(`unknown group: "${value}"`);
   }
 
   return gid;
