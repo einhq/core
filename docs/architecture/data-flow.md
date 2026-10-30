@@ -778,8 +778,9 @@ Management commands:
 - `pipeline rerun <id…>` — replace an instance with a fresh run from the _current_
   definition (picks up edited steps).
 - `pipeline remove <id…>` — delete instances; a running one is cancelled first.
-- `pipeline prune [name]` — bulk-delete terminal instances (completed/failed/cancelled);
-  `-s <status>` targets one status, `--all` includes running (cancels first).
+- `pipeline prune [name]` — bulk-delete completed and cancelled instances, leaving failed
+  ones to `pipeline heal`; `-s <status>` targets one status, failed included, and `--all`
+  takes failed and running ones too (cancels first).
   `--keep <n>` switches it to a **retention cap**: keep the n most recently completed
   per pipeline and drop the rest, paging `vfs.query` on `completedAt` rather than
   listing the directory it exists to bound. A running instance has no `completedAt`
@@ -822,8 +823,10 @@ Management commands:
   instance runs from the steps it was created with, and its pooled steps would otherwise be
   queued again under kinds no worker may offer any more. `mod setup` undefines a pipeline its
   module no longer ships. Finished instances are left to the prune.
-- `pipeline cancel <id>` — set a running instance's status cancelled, then mark its steps
-  skipped and drop their pool jobs. It runs outside the engine's per-instance lock, so an
+- `pipeline cancel <id>` — set a running or queued instance's status cancelled, then mark its
+  steps skipped and drop their pool jobs. A step mid-run is hung up by whoever runs it: the
+  engine when it sees an inline step it runs skipped, a worker when its job's lease is gone.
+  It runs outside the engine's per-instance lock, so an
   advance re-reads the instance after writing a step `waiting`/`queued` and skips the step
   itself if the cancel got there first; re-reads the step after adding its pool job and drops
   the job if the step was skipped meanwhile; and writes the instance's status only while it is
@@ -831,10 +834,14 @@ Management commands:
   written over.
 - `pipeline restart <id>` — resume a failed/cancelled instance by re-queuing only its
   failed steps (distinct from `rerun`, which replaces from the definition).
+- `pipeline step-restart <id> <step>` — set one failed, skipped or running step back to
+  `pending` with no attempts, opening a finished instance again. A running step's command is
+  hung up as a cancel hangs it up: a pooled step's job is cancelled first, so the step is
+  pooled afresh, and the engine drops the outcome of an inline run it sees set back.
 
 The UI `/system/pipelines/<pipeline>` page exposes these as multiselect bulk actions (Rerun / Cancel /
 Remove) plus a Prune button; the instance detail page has per-instance Rerun / Cancel /
-Remove.
+Remove, and per step Retry (failed or skipped) or Restart (running).
 
 ```
 Upload lands: the PUT handler writes size/sha256/mimetype
