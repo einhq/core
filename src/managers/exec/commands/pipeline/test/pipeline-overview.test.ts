@@ -7,7 +7,7 @@
  * both an inline and a delegated step is driven here to exercise both.
  */
 
-import { assertEquals } from '@std/assert';
+import { assertEquals, assertExists } from '@std/assert';
 import { PIPELINES_PATH, POOLS_PATH } from '../../../../../lib/paths.ts';
 import { ADMIN_ACCESS } from '../../../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../../../testing/mod.ts';
@@ -134,6 +134,12 @@ Deno.test({
       const quiet = async () => (await overview()).quiet.filter((step) => step.pipeline === 'ovw');
       const hourAgo = Date.now() - 60 * 60 * 1000;
 
+      // Claimed first, as a worker would: every write below advances the instance, and an advance
+      // puts a running pooled step whose job is still ready back to waiting (`repairStartedPooledStep`).
+      const owner = 'overview-test';
+      const job = await vfs.poolClaim(ADMIN_ACCESS, `${POOLS_PATH}/nobody`, { owner, kinds: ['slow'], leaseMs: 10 * 60_000 });
+      assertExists(job);
+      assertEquals(job.dedupKey, stepPath);
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { status: 'running', startedAt: hourAgo } });
       const listed = await quiet();
       assertEquals(listed.map((step) => [step.id, step.step, step.startedAt, step.outputAt]), [[instanceId, 'slow', hourAgo, undefined]]);
@@ -147,6 +153,7 @@ Deno.test({
       assertEquals(await quiet(), []);
 
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { status: 'waiting', startedAt: undefined } });
+      await vfs.poolRelease(ADMIN_ACCESS, `${POOLS_PATH}/nobody`, job.id, owner);
     });
 
     await t.step('a cancelled instance leaves the live counts for cancelled', async () => {
