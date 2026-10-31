@@ -2,7 +2,7 @@
 
 _To my mother, Birgitta Runge (1947–2026),<br>
 who shared my dedication to organize our family's digital legacy<br>
-and always supported my new technical endeavours._
+and always supported my technical endeavours._
 
 ## Before EiN
 
