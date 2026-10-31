@@ -14,6 +14,9 @@ and a React interface in the browser. Media analysis — renditions, faces, voic
 EMS, a media service of its own (`ein/ems`), and the chat assistant talks to any
 OpenAI-compatible language model.
 
+EiN grew out of MURRiX and the projects before it, and is dedicated to Birgitta Runge; see
+[DEDICATION.md](DEDICATION.md).
+
 ## Development
 
 ```bash
