@@ -256,6 +256,12 @@ stays executable, then checked, renamed into place and linked as `/usr/modules/<
 always holds one whole tree. `.install.json` in the module records the repository, the ref, the
 commit and when; `mod list` answers it as `installed`, and `system-info` takes its commit.
 
+**A release for another core.** Without a ref, a newest release whose `coreApi` this core does not
+satisfy gives way to the newest older one whose does, in the range when a dependency is installed:
+its `mod.json` is read at each tag going down (`findRelease`), one request per release passed over,
+and that release is fetched instead. Only when none qualifies is the module refused with the newest
+release's `coreApi` error. The newest is fetched first, so the usual case costs nothing extra.
+
 **Where it lives.** `/var/lib/modules` is a filesystem mount, read-write, of the folder
 `MODULE_INSTALL_PATH` names (`/modules-installed` in the container). A deployment mounts a folder
 of the host there — `make container-run` does, `MODULE_INSTALL_PATH ?= ./modules-installed` — so
@@ -277,8 +283,9 @@ costs that module, not the boot.
 published module. `mod install <name>` takes the first source that has `module-<name>`.
 `mod search [words]` ([mod-search.ts](../../src/managers/exec/commands/mod/mod-search.ts)) lists
 them all, asking every source at once, with what `mod install <name>` would take — the newest
-release's tag, or the default branch when there is none — and that commit's `mod.json` version and
-`coreApi`, and names a source that does not answer; the Modules tab of the settings page shows the
+release's tag, or the newest this core can run when the newest asks for another module API (that
+one named as `newest`), or the default branch when there is none — and that commit's `mod.json`
+version and `coreApi`, and names a source that does not answer; the Modules tab of the settings page shows the
 same with Install and Update. A module is behind when that is another commit and, from a release,
 a higher version, so one installed from its branch past the newest release is not offered the
 release as an update. `CFG_MODULE_SOURCES_KEY` holds tokens for
@@ -299,8 +306,8 @@ the range when it has one, and must then satisfy the range; one installed at a v
 **Updates and dependents.** `mod install` of an installed module is its update; the same commit
 again is left alone (`--force` fetches it anyway). A module installed at a commit, recorded with
 the commit's whole id as its ref, stays there: its panel's Update, which installs the recorded ref
-again — for a release, the newest release — is not offered for it, and `mod install <name>` without
-a ref moves it to the newest release. Every installed module that depends on it must
+again — for a release, the newest release this core can run — is not offered for it, and
+`mod install <name>` without a ref moves it to that release. Every installed module that depends on it must
 accept the new version, or nothing changes; `--force` updates anyway. After the swap the module is
 set up and its services restarted — on a first install, started — and every module depending on
 an updated one, however indirectly, is set up again and its running services restarted, so none

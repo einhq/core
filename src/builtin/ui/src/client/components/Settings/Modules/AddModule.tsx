@@ -54,7 +54,7 @@ type AddModuleProps = {
  * The Modules tab's panel for adding a module. For the administrator, a field that installs from
  * any repository's address, at a branch, tag or commit; under it the published modules: each
  * `module-*` repository of the module sources (`mod search`), with its version and what is installed of it, and for the
- * administrator a button that installs its newest release, or its default branch when it has none,
+ * administrator a button that installs its newest release this EiN can run, or its default branch when it has none,
  * with what it needs, or updates it when that is past what is installed. Install asks first, in its place, who the module is for
  * (`InstallQuestion`); an update keeps whom it was for. A source that does not answer is named
  * above the list.
@@ -152,8 +152,8 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
               <Box>
                 <Title order={5}>From a repository</Title>
                 <Text size='sm' c='dimmed'>
-                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Without @ and a branch, tag or commit, its newest release is installed, or its default
-                  branch when it has none. A private one needs its host's token in the Tokens for module sources setting.
+                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Without @ and a branch, tag or commit, the newest release this EiN can run is
+                  installed, or its default branch when it has none. A private one needs its host's token in the Tokens for module sources setting.
                 </Text>
               </Box>
               <Group gap='xs' align='flex-start' wrap='nowrap'>
@@ -223,6 +223,12 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                   {module.description && <Text size='sm'>{module.description}</Text>}
                   <Anchor href={module.repository} target='_blank' rel='noreferrer' size='xs' c='dimmed' style={{ overflowWrap: 'anywhere' }}>{module.repository}</Anchor>
                   {module.compatible === false && <Note warn>Needs core API {module.coreApi}, which this EiN does not provide.</Note>}
+                  {module.newest && (
+                    <Note>
+                      {module.newest.version ?? module.newest.release} needs core API {module.newest.coreApi}, which this EiN does not provide;{' '}
+                      {module.version ?? module.release} is the newest release it can run.
+                    </Note>
+                  )}
                 </Stack>
                 {admin && (standing.kind === 'absent' || standing.kind === 'behind') && asking !== module.repository && (
                   <Button

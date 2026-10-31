@@ -288,8 +288,9 @@ export type ModuleSearch = {
 };
 
 /**
- * One published module, as `mod install <name>` would take it: its newest release, or its default
- * branch when it has none.
+ * One published module, as `mod install <name>` would take it: its newest release, or when that
+ * asks for a module API this core does not provide, the newest that asks for one it does; or its
+ * default branch when it has none.
  */
 export type PublishedModule = {
   /** The module's name: its repository's without `module-`. */
@@ -301,7 +302,7 @@ export type PublishedModule = {
   description: string;
   /** Its default branch. */
   branch: string;
-  /** The newest release's tag, `v1.2.0`; absent when it has none and its default branch is taken. */
+  /** The tag of the release taken, `v1.2.0`; absent when it has none and its default branch is taken. */
   release?: string;
   /** The commit taken, in full; absent when its refs could not be read. */
   commit?: string;
@@ -310,6 +311,8 @@ export type PublishedModule = {
   coreApi?: string;
   /** Whether this core provides the module API its `coreApi` asks for; absent when it names none. */
   compatible?: boolean;
+  /** The newest release, when it asks for a module API this core does not provide and an older one is taken. */
+  newest?: { release: string; version?: string; coreApi: string };
 };
 
 /** How a module's last `mod setup` went. */

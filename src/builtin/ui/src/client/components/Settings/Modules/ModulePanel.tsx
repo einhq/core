@@ -169,7 +169,7 @@ type InstalledProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boole
 function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledProps) {
   const record = module.installed!;
   const pinned = record.ref === record.commit;
-  // A release, `v<version>`, is updated to the newest release, which `mod install` takes without a ref.
+  // A release, `v<version>`, is updated to the newest release this core can run, which `mod install` takes without a ref.
   const version = record.ref.startsWith('v') ? tryParse(record.ref.slice(1)) : undefined;
   const release = version !== undefined && !version.prerelease?.length;
   const [busy, setBusy] = useState<'update' | 'remove' | null>(null);

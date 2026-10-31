@@ -1,8 +1,9 @@
 /**
  * mod search — the published modules: every `module-*` repository of each `CFG_MODULE_SOURCES`
- * entry, with what `mod install <name>` would take — its newest release, or its default branch when
- * it has none: the version and module API in its `mod.json`, and its commit, which says whether an
- * installed module is behind it.
+ * entry, with what `mod install <name>` would take — its newest release, or when that asks for a
+ * module API this core does not provide, the newest that asks for one it does, or its default
+ * branch when it has none: the version and module API in its `mod.json`, and its commit, which says
+ * whether an installed module is behind it. A newest release passed over is named beside it.
  *
  * Every source is asked at once, and one that does not answer is named rather than failing the
  * others. Words narrow the list to the modules whose name or description holds each of them.
@@ -12,9 +13,9 @@ import { join } from '@std/path';
 import { canParse, greaterThan, parse, parseRange, satisfies, tryParse } from '@std/semver';
 import type { ModuleSearch, PublishedModule } from '../../../../lib/api/mod.ts';
 import { MOD_PATH } from '../../../../lib/paths.ts';
-import { fetchFile, fetchRefs, type ListedRepository, listModuleRepositories, moduleNameOf, releases } from '../../../../modules/forge.ts';
+import { fetchFile, fetchRefs, findRelease, type ListedRepository, listModuleRepositories, moduleNameOf, releases } from '../../../../modules/forge.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
-import { MODULE_API_VERSION, type ModuleManifest, readManifests } from '../../../../modules/mod.ts';
+import { checkCoreApi, MODULE_API_VERSION, type ModuleManifest, readManifests } from '../../../../modules/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { FORGE_TIMEOUT_MS, moduleSources, within } from './sources.ts';
@@ -29,15 +30,31 @@ const compatibleWith = (coreApi: string | undefined): boolean | undefined => {
   }
 };
 
-/** What a listed repository's newest release holds, or its default branch when it has none, as far as it answers. */
+const versionOf = (manifest: Partial<ModuleManifest> | undefined) => typeof manifest?.version === 'string' ? manifest.version : undefined;
+const coreApiOf = (manifest: Partial<ModuleManifest> | undefined) => typeof manifest?.coreApi === 'string' ? manifest.coreApi : undefined;
+
+/**
+ * What a listed repository's release `mod install` would take holds, or its default branch when it
+ * has none, as far as it answers.
+ */
 const describe = async (cmd: Command, repository: ListedRepository, tokens: Parameters<typeof fetchRefs>[1]): Promise<PublishedModule> => {
   const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS)).catch(() => undefined);
-  const release = refs && releases(refs)[0];
-  const manifest = await fetchFile(repository, release?.tag ?? repository.branch, 'mod.json', tokens, within(cmd, FORGE_TIMEOUT_MS))
+  const all = refs ? releases(refs) : [];
+  let release = all[0];
+  let manifest = await fetchFile(repository, release?.tag ?? repository.branch, 'mod.json', tokens, within(cmd, FORGE_TIMEOUT_MS))
     .then((text) => text === undefined ? undefined : JSON.parse(text) as Partial<ModuleManifest>)
     .catch(() => undefined);
-  const version = typeof manifest?.version === 'string' ? manifest.version : undefined;
-  const coreApi = typeof manifest?.coreApi === 'string' ? manifest.coreApi : undefined;
+  let newest: PublishedModule['newest'];
+  if (release && compatibleWith(coreApiOf(manifest)) === false) {
+    const older = await findRelease<ModuleManifest>(repository, all.slice(1), tokens, (each) => checkCoreApi(each).errors.length === 0, within(cmd, FORGE_TIMEOUT_MS))
+      .catch(() => undefined);
+    if (older) {
+      newest = { release: release.tag, ...(versionOf(manifest) ? { version: versionOf(manifest) } : {}), coreApi: coreApiOf(manifest)! };
+      ({ release, manifest } = older);
+    }
+  }
+  const version = versionOf(manifest);
+  const coreApi = coreApiOf(manifest);
   const commit = release?.commit ?? refs?.refs.get(`refs/heads/${repository.branch}`) ?? refs?.head;
   const compatible = compatibleWith(coreApi);
   return {
@@ -51,6 +68,7 @@ const describe = async (cmd: Command, repository: ListedRepository, tokens: Para
     ...(version ? { version } : {}),
     ...(coreApi ? { coreApi } : {}),
     ...(compatible !== undefined ? { compatible } : {}),
+    ...(newest ? { newest } : {}),
   };
 };
 
@@ -84,7 +102,11 @@ const line = (module: PublishedModule, installed: Map<string, { version?: string
       ? ` [installed ${mine.commit!.slice(0, 9)}, ${module.release ?? module.commit!.slice(0, 9)} published]`
       : ' [installed]';
   }
-  const api = module.compatible === false ? ` (needs core API ${module.coreApi}, this is ${MODULE_API_VERSION})` : '';
+  const api = module.compatible === false
+    ? ` (needs core API ${module.coreApi}, this is ${MODULE_API_VERSION})`
+    : module.newest
+    ? ` (${module.newest.version ?? module.newest.release} needs core API ${module.newest.coreApi}, this is ${MODULE_API_VERSION})`
+    : '';
   return `${module.name}${module.version ? ` ${module.version}` : ''}${state}${api}\n  ${module.description ? `${module.description}\n  ` : ''}${module.repository}\n`;
 };
 

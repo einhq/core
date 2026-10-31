@@ -326,6 +326,31 @@ export const fetchFile = async (repository: Repository, ref: string, path: strin
   }
 };
 
+/**
+ * The first of `candidates`, newest first, whose `mod.json` at its tag `accept` takes, with that
+ * manifest; nothing when none does. Each release passed over costs a request; one without a
+ * `mod.json` that parses is passed over.
+ */
+export const findRelease = async <M>(
+  repository: Repository,
+  candidates: readonly Release[],
+  tokens: Tokens,
+  accept: (manifest: M) => boolean,
+  signal?: AbortSignal,
+): Promise<{ release: Release; manifest: M } | undefined> => {
+  for (const release of candidates) {
+    const text = await fetchFile(repository, release.tag, 'mod.json', tokens, signal);
+    let manifest: M;
+    try {
+      manifest = JSON.parse(text ?? '');
+    } catch {
+      continue;
+    }
+    if (manifest && typeof manifest === 'object' && accept(manifest)) return { release, manifest };
+  }
+  return undefined;
+};
+
 type ApiRepository = { name: string; description?: string | null; default_branch?: string; archived?: boolean; empty?: boolean };
 
 /** Pages a forge's repository listing gives at most. */

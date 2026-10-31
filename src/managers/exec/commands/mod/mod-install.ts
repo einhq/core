@@ -4,7 +4,8 @@
  * A module is named by its repository's address, `https://host/owner/module-x`, or by its name,
  * which the first of `CFG_MODULE_SOURCES` to have `module-<name>` answers; either may end in
  * `@<branch, tag or commit>`, and without one the newest release is taken — the highest `v<version>`
- * tag — or the default branch when there is none; a commit's id may be cut short, and is recorded
+ * tag, or when its `mod.json` asks for a module API this core does not provide, the highest whose
+ * does — or the default branch when there is none; a commit's id may be cut short, and is recorded
  * whole. The tree at that commit is unpacked beside the installed
  * modules (`MOD_INSTALL_PATH`), checked, renamed into place and linked into `MOD_PATH`, the way
  * boot links them.
@@ -40,6 +41,7 @@ import {
   fetchArchive,
   fetchCommit,
   fetchRefs,
+  findRelease,
   ForgeError,
   type InstallTarget,
   MODULE_NAME,
@@ -48,13 +50,14 @@ import {
   type ModuleSource,
   parseInstallTarget,
   type Refs,
+  releases,
   type Repository,
   repositoryOf,
   resolveRef,
   type Tokens,
 } from '../../../../modules/forge.ts';
 import { readInstallRecord, REPLACED_PREFIX, STAGING_PREFIX, unpackArchive, writeInstallRecord } from '../../../../modules/install.ts';
-import { checkCoreApi, checkExports, checkUi, readManifests, readModJson, resolveSetupOrder } from '../../../../modules/mod.ts';
+import { checkCoreApi, checkExports, checkUi, MODULE_API_VERSION, type ModuleManifest, readManifests, readModJson, resolveSetupOrder } from '../../../../modules/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_SOFTLINK } from '../../../../vfs/types/softlink.ts';
 import type { Command } from '../../command.ts';
@@ -159,6 +162,29 @@ const resolveAbbreviated = async (run: Run, repository: Repository, ref?: string
   }
 };
 
+/**
+ * The newest release older than the one `taken` names, in `range` when there is one, whose
+ * `mod.json` asks for a module API this core provides; nothing when none does.
+ */
+const olderCompatible = async (run: Run, repository: Repository, refs: Refs, taken: string, range?: string): Promise<string | undefined> => {
+  const all = releases(refs);
+  const at = all.findIndex((release) => release.tag === taken);
+  const candidates = at < 0 ? [] : all.slice(at + 1).filter((release) => range === undefined || accepts(release.version, range));
+  try {
+    const found = await findRelease<ModuleManifest>(
+      repository,
+      candidates,
+      run.tokens,
+      (manifest) => checkCoreApi(manifest).errors.length === 0,
+      within(run.cmd, FORGE_TIMEOUT_MS),
+    );
+    return found?.release.tag;
+  } catch (error) {
+    if (error instanceof ForgeError) throw new InstallError(error.message);
+    throw error;
+  }
+};
+
 /** Whether `MOD_PATH/<name>` is the link to the installed module of that name. */
 const linksTo = async (run: Run, name: string): Promise<boolean> => {
   try {
@@ -184,10 +210,18 @@ const dependentsOf = async (run: Run, name: string): Promise<[string, string][]>
 
 /**
  * Put one module in place, its missing dependencies first; nothing when the commit asked for is
- * the one installed already. Without a ref, `range` picks the newest release in it. Throws an
- * `InstallError` saying why it cannot be installed.
+ * the one installed already. Without a ref, `range` picks the newest release in it, and a release
+ * written for another module API gives way to the newest older one written for this core's.
+ * `located` is the repository and its refs when they are known already. Throws an `InstallError`
+ * saying why it cannot be installed.
  */
-const installTarget = async (run: Run, target: InstallTarget, near?: Repository, range?: string): Promise<InstalledModule | undefined> => {
+const installTarget = async (
+  run: Run,
+  target: InstallTarget,
+  near?: Repository,
+  range?: string,
+  located?: { repository: Repository; refs: Refs },
+): Promise<InstalledModule | undefined> => {
   const { cmd } = run;
   const vfs = cmd.sys.vfs;
   // The module it is named for, which the repository's mod.json confirms once it is fetched.
@@ -197,7 +231,7 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository,
     return undefined;
   }
   await refuseDeployed(run, expected);
-  const { repository, refs } = await locate(run, target, near);
+  const { repository, refs } = located ?? await locate(run, target, near);
   const resolved = resolveRef(refs, target.ref, range) ?? await resolveAbbreviated(run, repository, target.ref);
   if (!resolved) {
     throw new InstallError(
@@ -250,7 +284,15 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository,
       ...(await checkExports(vfs, cmd.access, staging, manifest)).errors,
       ...checkUi(manifest).errors,
     ];
-    if (problems.length > 0) throw new InstallError(problems.join('; '));
+    if (problems.length > 0) {
+      const older = target.ref === undefined && checkCoreApi(manifest).errors.length > 0 ? await olderCompatible(run, repository, refs, resolved.ref, range) : undefined;
+      if (older === undefined) throw new InstallError(problems.join('; '));
+      await say(
+        run,
+        `${[name, manifest.version].filter(Boolean).join(' ')} needs core API ${manifest.coreApi}, and this core provides ${MODULE_API_VERSION}: taking ${older}`,
+      );
+      return await installTarget(run, { ...target, ref: older }, near, range, { repository, refs });
+    }
 
     run.visiting.add(name);
     try {
@@ -445,7 +487,7 @@ modInstall.spec = {
       type: 'string' as const,
       variadic: true,
       description:
-        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more); without one, its newest release (v<version> tag), or its default branch when it has none',
+        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more); without one, its newest release (v<version> tag) that this core can run, or its default branch when it has none',
     },
   ],
   flags: [

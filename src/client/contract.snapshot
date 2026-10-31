@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.7.1
+MODULE_API_VERSION 0.7.2
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -1071,7 +1071,7 @@ src/lib/api/mod.ts PositionShape 28a3ba6871f5 lat=ab04728f0de4,lng=7ef8fe750a12,
 src/lib/api/mod.ts PrimaryGroupSet d2a7b58d1bd5 newGid=07f04aba80bc,oldGid=47a68257dc5a,primaryGroup=f223461e33b6,username=02356e67b2c7
 src/lib/api/mod.ts ProcessEntry d13fb00b8b79 args=3d90c35b349d,cwd=fb782f68dd39,foreground=883e22b5086c,label=995d88c00ff2,name=6d0c36381511,origin=1effd6aae38e,pid=ec0ff4b14805,service=8f8407357b77,startedAt=4e4642f81a31,tty=6de472af68af,uid=d8def3ee020e,user=f5dd46b51dfb
 src/lib/api/mod.ts Provided e14fad881e1e
-src/lib/api/mod.ts PublishedModule 1e917076b0be branch=70f96d1f0a0c,commit=9b0dafbfb592,compatible=ccf87e54b076,coreApi=0e19443e1c1b,description=c4833b0d92ac,name=6d0c36381511,release=f19ca1059fc2,repository=b87f65f27efe,source=0c6e4d4f274b,version=b3cf6f09d5d6
+src/lib/api/mod.ts PublishedModule 300b8679622e branch=70f96d1f0a0c,commit=9b0dafbfb592,compatible=ccf87e54b076,coreApi=0e19443e1c1b,description=c4833b0d92ac,name=6d0c36381511,newest=b3b9e34691cc,release=f19ca1059fc2,repository=b87f65f27efe,source=0c6e4d4f274b,version=b3cf6f09d5d6
 src/lib/api/mod.ts QueueDead 03d6b34abacf
 src/lib/api/mod.ts QueueDeadEntry 7e1a0c912f12 attempts=e412f70b5f1e,deadAt=854c7ad50fb4
 src/lib/api/mod.ts QueueEntry cd02a2e85f48 createdAt=3fab28d6de66,data=a84f1433fe25,id=68a9430f9688,routingKey=0aaab78acdde

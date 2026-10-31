@@ -5,7 +5,8 @@
  * What is pinned down: a module named by its name comes from the first source that has it, with
  * its dependencies; it is unpacked into the installed modules and linked into /usr/modules; the
  * same commit is not fetched again and a new one replaces the module whole; without a ref the newest
- * release is taken, a dependency at the newest in its range, and mod search lists it; a ref — a tag, or a
+ * release is taken, a dependency at the newest in its range, and mod search lists it; a newest
+ * release for another core's module API gives way to the newest for this one's; a ref — a tag, or a
  * commit's id whole or cut short — pins the commit; an update a dependent does not accept is
  * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
  * alone and set nothing up; a module the deployment provides, one for another core and a
@@ -256,6 +257,34 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'tide')?.installed?.commit, unreleased);
       assertStringIncludes(await run('mod search tide'), 'tide 0.2.0 [installed]');
       await client.execString('mod-remove --force tide');
+    });
+
+    await t.step('without a ref a newest release for another core gives way to the newest for this one, and mod search says so', async () => {
+      await forge.publish('acme', 'module-reef', moduleFiles('reef', '0.1.0', 'reef 0.1.0'), { tag: 'v0.1.0' });
+      const runnable = await forge.publish('acme', 'module-reef', moduleFiles('reef', '0.1.1', 'reef 0.1.1'), { tag: 'v0.1.1' });
+      await forge.publish('acme', 'module-reef', moduleFiles('reef', '0.2.0', 'reef 0.2.0', { coreApi: '^99.0.0' }), { tag: 'v0.2.0' });
+      await forge.publish('acme', 'module-lagoon', moduleFiles('lagoon', '1.0.0', 'lagoon', { dependencies: { reef: '>=0.1.0' } }));
+
+      const search = await client.execJson<ModuleSearch>('mod search reef');
+      assertEquals(search.modules.map((module) => [module.release, module.version, module.commit, module.compatible, module.newest]), [
+        ['v0.1.1', '0.1.1', runnable, true, { release: 'v0.2.0', version: '0.2.0', coreApi: '^99.0.0' }],
+      ]);
+      assertStringIncludes(await run('mod search reef'), 'reef 0.1.1 (0.2.0 needs core API ^99.0.0, this is ');
+
+      const refused = await install('reef@v0.2.0');
+      assertEquals(refused.success, false);
+      assertStringIncludes(refused.error ?? '', 'needs @ein/client ^99.0.0');
+
+      // As a dependency too, the newest in its range this core can run.
+      const lagoon = await install('lagoon');
+      assert(lagoon.success, lagoon.error);
+      assertEquals(lagoon.answer?.installed.map((module) => [module.name, module.ref]), [['reef', 'v0.1.1'], ['lagoon', 'main']]);
+      await client.execString('mod-remove --force lagoon && mod-remove --force reef');
+
+      assertStringIncludes(await run('mod install reef'), 'reef 0.2.0 needs core API ^99.0.0, and this core provides ');
+      assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'reef')?.installed?.commit, runnable);
+      assertEquals(await run('$MOD_PATH/reef/bin/reef'), 'reef 0.1.1');
+      await client.execString('mod-remove --force reef');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {
