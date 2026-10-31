@@ -4656,7 +4656,9 @@ export class LocalNodeVFS implements NodeVFS {
             }
             await this.update(access, path, { attrs });
           } catch (error) {
-            logger.error('size tracking update failed', { error, path });
+            // The file can be removed while it is being written; its bookkeeping goes with it.
+            if (error instanceof NodeNotFoundError) logger.debug('size tracking skipped, node deleted', { path });
+            else logger.error('size tracking update failed', { error, path });
           }
         }, startSize);
       }
@@ -4671,7 +4673,8 @@ export class LocalNodeVFS implements NodeVFS {
           try {
             await this.update(access, path, { attrs: {} });
           } catch (error) {
-            logger.error('position write report failed', { error, path });
+            if (error instanceof NodeNotFoundError) logger.debug('position write report skipped, node deleted', { path });
+            else logger.error('position write report failed', { error, path });
           }
         });
       }
