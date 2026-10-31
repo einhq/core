@@ -4,13 +4,16 @@
  * The subtree is emptied in transactions of `WRITE_BATCH` nodes rather than one
  * transaction over the whole tree, so the trees here are deliberately larger
  * than that batch — a tree that fits in one batch never spans transactions.
+ *
+ * Children that arrive once the subtree is emptied, before the node's own edge goes — a pipeline
+ * attaching an album's profile when its members change — are emptied too, a few times over.
  */
 
 import { assertEquals, assertRejects } from '@std/assert';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { createTestVfs } from '../../testing/test-vfs.ts';
 import { NodeInvalidOperationError } from '../mod.ts';
-import { mkdir, mkfile, readFile } from './helpers.ts';
+import { mkdir, mkfile, readFile, refillAfterReap } from './helpers.ts';
 
 /** Wider than WRITE_BATCH (128) so a delete spans several transactions. */
 const WIDE = 300;
@@ -47,6 +50,34 @@ Deno.test('VFS recursive delete', async (t) => {
       await vfs.unlink(ADMIN_ACCESS, '/deep', '/', { recursive: true });
 
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/deep'), false);
+    });
+
+    await t.step('children that arrive after the subtree is emptied go too', async () => {
+      await mkdir(vfs, ADMIN_ACCESS, '/', 'refilled');
+      await mkfile(vfs, ADMIN_ACCESS, '/refilled', 'a.jpg', 'a');
+      const restore = refillAfterReap(vfs, ADMIN_ACCESS, '/refilled', 2);
+
+      try {
+        await vfs.unlink(ADMIN_ACCESS, '/refilled', '/', { recursive: true });
+      } finally {
+        restore();
+      }
+
+      assertEquals(await vfs.exists(ADMIN_ACCESS, '/refilled'), false);
+    });
+
+    await t.step('children that keep arriving fail the delete, and the node stays', async () => {
+      await mkdir(vfs, ADMIN_ACCESS, '/', 'busy-album');
+      const restore = refillAfterReap(vfs, ADMIN_ACCESS, '/busy-album', 100);
+
+      try {
+        await assertRejects(() => vfs.unlink(ADMIN_ACCESS, '/busy-album', '/', { recursive: true }), NodeInvalidOperationError, 'node has children');
+      } finally {
+        restore();
+      }
+
+      assertEquals(await vfs.exists(ADMIN_ACCESS, '/busy-album'), true);
+      await vfs.unlink(ADMIN_ACCESS, '/busy-album', '/', { recursive: true });
     });
 
     await t.step('non-recursive unlink of a non-empty node still fails', async () => {

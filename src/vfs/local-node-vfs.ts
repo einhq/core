@@ -145,6 +145,9 @@ const WRITE_BATCH = 128;
 /** Passes in a row a recursive unlink makes while the tree moves under all it reads. */
 const STALLED_PASSES = 5;
 
+/** Times a recursive unlink empties a node again when children arrive before its last edge goes. */
+const REFILLED_PASSES = 5;
+
 /** Directories `childrenMany` lists per store read: a bound on the rows one read returns. */
 const LIST_BATCH = 256;
 
@@ -204,6 +207,16 @@ type Relink = { link: Node; move: PlannedMove; change: NodeUpdate };
 class LinksChangedError extends NodeInvalidOperationError {
   constructor() {
     super('the links to the moved paths changed during the move');
+  }
+}
+
+/**
+ * A node would lose its last link while it still has children. Under a recursive unlink they
+ * arrived after its subtree was emptied, as a pipeline attaches a profile when membership changes.
+ */
+class NodeNotEmptyError extends NodeInvalidOperationError {
+  constructor(path: NodePath) {
+    super(`cannot unlink '${path}': node has children (use recursive)`);
   }
 }
 
@@ -3877,14 +3890,23 @@ export class LocalNodeVFS implements NodeVFS {
       // consistent tree that re-running the same unlink finishes. Only when
       // this is the node's last link — a node still linked elsewhere keeps its
       // children, we are just dropping one edge.
-      if (opts?.recursive && (await this.store.getNode(entry.id)).props.count <= 1) {
+      //
+      // Children can arrive between the subtree emptying and the edge going — a pipeline reacting
+      // to the members just removed — so it is emptied again, a few times before giving up.
+      const detach = () =>
+        this.withTransaction(
+          [parentEntry.id, entry.id],
+          (mut) => this.detachEdge(access, mut, parentEntry, entry.id, entry.vfsAbsPath),
+        );
+      if (!opts?.recursive || (await this.store.getNode(entry.id)).props.count > 1) return await detach();
+      for (let pass = 1;; pass++) {
         await this.reapSubtrees(access, [entry]);
+        try {
+          return await detach();
+        } catch (error) {
+          if (!(error instanceof NodeNotEmptyError) || pass >= REFILLED_PASSES) throw error;
+        }
       }
-
-      return await this.withTransaction(
-        [parentEntry.id, entry.id],
-        (mut) => this.detachEdge(access, mut, parentEntry, entry.id, entry.vfsAbsPath),
-      );
     }
 
     if (entry.vfs !== parentEntry.vfs) {
@@ -3973,20 +3995,26 @@ export class LocalNodeVFS implements NodeVFS {
         results[item.index] = { status: 'rejected', reason };
       }
     }
-    if (recursive) live = await this.reapChunk(access, live, results);
-    if (live.length === 0) return;
+    // A node that gained children after its subtree was emptied is emptied again, as `unlink` does.
+    for (let pass = 1;; pass++) {
+      if (recursive) live = await this.reapChunk(access, live, results);
+      if (live.length === 0) return;
 
-    // Refusals are known before anything is written, so they stand whatever becomes of the rest.
-    const refused = new Map<number, unknown>();
-    try {
-      const lockIds = live.flatMap((item) => [item.parent.id, item.childId]);
-      const deleted = await this.withTransaction(lockIds, (mut) => this.unlinkBatch(access, mut, live, refused));
-      for (const item of live) {
-        results[item.index] = refused.has(item.index) ? { status: 'rejected', reason: refused.get(item.index) } : { status: 'fulfilled', value: deleted.has(item.index) };
+      // Refusals are known before anything is written, so they stand whatever becomes of the rest.
+      const refused = new Map<number, unknown>();
+      try {
+        const lockIds = live.flatMap((item) => [item.parent.id, item.childId]);
+        const deleted = await this.withTransaction(lockIds, (mut) => this.unlinkBatch(access, mut, live, refused));
+        for (const item of live) {
+          results[item.index] = refused.has(item.index) ? { status: 'rejected', reason: refused.get(item.index) } : { status: 'fulfilled', value: deleted.has(item.index) };
+        }
+      } catch (error) {
+        // Rolled back: nothing in the chunk was written.
+        for (const item of live) results[item.index] = { status: 'rejected', reason: refused.get(item.index) ?? error };
+        return;
       }
-    } catch (error) {
-      // Rolled back: nothing in the chunk was written.
-      for (const item of live) results[item.index] = { status: 'rejected', reason: refused.get(item.index) ?? error };
+      if (!recursive || pass >= REFILLED_PASSES) return;
+      live = live.filter((item) => refused.get(item.index) instanceof NodeNotEmptyError);
     }
   }
 
@@ -4076,7 +4104,7 @@ export class LocalNodeVFS implements NodeVFS {
     for (const item of accepted) {
       if (!going.includes(item.childId)) continue;
       if ((children.get(item.childId)?.length ?? 0) > 0) {
-        refusedNodes.set(item.childId, new NodeInvalidOperationError(`cannot unlink '${item.path}': node has children (use recursive)`));
+        refusedNodes.set(item.childId, new NodeNotEmptyError(item.path));
       } else if (this.mountpoints.some((mount) => mount.point.id === item.childId)) {
         refusedNodes.set(item.childId, new NodeBusyError(item.path));
       }
@@ -4196,11 +4224,10 @@ export class LocalNodeVFS implements NodeVFS {
     const newCount = node.props.count - 1;
 
     // A final unlink of a node that still has children would orphan them. With
-    // `recursive` the subtree was already drained, so children here mean it was
-    // repopulated while we worked — same error, different cause, and the caller
-    // can distinguish them by whether it asked for recursion.
+    // `recursive` the subtree was already drained, so children here arrived
+    // since, and `unlink` empties it again.
     if (newCount <= 0 && (await this.store.getChildLinks(nodeId, undefined, mut.tx)).length > 0) {
-      throw new NodeInvalidOperationError(`cannot unlink '${path}': node has children (use recursive)`);
+      throw new NodeNotEmptyError(path);
     }
 
     // The node a mount stands on stays, as Unix answers `EBUSY`: the mount would remain listed with

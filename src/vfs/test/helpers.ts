@@ -3,6 +3,7 @@
  */
 
 import type { Access } from '../../lib/access/mod.ts';
+import type { LocalNodeVFS } from '../local-node-vfs.ts';
 import type { NodeReference, NodeVFS } from '../mod.ts';
 
 const enc = new TextEncoder();
@@ -55,4 +56,21 @@ export async function readFile(vfs: NodeVFS, access: Access, ref: NodeReference)
   } finally {
     await handle.close();
   }
+}
+
+/**
+ * Attach a file to `dir` each time one of the next `times` subtree walks ends, in the window
+ * between the subtree emptying and the node's own edge going.
+ */
+export function refillAfterReap(vfs: LocalNodeVFS, access: Access, dir: string, times: number): () => void {
+  const target = vfs as unknown as { reapSubtrees: (...args: unknown[]) => Promise<void> };
+  const reap = target.reapSubtrees;
+  let left = times;
+  target.reapSubtrees = async function (...args) {
+    await reap.apply(this, args);
+    if (left-- > 0) await mkfile(vfs, access, dir, `.profile${left}`, 'profile');
+  };
+  return () => {
+    target.reapSubtrees = reap;
+  };
 }

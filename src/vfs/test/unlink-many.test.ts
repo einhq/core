@@ -5,7 +5,8 @@
  * at — a chunk at a time, one lock set and one transaction per chunk. A node losing its last link
  * is deleted, once, however many of its names one call takes. A node that would lose it while it
  * has children, a parent the caller may not write and a path with nothing at it fail alone. With
- * `recursive`, a node losing its last link is emptied first, a chunk's subtrees in one walk.
+ * `recursive`, a node losing its last link is emptied first, a chunk's subtrees in one walk, and
+ * again when children arrive before its edge goes.
  */
 
 import { assertEquals, assertInstanceOf } from '@std/assert';
@@ -13,7 +14,7 @@ import type { Access } from '../../lib/access/mod.ts';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { createTestVfs } from '../../testing/test-vfs.ts';
 import { NodeAccessDeniedError, NodeBusyError, type NodeEvent, NodeInvalidOperationError, NodeNotFoundError } from '../mod.ts';
-import { mkdir, mkdirp, mkfile, readFile } from './helpers.ts';
+import { mkdir, mkdirp, mkfile, readFile, refillAfterReap } from './helpers.ts';
 
 const OWNER: Access = { uid: 5000, gid: 4000, gids: [4000] };
 
@@ -150,6 +151,23 @@ Deno.test('VFS unlinkMany', async (t) => {
       assertInstanceOf(reason(results[1]), NodeAccessDeniedError);
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/shared/mine'), false);
       assertEquals(await readFile(vfs, ADMIN_ACCESS, '/shared/locked/admins/b.jpg'), 'b');
+    });
+
+    await t.step('recursive: children that arrive after a subtree is emptied go too', async () => {
+      await mkdirp(vfs, ADMIN_ACCESS, '/albums/x');
+      await mkfile(vfs, ADMIN_ACCESS, '/albums/x', 'a.jpg', 'a');
+      await mkdirp(vfs, ADMIN_ACCESS, '/albums/y');
+      const restore = refillAfterReap(vfs, ADMIN_ACCESS, '/albums/x', 2);
+
+      let results: PromiseSettledResult<boolean>[];
+      try {
+        results = await vfs.unlinkMany(ADMIN_ACCESS, ['/albums/x', '/albums/y'], { recursive: true });
+      } finally {
+        restore();
+      }
+
+      assertEquals(results.map(value), [true, true]);
+      assertEquals((await vfs.children(ADMIN_ACCESS, '/albums')).length, 0);
     });
 
     await t.step('a mounted node is unlinked by its own VFS, and a mount point stays', async () => {
