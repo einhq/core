@@ -66,7 +66,7 @@ export class NodeNotSupportedError extends NodeError {
 
 export class NodeFrozenError extends NodeError {
   constructor(nodeId: string) {
-    super(`File is frozen and cannot be modified: ${nodeId}`, 'NODE_FROZEN');
+    super(`file is frozen and cannot be modified: ${nodeId}`, 'NODE_FROZEN');
     this.name = 'NodeFrozenError';
   }
 }

@@ -1,5 +1,5 @@
 import { createLogger } from '../../managers/logger/mod.ts';
-import { NodeAccessDeniedError, NodeNotFoundError } from '../../vfs/mod.ts';
+import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { ArchiveTicketStore } from './archive-tickets.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
@@ -57,6 +57,10 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
 
       if (err instanceof NodeAccessDeniedError) {
         return new Response('Forbidden', { status: 403 });
+      }
+
+      if (err instanceof NodeFrozenError) {
+        return new Response(err.message, { status: 403 });
       }
 
       // Top-level error handler for any unhandled errors in the request handler

@@ -618,6 +618,8 @@ Each registry has a memory implementation (dev) and a PostgreSQL implementation 
 - **volatile** — fast, regenerable: thumbnails, face crops, transcodes. Root `VOLATILE_FILE_ROOT_PATH` (a local SSD); defaults to the disk root, so a single-disk install is unchanged.
 - **db** — PostgreSQL large objects: former blob content (comments, life-events, secrets), kept transactional and in `pg_dump`.
 
+**Frozen bytes are read-only on disk.** A `frozen` file refuses writes in `LocalNodeVFS.open`, and the disk registry holds its bytes without write bits as well, so nothing on the host writes them either — an album folder's hard link shares their inode. Every attrs update ends in a registry `touch` with the node's attrs, and `DiskFileRegistry.touch` clears a bucketed file's write bits while `frozen` is set and gives the owner's back once it is lifted (a `cp` of a frozen file is frozen by the same update); a symlink to bytes kept elsewhere is left alone. What is frozen is what a command creates or marks frozen, and an upload over HTTP (`storeBody`) or SFTP (its close, and a rename that retypes it) whose sniffed type `/etc/frozen-uploads` lists (`src/servers/frozen-uploads.ts`, seeded once at boot from `src/builtin/core/etc/`); nothing EiN writes itself is.
+
 `tier` is a **node prop** (a `NodeSpecialProps` field with a dedicated column, like `softlink`), **set once at creation and immutable thereafter** — the bytes physically live on the tier they were first written to, so changing it would strand them; `vfs.update` rejects a change with `NodeTierImmutableError`. The resolved tier is `props.tier ?? (attrs.sourceId && !attrs.frozen ? 'volatile' : 'disk')`. `LocalNodeVFS` merges `props.tier` into the `opts` bag it threads to the registry on `touch`/`open`/`stat`/`statX`/`delete` (`tierOpts`); `exists`/`list`/`count` fan out across backends since ids are globally unique ULIDs.
 
 ---
@@ -1420,6 +1422,8 @@ decides only over a sniff that cannot tell (a camera RAW's over text, bytes or T
 sidecar's over text, an `.xmp` one's over text or XML, an office document's over the zip or
 Compound File container it is; `refineMimeByName`). A rename applies those rules to the new name,
 so a client that writes to a temporary name and renames it when done gets the upload's type.
+The same close, or that rename, freezes a file whose type `/etc/frozen-uploads` lists, as an HTTP
+upload is; a write over a frozen file is refused with `PERMISSION_DENIED`.
 
 ### Outbound SSH — [src/lib/ssh/](../src/lib/ssh/)
 

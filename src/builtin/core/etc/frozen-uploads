@@ -1,0 +1,11 @@
+# The uploads EiN freezes as they arrive, through the web interface or SFTP: one mimetype per line,
+# `type/*` for every subtype, `!` before a type to leave it out. A frozen file's content cannot be
+# written, in EiN or on the disk, until someone lifts the mark with `attrs -d frozen <file>`.
+# What EiN writes itself is never frozen by this file. Leave it empty to freeze no upload.
+
+image/*
+video/*
+audio/*
+
+# An SVG is a text file that can hold a script.
+!image/svg+xml

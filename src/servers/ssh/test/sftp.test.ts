@@ -98,6 +98,35 @@ Deno.test({
         assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
       });
 
+      await t.step('freezes an upload of a type /etc/frozen-uploads lists and refuses to write over it', async () => {
+        const vfs = harness.primary!.vfs;
+        await sftp.writeFile('/etc/frozen-uploads', await Deno.readFile(new URL('../../../builtin/core/etc/frozen-uploads', import.meta.url)));
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/etc/frozen-uploads')).attrs.frozen, undefined);
+
+        try {
+          const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]);
+          await sftp.writeFile('/home/admin/frozen.png', png);
+          assertEquals((await vfs.get(ADMIN_ACCESS, '/home/admin/frozen.png')).attrs.frozen, true);
+
+          const err = await assertRejects(() => sftp.writeFile('/home/admin/frozen.png', new Uint8Array([1, 2, 3])));
+          assertEquals((err as { code?: number }).code, STATUS_CODE.PERMISSION_DENIED);
+          assertEquals((await vfs.get(ADMIN_ACCESS, '/home/admin/frozen.png')).attrs.size, png.length);
+
+          // A RAF opens with an ASCII header, so only the name it is renamed to says it is a picture
+          const raf = new Uint8Array(256);
+          raf.set(new TextEncoder().encode('FUJIFILMCCD-RAW 0201FF116501X-Pr'));
+          await sftp.writeFile('/home/admin/DSCF0001.RAF.filepart', raf);
+          assertEquals((await vfs.get(ADMIN_ACCESS, '/home/admin/DSCF0001.RAF.filepart')).attrs.frozen, undefined);
+          await sftp.rename('/home/admin/DSCF0001.RAF.filepart', '/home/admin/DSCF0001.RAF');
+
+          const node = await vfs.get(ADMIN_ACCESS, '/home/admin/DSCF0001.RAF');
+          assertEquals(node.attrs.mimetype, 'image/x-fujifilm-raf');
+          assertEquals(node.attrs.frozen, true);
+        } finally {
+          await sftp.unlink('/etc/frozen-uploads');
+        }
+      });
+
       await t.step('types a file written under a temporary name by the name it is renamed to', async () => {
         const data = new TextEncoder().encode('{"title": "IMG_0001.jpg"}\n');
         await sftp.writeFile('/home/admin/IMG_0001.jpg.json.filepart', data);

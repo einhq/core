@@ -9,6 +9,10 @@ link() {
 
 [ -e "$ETC_PATH/bashrc" ] || cp "$CORE_FILES/etc/bashrc" "$ETC_PATH/bashrc"
 
+# The seed /etc/frozen-uploads: the types of upload that are frozen as they arrive. Copied once,
+# like /etc/bashrc.
+[ -e "$ETC_PATH/frozen-uploads" ] || cp "$CORE_FILES/etc/frozen-uploads" "$ETC_PATH/frozen-uploads"
+
 for service in $(ls "$CORE_FILES/services"); do
   service add "$service" "$CORE_FILES/services/$service" > /dev/null && service enable "$service" > /dev/null
 done

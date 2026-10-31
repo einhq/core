@@ -6,7 +6,7 @@ import type { HttpServerConfig } from '../types.ts';
 /**
  * A PUT that finds its path free and then loses the create to another request writes into the
  * file that request made, rather than failing. The facade plays the other request: the path is
- * missing until this one tries to create it, and taken by then.
+ * missing until this one tries to create it, and taken by then. It has no `/etc/frozen-uploads`.
  */
 Deno.test('PUT that loses the create race writes into the winner', async () => {
   const written: Uint8Array[] = [];
@@ -14,7 +14,7 @@ Deno.test('PUT that loses the create race writes into the winner', async () => {
   const config = {
     env: { COOKIE_NAME: 'session' },
     vfs: {
-      exists: () => Promise.resolve(created),
+      exists: (_access: unknown, path: string) => Promise.resolve(created && path === '/tmp/race.txt'),
       create: () => {
         created = true;
         return Promise.reject(new NodeAlreadyExistsError('parent-id', 'race.txt'));

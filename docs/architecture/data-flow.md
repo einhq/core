@@ -884,6 +884,7 @@ UI: POST /file/albums/2024/?name=photo.jpg  (bytes)
     → stream through sha256 hash transform
     → detect MIME from first bytes
     → write to file registry (disk)
-    → VFS.update node attrs (size, mimetype, sha256)
+    → VFS.update node attrs (size, mimetype, sha256, frozen when /etc/frozen-uploads lists the type)
+      → file registry touch: a frozen file's bytes lose their write bits (0444)
   → 201 + { path, renamed, …attrs }
 ```

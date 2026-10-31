@@ -2,11 +2,13 @@ import { basename } from '@std/path';
 import { Access } from '../../../lib/access/mod.ts';
 import { createFileAttrsCollector } from '../../../lib/media/file-attrs.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
+import { freezesUpload } from '../../frozen-uploads.ts';
 import { HttpServerConfig } from '../types.ts';
 
 /**
  * Stream an uploaded body into the existing file node at `vfsPath`, replacing its bytes, and
- * record the size, sha256 and mimetype read on the way through.
+ * record the size, sha256 and mimetype read on the way through. A type `/etc/frozen-uploads`
+ * lists is frozen once it is stored.
  * @returns the node's attrs after the write
  */
 export async function storeBody(
@@ -24,8 +26,9 @@ export async function storeBody(
     await fh.close();
   }
 
-  const node = await config.vfs.update<FileAttrs>(access, vfsPath, {
-    attrs: await collector.finalize(),
-  });
+  const computed = await collector.finalize();
+  const attrs = await freezesUpload(config.vfs, computed.mimetype) ? { ...computed, frozen: true } : computed;
+
+  const node = await config.vfs.update<FileAttrs>(access, vfsPath, { attrs });
   return node.attrs;
 }

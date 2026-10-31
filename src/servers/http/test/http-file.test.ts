@@ -4,7 +4,7 @@
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
-import { assertEquals } from '@std/assert';
+import { assertEquals, assertStringIncludes } from '@std/assert';
 import { encodeHex } from '@std/encoding';
 import { ADMIN_ACCESS, GUEST_GID, GUEST_UID } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
@@ -56,6 +56,30 @@ Deno.test({
       const attrs = await res.json();
       assertEquals(attrs.mimetype, 'image/png');
       assertEquals(attrs.size, PNG_BYTES.length);
+    });
+
+    await t.step('an upload of a type /etc/frozen-uploads lists is frozen, and a PUT over it refused', async () => {
+      // The seed boot copies to /etc, which this instance does not boot to
+      const seed = await Deno.readFile(new URL('../../../builtin/core/etc/frozen-uploads', import.meta.url));
+      await vfs.create(ADMIN_ACCESS, 'file', '/etc', 'frozen-uploads', { attrs: { name: 'frozen-uploads' } });
+      const handle = await vfs.open(ADMIN_ACCESS, '/etc/frozen-uploads', { mode: 'w' });
+      await handle.write(seed);
+      await handle.close();
+
+      try {
+        for (const [name, body] of [['frozen.png', PNG_BYTES], ['notes.txt', new TextEncoder().encode('a note\n')]] as const) {
+          assertEquals((await fetch(`${baseUrl}/file/tmp/?name=${name}`, { method: 'POST', headers: { cookie }, body })).status, 201);
+        }
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/tmp/frozen.png')).attrs.frozen, true);
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/tmp/notes.txt')).attrs.frozen, undefined);
+
+        const res = await fetch(`${baseUrl}/file/tmp/frozen.png`, { method: 'PUT', headers: { cookie }, body: 'replaced' });
+        assertEquals(res.status, 403);
+        assertStringIncludes(await res.text(), 'frozen');
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/tmp/frozen.png')).attrs.size, PNG_BYTES.length);
+      } finally {
+        await vfs.unlink(ADMIN_ACCESS, '/etc/frozen-uploads', '/etc');
+      }
     });
 
     await t.step('a camera RAW name decides over a sniff of text or TIFF', async () => {

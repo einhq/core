@@ -20,11 +20,12 @@ import { createLogger } from '../../managers/logger/mod.ts';
 import type { ResourceHandleIf } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
 import type { Node, NodeVFS } from '../../vfs/mod.ts';
-import { NodeNotFoundError } from '../../vfs/mod.ts';
+import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { NODE_TYPE_EMBEDDING } from '../../vfs/types/embedding.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
+import { freezesUpload } from '../frozen-uploads.ts';
 
 const logger = createLogger('sftp-handler');
 
@@ -411,6 +412,8 @@ export class SFTPHandler {
     } catch (err) {
       if (err instanceof NodeNotFoundError) {
         this.sendResponse(() => sftp.status(reqid, STATUS_CODE.NO_SUCH_FILE));
+      } else if (err instanceof NodeFrozenError || err instanceof NodeAccessDeniedError) {
+        this.sendResponse(() => sftp.status(reqid, STATUS_CODE.PERMISSION_DENIED, err.message));
       } else {
         throw err;
       }
@@ -570,11 +573,15 @@ export class SFTPHandler {
       if (fileEntry.dirty || fileEntry.writtenAt) {
         // Closing the write handle stored size and sha256. The mimetype is
         // sniffed from the content, as an HTTP upload does, so a file whose
-        // name says one type and whose bytes say another is filed by its bytes.
+        // name says one type and whose bytes say another is filed by its bytes,
+        // and a type `/etc/frozen-uploads` lists is frozen as an upload is.
         try {
           const attrs: Record<string, unknown> = {};
           if (fileEntry.dirty) {
             attrs.mimetype = await this.sniffMimetype(fileEntry.path);
+            if (await freezesUpload(this.config.vfs, attrs.mimetype as string)) {
+              attrs.frozen = true;
+            }
           }
           if (fileEntry.writtenAt) {
             attrs.writtenAt = fileEntry.writtenAt;
@@ -1177,12 +1184,14 @@ export class SFTPHandler {
       );
 
       // A client that writes to a temporary name (`photo.cr2.filepart`) and renames it when done
-      // gets the type an upload under the final name gets: the name rules apply to that name.
+      // gets the type an upload under the final name gets: the name rules apply to that name, and
+      // so does `/etc/frozen-uploads`.
       const mimetype = (node.attrs as { mimetype?: unknown }).mimetype;
       if (node.type === NODE_TYPE_FILE && typeof mimetype === 'string') {
         const named = refineMimeByName(mimetype, basename(newVfsPath));
         if (named !== mimetype) {
-          await this.config.vfs.update(this.config.access, newVfsPath, { attrs: { mimetype: named } });
+          const frozen = !node.attrs.frozen && await freezesUpload(this.config.vfs, named);
+          await this.config.vfs.update(this.config.access, newVfsPath, { attrs: { mimetype: named, ...(frozen ? { frozen } : {}) } });
         }
       }
 
