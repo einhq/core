@@ -17,6 +17,8 @@ IDs starting with `/` are treated as absolute paths relative to the root.
 - `stat()` returns size, timestamps, permissions, and absolute path
 - `statX()` additionally computes SHA-256 hash and detects MIME type
 - Empty bucket directories are cleaned up on delete
+- `touch()` keeps a bucketed file's write bits in step with its `frozen` attr: cleared while it is
+  set (0644 → 0444), the owner's given back once it is lifted. A symlink is left as it is.
 
 ### MemoryFileRegistry
 

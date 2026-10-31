@@ -40,18 +40,46 @@ export class DiskFileRegistry implements FileRegistryIf {
     return normalize(join(this.config.rootPath as string, bucket, id));
   }
 
-  /** Creates an empty file if it does not already exist. Returns true if created. */
-  async touch(id: string, _opts: ResourceOptions): Promise<boolean> {
-    if (await this.exists(id)) {
-      return false;
+  /**
+   * Creates an empty file if nothing is at its path yet, and gives a bucketed file the write bits
+   * its `frozen` attr calls for (see {@link syncFrozen}). Returns true if created.
+   */
+  async touch(id: string, opts: ResourceOptions): Promise<boolean> {
+    const abspath = this.getAbspath(id);
+    let info = await Deno.lstat(abspath).catch((err) => {
+      if (err instanceof Deno.errors.NotFound) return undefined;
+      throw err;
+    });
+
+    const created = info === undefined;
+    if (created) {
+      await Deno.mkdir(dirname(abspath), { recursive: true });
+      (await Deno.open(abspath, { create: true, append: true })).close();
+      info = await Deno.lstat(abspath);
     }
 
-    const abspath = this.getAbspath(id);
+    // A file node's attrs reach a registry as its opts.
+    if (!id.startsWith('/')) {
+      await this.syncFrozen(abspath, info!, (opts as { frozen?: unknown } | undefined)?.frozen === true);
+    }
 
-    await Deno.mkdir(dirname(abspath), { recursive: true });
-    (await Deno.open(abspath, { create: true, append: true })).close();
+    return created;
+  }
 
-    return true;
+  /**
+   * A frozen file's bytes are read-only on disk, 0444 for a file made 0644, so nothing on the host
+   * changes them either: a program writing through a hard link to them, such as an album folder's.
+   * Lifting the mark gives the owner's write bit back. A symlink, such as one to bytes kept outside
+   * the root, is left as it is.
+   */
+  private async syncFrozen(abspath: string, info: Deno.FileInfo, frozen: boolean): Promise<void> {
+    if (!info.isFile || info.mode === null) return;
+
+    const mode = info.mode & 0o7777;
+    const wanted = frozen ? mode & ~0o222 : mode | 0o200;
+    if (wanted !== mode) {
+      await Deno.chmod(abspath, wanted);
+    }
   }
 
   /** Opens a file by id and returns a DiskFileHandle for reading/writing. */

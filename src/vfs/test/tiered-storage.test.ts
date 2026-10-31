@@ -100,6 +100,27 @@ Deno.test('tiered storage routes bytes to the physical tier root', async (t) => 
       assertEquals(await readBack('note.md'), 'NOTE');
     });
 
+    await t.step('a frozen file is read-only on disk, and writable again once the mark is lifted', async () => {
+      const mode = async (name: string) => (await Deno.stat((await vfs.stat(ADMIN_ACCESS, `/${name}`)).path as string)).mode! & 0o777;
+      const before = await mode('orig.jpg');
+      assert(before & 0o200, 'an original starts writable');
+
+      await vfs.update(ADMIN_ACCESS, '/orig.jpg', { attrs: { frozen: true } });
+      assertEquals(await mode('orig.jpg'), before & ~0o222);
+
+      // A copy is frozen, on disk too, and keeps what was frozen readable through the VFS
+      await vfs.copy(ADMIN_ACCESS, '/orig.jpg', '/', 'orig-copy.jpg');
+      assertEquals((await vfs.get(ADMIN_ACCESS, '/orig-copy.jpg')).attrs.frozen, true);
+      assertEquals((await mode('orig-copy.jpg')) & 0o222, 0);
+      assertEquals(await readBack('orig-copy.jpg'), 'ORIGINAL');
+
+      await vfs.update(ADMIN_ACCESS, '/orig.jpg', { attrs: { frozen: null } });
+      assertEquals(await mode('orig.jpg'), (before & ~0o222) | 0o200);
+      const handle = await vfs.open(ADMIN_ACCESS, '/orig.jpg', { mode: 'w' });
+      await handle.write(enc.encode('ORIGINAL'));
+      await handle.close();
+    });
+
     await t.step('deleting a rendition frees the volatile root', async () => {
       await vfs.unlink(ADMIN_ACCESS, '/thumb.webp', '/');
       assert(!(await onDisk(volatileRoot, thumbId)), 'rendition bytes removed from volatile root');
