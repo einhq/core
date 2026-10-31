@@ -49,7 +49,7 @@ export type AlbumEntry = {
   coverUrl?: string;
 };
 
-type CoverInfo = { cover?: CoverImage; itemCount: number };
+type CoverInfo = { cover?: CoverImage; itemCount?: number };
 
 /**
  * What the cover loader actually needs. Callers that never listed the album —
@@ -87,7 +87,7 @@ export function forgetAlbumCover(albumPath: string): void {
  * Media sits under `<album>/files/` for imported albums and directly in the album
  * dir for flat ones. `hasFilesDir` says which, except when the caller never listed
  * the album — a search hit knows only a path — so a miss probes the other shape
- * rather than leaving the card blank. One extra `ls`, and only when the first came
+ * rather than leaving the card blank. One extra listing, and only when the first came
  * up empty.
  */
 async function fetchCover(album: AlbumCoverRef): Promise<CoverInfo> {
@@ -98,40 +98,56 @@ async function fetchCover(album: AlbumCoverRef): Promise<CoverInfo> {
   return alternate.cover ? alternate : primary;
 }
 
+/**
+ * Entries per `ls -l` page. An entry's attrs run to a kilobyte, so an album of thousands of files
+ * in one listing passes what the API shell returns (`API_SHELL_MAX_CAPTURE_BYTES`).
+ */
+const PAGE_SIZE = 500;
+
+/** The cover and the media count of one directory; `itemCount` is left out when it could not be listed. */
 async function coverFrom(dir: string): Promise<CoverInfo> {
+  let itemCount = 0;
+  let coverTarget: string | undefined;
+  let firstMedia: NodeChildEntry | undefined;
   try {
-    // -C: the cover probe needs the first media entry's own child names
-    const children = await execCommand<NodeChildEntry[]>(`ls -lC ${shq(dir)}`);
-    const media = children.filter(isMediaEntry);
-    const itemCount = media.length + children.filter(isLinkedMember).length;
-
-    // An explicit `coverPhoto` softlink (set by album set cover / import) wins.
-    const coverTarget = children.find((c) => c.name === COVER_LINK_NAME)?.node.props.softlink;
-    const firstMedia = media[0];
-
-    // A softlink cover points outside this listing, so its derivatives take
-    // their own probe; the first-media fallback already has its child names in
-    // hand from `ls -lC`. A cover link that no longer resolves falls through to
-    // the first picture rather than to a broken image.
-    if (coverTarget) {
-      const cover = await mediaCoverImage(coverTarget, GRID_NAME, THUMB_NAME);
-      if (cover) return { cover, itemCount };
-    }
-
-    if (!firstMedia) {
-      return { itemCount };
-    }
-
-    const coverPath = `${dir}/${firstMedia.name}`;
-    const childNames = new Set((firstMedia.children ?? []).map((c) => c.name));
-    const cover: CoverImage = childNames.has('thumbnails')
-      ? { url: `${fileUrl(coverPath)}/thumbnails/${GRID_NAME}`, fallbackUrl: `${fileUrl(coverPath)}/thumbnails/${THUMB_NAME}` }
-      : { url: fileUrl(coverPath) };
-
-    return { cover, itemCount };
+    let after: string | undefined;
+    do {
+      // -C until the first media entry is in hand: its cover probe needs that entry's own child names
+      const flags = firstMedia ? '-l' : '-lC';
+      const page = await execCommand<NodeChildEntry[]>(
+        `ls ${flags} --limit ${PAGE_SIZE}${after === undefined ? '' : ` --after ${shq(after)}`} ${shq(dir)}`,
+      );
+      const media = page.filter(isMediaEntry);
+      itemCount += media.length + page.filter(isLinkedMember).length;
+      coverTarget ??= page.find((c) => c.name === COVER_LINK_NAME)?.node.props.softlink;
+      firstMedia ??= media[0];
+      after = page.length === PAGE_SIZE ? page[page.length - 1].name : undefined;
+    } while (after !== undefined);
   } catch {
-    return { itemCount: 0 };
+    return {};
   }
+
+  // An explicit `coverPhoto` softlink (set by album set cover / import) wins.
+  // A softlink cover points outside this listing, so its derivatives take
+  // their own probe; the first-media fallback already has its child names in
+  // hand from `ls -lC`. A cover link that no longer resolves falls through to
+  // the first picture rather than to a broken image.
+  if (coverTarget) {
+    const cover = await mediaCoverImage(coverTarget, GRID_NAME, THUMB_NAME);
+    if (cover) return { cover, itemCount };
+  }
+
+  if (!firstMedia) {
+    return { itemCount };
+  }
+
+  const coverPath = `${dir}/${firstMedia.name}`;
+  const childNames = new Set((firstMedia.children ?? []).map((c) => c.name));
+  const cover: CoverImage = childNames.has('thumbnails')
+    ? { url: `${fileUrl(coverPath)}/thumbnails/${GRID_NAME}`, fallbackUrl: `${fileUrl(coverPath)}/thumbnails/${THUMB_NAME}` }
+    : { url: fileUrl(coverPath) };
+
+  return { cover, itemCount };
 }
 
 /**
