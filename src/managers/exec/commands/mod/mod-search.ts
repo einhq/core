@@ -1,17 +1,18 @@
 /**
  * mod search — the published modules: every `module-*` repository of each `CFG_MODULE_SOURCES`
- * entry, with what its default branch holds — the version and module API in its `mod.json`, and
- * its commit, which says whether an installed module is behind it.
+ * entry, with what `mod install <name>` would take — its newest release, or its default branch when
+ * it has none: the version and module API in its `mod.json`, and its commit, which says whether an
+ * installed module is behind it.
  *
  * Every source is asked at once, and one that does not answer is named rather than failing the
  * others. Words narrow the list to the modules whose name or description holds each of them.
  */
 
 import { join } from '@std/path';
-import { canParse, parse, parseRange, satisfies } from '@std/semver';
+import { canParse, greaterThan, parse, parseRange, satisfies, tryParse } from '@std/semver';
 import type { ModuleSearch, PublishedModule } from '../../../../lib/api/mod.ts';
 import { MOD_PATH } from '../../../../lib/paths.ts';
-import { fetchFile, fetchRefs, type ListedRepository, listModuleRepositories, moduleNameOf } from '../../../../modules/forge.ts';
+import { fetchFile, fetchRefs, type ListedRepository, listModuleRepositories, moduleNameOf, releases } from '../../../../modules/forge.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
 import { MODULE_API_VERSION, type ModuleManifest, readManifests } from '../../../../modules/mod.ts';
 import type { Command } from '../../command.ts';
@@ -28,17 +29,16 @@ const compatibleWith = (coreApi: string | undefined): boolean | undefined => {
   }
 };
 
-/** What a listed repository's default branch holds, as far as it answers. */
+/** What a listed repository's newest release holds, or its default branch when it has none, as far as it answers. */
 const describe = async (cmd: Command, repository: ListedRepository, tokens: Parameters<typeof fetchRefs>[1]): Promise<PublishedModule> => {
-  const [manifest, refs] = await Promise.all([
-    fetchFile(repository, repository.branch, 'mod.json', tokens, within(cmd, FORGE_TIMEOUT_MS))
-      .then((text) => text === undefined ? undefined : JSON.parse(text) as Partial<ModuleManifest>)
-      .catch(() => undefined),
-    fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS)).catch(() => undefined),
-  ]);
+  const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS)).catch(() => undefined);
+  const release = refs && releases(refs)[0];
+  const manifest = await fetchFile(repository, release?.tag ?? repository.branch, 'mod.json', tokens, within(cmd, FORGE_TIMEOUT_MS))
+    .then((text) => text === undefined ? undefined : JSON.parse(text) as Partial<ModuleManifest>)
+    .catch(() => undefined);
   const version = typeof manifest?.version === 'string' ? manifest.version : undefined;
   const coreApi = typeof manifest?.coreApi === 'string' ? manifest.coreApi : undefined;
-  const commit = refs?.refs.get(`refs/heads/${repository.branch}`) ?? refs?.head;
+  const commit = release?.commit ?? refs?.refs.get(`refs/heads/${repository.branch}`) ?? refs?.head;
   const compatible = compatibleWith(coreApi);
   return {
     name: moduleNameOf(repository),
@@ -46,11 +46,23 @@ const describe = async (cmd: Command, repository: ListedRepository, tokens: Para
     source: repository.url,
     description: repository.description || (typeof manifest?.description === 'string' ? manifest.description : ''),
     branch: repository.branch,
+    ...(release ? { release: release.tag } : {}),
     ...(commit ? { commit } : {}),
     ...(version ? { version } : {}),
     ...(coreApi ? { coreApi } : {}),
     ...(compatible !== undefined ? { compatible } : {}),
   };
+};
+
+/**
+ * Whether `mod install <name>` would move what is installed from the same repository on: it takes
+ * another commit, and from a release, a higher version than the installed one, so a module
+ * installed from its branch past the newest release is not behind it.
+ */
+const behind = (module: PublishedModule, mine: { version?: string; commit?: string }): boolean => {
+  if (!module.commit || mine.commit === module.commit) return false;
+  const [published, installed] = [tryParse(module.version ?? ''), tryParse(mine.version ?? '')];
+  return !module.release || !published || !installed || greaterThan(published, installed);
 };
 
 /** Whether a module's name or description holds every word. */
@@ -64,13 +76,12 @@ const line = (module: PublishedModule, installed: Map<string, { version?: string
   const mine = installed.get(module.name);
   let state = '';
   if (mine) {
-    const behind = mine.repository === module.repository && module.commit && mine.commit !== module.commit;
     state = mine.repository && mine.repository !== module.repository
       ? ` [installed from ${mine.repository}]`
       : !mine.repository
       ? ` [the deployment's${mine.version ? ` ${mine.version}` : ''}]`
-      : behind
-      ? ` [installed ${mine.commit!.slice(0, 9)}, ${module.commit!.slice(0, 9)} published]`
+      : behind(module, mine)
+      ? ` [installed ${mine.commit!.slice(0, 9)}, ${module.release ?? module.commit!.slice(0, 9)} published]`
       : ' [installed]';
   }
   const api = module.compatible === false ? ` (needs core API ${module.coreApi}, this is ${MODULE_API_VERSION})` : '';

@@ -2,6 +2,7 @@ import { Alert, Anchor, Badge, Box, Button, Group, Loader, Stack, Table, Tabs, T
 import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { tryParse } from '@std/semver';
 import type { ModuleEntry, ModuleInstallResult, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useConfig } from '../../../hooks/useConfig.ts';
@@ -161,12 +162,16 @@ type InstalledProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boole
 
 /**
  * Where `mod install` fetched the module from, and for the administrator, Update — the newest
- * commit of the branch it was installed from, or the tag's commit again; one installed at a commit
- * stays there and has none — and Remove, which asks first and says what goes with it.
+ * release when it was installed at one, the newest commit of the branch it was installed from, or
+ * another tag's commit again; one installed at a commit stays there and has none — and Remove,
+ * which asks first and says what goes with it.
  */
 function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledProps) {
   const record = module.installed!;
   const pinned = record.ref === record.commit;
+  // A release, `v<version>`, is updated to the newest release, which `mod install` takes without a ref.
+  const version = record.ref.startsWith('v') ? tryParse(record.ref.slice(1)) : undefined;
+  const release = version !== undefined && !version.prerelease?.length;
   const [busy, setBusy] = useState<'update' | 'remove' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -177,7 +182,7 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
     setProblem(null);
     setDone(null);
     try {
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(`${record.repository}@${record.ref}`)}`);
+      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(release ? record.repository : `${record.repository}@${record.ref}`)}`);
       setDone(result.installed.some((each) => each.name === module.name) ? 'Updated' : 'Up to date');
       onChanged();
     } catch (err) {

@@ -244,8 +244,9 @@ is reloaded, failing as a module that could not load.
 `mod install <name | https://host/owner/module-name>[@ref]`
 ([mod-install.ts](../../src/managers/exec/commands/mod/mod-install.ts)) fetches a module and sets
 it up. The image has no git, so the fetching is plain HTTP that GitHub, Forgejo and Gitea all
-answer ([forge.ts](../../src/modules/forge.ts)): the ref — a branch, a tag, a commit, or the default
-branch when none is given — is resolved from git's own ref advertisement
+answer ([forge.ts](../../src/modules/forge.ts)): the ref — a branch, a tag, a commit, or when none
+is given the newest release, the highest `v<version>` tag that is no prerelease, and the default
+branch when there is none — is resolved from git's own ref advertisement
 (`<repository>.git/info/refs?service=git-upload-pack`), a commit's id cut short, which no
 advertisement holds, from the forge's API, and the tree at that commit is the forge's
 `/archive/<commit>.tar.gz`. It is unpacked through the VFS into `.staging-<id>` beside the
@@ -275,9 +276,12 @@ costs that module, not the boot.
 (`https://github.com/einhq` by default); each repository named `module-<name>` there is a
 published module. `mod install <name>` takes the first source that has `module-<name>`.
 `mod search [words]` ([mod-search.ts](../../src/managers/exec/commands/mod/mod-search.ts)) lists
-them all, asking every source at once, with each default branch's `mod.json` version and
-`coreApi` and its commit, and names a source that does not answer; the Modules tab of the
-settings page shows the same with Install and Update. `CFG_MODULE_SOURCES_KEY` holds tokens for
+them all, asking every source at once, with what `mod install <name>` would take — the newest
+release's tag, or the default branch when there is none — and that commit's `mod.json` version and
+`coreApi`, and names a source that does not answer; the Modules tab of the settings page shows the
+same with Install and Update. A module is behind when that is another commit and, from a release,
+a higher version, so one installed from its branch past the newest release is not offered the
+release as an update. `CFG_MODULE_SOURCES_KEY` holds tokens for
 private sources as `host=token`, and a token is sent to its own host only, so an address on a
 command line cannot carry one elsewhere.
 
@@ -288,15 +292,15 @@ folder holds one too. Something else at `/usr/modules/<name>` — not a link int
 dangling one — is refused as well.
 
 **Dependencies.** One that is not installed is installed first, from the module's own
-organisation (`module-<dependency>` beside it) and else from the sources, and must then satisfy
-the range; one installed at a version outside the range refuses the install and says
+organisation (`module-<dependency>` beside it) and else from the sources, at its newest release in
+the range when it has one, and must then satisfy the range; one installed at a version outside the range refuses the install and says
 `mod install <dependency>` updates it.
 
 **Updates and dependents.** `mod install` of an installed module is its update; the same commit
 again is left alone (`--force` fetches it anyway). A module installed at a commit, recorded with
 the commit's whole id as its ref, stays there: its panel's Update, which installs the recorded ref
-again, is not offered for it, and `mod install <name>` without a ref moves it to the default
-branch. Every installed module that depends on it must
+again — for a release, the newest release — is not offered for it, and `mod install <name>` without
+a ref moves it to the newest release. Every installed module that depends on it must
 accept the new version, or nothing changes; `--force` updates anyway. After the swap the module is
 set up and its services restarted — on a first install, started — and every module depending on
 an updated one, however indirectly, is set up again and its running services restarted, so none

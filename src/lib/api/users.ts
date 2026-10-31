@@ -287,7 +287,10 @@ export type ModuleSearch = {
   failed: { source: string; reason: string }[];
 };
 
-/** One published module, as its repository has it on its default branch. */
+/**
+ * One published module, as `mod install <name>` would take it: its newest release, or its default
+ * branch when it has none.
+ */
 export type PublishedModule = {
   /** The module's name: its repository's without `module-`. */
   name: string;
@@ -298,9 +301,11 @@ export type PublishedModule = {
   description: string;
   /** Its default branch. */
   branch: string;
-  /** The default branch's commit, in full; absent when its refs could not be read. */
+  /** The newest release's tag, `v1.2.0`; absent when it has none and its default branch is taken. */
+  release?: string;
+  /** The commit taken, in full; absent when its refs could not be read. */
   commit?: string;
-  /** Its `mod.json`'s; absent when it has none that can be read. */
+  /** The `mod.json`'s at that commit; absent when it has none that can be read. */
   version?: string;
   coreApi?: string;
   /** Whether this core provides the module API its `coreApi` asks for; absent when it names none. */

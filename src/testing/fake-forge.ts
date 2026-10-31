@@ -1,7 +1,7 @@
 /**
  * A forge that answers as Forgejo does, for the tests of `mod install` and `mod search`: git's ref
  * advertisement over smart HTTP, `/archive/<commit>.tar.gz` under one top directory, an
- * organisation's repositories, a file at a branch and the commit a short id begins in its API. A repository may be private,
+ * organisation's repositories, a file at a branch or tag and the commit a short id begins in its API. A repository may be private,
  * read only with its token.
  */
 
@@ -36,7 +36,7 @@ export class FakeForge {
     return `http://${this.host}/${owner}`;
   }
 
-  /** A new commit of `files` on `branch` of `owner/name`, and its id. */
+  /** A new commit of `files` on `branch` of `owner/name`, tagged `tag` when given, and its id. */
   async publish(owner: string, name: string, files: Files, opts: { branch?: string; tag?: string; token?: string; description?: string } = {}): Promise<string> {
     const key = `${owner}/${name}`;
     const repository = this.repositories.get(key) ??
@@ -95,7 +95,8 @@ export class FakeForge {
     const raw = /^\/api\/v1\/repos\/([^/]+)\/([^/]+)\/raw\/(.+)$/.exec(url.pathname);
     if (raw) {
       const repository = this.repositories.get(`${raw[1]}/${raw[2]}`);
-      const commit = repository?.branches.get(url.searchParams.get('ref') ?? 'main');
+      const ref = url.searchParams.get('ref') ?? 'main';
+      const commit = repository?.branches.get(ref) ?? repository?.tags.get(ref);
       const file = commit ? repository!.commits.get(commit)?.[raw[3]] : undefined;
       if (file === undefined) return new Response('Not found', { status: 404 });
       return new Response(typeof file === 'string' ? file : file.text);

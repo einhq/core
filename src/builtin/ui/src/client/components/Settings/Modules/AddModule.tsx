@@ -1,6 +1,7 @@
 import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle, IconDownload, IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
+import { greaterThan, tryParse } from '@std/semver';
 import type { ModuleEntry, ModuleInstallResult, ModuleSearch, PublishedModule } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useCommand } from '../../../hooks/useCommand.ts';
@@ -22,7 +23,18 @@ const standingOf = (module: PublishedModule, installed: ModuleEntry[]): Standing
   const entry = installed.find((each) => each.name === module.name);
   if (!entry) return { kind: 'absent' };
   if (entry.installed?.repository !== module.repository) return { kind: 'other', entry };
-  return module.commit && entry.installed.commit !== module.commit ? { kind: 'behind', entry } : { kind: 'current', entry };
+  return behind(module, entry) ? { kind: 'behind', entry } : { kind: 'current', entry };
+};
+
+/**
+ * Whether installing the published module would move the installed one on: it is another commit,
+ * and from a release, a higher version, so a module installed from its branch past the newest
+ * release is not behind it.
+ */
+const behind = (module: PublishedModule, entry: ModuleEntry): boolean => {
+  if (!module.commit || entry.installed?.commit === module.commit) return false;
+  const [published, installed] = [tryParse(module.version ?? ''), tryParse(entry.version ?? '')];
+  return !module.release || !published || !installed || greaterThan(published, installed);
 };
 
 const short = (commit: string): string => commit.slice(0, 9);
@@ -42,8 +54,8 @@ type AddModuleProps = {
  * The Modules tab's panel for adding a module. For the administrator, a field that installs from
  * any repository's address, at a branch, tag or commit; under it the published modules: each
  * `module-*` repository of the module sources (`mod search`), with its version and what is installed of it, and for the
- * administrator a button that installs it with what it needs, or updates it when its default
- * branch is past the commit installed. Install asks first, in its place, who the module is for
+ * administrator a button that installs its newest release, or its default branch when it has none,
+ * with what it needs, or updates it when that is past what is installed. Install asks first, in its place, who the module is for
  * (`InstallQuestion`); an update keeps whom it was for. A source that does not answer is named
  * above the list.
  */
@@ -140,8 +152,8 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
               <Box>
                 <Title order={5}>From a repository</Title>
                 <Text size='sm' c='dimmed'>
-                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Add @ and a branch, tag or commit for other than its default branch. A private one
-                  needs its host's token in the Tokens for module sources setting.
+                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Without @ and a branch, tag or commit, its newest release is installed, or its default
+                  branch when it has none. A private one needs its host's token in the Tokens for module sources setting.
                 </Text>
               </Box>
               <Group gap='xs' align='flex-start' wrap='nowrap'>
@@ -252,7 +264,13 @@ function StandingBadge({ standing, module }: { standing: Standing; module: Publi
       return <Badge size='sm' variant='light' color='teal' tt='none'>Installed</Badge>;
     case 'behind':
       return (
-        <Badge size='sm' variant='light' color='yellow' tt='none' title={`${short(standing.entry.installed!.commit)} installed, ${short(module.commit!)} published`}>
+        <Badge
+          size='sm'
+          variant='light'
+          color='yellow'
+          tt='none'
+          title={`${short(standing.entry.installed!.commit)} installed, ${module.release ?? short(module.commit!)} published`}
+        >
           Update available
         </Badge>
       );

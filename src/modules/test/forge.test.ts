@@ -15,6 +15,7 @@ import {
   parseSource,
   parseSources,
   parseTokens,
+  releases,
   repositoryOf,
   resolveRef,
 } from '../forge.ts';
@@ -22,6 +23,8 @@ import {
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const C = 'c'.repeat(40);
+const D = 'd'.repeat(40);
+const E = 'e'.repeat(40);
 
 /** One pkt-line: its length in four hex digits, itself included, then the line. */
 const pkt = (line: string): string => `${(line.length + 4).toString(16).padStart(4, '0')}${line}`;
@@ -83,6 +86,26 @@ Deno.test("refs come from git's advertisement, and a ref is resolved as git does
   assertEquals(resolveRef(refs, B), { ref: B, commit: B });
   assertEquals(resolveRef(refs, 'nothing'), undefined);
   assertEquals(resolveRef(parseRefAdvertisement(advertisement([])), undefined), undefined);
+});
+
+Deno.test('without a ref, the newest release is taken, in the range when one is given, and else the default branch', () => {
+  const refs = parseRefAdvertisement(advertisement([
+    `${A} HEAD\0symref=HEAD:refs/heads/main\n`,
+    `${A} refs/heads/main\n`,
+    `${B} refs/tags/v0.9.0\n`,
+    `${C} refs/tags/v0.10.0\n`,
+    `${D} refs/tags/v0.10.0^{}\n`,
+    `${E} refs/tags/v0.11.0-rc.1\n`,
+    `${E} refs/tags/latest\n`,
+  ]));
+  // Versions compare as versions, an annotated tag is its commit, and a prerelease is no release.
+  assertEquals(releases(refs), [{ tag: 'v0.10.0', version: '0.10.0', commit: D }, { tag: 'v0.9.0', version: '0.9.0', commit: B }]);
+  assertEquals(resolveRef(refs), { ref: 'v0.10.0', commit: D });
+  assertEquals(resolveRef(refs, undefined, '^0.9.0'), { ref: 'v0.9.0', commit: B });
+  assertEquals(resolveRef(refs, undefined, '^2.0.0'), { ref: 'v0.10.0', commit: D });
+  assertEquals(resolveRef(refs, 'HEAD'), { ref: 'main', commit: A });
+  const unreleased = parseRefAdvertisement(advertisement([`${A} HEAD\0symref=HEAD:refs/heads/main\n`, `${A} refs/heads/main\n`, `${E} refs/tags/latest\n`]));
+  assertEquals(resolveRef(unreleased), { ref: 'main', commit: A });
 });
 
 Deno.test({

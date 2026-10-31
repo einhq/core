@@ -3,15 +3,17 @@
  *
  * A module is named by its repository's address, `https://host/owner/module-x`, or by its name,
  * which the first of `CFG_MODULE_SOURCES` to have `module-<name>` answers; either may end in
- * `@<branch, tag or commit>`, and without one the default branch is taken; a commit's id may be
- * cut short, and is recorded whole. The tree at that commit is unpacked beside the installed
+ * `@<branch, tag or commit>`, and without one the newest release is taken — the highest `v<version>`
+ * tag — or the default branch when there is none; a commit's id may be cut short, and is recorded
+ * whole. The tree at that commit is unpacked beside the installed
  * modules (`MOD_INSTALL_PATH`), checked, renamed into place and linked into `MOD_PATH`, the way
  * boot links them.
  *
  * Before anything is replaced: the module must be no deployment's (a name the deployment mounts
  * runs from there), it must be written for this core's module API, and its exports and pages must
  * hold. A dependency that is not installed is installed first, from the module's own organisation
- * and else from the sources; one installed at a version the module does not accept refuses it.
+ * and else from the sources, at its newest release in the range the module asks for; one installed
+ * at a version the module does not accept refuses it.
  * An update must be accepted by every installed module that depends on it, unless `--force`.
  *
  * Then each module put in place is set up, dependencies first, and its services started — or
@@ -182,9 +184,10 @@ const dependentsOf = async (run: Run, name: string): Promise<[string, string][]>
 
 /**
  * Put one module in place, its missing dependencies first; nothing when the commit asked for is
- * the one installed already. Throws an `InstallError` saying why it cannot be installed.
+ * the one installed already. Without a ref, `range` picks the newest release in it. Throws an
+ * `InstallError` saying why it cannot be installed.
  */
-const installTarget = async (run: Run, target: InstallTarget, near?: Repository): Promise<InstalledModule | undefined> => {
+const installTarget = async (run: Run, target: InstallTarget, near?: Repository, range?: string): Promise<InstalledModule | undefined> => {
   const { cmd } = run;
   const vfs = cmd.sys.vfs;
   // The module it is named for, which the repository's mod.json confirms once it is fetched.
@@ -195,9 +198,11 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository)
   }
   await refuseDeployed(run, expected);
   const { repository, refs } = await locate(run, target, near);
-  const resolved = resolveRef(refs, target.ref) ?? await resolveAbbreviated(run, repository, target.ref);
+  const resolved = resolveRef(refs, target.ref, range) ?? await resolveAbbreviated(run, repository, target.ref);
   if (!resolved) {
-    throw new InstallError(target.ref ? `${repository.repository} has no branch, tag or commit '${target.ref}'` : `${repository.repository} has no default branch`);
+    throw new InstallError(
+      target.ref ? `${repository.repository} has no branch, tag or commit '${target.ref}'` : `${repository.repository} has no release and no default branch`,
+    );
   }
 
   const current = await readInstallRecord(vfs, cmd.access, join(run.store, expected));
@@ -253,7 +258,7 @@ const installTarget = async (run: Run, target: InstallTarget, near?: Repository)
         let version = (await readModJson(vfs, cmd.access, join(run.modules, dependency)))?.version;
         if (version === undefined) {
           await say(run, `${name} needs ${dependency} ${range}, which is not installed`);
-          version = (await installTarget(run, { kind: 'name', name: dependency }, repository))?.version ?? undefined;
+          version = (await installTarget(run, { kind: 'name', name: dependency }, repository, range))?.version ?? undefined;
           version ??= (await readModJson(vfs, cmd.access, join(run.store, dependency)))?.version;
         }
         if (!accepts(version, range)) {
@@ -440,7 +445,7 @@ modInstall.spec = {
       type: 'string' as const,
       variadic: true,
       description:
-        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more)',
+        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more); without one, its newest release (v<version> tag), or its default branch when it has none',
     },
   ],
   flags: [

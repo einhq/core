@@ -4,7 +4,8 @@
  *
  * What is pinned down: a module named by its name comes from the first source that has it, with
  * its dependencies; it is unpacked into the installed modules and linked into /usr/modules; the
- * same commit is not fetched again and a new one replaces the module whole; a ref — a tag, or a
+ * same commit is not fetched again and a new one replaces the module whole; without a ref the newest
+ * release is taken, a dependency at the newest in its range, and mod search lists it; a ref — a tag, or a
  * commit's id whole or cut short — pins the commit; an update a dependent does not accept is
  * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
  * alone and set nothing up; a module the deployment provides, one for another core and a
@@ -223,6 +224,38 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals(unanswered.success, false);
       assertStringIncludes(unanswered.error ?? '', `mod search: ${forge.url('nobody')}: `);
       await client.execString(`config set CFG_MODULE_SOURCES '${forge.url('nobody')} ${forge.url('acme')}'`);
+    });
+
+    await t.step('without a ref the newest release is installed, a dependency at the newest in its range, and mod search lists it', async () => {
+      await forge.publish('acme', 'module-tide', moduleFiles('tide', '0.1.0', 'tide 0.1.0'), { tag: 'v0.1.0' });
+      const lowTide = await forge.publish('acme', 'module-tide', moduleFiles('tide', '0.1.1', 'tide 0.1.1'), { tag: 'v0.1.1' });
+      const highTide = await forge.publish('acme', 'module-tide', moduleFiles('tide', '0.2.0', 'tide 0.2.0'), { tag: 'v0.2.0' });
+      const unreleased = await forge.publish('acme', 'module-tide', moduleFiles('tide', '0.2.0', 'tide unreleased'));
+      await forge.publish('acme', 'module-anchor', moduleFiles('anchor', '1.0.0', 'anchor', { dependencies: { tide: '^0.1.0' } }));
+
+      const anchored = await install('anchor');
+      assert(anchored.success, anchored.error);
+      assertEquals(anchored.answer?.installed.map((module) => [module.name, module.ref, module.commit]), [
+        ['tide', 'v0.1.1', lowTide],
+        ['anchor', 'main', forge.repositories.get('acme/module-anchor')!.branches.get('main')],
+      ]);
+
+      const search = await client.execJson<ModuleSearch>('mod search tide');
+      assertEquals(search.modules.map((module) => [module.release, module.version, module.commit]), [['v0.2.0', '0.2.0', highTide]]);
+      assertStringIncludes(await run('mod search tide'), `tide 0.2.0 [installed ${lowTide.slice(0, 9)}, v0.2.0 published]`);
+
+      await client.execString('mod-remove --force anchor');
+      const updated = await install('tide');
+      assert(updated.success, updated.error);
+      assertEquals(updated.answer?.installed.map((module) => [module.ref, module.commit]), [['v0.2.0', highTide]]);
+      assertEquals(await run('$MOD_PATH/tide/bin/tide'), 'tide 0.2.0');
+
+      // The default branch past the newest release is not behind it.
+      assert((await install('tide@main')).success);
+      assertEquals(await run('$MOD_PATH/tide/bin/tide'), 'tide unreleased');
+      assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'tide')?.installed?.commit, unreleased);
+      assertStringIncludes(await run('mod search tide'), 'tide 0.2.0 [installed]');
+      await client.execString('mod-remove --force tide');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {
