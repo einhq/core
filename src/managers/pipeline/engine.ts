@@ -40,6 +40,7 @@ import {
   type PipelineStepAttrs,
   type PoolJobParams,
   stepAttribution,
+  TARGET_MISSING,
   TRIGGER_POOL,
   type TriggerJobParams,
 } from './types.ts';
@@ -2013,9 +2014,11 @@ export class PipelineEngine {
     // path, and the first to write a child would rebuild every missing ancestor
     // as a `directory` (`mknode -p`). An instance whose steps have all ended has nothing left
     // to run against the path; its last step may have removed the node on purpose (a zip
-    // expanded, then deleted), and it ends as its steps did.
+    // expanded, then deleted), and it ends as its steps did — unless a step already ended for
+    // want of the node, which is the instance's subject vanishing, not its work removing it.
     const ended = steps.every((step) => step.node.attrs.status === 'completed' || step.node.attrs.status === 'failed' || step.node.attrs.status === 'skipped');
-    if (!ended && !await this.subjectIsIntact(instanceAttrs)) {
+    const vanished = steps.some((step) => step.node.attrs.status === 'skipped' && step.node.attrs.error === TARGET_MISSING);
+    if ((!ended || vanished) && !await this.subjectIsIntact(instanceAttrs)) {
       await this.cancelVanishedInstance(instancePath, stepsPath, steps);
       logger.info('cancelled instance, its node is gone', {
         instance: instancePath,
@@ -2312,6 +2315,18 @@ export class PipelineEngine {
     return instance.triggerNodeId === undefined || id === instance.triggerNodeId;
   }
 
+  /** True if the instance at `instancePath` is there and its subject node is not. */
+  private async subjectVanished(instancePath: string): Promise<boolean> {
+    let instance: PipelineInstanceAttrs;
+    try {
+      instance = (await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs;
+    } catch {
+      return false;
+    }
+
+    return !await this.subjectIsIntact(instance);
+  }
+
   /**
    * Cancel an instance whose node is gone: every step that could still run is
    * marked skipped, and any pool job behind one is dropped.
@@ -2336,7 +2351,7 @@ export class PipelineEngine {
       if (!live) continue;
 
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, join(stepsPath, step.name), {
-        attrs: { status: 'skipped', completedAt: Date.now(), error: 'target node missing' },
+        attrs: { status: 'skipped', completedAt: Date.now(), error: TARGET_MISSING },
       });
 
       if (!attrs.pool) continue;
@@ -2408,7 +2423,13 @@ export class PipelineEngine {
         logger.info('step overruled while running, its run dropped', { step: stepName, instance: instancePath });
       } else {
         const { code, stdout, stderr } = result;
-        if (code !== 0) {
+        if (code !== 0 && code !== STEP_EXIT_TEMPORARY && await this.subjectVanished(instancePath)) {
+          // The node went while the step ran, as when a photo is deleted during ingest: what the
+          // step met was its absence, which no retry can change. The advance below cancels the
+          // instance.
+          logger.debug('step ended with its node gone, skipped', { step: stepName, instance: instancePath, code });
+          await this.skipVanishedStep(ticket);
+        } else if (code !== 0) {
           const detail = stepErrorDetail(code, stdout, stderr);
           // A step that could not run yet is not a failure; completeStep says it is waiting.
           if (code !== STEP_EXIT_TEMPORARY) {
@@ -2534,6 +2555,26 @@ export class PipelineEngine {
       });
       logger.info('step failed', { step: stepName, instance: instancePath, attempts });
     }
+  }
+
+  /**
+   * End a dispatched step that ran against a node gone meanwhile: skipped, as `TARGET_MISSING`.
+   * Left alone, like `completeStep` leaves it, when it is gone, replaced or already ended.
+   */
+  private async skipVanishedStep(ticket: DispatchTicket): Promise<void> {
+    const stepPath = join(ticket.instancePath, 'steps', ticket.stepName);
+
+    try {
+      const node = await this.vfs.get<PipelineStepAttrs>(ADMIN_ACCESS, stepPath);
+      if (node.id !== ticket.stepId) return;
+      if (node.attrs.status === 'completed' || node.attrs.status === 'failed' || node.attrs.status === 'skipped') return;
+    } catch {
+      return;
+    }
+
+    await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
+      attrs: { status: 'skipped', completedAt: Date.now(), error: TARGET_MISSING },
+    });
   }
 
   private substitute(template: string, vars: Record<string, string>): string {

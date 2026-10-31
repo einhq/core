@@ -9,7 +9,7 @@ import type { TtyIf } from '../exec/types.ts';
 import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
 import { stepErrorDetail, stepErrorLogDetail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
-import { isLiveInstance, type PipelineInstanceAttrs, type PipelineStepAttrs, type PoolJobParams } from './types.ts';
+import { isLiveInstance, type PipelineInstanceAttrs, type PipelineStepAttrs, type PoolJobParams, TARGET_MISSING } from './types.ts';
 
 const logger = createLogger('pool-worker');
 
@@ -816,6 +816,18 @@ export class PoolWorker {
         return;
       }
 
+      // The node went while the step ran, as when a photo is deleted during ingest: what the step
+      // met was its absence, which no retry can change. Skipped, as a claim would have left it,
+      // and the engine's next advance cancels the instance.
+      if (await this.subjectVanished(msg.instancePath)) {
+        await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
+          attrs: { status: 'skipped', completedAt: Date.now(), error: TARGET_MISSING },
+        });
+        await this.releaseJob(job, () => this.vfs.poolComplete(ADMIN_ACCESS, this.poolPath, job.id, this.owner, { skipped: TARGET_MISSING }));
+        logger.debug('pooled step ended with its node gone, skipped', { step: msg.stepName, instance: msg.instancePath, code });
+        return;
+      }
+
       // The input is the problem: every retry would meet the same bytes.
       if (code === STEP_EXIT_INPUT) {
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
@@ -942,18 +954,36 @@ export class PoolWorker {
       return `instance is ${instanceAttrs.status}`;
     }
 
-    // Identity where the instance recorded it, not just existence: a path can
-    // come back as a *different* node — see `PipelineInstanceAttrs.triggerNodeId`.
-    const subjectId = await this.subjectNodeId(instanceAttrs.triggerPath);
-
-    if (subjectId === undefined || (instanceAttrs.triggerNodeId !== undefined && subjectId !== instanceAttrs.triggerNodeId)) {
+    if (!await this.subjectIntact(instanceAttrs)) {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'skipped', completedAt: Date.now(), error: 'target node missing' },
+        attrs: { status: 'skipped', completedAt: Date.now(), error: TARGET_MISSING },
       });
-      return 'target node missing';
+      return TARGET_MISSING;
     }
 
     return undefined;
+  }
+
+  /**
+   * True if the instance's subject node is there and is still the same node. Identity where the
+   * instance recorded it, not just existence: a path can come back as a *different* node — see
+   * `PipelineInstanceAttrs.triggerNodeId`.
+   */
+  private async subjectIntact(instance: PipelineInstanceAttrs): Promise<boolean> {
+    const subjectId = await this.subjectNodeId(instance.triggerPath);
+    return subjectId !== undefined && (instance.triggerNodeId === undefined || subjectId === instance.triggerNodeId);
+  }
+
+  /** True if the instance at `instancePath` is there and its subject node is not. */
+  private async subjectVanished(instancePath: string): Promise<boolean> {
+    let instance: PipelineInstanceAttrs;
+    try {
+      instance = (await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs;
+    } catch {
+      return false;
+    }
+
+    return !await this.subjectIntact(instance);
   }
 
   /**

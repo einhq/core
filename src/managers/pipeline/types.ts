@@ -256,6 +256,12 @@ export type PipelineDef = {
 export type PipelineStatus = 'running' | 'queued' | 'completed' | 'failed' | 'cancelled';
 
 /**
+ * A skipped step's `error` when the instance's subject node is gone, or is another node now: the
+ * step had nothing left to run against, and the instance is cancelled rather than finished.
+ */
+export const TARGET_MISSING = 'target node missing';
+
+/**
  * Whether an instance still holds work, executing or not.
  *
  * The predicate nearly every caller wants. Recovery, cancellation, self-trigger suppression and

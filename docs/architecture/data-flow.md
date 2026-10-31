@@ -540,6 +540,11 @@ bounds ancestor creation to what lies below it, so a subject deleted mid-step fa
 write instead of resurrecting a tree. Every media writer under a subject path passes
 it; for most of them `-p` was only ever asking for "do not fail on an existing node".
 
+A step that fails because its subject went while it ran is not a failure: on a non-zero
+exit the engine, or the pool worker for a pooled step, checks the subject, and when it is
+gone marks the step `skipped` with `target node missing` and logs at debug, without a
+retry. The next advance cancels the instance, even when that step was its last.
+
 **Pool-delegated steps.** A step may declare `pool: <name>` with `kind`,
 `requires`, `priority` and `exclusive`. Instead of running it inline under the shared
 semaphore, the engine marks the step `waiting` (no permit held) and adds a job to
