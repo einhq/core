@@ -25,7 +25,7 @@ import { NODE_TYPE_EMBEDDING } from '../../vfs/types/embedding.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
-import { freezesUpload } from '../frozen-uploads.ts';
+import { freezesUpload } from '../../lib/media/frozen-uploads.ts';
 
 const logger = createLogger('sftp-handler');
 

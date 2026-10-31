@@ -9,6 +9,8 @@
  *
  * An entry's file is created, its bytes written, and then given the size, sha256 and mimetype read
  * on the way through and the entry's modification time as `writtenAt`, as an upload records them.
+ * With `--as-upload` the entries are taken for the upload they came in, and one of a type
+ * `/etc/frozen-uploads` lists is frozen as an upload of it would be (ein/core#844).
  */
 
 import { basename, dirname, join, resolve } from '@std/path';
@@ -17,6 +19,7 @@ import type { UnzipAnswer } from '../../../../lib/api/node.ts';
 import type { Access } from '../../../../lib/access/mod.ts';
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
 import { createFileAttrsCollector } from '../../../../lib/media/file-attrs.ts';
+import { freezes, type FrozenUploads, readFrozenUploads } from '../../../../lib/media/frozen-uploads.ts';
 import { getMimeFromExt } from '../../../../lib/media/mime.ts';
 import { sampleDisk } from '../../../../lib/metrics/disk.ts';
 import { humanizeSize } from '../../../../lib/utils/humanize-size.ts';
@@ -79,6 +82,8 @@ export class UnzipRefusedError extends Error {}
 type ExpandOptions = {
   /** Write over a file already there; otherwise one of the entry's size is left as it is. */
   overwrite: boolean;
+  /** The types a written file is frozen by, as an upload is; none freezes nothing. */
+  frozenUploads?: FrozenUploads;
   /** Free bytes where the files will be stored, or undefined when that cannot be measured. */
   freeBytes: () => Promise<number | undefined>;
   signal?: AbortSignal;
@@ -212,7 +217,7 @@ export async function expandZip(vfs: NodeVFS, access: Access, archive: string, d
           continue;
         }
 
-        await writeEntry(vfs, access, entry, to.dir, to.name, !existing, opts.signal);
+        await writeEntry(vfs, access, entry, to.dir, to.name, !existing, opts.frozenUploads, opts.signal);
         names.set(to.name, { type: NODE_TYPE_FILE, size: entry.uncompressedSize, written: true });
         answer.files++;
         answer.bytes += entry.uncompressedSize;
@@ -231,10 +236,19 @@ export async function expandZip(vfs: NodeVFS, access: Access, archive: string, d
 
 /**
  * Stream one entry into the file `name` in `dir`, creating it when `create`, and record what the
- * bytes are. A file this call created and could not fill is removed again, so a later run does not
- * take a part for the whole.
+ * bytes are, freezing it when `frozenUploads` lists their type. A file this call created and could
+ * not fill is removed again, so a later run does not take a part for the whole.
  */
-async function writeEntry(vfs: NodeVFS, access: Access, entry: FileEntry, dir: string, name: string, create: boolean, signal?: AbortSignal): Promise<void> {
+async function writeEntry(
+  vfs: NodeVFS,
+  access: Access,
+  entry: FileEntry,
+  dir: string,
+  name: string,
+  create: boolean,
+  frozenUploads: FrozenUploads | undefined,
+  signal?: AbortSignal,
+): Promise<void> {
   const path = join(dir, name);
   if (create) {
     await vfs.create<FileAttrs>(access, NODE_TYPE_FILE, dir, name, {
@@ -266,8 +280,10 @@ async function writeEntry(vfs: NodeVFS, access: Access, entry: FileEntry, dir: s
     throw error;
   }
 
+  const computed = await collector.finalize();
+  const frozen = !!frozenUploads && freezes(frozenUploads, computed.mimetype);
   await vfs.update<FileAttrs>(access, path, {
-    attrs: { ...await collector.finalize(), writtenAt: entry.lastModDate.toISOString() },
+    attrs: { ...computed, writtenAt: entry.lastModDate.toISOString(), ...(frozen ? { frozen } : {}) },
   });
 }
 
@@ -285,7 +301,7 @@ const diskFreeBytes = async (cmd: Command): Promise<number | undefined> => {
 export const unzip = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, {
-    boolean: ['n', 'o'],
+    boolean: ['n', 'o', 'as-upload'],
     string: ['d'],
     unknown: collectUnknownFlags(unknown),
   });
@@ -293,7 +309,7 @@ export const unzip = async (cmd: Command): CmdReturn => {
 
   const args = flags._;
   if (args.length !== 1) {
-    await cmd.writeError('unzip: expected one archive\nUsage: unzip [-n | -o] [-d DIR] ARCHIVE\n');
+    await cmd.writeError('unzip: expected one archive\nUsage: unzip [-n | -o] [--as-upload] [-d DIR] ARCHIVE\n');
     return 1;
   }
   if (flags.n && flags.o) {
@@ -310,6 +326,7 @@ export const unzip = async (cmd: Command): CmdReturn => {
   try {
     answer = await expandZip(cmd.sys.vfs, cmd.access, archive, directory, {
       overwrite: flags.o,
+      frozenUploads: flags['as-upload'] ? await readFrozenUploads(cmd.sys.vfs) : undefined,
       freeBytes: () => diskFreeBytes(cmd),
       signal: cmd.interruptSignal,
       onFailed: (failure) => cmd.writeError(`unzip: ${failure.entry}: ${failure.error}\n`),
@@ -349,9 +366,15 @@ unzip.spec = {
     { name: 'd', type: 'path' as const, description: 'the directory to expand into, made if missing (default: the current one)' },
     { name: 'n', type: 'bool' as const, description: 'never write over an existing file (the default)' },
     { name: 'o', type: 'bool' as const, description: 'write over an existing file' },
+    {
+      name: 'as-upload',
+      type: 'bool' as const,
+      description: 'take the files for the upload the archive came in: one of a type /etc/frozen-uploads lists is frozen, as an upload of it would be',
+    },
   ],
   examples: [
     'unzip -d /home/anna/staging/files/inbox /home/anna/staging/files/inbox/takeout-001.zip',
+    'unzip --as-upload -d /home/anna/staging/files/inbox /home/anna/staging/files/inbox/takeout-001.zip',
   ],
   returns:
     'in JSON mode, UnzipAnswer: the files, directories and bytes written, the files left as they were, and each entry not expanded with why. Exits non-zero when any entry was not expanded.',

@@ -3,7 +3,8 @@
  * entries' time; a run again leaves the files already there and goes on past one it may not write
  * over; an archive with an entry that would land outside the directory is refused before anything
  * is written; and the free space is checked against what the run will write, not against the
- * whole archive. The zips are `fixtures/unzip/`, made by `make.ts` there.
+ * whole archive. With `--as-upload` a file of a type `/etc/frozen-uploads` lists is frozen, as an
+ * upload of it is; without, none is. The zips are `fixtures/unzip/`, made by `make.ts` there.
  */
 
 import { assertEquals, assertMatch, assertRejects } from '@std/assert';
@@ -109,6 +110,28 @@ Deno.test({
 
       assertEquals({ files: answer.files, skipped: answer.skipped, ok: answer.ok }, { files: 4, skipped: 0, ok: true });
       assertEquals(await text('/z/out/lösa-blad.txt'), 'Anna Andersson var med.');
+    });
+
+    await t.step('--as-upload freezes the files of a type /etc/frozen-uploads lists', async () => {
+      await cmd.shouldSucceed('mkdir -p /etc && mkfile /etc/frozen-uploads');
+      await put('/etc/frozen-uploads', new TextEncoder().encode('text/plain\n'));
+      try {
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/z/out/lösa-blad.txt')).attrs.frozen, undefined);
+
+        const answer = await client.execJson<UnzipAnswer>('unzip --as-upload -d /z/upload /z/nested.zip');
+
+        assertEquals({ files: answer.files, ok: answer.ok }, { files: 4, ok: true });
+        for (const path of ['/z/upload/lösa-blad.txt', '/z/upload/Exempelresa/dag-1/karta/rutt.txt']) {
+          assertEquals((await vfs.get(ADMIN_ACCESS, path)).attrs.frozen, true, path);
+        }
+        assertEquals(await text('/z/upload/lösa-blad.txt'), 'Anna Andersson var med.');
+
+        await put('/etc/frozen-uploads', new TextEncoder().encode('image/*\n'));
+        await client.execJson<UnzipAnswer>('unzip --as-upload -d /z/upload-images /z/nested.zip');
+        assertEquals((await vfs.get(ADMIN_ACCESS, '/z/upload-images/lösa-blad.txt')).attrs.frozen, undefined);
+      } finally {
+        await cmd.shouldSucceed('rm /etc/frozen-uploads');
+      }
     });
 
     await t.step('a file whose write never finished is written again', async () => {

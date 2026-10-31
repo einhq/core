@@ -2,7 +2,7 @@ import { basename } from '@std/path';
 import { Access } from '../../../lib/access/mod.ts';
 import { createFileAttrsCollector } from '../../../lib/media/file-attrs.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
-import { freezesUpload } from '../../frozen-uploads.ts';
+import { freezesUpload } from '../../../lib/media/frozen-uploads.ts';
 import { HttpServerConfig } from '../types.ts';
 
 /**

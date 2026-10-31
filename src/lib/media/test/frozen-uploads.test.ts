@@ -16,7 +16,7 @@ Deno.test('frozen-uploads: a line takes a type in, a ! line leaves it out', () =
 });
 
 Deno.test('frozen-uploads: the seed freezes media and leaves text, scripts and documents writable', async () => {
-  const policy = parseFrozenUploads(await Deno.readTextFile(new URL('../../builtin/core/etc/frozen-uploads', import.meta.url)));
+  const policy = parseFrozenUploads(await Deno.readTextFile(new URL('../../../builtin/core/etc/frozen-uploads', import.meta.url)));
 
   for (const type of ['image/jpeg', 'image/heic', 'image/x-canon-cr2', 'video/mp4', 'video/quicktime', 'audio/mpeg']) {
     assertEquals(freezes(policy, type), true, type);

@@ -1,7 +1,8 @@
 /**
  * Which uploads are frozen as they arrive: the types `/etc/frozen-uploads` lists. The HTTP upload
- * and SFTP mark a file they finished writing `frozen` when its mimetype is one of them; nothing
- * else EiN writes is frozen by it.
+ * and SFTP mark a file they finished writing `frozen` when its mimetype is one of them, and so does
+ * `unzip --as-upload` for each file it takes out of an uploaded archive; nothing else EiN writes is
+ * frozen by it.
  *
  * The file holds one mimetype per line: `image/jpeg`, `image/*` for every subtype, or `!image/svg+xml`
  * to leave a type out that another line takes in. `#` starts a comment. A file that is missing or
@@ -10,14 +11,14 @@
 
 import { toText } from '@std/streams';
 import { join } from '@std/path';
-import { ADMIN_ACCESS } from '../lib/access/mod.ts';
-import { ETC_PATH } from '../lib/paths.ts';
-import type { NodeVFS } from '../vfs/node-vfs.ts';
+import { ADMIN_ACCESS } from '../access/mod.ts';
+import { ETC_PATH } from '../paths.ts';
+import type { NodeVFS } from '../../vfs/node-vfs.ts';
 
 const FROZEN_UPLOADS_PATH = join(ETC_PATH, 'frozen-uploads');
 
 /** The lines of a frozen-uploads file, split into the types taken in and those left out. */
-type FrozenUploads = { include: string[]; exclude: string[] };
+export type FrozenUploads = { include: string[]; exclude: string[] };
 
 export function parseFrozenUploads(text: string): FrozenUploads {
   const policy: FrozenUploads = { include: [], exclude: [] };
@@ -43,13 +44,18 @@ export function freezes(policy: FrozenUploads, mimetype: string | undefined): bo
   return policy.include.some((p) => matches(p, type)) && !policy.exclude.some((p) => matches(p, type));
 }
 
-/** Whether an upload of `mimetype` is frozen, by `/etc/frozen-uploads` as it is now. */
-export async function freezesUpload(vfs: NodeVFS, mimetype: string | undefined): Promise<boolean> {
-  if (!mimetype || !await vfs.exists(ADMIN_ACCESS, FROZEN_UPLOADS_PATH)) return false;
+/** `/etc/frozen-uploads` as it is now; a missing file lists nothing. */
+export async function readFrozenUploads(vfs: NodeVFS): Promise<FrozenUploads> {
+  if (!await vfs.exists(ADMIN_ACCESS, FROZEN_UPLOADS_PATH)) return parseFrozenUploads('');
   const handle = await vfs.open(ADMIN_ACCESS, FROZEN_UPLOADS_PATH, { mode: 'r' });
   try {
-    return freezes(parseFrozenUploads(await toText(handle.readable)), mimetype);
+    return parseFrozenUploads(await toText(handle.readable));
   } finally {
     await handle.close().catch(() => {});
   }
+}
+
+/** Whether an upload of `mimetype` is frozen, by `/etc/frozen-uploads` as it is now. */
+export async function freezesUpload(vfs: NodeVFS, mimetype: string | undefined): Promise<boolean> {
+  return !!mimetype && freezes(await readFrozenUploads(vfs), mimetype);
 }
