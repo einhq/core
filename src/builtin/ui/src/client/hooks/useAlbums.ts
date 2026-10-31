@@ -40,7 +40,10 @@ export type AlbumEntry = {
   kind?: 'trip';
   /** Distinct days the members fall on. */
   days?: number;
-  /** Media count — loaded lazily per card via useAlbumCover, undefined until then. */
+  /**
+   * Member count from the listing (`album list`), counted from child names; what sorts the grid by
+   * size. The card shows useAlbumCover's count of media once it has one.
+   */
   itemCount?: number;
   /** Cover thumbnail URL — loaded lazily per card via useAlbumCover, undefined until then. */
   coverUrl?: string;
