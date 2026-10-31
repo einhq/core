@@ -54,7 +54,24 @@ type Props = {
   children: ReactNode;
 };
 
+/**
+ * The shell around every page: Mantine's provider, and the frame within it.
+ *
+ * The provider is kept out of the frame, which renders again on every change of location (the
+ * lightbox replaces it for each picture it shows): the provider's context is a new object each time
+ * it renders, and every Mantine component in the page would render again with it. The login page
+ * renders without the AppShell but inside the same provider, so there is one theme.
+ * forceColorScheme ignores a colour scheme stored in localStorage.
+ */
 export default function Layout({ children }: Props) {
+  return (
+    <MantineProvider forceColorScheme='dark' theme={theme} cssVariablesResolver={cssVariablesResolver}>
+      <Frame>{children}</Frame>
+    </MantineProvider>
+  );
+}
+
+function Frame({ children }: Props) {
   useSignals();
   const [opened, { toggle, open, close }] = useDisclosure();
   const mobile = usePhone();
@@ -188,90 +205,84 @@ export default function Layout({ children }: Props) {
   // stays blank too.
   const ready = authChecked && (isLoginPage ? !authenticated : isLinkPage || (!mustSignIn && navLoaded));
 
-  // The login page renders without the AppShell but inside the same provider, so there is one
-  // theme. forceColorScheme ignores a colour scheme stored in localStorage.
-  return (
-    <MantineProvider forceColorScheme='dark' theme={theme} cssVariablesResolver={cssVariablesResolver}>
-      {!ready ? null : isLoginPage || isLinkPage ? children : (
-        <>
-          <AppShell
-            ref={shellRef}
-            header={{ height: mobile ? PHONE_HEADER_HEIGHT : HEADER_HEIGHT }}
-            // Mantine turns the navbar full-width below its breakpoint; at 0 that
-            // never happens, so the phone's rail keeps its width and the page is
-            // offset by it, as on a desktop. Above a breakpoint of 0 is every
-            // width, so hiding the rail is the `desktop` collapse.
-            navbar={confined ? undefined : mobileRail ? { width: RAIL_WIDTH, breakpoint: 0, collapsed: { desktop: mobileRailHidden.value } } : {
-              width: sidebarCollapsed.value ? RAIL_WIDTH : 240,
-              breakpoint: 'sm',
-              collapsed: { mobile: !opened },
-            }}
-            aside={{
-              width: { base: '100%', md: besideFullscreen ? besideWidth : desktopDrawerWidth },
-              breakpoint: 'md',
-              collapsed: { mobile: !drawerShown, desktop: !drawerShown },
-            }}
-            transitionDuration={DRAWER_SLIDE_MS}
-            styles={{
-              // Chrome recedes: darker than the content it frames, separated by
-              // depth rather than by a border.
-              header: { backgroundColor: 'var(--mrx-surface-chrome)', borderBottom: 'none' },
-              navbar: { backgroundColor: 'var(--mrx-surface-chrome)', borderRight: 'none' },
-              // Without the drawer's room while it slides in (`drawerRoom`, above).
-              main: { backgroundColor: 'var(--mrx-surface-base)', ...(drawerRoom ? {} : { paddingInlineEnd: 0 }) },
-              aside: besideFullscreen ? { top: 0, height: '100dvh', zIndex: 'calc(var(--mantine-z-index-modal) + 1)' } : {},
-            }}
-          >
-            <AppShell.Header>
-              <AppHeader menuOpen={menuOpen} onToggleMenu={toggleMenu} />
-            </AppShell.Header>
+  return !ready ? null : isLoginPage || isLinkPage ? children : (
+    <>
+      <AppShell
+        ref={shellRef}
+        header={{ height: mobile ? PHONE_HEADER_HEIGHT : HEADER_HEIGHT }}
+        // Mantine turns the navbar full-width below its breakpoint; at 0 that
+        // never happens, so the phone's rail keeps its width and the page is
+        // offset by it, as on a desktop. Above a breakpoint of 0 is every
+        // width, so hiding the rail is the `desktop` collapse.
+        navbar={confined ? undefined : mobileRail ? { width: RAIL_WIDTH, breakpoint: 0, collapsed: { desktop: mobileRailHidden.value } } : {
+          width: sidebarCollapsed.value ? RAIL_WIDTH : 240,
+          breakpoint: 'sm',
+          collapsed: { mobile: !opened },
+        }}
+        aside={{
+          width: { base: '100%', md: besideFullscreen ? besideWidth : desktopDrawerWidth },
+          breakpoint: 'md',
+          collapsed: { mobile: !drawerShown, desktop: !drawerShown },
+        }}
+        transitionDuration={DRAWER_SLIDE_MS}
+        styles={{
+          // Chrome recedes: darker than the content it frames, separated by
+          // depth rather than by a border.
+          header: { backgroundColor: 'var(--mrx-surface-chrome)', borderBottom: 'none' },
+          navbar: { backgroundColor: 'var(--mrx-surface-chrome)', borderRight: 'none' },
+          // Without the drawer's room while it slides in (`drawerRoom`, above).
+          main: { backgroundColor: 'var(--mrx-surface-base)', ...(drawerRoom ? {} : { paddingInlineEnd: 0 }) },
+          aside: besideFullscreen ? { top: 0, height: '100dvh', zIndex: 'calc(var(--mantine-z-index-modal) + 1)' } : {},
+        }}
+      >
+        <AppShell.Header>
+          <AppHeader menuOpen={menuOpen} onToggleMenu={toggleMenu} />
+        </AppShell.Header>
 
-            {!confined && (
-              <AppShell.Navbar className='mrx-shell-navbar'>
-                <AppNavbar
-                  rail={rail}
-                  onNavigate={close}
-                  onToggleRail={() => {
-                    toggleSidebar(mobile);
-                    // A phone's labelled list only shows while open, so asking for
-                    // the labels opens it, and the rail that replaces it needs no menu.
-                    if (mobile && rail) open();
-                    else close();
-                  }}
-                />
-              </AppShell.Navbar>
-            )}
+        {!confined && (
+          <AppShell.Navbar className='mrx-shell-navbar'>
+            <AppNavbar
+              rail={rail}
+              onNavigate={close}
+              onToggleRail={() => {
+                toggleSidebar(mobile);
+                // A phone's labelled list only shows while open, so asking for
+                // the labels opens it, and the rail that replaces it needs no menu.
+                if (mobile && rail) open();
+                else close();
+              }}
+            />
+          </AppShell.Navbar>
+        )}
 
-            {
-              /* The gutter is the page's own, not AppShell's padding: AppShell slides its main's
+        {
+          /* The gutter is the page's own, not AppShell's padding: AppShell slides its main's
                 padding with the sidebar and the drawer, and would slide it between a page with a
                 gutter and one without. The page's scrollbar comes before the aside, which covers it
                 where the drawer covers the page. */
-            }
-            <AppShell.Main>
-              <Box className='mrx-page' mod={{ gutter: !isFullBleedPage }}>
-                {children}
-              </Box>
-              <PageScrollbar />
-            </AppShell.Main>
+        }
+        <AppShell.Main>
+          <Box className='mrx-page' mod={{ gutter: !isFullBleedPage }}>
+            {children}
+          </Box>
+          <PageScrollbar />
+        </AppShell.Main>
 
-            <AppShell.Aside className='mrx-drawer-aside' withBorder={false}>
-              <DrawerHost />
-            </AppShell.Aside>
-          </AppShell>
+        <AppShell.Aside className='mrx-drawer-aside' withBorder={false}>
+          <DrawerHost />
+        </AppShell.Aside>
+      </AppShell>
 
-          {/* The guest has no terminal: it may read the archive, not work in it. */}
-          {authenticated && <Terminal />}
-          <DialogHost />
-          <FullscreenHost />
-          <ShareModalHost />
-          <CodeEditorModal />
-          <BackToTop />
-          <ToastHost />
-          <CommandPalette />
-          <ShortcutHelp />
-        </>
-      )}
-    </MantineProvider>
+      {/* The guest has no terminal: it may read the archive, not work in it. */}
+      {authenticated && <Terminal />}
+      <DialogHost />
+      <FullscreenHost />
+      <ShareModalHost />
+      <CodeEditorModal />
+      <BackToTop />
+      <ToastHost />
+      <CommandPalette />
+      <ShortcutHelp />
+    </>
   );
 }
