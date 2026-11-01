@@ -398,8 +398,8 @@ changes its name, description and span (`album set`; the span's date fields stop
 last capture, which `album-span --dry-run` answers), a suggested album's only its name (`staging
 rename`), and its Upload is a button in the header; Media and Staging have one too, into the
 reader's staging, keeping the folders dropped or picked (Upload a folder under ⋮). Upload also
-makes the page a drop target (`UploadDropzone`); on a phone its picker offers the phone's photos
-and camera.
+makes the page a drop target (`UploadDropzone`). Its picker takes any file; a phone's own picker
+offers the photo library and camera beside its files.
 
 Delete in the selection bar moves the files the list holds to the reader's trash (`trash put`) and
 takes out of the album the links that only file a picture there; nothing asks first, since the

@@ -3,15 +3,8 @@ import { Dropzone } from '@mantine/dropzone';
 import { useSignals } from '@preact/signals-react/runtime';
 import { IconFolder, IconUpload } from '@tabler/icons-react';
 import { type ComponentProps, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { usePhone } from '../../hooks/usePhone.ts';
 import type { UploadTarget } from '../../lib/upload-queue.ts';
 import { addToQueue, uploadBatchDone } from '../../signals/upload.ts';
-
-/**
- * What a phone's picker offers: its photos, videos and recordings, and its camera among the
- * choices. Not on a desktop, where it would also turn away a raw file dropped on the window.
- */
-const PHONE_ACCEPT = { 'image/*': [], 'video/*': [], 'audio/*': [], 'application/gpx+xml': ['.gpx'] };
 
 /** An `<input>` that picks a folder, with everything in it, rather than files. */
 const FOLDER_INPUT = { webkitdirectory: '' } as ComponentProps<'input'>;
@@ -111,7 +104,6 @@ export function UploadDropzone(props: SingleProps | TilesProps) {
 }
 
 function WindowDrop({ path, name, keepFolders, disabled, openRef, openFolderRef, track }: SingleProps & { track: (target: UploadTarget) => UploadTarget }) {
-  const phone = usePhone();
   const label = name || (typeof path === 'string' ? path.split('/').filter(Boolean).pop() || path : undefined);
   const folderInput = useRef<HTMLInputElement>(null);
   const queue = (files: File[]) => {
@@ -145,7 +137,6 @@ function WindowDrop({ path, name, keepFolders, disabled, openRef, openFolderRef,
       <Dropzone.FullScreen
         active={!disabled}
         openRef={openRef}
-        accept={phone ? PHONE_ACCEPT : undefined}
         onDrop={queue}
         // The overlay is the whole window, so its message belongs in the middle of
         // it rather than tucked under the top edge, where Mantine leaves it.
