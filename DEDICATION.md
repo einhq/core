@@ -1,22 +1,22 @@
 # Dedication
 
 _To my mother, Birgitta Runge (1947–2026),<br>
-who shared my dedication to organize our family's digital legacy<br>
-and always supported my technical endeavours._
+who always supported my technical endeavours,<br>
+who shared my dedication to organize,<br>
+who made things happen._
 
 ## Before EiN
 
-EiN is the latest step of a project I have worked on for more than twenty years.
+EiN is the latest step of the project I have worked on for more than twenty years. To organize, and
+make available, our family's pictures and history.
 
-It began around 2002 as Släktsidan, a website in PHP that put our family tree online for the
-family. It became [MURRiX](https://github.com/mattiasrunge/MURRiX), which put the family tree and
-every photo we had in one place: people, places, events and the photos that connect them. MURRiX
-was public on GitHub from 2012 and was rewritten at least four times. First it moved from PHP and
-MySQL to JavaScript, Node.js and MongoDB. Then came new cores, a command line, plugins, Docker
-images, and a separate service for the media.
+It began around 2002 as Släktsidan, a website that put our family tree and pictures online for the
+family. It became [MURRiX](https://github.com/mattiasrunge/MURRiX) when I learned more: people,
+places, events and the photos got more connected. MURRiX was public on GitHub from 2012 and was
+rewritten at least four times, since leaving a code base for a while makes you want to start over
+when you get time for it again.
 
-One idea ran through every version: a life is documented by connecting each picture, letter and
-event to who, where and when, and everything is stored as nodes in one tree. EiN takes that idea
-and does it better while still running on a machine at home.
+One idea ran through every version: make it accessible, easy to organize and fun while keeping your
+data your own.
 
 — Mattias Runge-Broberg, 2026
