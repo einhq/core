@@ -53,12 +53,18 @@ export const validateConfigOption = (option: ConfigOption): string | undefined =
 /**
  * Register a module's options.
  *
- * Returns the keys actually added. A key core already owns is declined with a
- * warning rather than an error: the module is otherwise fine, and refusing the
- * whole setup over a name collision would take a working module offline.
+ * Returns the keys registered. A module set up again, after an update, replaces its own options,
+ * so a changed default or description holds from then on, and an option it no longer declares is
+ * dropped. A key core or another module already
+ * owns is declined with a warning rather than an error: the module is otherwise fine, and refusing
+ * the whole setup over a name collision would take a working module offline.
  */
 export const registerConfigOptions = (owner: string, declared: ConfigOption[]): string[] => {
   const added: string[] = [];
+  const keys = new Set(declared.map((option) => option.key));
+  for (const [key, option] of options) {
+    if (option.owner === owner && !keys.has(key)) options.delete(key);
+  }
 
   for (const option of declared) {
     const invalid = validateConfigOption(option);
@@ -68,7 +74,7 @@ export const registerConfigOptions = (owner: string, declared: ConfigOption[]): 
     }
 
     const existing = options.get(option.key);
-    if (existing) {
+    if (existing && existing.owner !== owner) {
       logger.warn('module config option ignored, key already registered', {
         owner,
         key: option.key,
