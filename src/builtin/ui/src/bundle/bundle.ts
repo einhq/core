@@ -11,12 +11,15 @@
  *   components (`TablerIcon` reads them). They come from the node_modules directory the bundler
  *   materialises, so they are copied after it, keeping their timestamps so a deploy's rsync skips
  *   the unchanged ones.
+ * - `public/licences.txt`, the third-party notices (`licences.ts`), written after the bundle for
+ *   the same reason.
  *
  * In `--dev` only the bundle is rebuilt on a change; the rest is copied once.
  */
 import { format } from '@std/fmt/bytes';
 import { copy, emptyDir, exists } from '@std/fs';
 import { dirname, fromFileUrl, join } from '@std/path';
+import { writeLicences } from './licences.ts';
 
 const dev = Deno.args.includes('--dev');
 const uiDir = join(dirname(fromFileUrl(import.meta.url)), '..', '..');
@@ -70,6 +73,8 @@ if (dev) {
   if (!(await bundler.output()).success) throw new Error('bundle failed');
   if (!(await exists(icons))) throw new Error(`missing ${icons}: is @tabler/icons in deno.jsonc imports?`);
   await copyIcons();
+  const missing = await writeLicences(repoDir, join(srcDir, 'public', 'fonts'), join(distDir, 'public', 'licences.txt'));
+  if (missing.length) console.warn(`no licence text for ${missing.length} packages: ${missing.join(', ')}`);
   for await (const entry of Deno.readDir(distDir)) {
     if (entry.isFile) console.log(`  ${entry.name.padEnd(45)} ${format((await Deno.stat(join(distDir, entry.name))).size)}`);
   }

@@ -111,6 +111,10 @@ export default function AboutPage() {
           At its centre is a small core: a virtual file system that keeps every node in one tree, a shell whose commands serve both the terminal and the API, pipelines that
           run commands in the background as nodes change, and this interface. Modules build on the core's versioned module API to add functionality for different uses.
         </Text>
+        <Text size='xs' c='dimmed'>
+          EiN is under the MIT licence and built on open-source packages and fonts, each under its own:{' '}
+          <Anchor href='/public/licences.txt' target='_blank' size='xs'>third-party notices</Anchor>.
+        </Text>
       </Stack>
 
       {info
