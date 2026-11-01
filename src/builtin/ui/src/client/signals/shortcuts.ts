@@ -54,6 +54,11 @@ export const shortcutGroups = signal<{ id: number; group: string; entries: reado
 /** Whether the shortcut overlay is open; `?` opens it. */
 export const shortcutHelpOpen = signal(false);
 
+/** Open the shortcut overlay, as `?` does: for a page that names its keys rather than listing them. */
+export const openShortcutHelp = (): void => {
+  shortcutHelpOpen.value = true;
+};
+
 let nextId = 0;
 
 /** List `entries` under `group` until the returned function is called. */

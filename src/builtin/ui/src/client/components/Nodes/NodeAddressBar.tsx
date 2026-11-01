@@ -7,6 +7,8 @@ type NodeAddressBarProps = {
   path: string;
   /** The reader's home directory, for the Home button; absent until the user is known. */
   home?: string;
+  /** The folder Up stops at; `/` when left out. */
+  root?: string;
   onNavigate: (path: string) => void;
   onRefresh: () => void;
 };
@@ -18,7 +20,7 @@ type NodeAddressBarProps = {
  * and nothing has to be typed. The text field is for the path that is not on
  * screen, and it is the same box so the eye does not have to move.
  */
-export function NodeAddressBar({ path, home, onNavigate, onRefresh }: NodeAddressBarProps) {
+export function NodeAddressBar({ path, home, root = '/', onNavigate, onRefresh }: NodeAddressBarProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(path);
   const input = useRef<HTMLInputElement>(null);
@@ -42,7 +44,7 @@ export function NodeAddressBar({ path, home, onNavigate, onRefresh }: NodeAddres
   return (
     <Group gap={4} wrap='nowrap'>
       <Tooltip label='Up' withArrow>
-        <ActionIcon variant='subtle' color='gray' onClick={() => onNavigate(parentPath(path))} disabled={path === '/'} aria-label='Up'>
+        <ActionIcon variant='subtle' color='gray' onClick={() => onNavigate(parentPath(path))} disabled={path === root} aria-label='Up'>
           <IconArrowUp size={16} />
         </ActionIcon>
       </Tooltip>

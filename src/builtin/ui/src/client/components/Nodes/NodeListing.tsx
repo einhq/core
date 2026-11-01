@@ -50,6 +50,8 @@ type NodeListingProps = {
   onCurrent?: (current: NodesCurrent | null) => void;
   /** The selected rows' paths, whenever they change. */
   onSelection?: (paths: string[]) => void;
+  /** Delete and the context menu's Delete, given the selected paths, instead of the listing's own `rm` with its confirmation. */
+  onDelete?: (paths: string[]) => void;
   /** Properties, from Alt+Enter or the context menu. */
   onProperties: (path: string) => void;
   /** A row to select and give the keyboard once the listing has it, and the call that says it has. */
@@ -92,6 +94,7 @@ export function NodeListing(
     onCurrent,
     onSelection,
     onProperties,
+    onDelete,
     reveal,
     onRevealed,
   }: NodeListingProps,
@@ -289,8 +292,9 @@ export function NodeListing(
   const askDelete = useCallback(() => {
     const entries = selectedEntries();
     if (entries.length === 0) return;
+    if (onDelete) return onDelete(entries.map((item) => item.path));
     setDialog({ kind: 'delete', paths: entries.map((item) => item.path), nonEmpty: entries.filter((item) => item.entry.childCount > 0).length });
-  }, [selectedEntries]);
+  }, [selectedEntries, onDelete]);
 
   const askRename = useCallback(() => {
     if (writable && selection.length === 1) setRenaming(selection[0]);

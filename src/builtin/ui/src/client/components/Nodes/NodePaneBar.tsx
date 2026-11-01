@@ -9,6 +9,8 @@ import { NodeAddressBar } from './NodeAddressBar.tsx';
 
 type NodePaneBarProps = {
   path: string;
+  /** The folder it stays within, which Home goes to; the reader's home and `/` when left out. */
+  root?: string;
   onNavigate: (path: string) => void;
   view: ViewMode;
   onView: (view: ViewMode) => void;
@@ -31,7 +33,7 @@ const SORT_LABELS: Record<NodeSort['key'], string> = { name: 'Name', type: 'Type
  * view, whether dot names show, and — in the views without column names to
  * click — the sort.
  */
-export function NodePaneBar({ path, onNavigate, view, onView, showHidden, onShowHidden, sort, onSort }: NodePaneBarProps) {
+export function NodePaneBar({ path, root, onNavigate, view, onView, showHidden, onShowHidden, sort, onSort }: NodePaneBarProps) {
   useSignals();
   const user = currentUser.value;
 
@@ -40,7 +42,8 @@ export function NodePaneBar({ path, onNavigate, view, onView, showHidden, onShow
       <div style={{ flex: 1, minWidth: 0 }}>
         <NodeAddressBar
           path={path}
-          home={user ? homePath(user.username) : undefined}
+          home={root ?? (user ? homePath(user.username) : undefined)}
+          root={root}
           onNavigate={onNavigate}
           onRefresh={() => invalidateListing(path)}
         />

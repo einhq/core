@@ -25,8 +25,14 @@ export type NodeBrowserSubject = {
 };
 
 export type NodeBrowserProps = {
-  /** The directory it opens in. */
+  /** The directory it opens in; with `onNavigate`, the one it shows. */
   path: string;
+  /** Where going into a row, up or along the address takes it, for the caller to show; it moves by itself when left out. */
+  onNavigate?: (path: string) => void;
+  /** The folder it stays within: Up stops there, Home goes there, and a path outside it is not gone to. */
+  root?: string;
+  /** Delete and the context menu's Delete, given the selected paths, instead of `rm` after a confirmation. */
+  onDelete?: (paths: string[]) => void;
   view?: ViewMode;
   /** At the top of the side panel, above the current node: what acts on the selection. */
   actions?: (subject: NodeBrowserSubject) => ReactNode;
@@ -46,9 +52,10 @@ const STACKED = '(max-width: 48em)';
  *
  * It fills its parent, which must give it a height.
  */
-export function NodeBrowser({ path: start, view: startView = 'details', actions, details }: NodeBrowserProps) {
+export function NodeBrowser({ path: given, onNavigate, root, onDelete, view: startView = 'details', actions, details }: NodeBrowserProps) {
   const { names } = useIdentities();
-  const [path, setPath] = useState(start);
+  const [own, setOwn] = useState(given);
+  const path = onNavigate ? given : own;
   const [view, setView] = useState<ViewMode>(startView);
   const [sort, setSort] = useState<NodeSort>(DEFAULT_SORT);
   const [columns, setColumns] = useState(() => nodesWorkspace.value.columns);
@@ -61,8 +68,10 @@ export function NodeBrowser({ path: start, view: startView = 'details', actions,
   const row = useRef<HTMLDivElement>(null);
 
   const navigate = (to: string) => {
-    setPath(to);
+    if (root && to !== root && !to.startsWith(`${root === '/' ? '' : root}/`)) return;
     setCurrent(null);
+    if (onNavigate) onNavigate(to);
+    else setOwn(to);
   };
 
   const startResize = (event: ReactMouseEvent) => {
@@ -108,6 +117,7 @@ export function NodeBrowser({ path: start, view: startView = 'details', actions,
       <div className='mrx-node-pane' data-focused style={{ ...PANES, flexDirection: 'column', minHeight: 0, flex: 1 }}>
         <NodePaneBar
           path={path}
+          root={root}
           onNavigate={navigate}
           view={view}
           onView={setView}
@@ -130,6 +140,7 @@ export function NodeBrowser({ path: start, view: startView = 'details', actions,
           onCurrent={setCurrent}
           onSelection={setSelection}
           onProperties={setProperties}
+          onDelete={onDelete}
         />
       </div>
       {stacked ? <div style={{ display: 'flex', flex: '0 0 45%', minHeight: 0, borderTop: '1px solid var(--mantine-color-default-border)' }}>{side}</div> : (
