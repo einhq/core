@@ -16,7 +16,7 @@ import { NodeToolPane } from './NodeToolPane.tsx';
 export type NodeBrowserSubject = {
   /** The current row — the last to take the keyboard — or the directory when there is none. */
   path: string;
-  /** The current row's listing; absent for the directory. */
+  /** The node's listing, or its `stat` as one; absent until known. */
   entry?: NodeChildEntry;
   /** The directory listed. */
   directory: string;
@@ -78,9 +78,9 @@ export function NodeBrowser({ path: start, view: startView = 'details', actions,
     globalThis.addEventListener('mouseup', stop);
   };
 
-  const subjectOf = (shown: string): NodeBrowserSubject => ({
+  const subjectOf = (shown: string, entry?: NodeChildEntry): NodeBrowserSubject => ({
     path: shown,
-    entry: current?.path === shown ? current.entry : undefined,
+    entry: entry ?? (current?.path === shown ? current.entry : undefined),
     directory: path,
     selection,
   });
@@ -95,7 +95,7 @@ export function NodeBrowser({ path: start, view: startView = 'details', actions,
         names={names}
         onProperties={setProperties}
       >
-        {details && ((shown) => details(subjectOf(shown)))}
+        {details && ((shown, entry) => details(subjectOf(shown, entry)))}
       </NodeToolPane>
     </div>
   );

@@ -27,8 +27,8 @@ type NodeToolPaneProps = {
   names: Identities;
   /** The Properties button, for the node shown. */
   onProperties: (path: string) => void;
-  /** What stands below the node's name instead of the tool, given the settled path; the tool when it gives `undefined`. */
-  children?: (path: string) => ReactNode;
+  /** What stands below the node's name instead of the tool, given the node and its entry once known; the tool when it gives `undefined`. */
+  children?: (path: string, entry: NodeChildEntry | undefined) => ReactNode;
 };
 
 /**
@@ -56,17 +56,18 @@ export function NodeToolPane({ path, current, tool, names, onProperties, childre
   }, [parentVersion, refetch]);
 
   // The listing's entry when there is one, since it is already here and knows
-  // the child count; otherwise `stat` as an entry — the tab's own directory.
+  // the child count; otherwise `stat` as an entry — the tab's own directory —
+  // once it is this node's, not the one before it (a row just deleted or moved).
   const listed = current?.path === settled ? current.entry : undefined;
   const entry: NodeChildEntry | undefined = listed ??
-    (stat ? { node: stat.node as NodeChildEntry['node'], name: baseName(settled) || '/', childCount: -1 } : undefined);
+    (stat && statPath === settled ? { node: stat.node as NodeChildEntry['node'], name: baseName(settled) || '/', childCount: -1 } : undefined);
 
   // A module's tool is its route, given the row's path; one that is gone shows the preview.
   const panel = panelsOf('nodes.tools').find((each) => each.id === tool);
   const shown = panel || ['attributes', 'sharing'].includes(tool) ? tool : 'preview';
 
   const showProperties = () => onProperties(settled);
-  const custom = children?.(settled);
+  const custom = children?.(settled, entry);
   const own = custom === undefined;
 
   return (
@@ -96,7 +97,7 @@ export function NodeToolPane({ path, current, tool, names, onProperties, childre
         )}
         {loading && !stat && !entry && <Loader size='sm' />}
         {custom}
-        {own && shown === 'preview' && <NodePreview path={settled} entry={entry} stat={stat} names={names} />}
+        {own && shown === 'preview' && <NodePreview path={settled} entry={entry} stat={statPath === settled ? stat : null} names={names} />}
         {
           /* Only this node's own `stat`: the one before it stays while this loads, and saving that would write it here. */
         }
