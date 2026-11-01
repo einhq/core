@@ -2,14 +2,14 @@ import { ActionIcon, Alert, Group, Loader, Stack, Text, Tooltip } from '@mantine
 import { useDebouncedValue } from '@mantine/hooks';
 import { IconAlertTriangle, IconExternalLink, IconInfoCircle } from '@tabler/icons-react';
 import { useSignals } from '@preact/signals-react/runtime';
-import { useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import type { Identities } from '../../hooks/useIdentities.ts';
 import { useNodeStat } from '../../hooks/useNodeStat.ts';
 import type { NodeChildEntry } from '../../lib/node-entry.ts';
 import { baseName, parentPath } from '../../lib/node-path.ts';
 import type { NodeTool } from '../../lib/nodes-workspace.ts';
 import { panelRoute, panelsOf } from '../../signals/nav.ts';
-import { listingVersion, type NodesCurrent, nodesPropertiesPath, setNodesProperties } from '../../signals/nodes.ts';
+import { listingVersion, type NodesCurrent } from '../../signals/nodes.ts';
 import { RoutePanel } from '../Surface/SurfaceRouter.tsx';
 import { SharePanel } from '../Share/ShareModal.tsx';
 import { NodeAttributes } from './NodeAttributes.tsx';
@@ -25,6 +25,10 @@ type NodeToolPaneProps = {
   current: NodesCurrent | null;
   tool: NodeTool;
   names: Identities;
+  /** The Properties button, for the node shown. */
+  onProperties: (path: string) => void;
+  /** What stands below the node's name instead of the tool, given the settled path; the tool when it gives `undefined`. */
+  children?: (path: string) => ReactNode;
 };
 
 /**
@@ -36,7 +40,7 @@ type NodeToolPaneProps = {
  * node the tool is about, with its Open and Properties, and scrolls with the
  * rest.
  */
-export function NodeToolPane({ path, current, tool, names }: NodeToolPaneProps) {
+export function NodeToolPane({ path, current, tool, names, onProperties, children }: NodeToolPaneProps) {
   useSignals();
   const [settled] = useDebouncedValue(path, SETTLE_MS);
   const { stat, statPath, loading, error, refetch } = useNodeStat(settled);
@@ -61,10 +65,9 @@ export function NodeToolPane({ path, current, tool, names }: NodeToolPaneProps) 
   const panel = panelsOf('nodes.tools').find((each) => each.id === tool);
   const shown = panel || ['attributes', 'sharing'].includes(tool) ? tool : 'preview';
 
-  const showProperties = () => {
-    nodesPropertiesPath.value = settled;
-    setNodesProperties(true);
-  };
+  const showProperties = () => onProperties(settled);
+  const custom = children?.(settled);
+  const own = custom === undefined;
 
   return (
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', padding: 8, background: 'var(--mrx-surface-base)' }}>
@@ -92,13 +95,14 @@ export function NodeToolPane({ path, current, tool, names }: NodeToolPaneProps) 
           </Alert>
         )}
         {loading && !stat && !entry && <Loader size='sm' />}
-        {shown === 'preview' && <NodePreview path={settled} entry={entry} stat={stat} names={names} />}
+        {custom}
+        {own && shown === 'preview' && <NodePreview path={settled} entry={entry} stat={stat} names={names} />}
         {
           /* Only this node's own `stat`: the one before it stays while this loads, and saving that would write it here. */
         }
-        {shown === 'attributes' && <NodeAttributes key={settled} path={settled} stat={statPath === settled ? stat : null} refetch={refetch} />}
-        {panel && <RoutePanel path={panelRoute(panel, settled)} />}
-        {shown === 'sharing' && <SharePanel path={settled} enabled />}
+        {own && shown === 'attributes' && <NodeAttributes key={settled} path={settled} stat={statPath === settled ? stat : null} refetch={refetch} />}
+        {own && panel && <RoutePanel path={panelRoute(panel, settled)} />}
+        {own && shown === 'sharing' && <SharePanel path={settled} enabled />}
       </Stack>
     </div>
   );

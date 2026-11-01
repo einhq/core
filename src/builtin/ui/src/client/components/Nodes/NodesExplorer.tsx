@@ -95,7 +95,16 @@ export function NodesExplorer() {
           <>
             <div onMouseDown={startToolsResize} role='separator' aria-orientation='vertical' aria-label='Resize tools' style={separator(true)} />
             <div style={toolsColumn(workspace.tools.width)}>
-              <NodeToolPane path={subject} current={current} tool={workspace.tools.tool} names={names} />
+              <NodeToolPane
+                path={subject}
+                current={current}
+                tool={workspace.tools.tool}
+                names={names}
+                onProperties={(path) => {
+                  nodesPropertiesPath.value = path;
+                  setNodesProperties(true);
+                }}
+              />
             </div>
           </>
         )}
