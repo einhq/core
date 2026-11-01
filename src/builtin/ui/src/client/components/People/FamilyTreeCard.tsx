@@ -13,12 +13,13 @@ const BULGE_WIDTH = 34;
 /** Which way a card's family is expanded: towards its parents or its children. */
 export type FamilyDirection = 'up' | 'down';
 
-/** A date's year as a card shows it: `~1948` about then, `before 1948`, `after 1948`, else `1948`. */
+/** A date's year as a card has room for it: `~1948` about then, `<1948` before, `>1948` after, else `1948`. */
 const year = (date: string | undefined, qualifier: string | undefined): string | undefined => {
   const y = date?.slice(0, 4);
   if (!y) return undefined;
   if (qualifier === 'about') return `~${y}`;
-  if (qualifier === 'before' || qualifier === 'after') return `${qualifier} ${y}`;
+  if (qualifier === 'before') return `<${y}`;
+  if (qualifier === 'after') return `>${y}`;
   return y;
 };
 
