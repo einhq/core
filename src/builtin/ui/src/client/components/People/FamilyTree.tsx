@@ -169,6 +169,16 @@ export type FamilyTreeProps = {
    * place and expand bulges stay the tree's.
    */
   renderCard?: (node: FamilyNode) => ReactNode;
+  /**
+   * Take the parent's whole height, edge to edge, rather than a box sized to the family: for a page
+   * that is the tree, its parent a flex column. Full screen is then not offered.
+   */
+  fill?: boolean;
+  /**
+   * Room at the right and the bottom the drawing keeps clear, for a panel floating over it: fitting
+   * and centring use the rest, and the controls stand left of the right inset.
+   */
+  inset?: { right?: number; bottom?: number };
 };
 
 /**
@@ -182,6 +192,7 @@ export function FamilyTree(props: FamilyTreeProps) {
   const [screen, setScreen] = useState(false);
   const rootName = props.graph ? props.graph.nodes[props.graph.root]?.name : undefined;
 
+  if (props.fill) return <FamilyDrawing {...props} fill />;
   return (
     <>
       <FamilyDrawing {...props} fill={false} onScreen={() => setScreen(true)} />
@@ -226,14 +237,32 @@ type FamilyDrawingProps = FamilyTreeProps & {
  * portalled outside the box.
  */
 function FamilyDrawing(
-  { graph, loading, expanded, expanding, onExpand, onCollapse, onAddRelation, onRemoveRelation, editable = true, emptyMessage, fit = false, renderCard, fill, onScreen }:
-    FamilyDrawingProps,
+  {
+    graph,
+    loading,
+    expanded,
+    expanding,
+    onExpand,
+    onCollapse,
+    onAddRelation,
+    onRemoveRelation,
+    editable = true,
+    emptyMessage,
+    fit = false,
+    renderCard,
+    fill,
+    inset,
+    onScreen,
+  }: FamilyDrawingProps,
 ) {
   const layout = useMemo(() => (graph ? layoutFamily(graph) : null), [graph]);
   const root = graph?.root;
 
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
+  /** The room the drawing is placed in: the box without the inset. */
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
+  const insetRight = inset?.right ?? 0;
+  const insetBottom = inset?.bottom ?? 0;
   const [view, setViewState] = useState<View | null>(null);
   const [fitted, setFitted] = useState(fit);
   const [dragging, setDragging] = useState(false);
@@ -328,10 +357,12 @@ function FamilyDrawing(
 
   useEffect(() => {
     if (!viewport) return;
-    const observer = new ResizeObserver(() => setSize({ width: viewport.clientWidth, height: viewport.clientHeight }));
+    const measure = () => setSize({ width: Math.max(0, viewport.clientWidth - insetRight), height: Math.max(0, viewport.clientHeight - insetBottom) });
+    const observer = new ResizeObserver(measure);
     observer.observe(viewport);
+    measure();
     return () => observer.disconnect();
-  }, [viewport]);
+  }, [viewport, insetRight, insetBottom]);
 
   /** The card whose expand was asked for last, which stays put while the drawing grows round it. */
   const anchorPath = useRef<string | null>(null);
@@ -639,7 +670,7 @@ function FamilyDrawing(
           background: 'var(--mrx-surface-base)',
         }}
       >
-        <HatGround width={size.width} height={size.height} seed={`family:${graph.root}`} />
+        <HatGround width={size.width + insetRight} height={size.height + insetBottom} seed={`family:${graph.root}`} />
         {litFamily && (
           <style>
             {`${litFamily.people.map((path) => `#${scope} [data-person="${CSS.escape(path)}"]`).join(', ')} { outline: 2px solid ${LIT}; outline-offset: 1px; }`}
@@ -675,7 +706,7 @@ function FamilyDrawing(
         /* The controls stand on the drawing in its corner, as a map's do, and
           outside the box's own listeners so pressing one never starts a drag. */
       }
-      <Stack gap={8} style={{ position: 'absolute', top: 8, right: 8, zIndex: 2 }}>
+      <Stack gap={8} style={{ position: 'absolute', top: 8, right: 8 + insetRight, zIndex: 2 }}>
         {onScreen && (
           <Tooltip label={fill ? 'Leave full screen' : 'Full screen'} position='left'>
             <ActionIcon variant='filled' color='dark' size={CONTROL_SIZE} onClick={onScreen} aria-label={fill ? 'Leave full screen' : 'Show the family tree full screen'}>
