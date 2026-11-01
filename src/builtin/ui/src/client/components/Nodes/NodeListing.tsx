@@ -184,6 +184,18 @@ export function NodeListing(
     if (shown.length !== tree.selectedState.length) tree.setSelectedState(shown);
   }, [showHidden]);
 
+  // Rows that have gone — moved or deleted, from here or elsewhere — leave the
+  // selection, where a delete, a cut or a caller's action would still take them.
+  // Only a listing that is here and lacks the row says so; one being read again says nothing.
+  useEffect(() => {
+    const gone = (at: string) => {
+      const listing = entriesOf(parentPath(at));
+      return listing !== undefined && !listing.some((entry) => entry.name === baseName(at));
+    };
+    const kept = tree.selectedState.filter((at) => !gone(at));
+    if (kept.length !== tree.selectedState.length) tree.setSelectedState(kept);
+  }, [data]);
+
   // The row the tool pane is about: the last one to take the keyboard, which a
   // click does too, so arrowing through the tree previews as it goes. With the
   // selection cleared, it is the tab's directory again.
