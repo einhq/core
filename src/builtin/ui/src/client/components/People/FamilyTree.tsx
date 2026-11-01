@@ -1,8 +1,8 @@
 import { ActionIcon, Box, Loader, Stack, Text, Tooltip } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconFocusCentered, IconMaximize, IconMinimize, IconZoomScan } from '@tabler/icons-react';
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, layoutFamily } from '../../lib/family-layout.ts';
+import { memo, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, type FamilyNode, layoutFamily } from '../../lib/family-layout.ts';
 import { layoutHatField } from '../../lib/hat-field.ts';
 import { type FamilyDirection, FamilyTreeCard } from './FamilyTreeCard.tsx';
 import { Dialog } from '../Surface/Dialog.tsx';
@@ -163,6 +163,12 @@ export type FamilyTreeProps = {
   emptyMessage?: string;
   /** Start zoomed so the whole family fits the box, instead of at full size centred on the person. */
   fit?: boolean;
+  /**
+   * Draws the inside of a person's card, in place of the portrait, the name linking to their page
+   * and the relations menu: for a tree of people who are not all the archive's. The card's box,
+   * place and expand bulges stay the tree's.
+   */
+  renderCard?: (node: FamilyNode) => ReactNode;
 };
 
 /**
@@ -220,7 +226,7 @@ type FamilyDrawingProps = FamilyTreeProps & {
  * portalled outside the box.
  */
 function FamilyDrawing(
-  { graph, loading, expanded, expanding, onExpand, onCollapse, onAddRelation, onRemoveRelation, editable = true, emptyMessage, fit = false, fill, onScreen }:
+  { graph, loading, expanded, expanding, onExpand, onCollapse, onAddRelation, onRemoveRelation, editable = true, emptyMessage, fit = false, renderCard, fill, onScreen }:
     FamilyDrawingProps,
 ) {
   const layout = useMemo(() => (graph ? layoutFamily(graph) : null), [graph]);
@@ -590,12 +596,13 @@ function FamilyDrawing(
               editable={editable}
               onAddRelation={(kind) => onAddRelation(card.path, kind)}
               onRemoveRelation={() => onRemoveRelation(card.path)}
+              content={renderCard?.(node)}
             />
           );
         })}
       </>
     );
-  }, [graph, layout, expanded, expanding, editable, onExpand, onCollapse, onAddRelation, onRemoveRelation]);
+  }, [graph, layout, expanded, expanding, editable, onExpand, onCollapse, onAddRelation, onRemoveRelation, renderCard]);
 
   if (loading && !layout) {
     return <PageLoader label='Loading family tree…' />;

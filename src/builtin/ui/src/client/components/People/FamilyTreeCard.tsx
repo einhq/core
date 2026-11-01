@@ -1,5 +1,6 @@
 import { ActionIcon, Box, Group, Loader, Menu, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconChevronDown, IconChevronUp, IconDots, IconHeartPlus, IconUser, IconUserMinus, IconUserPlus } from '@tabler/icons-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CARD_HEIGHT, CARD_WIDTH, type FamilyNode } from '../../lib/family-layout.ts';
 import { openRoute } from '../../signals/module-ui.ts';
@@ -41,6 +42,8 @@ export type FamilyTreeCardProps = {
   onCollapse?: (direction: FamilyDirection) => void;
   onAddRelation: (kind: 'parent' | 'partner' | 'child') => void;
   onRemoveRelation: () => void;
+  /** Drawn inside the card instead of the portrait, the name and the relations menu. */
+  content?: ReactNode;
 };
 
 /**
@@ -55,7 +58,8 @@ export type FamilyTreeCardProps = {
  * buttons are also the answer to "is this branch finished".
  */
 export function FamilyTreeCard(
-  { node, x, y, isRoot, moreParents, moreChildren, expanding, editable, onExpand, collapsible = [], onCollapse, onAddRelation, onRemoveRelation }: FamilyTreeCardProps,
+  { node, x, y, isRoot, moreParents, moreChildren, expanding, editable, onExpand, collapsible = [], onCollapse, onAddRelation, onRemoveRelation, content }:
+    FamilyTreeCardProps,
 ) {
   const span = lifeSpan(node);
 
@@ -103,56 +107,58 @@ export function FamilyTreeCard(
           />
         )}
 
-      <Group wrap='nowrap' gap='xs' pr={6} align='center' h='100%'>
-        {
-          /* The portrait is the card's full height, flush to its left edge — the
+      {content ?? (
+        <Group wrap='nowrap' gap='xs' pr={6} align='center' h='100%'>
+          {
+            /* The portrait is the card's full height, flush to its left edge — the
             face is what finds a person in a tree, and at this height a round
             avatar inside padding would be a thumbnail. Its own clip, because the
             card cannot clip: the expand bulges stand out of its edges. */
-        }
-        <Box
-          style={{
-            flex: 'none',
-            alignSelf: 'stretch',
-            overflow: 'hidden',
-            borderRadius: 'calc(var(--mantine-radius-md) - 1px) 0 0 calc(var(--mantine-radius-md) - 1px)',
-          }}
-        >
-          <CoverAvatar path={node.path} alt={node.name} size={CARD_HEIGHT - 2} radius={0} fallback={<IconUser size={24} />} />
-        </Box>
-
-        <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            component={Link}
-            to={openRoute('person', node.path) ?? '#'}
-            fz={13}
-            lh={1.25}
-            fw={isRoot ? 700 : 500}
-            lineClamp={2}
-            style={{ textDecoration: 'none', color: 'inherit' }}
+          }
+          <Box
+            style={{
+              flex: 'none',
+              alignSelf: 'stretch',
+              overflow: 'hidden',
+              borderRadius: 'calc(var(--mantine-radius-md) - 1px) 0 0 calc(var(--mantine-radius-md) - 1px)',
+            }}
           >
-            {node.name}
-          </Text>
-          {span && <Text fz={11} c='dimmed' mt={2}>{span}</Text>}
-        </Stack>
+            <CoverAvatar path={node.path} alt={node.name} size={CARD_HEIGHT - 2} radius={0} fallback={<IconUser size={24} />} />
+          </Box>
 
-        {editable && (
-          <Menu position='bottom-end' withinPortal>
-            <Menu.Target>
-              <ActionIcon size='sm' variant='subtle' color='gray' aria-label={`Edit ${node.name}'s relations`}>
-                <IconDots size={14} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={() => onAddRelation('parent')}>Add parent</Menu.Item>
-              <Menu.Item leftSection={<IconHeartPlus size={14} />} onClick={() => onAddRelation('partner')}>Add partner</Menu.Item>
-              <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={() => onAddRelation('child')}>Add child</Menu.Item>
-              <Menu.Divider />
-              <Menu.Item leftSection={<IconUserMinus size={14} />} color='red' onClick={onRemoveRelation}>Remove a relation…</Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        )}
-      </Group>
+          <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              component={Link}
+              to={openRoute('person', node.path) ?? '#'}
+              fz={13}
+              lh={1.25}
+              fw={isRoot ? 700 : 500}
+              lineClamp={2}
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              {node.name}
+            </Text>
+            {span && <Text fz={11} c='dimmed' mt={2}>{span}</Text>}
+          </Stack>
+
+          {editable && (
+            <Menu position='bottom-end' withinPortal>
+              <Menu.Target>
+                <ActionIcon size='sm' variant='subtle' color='gray' aria-label={`Edit ${node.name}'s relations`}>
+                  <IconDots size={14} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={() => onAddRelation('parent')}>Add parent</Menu.Item>
+                <Menu.Item leftSection={<IconHeartPlus size={14} />} onClick={() => onAddRelation('partner')}>Add partner</Menu.Item>
+                <Menu.Item leftSection={<IconUserPlus size={14} />} onClick={() => onAddRelation('child')}>Add child</Menu.Item>
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconUserMinus size={14} />} color='red' onClick={onRemoveRelation}>Remove a relation…</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
+        </Group>
+      )}
     </Box>
   );
 }

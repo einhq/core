@@ -25,7 +25,7 @@ export * from './code-language.ts';
 export * from './login-return.ts';
 export { isTablerName, loadIcon, preloadIcons } from './tabler-icons.ts';
 export type { NodeChildEntry } from './node-entry.ts';
-export { type FamilyGraph } from './family-layout.ts';
+export { type FamilyGraph, type FamilyNode } from './family-layout.ts';
 export { isDirectory, isMediaFile, transformToDirectory, typeFromPath } from './node-entry.ts';
 export { albumDates, type DatedAlbumAttrs } from './album-dates.ts';
 export { lightboxPathFromSearch, lightboxRoute, withLightboxSearch } from './lightbox-route.ts';

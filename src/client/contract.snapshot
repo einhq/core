@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.7.2
+MODULE_API_VERSION 0.7.3
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -47,9 +47,9 @@ src/builtin/ui/src/client/components/mod.ts ExploreRow 40e9de491874 @signature=0
 src/builtin/ui/src/client/components/mod.ts ExploreSection b9d16150d86a @signature=68af475426bf,children=f8549eefbbf8,icon=e19ec288ae0e,title=ba1f3813786d,to=719a16ee34d7
 src/builtin/ui/src/client/components/mod.ts FamilyDirection a7a40c284c87
 src/builtin/ui/src/client/components/mod.ts FamilyTree 104408ad2b5a
-src/builtin/ui/src/client/components/mod.ts FamilyTreeCard d3ab9d1dbc67 @signature=beaa1bd98652,collapsible=c20771877346,editable=f8e749d0f585,expanding=fd926a5fd634,isRoot=b7bd54e45f50,moreChildren=75f675163810,moreParents=b163de0680b1,node=aa1a07b9f75e,onAddRelation=11726aca3478,onCollapse=4fbb3fce4981,onExpand=721ed2d002fa,onRemoveRelation=2d3648c55f12,x=2c7d232de845,y=57bea54fa2f9
-src/builtin/ui/src/client/components/mod.ts FamilyTreeCardProps 5036cfc309a6 collapsible=52c85e5c71ff,editable=c63768a458a6,expanding=e452c1bef1b7,isRoot=17cf855b100e,moreChildren=bc5de741a576,moreParents=454397dcaaf7,node=75342e9b348c,onAddRelation=1ee15d712b8f,onCollapse=63b6291addb6,onExpand=25dcf0047a97,onRemoveRelation=f8f352013b40,x=d0b937254e19,y=9df0ea69c6d9
-src/builtin/ui/src/client/components/mod.ts FamilyTreeProps 60d8637b39b0 editable=b8a24564a694,emptyMessage=7edc9ebf14a9,expanded=dd4070259c22,expanding=bcd754b02290,fit=811db48a83a6,graph=b51161be21c9,loading=6ab16fe49a65,onAddRelation=ae2e93ee14f5,onCollapse=ad71b5cc14d4,onExpand=984751eaf726,onRemoveRelation=75c6928c08eb
+src/builtin/ui/src/client/components/mod.ts FamilyTreeCard d9199dbd893f @signature=beaa1bd98652,collapsible=c20771877346,content=8ac8fea942e2,editable=f8e749d0f585,expanding=fd926a5fd634,isRoot=b7bd54e45f50,moreChildren=75f675163810,moreParents=b163de0680b1,node=aa1a07b9f75e,onAddRelation=11726aca3478,onCollapse=4fbb3fce4981,onExpand=721ed2d002fa,onRemoveRelation=2d3648c55f12,x=2c7d232de845,y=57bea54fa2f9
+src/builtin/ui/src/client/components/mod.ts FamilyTreeCardProps ee6d95b0c464 collapsible=52c85e5c71ff,content=0046d67893e8,editable=c63768a458a6,expanding=e452c1bef1b7,isRoot=17cf855b100e,moreChildren=bc5de741a576,moreParents=454397dcaaf7,node=75342e9b348c,onAddRelation=1ee15d712b8f,onCollapse=63b6291addb6,onExpand=25dcf0047a97,onRemoveRelation=f8f352013b40,x=d0b937254e19,y=9df0ea69c6d9
+src/builtin/ui/src/client/components/mod.ts FamilyTreeProps 0638749043f4 editable=b8a24564a694,emptyMessage=7edc9ebf14a9,expanded=dd4070259c22,expanding=bcd754b02290,fit=811db48a83a6,graph=b51161be21c9,loading=6ab16fe49a65,onAddRelation=ae2e93ee14f5,onCollapse=ad71b5cc14d4,onExpand=984751eaf726,onRemoveRelation=75c6928c08eb,renderCard=d2afc79d7164
 src/builtin/ui/src/client/components/mod.ts FileStorageGrowth 8db90392d3f1 @signature=4816e57e7841,files=47024c713a0c
 src/builtin/ui/src/client/components/mod.ts FormField e0cb314fbe8f description=644be3c4d4da,half=1a81a9880c35,key=fdb05a1ff54c,label=af04505f402e,options=80f054594672,placeholder=ceab9a4efe5b,required=e33495947f08,searchable=8b4a5d52edac,type=1e80601a9353
 src/builtin/ui/src/client/components/mod.ts FormFieldType a374e91a93ae
@@ -395,6 +395,7 @@ src/builtin/ui/src/client/lib/mod.ts EntityKind bea8bba4fbc5
 src/builtin/ui/src/client/lib/mod.ts EntityKindStyle 574c06517e1f color=a71a40934adf,icon=999ce76ad2a6,label=af04505f402e
 src/builtin/ui/src/client/lib/mod.ts FILE_KINDS e59c52657c7b
 src/builtin/ui/src/client/lib/mod.ts FamilyGraph 1ee06f9f94c2 nodes=2e2268994de0,root=065cd6568225
+src/builtin/ui/src/client/lib/mod.ts FamilyNode 99cbf4db623e born=750fdfc93149,childCount=6c573ebdd234,children=129e89216a24,died=455fdbbe44b8,fullname=75a996d1b3b6,gender=64b782cb3e05,name=6d0c36381511,parentCount=09c95b801b74,parents=1ebb614f6c90,partners=194295fa0f74,path=3fd20668ef6e
 src/builtin/ui/src/client/lib/mod.ts FlatAttr bf88b2d1be57 key=fdb05a1ff54c,value=f1318c9b28fe
 src/builtin/ui/src/client/lib/mod.ts GRID_KEYS f07881348eb9
 src/builtin/ui/src/client/lib/mod.ts GeoBounds fa41bfcc8bfd east=fb4ff6c4ec0a,north=31b6f63818f1,south=0330942ce773,west=21744fa5482d
