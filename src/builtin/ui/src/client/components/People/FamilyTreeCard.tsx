@@ -13,10 +13,19 @@ const BULGE_WIDTH = 34;
 /** Which way a card's family is expanded: towards its parents or its children. */
 export type FamilyDirection = 'up' | 'down';
 
-/** `1948 – 2011`, `b. 1948`, `d. 2011`, or nothing. */
-export function lifeSpan(node: Pick<FamilyNode, 'born' | 'died'>): string | undefined {
-  const born = node.born?.slice(0, 4);
-  const died = node.died?.slice(0, 4);
+/** A date's year as a card shows it: `~1948` about then, `before 1948`, `after 1948`, else `1948`. */
+const year = (date: string | undefined, qualifier: string | undefined): string | undefined => {
+  const y = date?.slice(0, 4);
+  if (!y) return undefined;
+  if (qualifier === 'about') return `~${y}`;
+  if (qualifier === 'before' || qualifier === 'after') return `${qualifier} ${y}`;
+  return y;
+};
+
+/** `1948 – 2011`, `b. 1948`, `d. 2011`, or nothing; an uncertain year as `year` shows it. */
+export function lifeSpan(node: Pick<FamilyNode, 'born' | 'died' | 'bornQualifier' | 'diedQualifier'>): string | undefined {
+  const born = year(node.born, node.bornQualifier);
+  const died = year(node.died, node.diedQualifier);
   if (born && died) return `${born} – ${died}`;
   if (born) return `b. ${born}`;
   if (died) return `d. ${died}`;

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.7.3
+MODULE_API_VERSION 0.7.4
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -208,7 +208,7 @@ src/builtin/ui/src/client/components/mod.ts envAnchor b73d3a4d54b6
 src/builtin/ui/src/client/components/mod.ts formatRange 54ee524268a6
 src/builtin/ui/src/client/components/mod.ts hasPills 87e1a484c09f
 src/builtin/ui/src/client/components/mod.ts highlightRanges 247885687552
-src/builtin/ui/src/client/components/mod.ts lifeSpan 5f0524cc0ed3
+src/builtin/ui/src/client/components/mod.ts lifeSpan 0b49dd08cb70
 src/builtin/ui/src/client/components/mod.ts moduleRoute f9969fb62c83
 src/builtin/ui/src/client/components/mod.ts nodeTypeAnchor 3c392a124ac5
 src/builtin/ui/src/client/components/mod.ts nodeTypeColor 3c392a124ac5
@@ -395,7 +395,7 @@ src/builtin/ui/src/client/lib/mod.ts EntityKind bea8bba4fbc5
 src/builtin/ui/src/client/lib/mod.ts EntityKindStyle 574c06517e1f color=a71a40934adf,icon=999ce76ad2a6,label=af04505f402e
 src/builtin/ui/src/client/lib/mod.ts FILE_KINDS e59c52657c7b
 src/builtin/ui/src/client/lib/mod.ts FamilyGraph 1ee06f9f94c2 nodes=2e2268994de0,root=065cd6568225
-src/builtin/ui/src/client/lib/mod.ts FamilyNode 99cbf4db623e born=750fdfc93149,childCount=6c573ebdd234,children=129e89216a24,died=455fdbbe44b8,fullname=75a996d1b3b6,gender=64b782cb3e05,name=6d0c36381511,parentCount=09c95b801b74,parents=1ebb614f6c90,partners=194295fa0f74,path=3fd20668ef6e
+src/builtin/ui/src/client/lib/mod.ts FamilyNode 93c91618020f born=750fdfc93149,bornQualifier=1ed8a4f25a5a,childCount=6c573ebdd234,children=129e89216a24,died=455fdbbe44b8,diedQualifier=c51140bedde2,fullname=75a996d1b3b6,gender=64b782cb3e05,name=6d0c36381511,parentCount=09c95b801b74,parents=1ebb614f6c90,partners=194295fa0f74,path=3fd20668ef6e
 src/builtin/ui/src/client/lib/mod.ts FlatAttr bf88b2d1be57 key=fdb05a1ff54c,value=f1318c9b28fe
 src/builtin/ui/src/client/lib/mod.ts GRID_KEYS f07881348eb9
 src/builtin/ui/src/client/lib/mod.ts GeoBounds fa41bfcc8bfd east=fb4ff6c4ec0a,north=31b6f63818f1,south=0330942ce773,west=21744fa5482d

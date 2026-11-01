@@ -31,6 +31,9 @@ export type FamilyNode = {
   gender?: string;
   born?: string;
   died?: string;
+  /** How sure `born` and `died` are: `about`, `before` or `after` that date; absent when exact. */
+  bornQualifier?: 'about' | 'before' | 'after';
+  diedQualifier?: 'about' | 'before' | 'after';
   /** Drawn parents — always a subset of `parentCount`. */
   parents: string[];
   children: string[];
