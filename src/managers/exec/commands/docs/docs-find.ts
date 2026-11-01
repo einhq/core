@@ -44,7 +44,7 @@ export const docsFind = async (cmd: Command): CmdReturn => {
   const limit = flags.limit !== undefined ? Number(flags.limit) : undefined;
 
   let answer: CommandFind;
-  // Read now rather than from this shell's environment: the web UI's shell outlives a settings change.
+  // Read now rather than from this shell's environment: the Web UI's shell outlives a settings change.
   const finder = (await readSettings(cmd, cmd.access, { user: false })).CFG_COMMAND_FINDER?.trim();
   if (finder) {
     const run = await cmd.execute(`JSON_OUTPUT=1 ${finder} find ${shq(words)}${limit !== undefined && limit > 0 ? ` --limit ${limit}` : ''}`);

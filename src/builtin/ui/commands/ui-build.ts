@@ -68,7 +68,7 @@ export const uiBuild = async (cmd: Command): CmdReturn => {
 uiBuild.spec = {
   name: 'ui-build',
   effect: 'write' as const,
-  description: "Bundle modules' pages into /var/cache/ui for the web UI to load, unless unchanged since the last build",
+  description: "Bundle modules' pages into /var/cache/ui for the Web UI to load, unless unchanged since the last build",
   args: [{ name: 'module', type: 'string' as const, description: 'Module to build; repeatable', variadic: true }],
   flags: [{ name: 'all', type: 'bool' as const, description: 'Every installed module with pages, and forget the bundles of those gone' }],
 };

@@ -419,7 +419,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   detach,
   nohup,
 
-  // The web UI: its navigation, its icons and the modules' pages
+  // The Web UI: its navigation, its icons and the modules' pages
   uiBuild,
   uiIcons,
   uiNav,

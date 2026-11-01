@@ -1,5 +1,5 @@
 /**
- * who — who is signed in: each SSH login, terminal panel and web UI connection, the address it
+ * who — who is signed in: each SSH login, terminal panel and Web UI connection, the address it
  * connects from, when it opened, how long since its last input, and what it runs now.
  *
  * Read from the shells this process has open. A service's shell and a command run over SSH are
@@ -100,7 +100,7 @@ who.spec = {
   name: 'who',
   effect: 'read' as const,
   description:
-    "List who is signed in: each SSH login, terminal and web UI connection, the address it connects from, its idle time and what it runs. Admin sees everyone's, anyone else their own",
+    "List who is signed in: each SSH login, terminal and Web UI connection, the address it connects from, its idle time and what it runs. Admin sees everyone's, anyone else their own",
   args: [],
   flags: [],
   returns: 'One row per open session, oldest first',

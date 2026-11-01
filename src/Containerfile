@@ -1,6 +1,6 @@
 # EiN container
 #
-# The primary instance: Deno, core and its web interface, built in. Nothing else. The modules are
+# The primary instance: Deno, core and its Web UI, built in. Nothing else. The modules are
 # the deployment's: it mounts them at DEV_MODULES_PATH (empty here, so the image boots without any),
 # and `mod install` puts the ones it fetches in MODULE_INSTALL_PATH, a folder of the host's mounted
 # read-write so they outlive the container (unmounted, /app/modules-installed, gone with it). Every

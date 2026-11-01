@@ -1,5 +1,5 @@
 #!bash
-arg --desc "Manage active web UI"
+arg --desc "Manage active Web UI"
 arg --effect read
 arg --writes command set
 arg '<command>' string "Command: list, active, set, reset"

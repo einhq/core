@@ -24,7 +24,7 @@ export const parseSearch = async (cmd: Command): CmdReturn => {
     return 2;
   }
 
-  // Read now rather than from this shell's environment: the web UI's shell outlives a settings change.
+  // Read now rather than from this shell's environment: the Web UI's shell outlives a settings change.
   const parser = (await readSettings(cmd, cmd.access, { user: false })).CFG_SEARCH_PARSER?.trim();
   let answer = asWords(text);
   if (parser) {

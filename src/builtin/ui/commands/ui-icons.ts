@@ -54,7 +54,7 @@ export const uiIcons = async (cmd: Command): CmdReturn => {
 uiIcons.spec = {
   name: 'ui-icons',
   effect: 'read' as const,
-  description: 'Tabler icons by name, as SVG markup, for the web UI',
+  description: 'Tabler icons by name, as SVG markup, for the Web UI',
   args: [{ name: 'name', type: 'string' as const, description: 'Icon name: map-pin, heart-filled', variadic: true }],
   flags: [],
 };

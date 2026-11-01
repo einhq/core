@@ -223,7 +223,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: 'false',
     label: 'Visitors may browse',
     description:
-      "Whether someone who has not signed in may browse the archive as the guest, seeing what is shared with visitors, rather than being asked to sign in. Off, the guest can only sign in or open a share link, in the web interface and through the API alike. Only on does the assistant's language model answer them. Off for a family's own archive; on for a public demo.",
+      "Whether someone who has not signed in may browse the archive as the guest, seeing what is shared with visitors, rather than being asked to sign in. Off, the guest can only sign in or open a share link, in the Web UI and through the API alike. Only on does the assistant's language model answer them. Off for a family's own archive; on for a public demo.",
     group: 'Users and sharing',
   },
 

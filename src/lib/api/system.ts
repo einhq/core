@@ -47,7 +47,7 @@ export type SystemInfo = {
 
 /**
  * Where a shell's input comes from: an SSH login, a command run over SSH, the UI's terminal
- * panel, the web UI's own connection, a service, or the instance itself.
+ * panel, the Web UI's own connection, a service, or the instance itself.
  */
 export type ShellOrigin = 'ssh' | 'ssh-exec' | 'terminal' | 'web' | 'service' | 'system';
 
@@ -72,7 +72,7 @@ export type ProcessEntry = {
   cwd: string;
 };
 
-/** One row of `who`: an open session — an SSH login, a terminal panel or a web UI connection. */
+/** One row of `who`: an open session — an SSH login, a terminal panel or a Web UI connection. */
 export type SessionEntry = {
   tty: string;
   origin: Extract<ShellOrigin, 'ssh' | 'terminal' | 'web'>;

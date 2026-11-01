@@ -25,7 +25,7 @@ export const userWhoami = async (cmd: Command): CmdReturn => {
     const personLink = await cmd.sys.vfs.get(cmd.access, `${cmd.env.USERS_PATH}/${userEntry.name}/person`, { follow: false }).catch(() => undefined);
     const personPath = personLink?.props.softlink || undefined;
 
-    // What the session's share links open, so the web UI lets a visitor without an account there.
+    // What the session's share links open, so the Web UI lets a visitor without an account there.
     const links = await heldShareLinks(cmd);
 
     // Read as the administrator: someone added to `sudo` since signing in may not list it yet.
@@ -47,7 +47,7 @@ export const userWhoami = async (cmd: Command): CmdReturn => {
             gids: cmd.access.gids,
             elevated: cmd.access.elevated === true,
             mayElevate,
-            // Whether visitors who have not signed in browse: the web UI lets the guest in on it, and
+            // Whether visitors who have not signed in browse: the Web UI lets the guest in on it, and
             // tells a signed-in reader whether what visitors are granted is public.
             guestBrowsing: await guestMayBrowse(cmd.sys.vfs),
             ...(links.length > 0 ? { links } : {}),

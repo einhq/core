@@ -680,7 +680,7 @@ export class Shell implements TtyIf {
    * `$HOME/.config` and `HOME` only becomes the right one once we know who is
    * signed in, and the groups are the account's. Without the second pass a
    * personal setting would apply to an SSH session (whose shell is constructed
-   * after authentication) but not to the web UI, whose shell opens as guest on
+   * after authentication) but not to the Web UI, whose shell opens as guest on
    * connect and logs in afterwards.
    */
   private async sourceBashrc(timer?: StepTimer): Promise<void> {
@@ -709,7 +709,7 @@ export class Shell implements TtyIf {
 
   /**
    * Source /etc/bashrc again when it or a layer it sources has changed since
-   * it was last sourced, so a long-lived shell — a service's, the web UI's —
+   * it was last sourced, so a long-lived shell — a service's, the Web UI's —
    * runs its next command with the settings as they are now.
    *
    * Every setting is cleared first, so one the files no longer hold falls

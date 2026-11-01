@@ -1,5 +1,5 @@
 /**
- * The web UI's navigation — the sidebar and the top bar — as configuration.
+ * The Web UI's navigation — the sidebar and the top bar — as configuration.
  *
  * Every module may ship a fragment, `ui/nav.json`, which `mod setup` links into
  * `/etc/ui/nav.d/<module>.json`. The administrator's `/etc/ui/nav.json`, a group's

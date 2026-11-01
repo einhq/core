@@ -1,6 +1,6 @@
 name: image
 
-# EiN's image, core with its web interface built in (src/Containerfile), published for the installer
+# EiN's image, core with its Web UI built in (src/Containerfile), published for the installer
 # to pull: ghcr.io/einhq/core:main is main as of the last build, :sha-<commit> each commit built.
 # Built once a day when main has moved since (ein/core#835), and at once when run by hand.
 on:
@@ -70,7 +70,7 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.description=EiN with its web interface: run by compose from ein/deploy
+            org.opencontainers.image.description=EiN with its Web UI: run by compose from ein/deploy
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha
           cache-to: type=gha,mode=max

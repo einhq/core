@@ -91,7 +91,7 @@ export const uiNav = async (cmd: Command): CmdReturn => {
 uiNav.spec = {
   name: 'ui-nav',
   effect: 'read' as const,
-  description: "The web UI's sidebar, top bar and panels for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
+  description: "The Web UI's sidebar, top bar and panels for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
   args: [],
   flags: [],
 };

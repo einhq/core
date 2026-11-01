@@ -19,7 +19,7 @@ const SECTIONS: { kind: Kind; title: string; intro: string; showValue: boolean }
   {
     kind: 'session',
     title: 'Your session',
-    intro: 'Set for every shell you open, in the terminal panel, over SSH, and for each command the web interface runs. The values are the ones your shell has now.',
+    intro: 'Set for every shell you open, in the terminal panel, over SSH, and for each command the Web UI runs. The values are the ones your shell has now.',
     showValue: true,
   },
   {

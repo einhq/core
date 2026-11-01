@@ -98,7 +98,7 @@ Deno.test({
         const sessions = await vfs.children<SessionAttrs>(ADMIN_ACCESS, SESSIONS_PATH);
         assert(sessions.some((entry) => entry.node.attrs.access?.uid === linkUid && entry.node.attrs.access.link?.id === link().id));
 
-        // It answers as the guest, which the web UI keeps from signed-in pages, with its link.
+        // It answers as the guest, which the Web UI keeps from signed-in pages, with its link.
         const whoami = await guest.execJson<{ username: string; links?: { id: string; path: string }[] }>('user-whoami');
         assertEquals(whoami.username, 'guest');
         assertEquals(whoami.links?.map((held) => [held.id, held.path]), [[link().id, '/alb']]);

@@ -162,7 +162,7 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     kind: 'system',
     default: '8080',
     description:
-      "The port the web interface listens on, as the deployment set it, which the http-server service reads at its start. In the installer's container it is always 8080: the machine publishes EIN_HTTP_PORT from .env onto it. It is not a setting, since only the deployment knows which port reaches it.",
+      "The port the Web UI listens on, as the deployment set it, which the http-server service reads at its start. In the installer's container it is always 8080: the machine publishes EIN_HTTP_PORT from .env onto it. It is not a setting, since only the deployment knows which port reaches it.",
   },
   {
     key: 'CFG_SSH_PORT',
@@ -190,7 +190,7 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   {
     key: 'JSON_OUTPUT',
     kind: 'option',
-    description: 'Set to 1 and commands answer in JSON instead of text. The web interface runs every command this way.',
+    description: 'Set to 1 and commands answer in JSON instead of text. The Web UI runs every command this way.',
   },
   {
     key: 'MEDIA_LINES',
@@ -246,7 +246,7 @@ export const PATH_DESCRIPTIONS: Record<string, string> = {
   MOD_INSTALL_PATH: 'The modules `mod install` installed, each linked into /usr/modules.',
   USR_PATH: 'Code and read-only payload.',
   BIN_PATH: 'Built-in commands.',
-  LIB_PATH: "Core's other files: its shell commands, its services and the web interface.",
+  LIB_PATH: "Core's other files: its shell commands, its services and the Web UI.",
   MOD_PATH: 'Installed modules.',
   DOCS_PATH: 'This documentation.',
   TEMP_PATH: 'Temporary nodes.',

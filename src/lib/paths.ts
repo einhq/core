@@ -91,7 +91,7 @@ export const MODULE_GROUPS_PATH = `${ETC_PATH}/modules`;
 export const INIT_FILES_PATH = `${ETC_PATH}/files`;
 /** The symlinks `setup.sh` runs, one per `NN_*.sh` in the mode directory. */
 export const INIT_PATH = `${ETC_PATH}/init`;
-/** The web UI's configuration. */
+/** The Web UI's configuration. */
 export const UI_ETC_PATH = `${ETC_PATH}/ui`;
 /** `mod setup` links each module's `ui/nav.json` in here as `<name>.json`: its navigation entries. */
 export const UI_NAV_D_PATH = `${UI_ETC_PATH}/nav.d`;
