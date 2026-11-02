@@ -45,6 +45,7 @@ import {
   refreshReach,
   type ReleasedOwner,
   type ResolvedNodeChain,
+  type StorageDelete,
   type StoreAggregateQuery,
   type StoredPath,
   type StoreNodeQuery,
@@ -310,6 +311,10 @@ export class PgStore implements NodeStore {
   private get auditTable() {
     return `${this.tablePrefix}_audit`;
   }
+  /** Registry storage a committed delete is still to remove; see `recordStorageDeletes`. */
+  private get storageDeletesTable() {
+    return `${this.tablePrefix}_storage_deletes`;
+  }
   /** Every distinct reach formula, numbered: what a node's `reach` column refers to. */
   private get reachTable() {
     return `${this.tablePrefix}_reach`;
@@ -510,6 +515,13 @@ export class PgStore implements NodeStore {
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_node_idx ON ${this.auditTable} (node_id, id)`);
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_path_idx ON ${this.auditTable} (path text_pattern_ops)`);
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_cause_idx ON ${this.auditTable} (cause, id) WHERE cause IS NOT NULL`);
+
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS ${this.storageDeletesTable} (
+          id VARCHAR(26) PRIMARY KEY,
+          type VARCHAR(64) NOT NULL
+        )
+      `);
 
       // Attribute-query indexes. The expressions must match what query.ts
       // emits (same COALESCE shape, same COLLATE "C") or the planner won't use
@@ -2598,6 +2610,30 @@ export class PgStore implements NodeStore {
       ...(row.attrs ? { attrs: row.attrs as AuditRecord['attrs'] } : {}),
       ...(row.props ? { props: row.props as AuditRecord['props'] } : {}),
     }));
+  }
+
+  // ===== Storage Deletes =====
+
+  async recordStorageDeletes(deletes: StorageDelete[], tx?: Transaction): Promise<void> {
+    const pgTx = this.requireTx(tx, 'recordStorageDeletes');
+    if (deletes.length === 0) return;
+
+    await pgTx.client.query(
+      `INSERT INTO ${this.storageDeletesTable} (id, type)
+       SELECT * FROM unnest($1::varchar[], $2::varchar[])
+       ON CONFLICT (id) DO NOTHING`,
+      [deletes.map((d) => d.id), deletes.map((d) => d.type)],
+    );
+  }
+
+  async pendingStorageDeletes(): Promise<StorageDelete[]> {
+    const result = await this.pool.query<StorageDelete>(`SELECT id, type FROM ${this.storageDeletesTable} ORDER BY id`);
+    return result.rows;
+  }
+
+  async clearStorageDeletes(ids: NodeId[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.pool.query(`DELETE FROM ${this.storageDeletesTable} WHERE id = ANY($1)`, [ids]);
   }
 
   // ===== Transaction Support =====

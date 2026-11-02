@@ -99,6 +99,9 @@ export type OwnerRelease =
 /** How many nodes `releaseOwner` changed: those it owned, and those whose ACL named it. */
 export type ReleasedOwner = { owned: number; acl: number };
 
+/** A deleted node's registry storage, by its id there and the node type whose registry holds it. */
+export type StorageDelete = { id: NodeId; type: NodeType };
+
 /** The root and the nodes reached below it in one store walk. */
 export type ResolvedNodeChain = {
   root: PathNode;
@@ -526,6 +529,23 @@ export interface NodeStore {
 
   /** Read the trail back, newest first. */
   queryAudit?(query: AuditQuery): Promise<AuditRecord[]>;
+
+  // ===== Storage Deletes (Optional) =====
+
+  /**
+   * Record, in a delete's own transaction, the registry storage its nodes leave to remove once it
+   * commits. `clearStorageDeletes` drops a record once its storage is gone, so what
+   * `pendingStorageDeletes` reads back at the next start is what a process killed in between left
+   * behind. Records are by node id, never reused; a store whose registries address storage by path
+   * keeps none. Present with the other two.
+   */
+  recordStorageDeletes?(deletes: StorageDelete[], tx?: Transaction): Promise<void>;
+
+  /** The recorded deletes whose storage is not yet known to be gone. */
+  pendingStorageDeletes?(): Promise<StorageDelete[]>;
+
+  /** Drop the records of deletes whose storage is gone. */
+  clearStorageDeletes?(ids: NodeId[]): Promise<void>;
 
   /** Bucket-count nodes by one or more attr or node-column dimensions. */
   groupCount?(

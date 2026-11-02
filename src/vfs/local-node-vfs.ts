@@ -58,7 +58,7 @@ import {
   NodeTierImmutableError,
   NodeTransactionError,
 } from './errors.ts';
-import type { EdgeMove, NodeStore, NodeUpdate, OwnerRelease, PathNode, ReleasedOwner, StoredPath, StoreNodeQuery, Transaction } from './node-store.ts';
+import type { EdgeMove, NodeStore, NodeUpdate, OwnerRelease, PathNode, ReleasedOwner, StorageDelete, StoredPath, StoreNodeQuery, Transaction } from './node-store.ts';
 import type { NodeVFS } from './node-vfs.ts';
 import type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeType } from './node.ts';
 import {
@@ -159,6 +159,9 @@ const LIST_BATCH = 256;
  * the bound leaves the pool to everyone else.
  */
 const STORAGE_DELETES = 8;
+
+/** A deleted node's registry storage: its id in `reg`, and the routing opts the registry takes. */
+type StorageRemoval = { reg: NonNullable<VfsRegistries[keyof VfsRegistries]>; id: string; type: NodeType; opts?: NodeAttrs };
 
 /**
  * How far `query`'s request to a store grows while access keeps refusing what it reads. The
@@ -554,6 +557,83 @@ export class LocalNodeVFS implements NodeVFS {
 
     for (const reg of Object.values(this.regs)) {
       await reg.init();
+    }
+
+    await this.finishStorageDeletes();
+  }
+
+  /**
+   * Remove the storage of deletes that committed in an earlier process, which was killed before
+   * it removed it (see `deleteStorage`). No write has started yet, so every record is one that
+   * process left. Without the routing opts, a registry looks for the storage wherever it may be.
+   */
+  private async finishStorageDeletes(): Promise<void> {
+    if (!this.recordsStorageDeletes) return;
+
+    const pending = await this.store.pendingStorageDeletes!();
+    if (pending.length === 0) return;
+
+    const storage: StorageRemoval[] = [];
+    const unregistered: NodeId[] = [];
+    for (const { id, type } of pending) {
+      const reg = this.regs[type as keyof VfsRegistries];
+      if (reg) storage.push({ reg, id, type });
+      else unregistered.push(id);
+    }
+
+    logger.info('removing storage left by deletes', { count: storage.length });
+    await this.store.clearStorageDeletes!(unregistered);
+    await this.removeStorage(storage, true);
+  }
+
+  /** Whether the store records storage deletes; a path-addressed store's registry ids are paths, reused. */
+  private get recordsStorageDeletes(): boolean {
+    return !this.store.pathAddressed && this.store.recordStorageDeletes !== undefined;
+  }
+
+  /**
+   * Remove deleted nodes' storage once their delete commits: a rolled-back delete keeps it. The
+   * store records each in the delete's own transaction and drops the record once the storage is
+   * gone, so storage a process killed in between leaves behind is removed at the next
+   * `initialize` instead of outliving its node (ein/core#921).
+   */
+  private async deleteStorage(mut: Mutation, storage: StorageRemoval[]): Promise<void> {
+    if (storage.length === 0) return;
+
+    const recorded = this.recordsStorageDeletes;
+    if (recorded) {
+      await this.store.recordStorageDeletes!(storage.map(({ id, type }): StorageDelete => ({ id: id as NodeId, type })), mut.tx);
+    }
+    mut.afterCommit(() => this.removeStorage(storage, recorded));
+  }
+
+  /**
+   * Remove storage, `STORAGE_DELETES` at a time, then with `recorded` drop the records of what is
+   * gone. A failed removal is logged and its record kept, for the next `initialize` to retry.
+   * Nothing here throws: the delete it follows has committed.
+   */
+  private async removeStorage(storage: StorageRemoval[], recorded: boolean): Promise<void> {
+    const removed: NodeId[] = [];
+    let next = 0;
+    const worker = async () => {
+      while (next < storage.length) {
+        const { reg, id, type, opts } = storage[next++];
+        try {
+          await reg.delete(id, opts as any);
+          removed.push(id as NodeId);
+        } catch (error) {
+          if (error instanceof NodeNotSupportedError) removed.push(id as NodeId);
+          else logger.error('resource delete failed', { error, id, type });
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(STORAGE_DELETES, storage.length) }, worker));
+
+    if (!recorded || removed.length === 0) return;
+    try {
+      await this.store.clearStorageDeletes!(removed);
+    } catch (error) {
+      logger.error('storage delete records not cleared', { error, count: removed.length });
     }
   }
 
@@ -4160,7 +4240,7 @@ export class LocalNodeVFS implements NodeVFS {
     // A deleted node is announced once, under the last of its names to go; the others were unlinks.
     const lastName = new Map(kept.map((item) => [item.childId, item.index]));
     const deletedAt = new Set<number>();
-    const storage: { reg: NonNullable<VfsRegistries[keyof VfsRegistries]>; id: string; node: Node }[] = [];
+    const storage: StorageRemoval[] = [];
     for (const item of kept) {
       const path = join(item.parent.vfsAbsPath, item.name);
       mut.emit('child-detached', item.parent.vfsAbsPath, item.parentNode, undefined, access.uid);
@@ -4172,28 +4252,12 @@ export class LocalNodeVFS implements NodeVFS {
       deletedAt.add(item.index);
 
       const reg = this.regs[item.node.type as keyof VfsRegistries];
-      if (reg) storage.push({ reg, id: this.store.pathAddressed ? path : item.childId, node: item.node });
+      if (reg) storage.push({ reg, id: this.store.pathAddressed ? path : item.childId, type: item.node.type, opts: this.tierOpts(item.node) });
       mut.emit('deleted', path, item.node, undefined, access.uid);
       mut.audit(access, { op: 'delete', node: item.node, path });
     }
 
-    // Storage goes once the delete is committed: a rolled-back delete keeps its bytes.
-    if (storage.length > 0) {
-      mut.afterCommit(async () => {
-        let next = 0;
-        const worker = async () => {
-          while (next < storage.length) {
-            const { reg, id, node } = storage[next++];
-            try {
-              await reg.delete(id, this.tierOpts(node) as any);
-            } catch (error) {
-              if (!(error instanceof NodeNotSupportedError)) logger.error('resource delete failed', { error, nodeId: node.id });
-            }
-          }
-        };
-        await Promise.all(Array.from({ length: Math.min(STORAGE_DELETES, storage.length) }, worker));
-      });
-    }
+    await this.deleteStorage(mut, storage);
 
     return deletedAt;
   }
@@ -4279,23 +4343,12 @@ export class LocalNodeVFS implements NodeVFS {
       await this.store.deleteNode(access.uid, nodeId, mut.tx);
     }
 
-    // Delete physical storage (only when fully deleted, not just unlinked), once
-    // the delete is committed: a rolled-back delete keeps its bytes.
+    // Physical storage goes only with the node, not with one of its names.
     const reg = this.regs[node.type as keyof VfsRegistries];
     if (reg) {
       // A path-addressed store's registry takes the path within the mount
       const id = this.store.pathAddressed ? path : nodeId;
-
-      mut.afterCommit(async () => {
-        try {
-          await reg.delete(id, this.tierOpts(node) as any);
-        } catch (error) {
-          // Best effort
-          if (!(error instanceof NodeNotSupportedError)) {
-            logger.error('resource delete failed', { error, nodeId: node.id });
-          }
-        }
-      });
+      await this.deleteStorage(mut, [{ reg, id, type: node.type, opts: this.tierOpts(node) }]);
     }
 
     mut.emit('deleted', path, node, undefined, access.uid);

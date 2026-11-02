@@ -585,6 +585,14 @@ keeps it. `dispose` refuses new writes and waits for those under way, after-comm
 before it stops the registries: on shutdown the pools end after it, and a committed delete whose
 registry call came later would leave its storage behind with no node.
 
+A process killed between the two (the OOM killer, a stop that times out) cannot be waited for, so
+the PostgreSQL store also records each deleted node's storage in the delete's own transaction, in
+`<prefix>_nodes_storage_deletes` (id and node type), and drops the record once the registry call
+has succeeded. `initialize` removes whatever is still recorded before any write starts, asking the
+registry without routing opts so a tiered file is looked for on every tier. A registry call that
+fails keeps its record and is retried at the next start. Path-addressed stores record nothing:
+their registry ids are paths, which a later node may reuse.
+
 ```mermaid
 graph LR
     IF2["RegistryIf\n(interface)"]
