@@ -141,16 +141,21 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
     };
   }, [map, onClick]);
 
+  // Reported once when the map is made and then on each move, not again when the callback
+  // changes: a page's callback is remade with its URL, and the lightbox opening over the map is a
+  // URL change that would ask the page to read the same viewport again.
+  const onMoveEndRef = useRef(onMoveEnd);
+  onMoveEndRef.current = onMoveEnd;
   useEffect(() => {
-    if (!map || !onMoveEnd) return;
-    const handler = () => onMoveEnd(toGeoBounds(map.getBounds()), map.getZoom());
+    if (!map) return;
+    const handler = () => onMoveEndRef.current?.(toGeoBounds(map.getBounds()), map.getZoom());
     map.on('moveend', handler);
     // Report the initial viewport so pages can load data before any pan
     handler();
     return () => {
       map.off('moveend', handler);
     };
-  }, [map, onMoveEnd]);
+  }, [map]);
 
   return (
     <div ref={containerRef} style={{ height: '100%', minHeight: 200, ...style }}>
