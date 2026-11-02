@@ -27,13 +27,19 @@
 #              ein
 #
 # No GPU is passed to this container: the card is EMS's.
+#
+# Debian is pinned to the same tag as EiN's other images (ein/db, ein/ems), so the layer is shared;
+# the three bump it together. Deno is its makers' binary, from their image that holds nothing else.
+# NOTICE.md, in /usr/share/doc/ein-core/, says what the image passes on under which licence.
+
+FROM docker.io/denoland/deno:bin-2.9.6 AS deno
 
 # The guide the Docs page shows: einhq.eu's documentation, from the site's repository as DOCS_URL
 # archives it (main by default; a tag's or a fork's archive works as well). Cut down to what its
 # pages need, in the site's layout so their relative links hold: the Markdown and diagrams under
 # docs/, the screenshots they name with their 2x files, and the diagrams' fonts. It is the same on
 # every platform, so it is cut once, on the builder's.
-FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:debian-2.9.6 AS guide
+FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-20261027-slim AS guide
 ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/refs/heads/main.tar.gz
 ADD ${DOCS_URL} /site.tar.gz
 WORKDIR /site
@@ -48,7 +54,21 @@ RUN tar -xzf /site.tar.gz --strip-components=1 \
   done \
   && test -f /guide/docs/SUMMARY.md
 
-FROM docker.io/denoland/deno:debian-2.9.6
+FROM docker.io/library/debian:trixie-20261027-slim
+
+# tini is PID 1: it passes the stop signal on to Deno and reaps the processes Deno starts.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tini \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=deno /deno /usr/local/bin/deno
+ADD https://raw.githubusercontent.com/denoland/deno/v2.9.6/LICENSE.md /usr/share/doc/deno/LICENSE.md
+COPY NOTICE.md /usr/share/doc/ein-core/NOTICE.md
+
+# Deno's cache, where `deno cache` below leaves core's dependencies; DENO_USE_CGROUPS sizes Deno's
+# heap to the container's memory limit rather than the machine's.
+ENV DENO_DIR=/deno-dir/ \
+    DENO_USE_CGROUPS=1
 
 WORKDIR /app
 
@@ -57,6 +77,7 @@ COPY --from=guide /guide guide
 COPY deno.jsonc deno.jsonc
 COPY deno.lock deno.lock
 COPY Makefile Makefile
+COPY LICENSE LICENSE
 
 # The shell asserts `x` on a bin as the calling user, and the mount of core's files takes its mode
 # from this stat. A bin that reached the checkout as 644 would then run for admin only.
@@ -71,4 +92,5 @@ ENV FILE_ROOT_PATH=/files
 EXPOSE 8080
 EXPOSE 2222
 
+ENTRYPOINT ["tini", "--"]
 CMD ["deno", "run", "-A", "src/main.ts"]
