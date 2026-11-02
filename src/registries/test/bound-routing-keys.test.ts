@@ -98,6 +98,46 @@ Deno.test('a refresh requested mid-load is not swallowed by the in-flight read',
   assertFalse(bound.has('old'));
 });
 
+Deno.test('a key added mid-load survives the load that read the table before its write', async () => {
+  // The race: a refresh is running, a subscribe widens the set and writes, and an event is
+  // published at once. The load read the table before the write committed, so installing only
+  // what it returned would drop the key until the NOTIFY reloads it, and the event with it.
+  let gate: Promise<void> = Promise.resolve();
+  const bound = new BoundRoutingKeys(async () => {
+    await gate;
+    return ['old'];
+  });
+  await bound.refresh();
+  const parked = deferred<void>();
+  gate = parked;
+
+  const refreshing = bound.refresh();
+  bound.add(['new']);
+  parked.resolve();
+  await refreshing;
+
+  assert(bound.has('new'), 'a key bound while the load ran must not be lost to it');
+  assert(bound.has('old'));
+  assertFalse(bound.has('other'));
+});
+
+Deno.test('a key added mid-load to an unloaded cache survives that load', async () => {
+  const gate = deferred<void>();
+  const bound = new BoundRoutingKeys(async () => {
+    await gate;
+    return [];
+  });
+
+  const refreshing = bound.refresh();
+  bound.add(['new']);
+  gate.resolve();
+  await refreshing;
+
+  assert(bound.loaded);
+  assert(bound.has('new'));
+  assertFalse(bound.has('other'));
+});
+
 Deno.test('concurrent refreshes coalesce into one load', async () => {
   let call = 0;
   const bound = new BoundRoutingKeys(() => {

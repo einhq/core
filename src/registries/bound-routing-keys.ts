@@ -27,6 +27,8 @@ import { compiledKeysMatch, type CompiledRoutingKeys, compileRoutingKeys } from 
  *   rather than dropping them.
  * - `add()` is called *before* the write that binds the key, so a publish racing
  *   an in-flight subscribe errs toward running the query.
+ * - A load running while `add()` is called may have read the table before that
+ *   write committed, so what it returns is installed together with the added keys.
  * - Any failure to refresh drops back to the permissive state.
  * - Removal never subtracts a key; it reloads the whole set from the table, so a
  *   key still held by a sibling subscription cannot be lost to a refcount bug.
@@ -38,6 +40,8 @@ export class BoundRoutingKeys {
   private compiled: CompiledRoutingKeys = compileRoutingKeys([]);
   private inFlight: Promise<void> | undefined;
   private pending = false;
+  /** Keys `add()` widened by while a load runs, which that load's result may predate. */
+  private addedDuringLoad = new Set<string>();
 
   /**
    * @param load Reads the currently bound keys from the source of truth. Any
@@ -65,7 +69,15 @@ export class BoundRoutingKeys {
    * under-inclusion loses a message.
    */
   add(routingKeys: readonly string[]): void {
-    if (this.keys === undefined || routingKeys.length === 0) {
+    if (routingKeys.length === 0) {
+      return;
+    }
+
+    if (this.inFlight) {
+      for (const key of routingKeys) this.addedDuringLoad.add(key);
+    }
+
+    if (this.keys === undefined) {
       return;
     }
 
@@ -110,7 +122,7 @@ export class BoundRoutingKeys {
           this.pending = false;
           const keys = await this.load();
           if (!this.pending) {
-            this.keys = new Set(keys);
+            this.keys = new Set([...keys, ...this.addedDuringLoad]);
             this.compiled = compileRoutingKeys(this.keys);
           }
         } while (this.pending);
@@ -120,6 +132,7 @@ export class BoundRoutingKeys {
         this.keys = undefined;
       } finally {
         this.inFlight = undefined;
+        this.addedDuringLoad.clear();
       }
     })();
 

@@ -62,6 +62,7 @@ pgTest('init deletes messages no delivery refers to and keeps the rest', async (
     router.publish('kept.key', { pending: true });
     // The publish is persisted asynchronously; wait for its row rather than for a fixed time.
     for (let i = 0; i < 100 && await messages() < 1; i++) await new Promise((resolve) => setTimeout(resolve, 50));
+    assertEquals(await messages(), 1, 'the published message is persisted');
 
     await ctx.pool.query(
       `INSERT INTO ${ctx.prefix}_queues_msg (routing_key, payload) SELECT 'leaked', 'null'::jsonb FROM generate_series(1, 3)`,
