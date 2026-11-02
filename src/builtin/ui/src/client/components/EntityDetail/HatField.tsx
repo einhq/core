@@ -35,6 +35,27 @@ export function entranceTime(kind: HatFieldKind = 'band'): number {
   return kind === 'foot' || !(time > 0) || matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : time;
 }
 
+/** How many fields drawn without a backdrop are kept, by size, cut and kind (`laidOut`). */
+const KEEP_LAID_OUT = 16;
+const laidOut = new Map<string, ReturnType<typeof layoutHatField>>();
+
+/**
+ * `layoutHatField`, kept for the last few fields drawn without a backdrop, so that one mounted again
+ * at the same size, such as the lightbox details panel's foot for each picture, is not laid out again.
+ */
+function layoutOnce(width: number, height: number, seed: string, kind: HatFieldKind, backdrop?: LuminanceMap | null) {
+  if (backdrop) return layoutHatField(width, height, seed, kind, backdrop);
+  const key = `${kind}:${width}x${height}:${seed}`;
+  const layout = laidOut.get(key) ?? layoutHatField(width, height, seed, kind);
+  laidOut.delete(key);
+  laidOut.set(key, layout);
+  for (const oldest of laidOut.keys()) {
+    if (laidOut.size <= KEEP_LAID_OUT) break;
+    laidOut.delete(oldest);
+  }
+  return layout;
+}
+
 /** The pages a hat field is tinted for, each with its accent; a dialog's take the colour of what they are about. */
 export type HatPattern = keyof typeof ACCENTS;
 
@@ -82,7 +103,8 @@ export const PATTERN_CONTROLS: Partial<Record<HatPattern, readonly [color: strin
  * The einstein-hat field (`layoutHatField`) in `pattern`'s accent, filling its positioned parent
  * behind the parent's content: a header band, a screen's background, the foot of a
  * dialog, outlines over a cover, or the left of a band beside a cover, hiding the cover under it and
- * dissolving into it hat by hat, in place of the outlines (`kind`). Where on the tiling it is cut follows the pattern and the route.
+ * dissolving into it hat by hat, in place of the outlines (`kind`). Where on the tiling it is cut follows the pattern and the route,
+ * and for a foot the pattern alone.
  * Over a cover each outline is light grey where the photo under it is dark and in the pattern's
  * colour where it is light, as read from `backdrop`, the photo's luminance; grey throughout without one.
  *
@@ -95,7 +117,8 @@ export function HatField({ pattern, kind = 'band', backdrop }: { pattern: HatPat
   const ref = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState<readonly [number, number]>();
   const { pathname } = useLocation();
-  const seed = `${pattern}:${pathname}`;
+  // A foot is the same grey bar wherever it stands, so it is cut by its pattern alone.
+  const seed = kind === 'foot' ? pattern : `${pattern}:${pathname}`;
   // useId's colons are not valid in a url() reference.
   const id = `mrx-hat-field-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   // Null once it has arrived, or when it shows as it is from the start.
@@ -119,7 +142,7 @@ export function HatField({ pattern, kind = 'band', backdrop }: { pattern: HatPat
   }, []);
 
   const layout = useMemo(
-    () => size && size[0] > 0 && size[1] > 0 ? layoutHatField(size[0], size[1], seed, kind, backdrop) : null,
+    () => size && size[0] > 0 && size[1] > 0 ? layoutOnce(size[0], size[1], seed, kind, backdrop) : null,
     [size, seed, kind, backdrop],
   );
 

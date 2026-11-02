@@ -261,7 +261,8 @@ the darkest shade of the hue that white text reads on. A disabled button is a st
 dialog's ground, and a red one red-8, for the same reason. Its buttons are `DialogActions`, the body's
 last child: a bar across the foot, over the
 same field in grey (`neutral`, `kind='foot'`) that fades out upward — a hint of structure, without
-the entrance or the glints — and with a quiet line at its left (`hint`) for what pressing them does.
+the entrance or the glints, and cut from the same place whatever the route, so a foot of the same
+size looks the same everywhere and one mounted again is not laid out again — and with a quiet line at its left (`hint`) for what pressing them does.
 `onSubmit` makes the body a form, so Enter in a field submits. Widths are four (`sm` 460 px for a
 confirmation, `md` 560 for a short form or a choice, `lg` 700 for a form two fields to a row, `xl`
 920 for a map or a tool), chosen so a dialog is wider than it is tall: a form's fields stand two to a
