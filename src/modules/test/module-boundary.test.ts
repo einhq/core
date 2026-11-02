@@ -111,11 +111,16 @@ const moduleSources = async (): Promise<string[]> => {
 Deno.test('modules do not import core internals', async (t) => {
   const files = await moduleSources();
 
-  await t.step('every module in the checkout has sources to check', () => {
+  await t.step('every module with code in the checkout has sources to check', () => {
     // A glob that silently matches nothing would make every assertion below vacuous. A checkout
-    // with no modules has nothing to check.
+    // with no modules has nothing to check, and a module of data alone (no imports, exports or
+    // routes) has no sources.
     const withSources = new Set(files.map(moduleOf));
-    assertEquals(repoModules().map(({ name }) => name).filter((name) => !withSources.has(name)), []);
+    const withCode = repoModules().filter(({ dir }) => {
+      const manifest = JSON.parse(Deno.readTextFileSync(join(dir, 'mod.json'))) as ModuleManifest;
+      return manifest.imports !== undefined || manifest.exports !== undefined || manifest.ui?.routes !== undefined;
+    });
+    assertEquals(withCode.map(({ name }) => name).filter((name) => !withSources.has(name)), []);
   });
 
   await t.step('no module imports @ein/exec', () => {

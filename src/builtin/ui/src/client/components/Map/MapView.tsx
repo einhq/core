@@ -10,7 +10,7 @@ import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 
 // by inline SVG (deno bundle has no image loader)
 import './leaflet.css';
 import { MapContext } from './context.ts';
-import { BASE_LAYERS } from './layers.ts';
+import { mapLayers } from '../../signals/nav.ts';
 import type { GeoBounds, PositionPoint } from './types.ts';
 
 export const DEFAULT_CENTER: PositionPoint = { lat: 57.7, lng: 11.97 };
@@ -30,12 +30,13 @@ export type MapViewProps = {
   onClick?: (point: PositionPoint) => void;
   onMoveEnd?: (bounds: GeoBounds, zoom: number) => void;
   /**
-   * Which base layer to show, by its name in `layers.ts`. A change swaps it in;
+   * Which base layer to show, by its id among the navigation's map layers (`ui.map`,
+   * `ui.satellite`); the first when it names none of them. A change swaps it in;
    * a pick in Leaflet's switcher is reported through `onBaseLayerChange`, and a
    * page that feeds it back finds that layer already showing.
    */
   baseLayer?: string;
-  onBaseLayerChange?: (name: string) => void;
+  onBaseLayerChange?: (id: string) => void;
   /** Leaflet's own base-layer switcher, for a page that does not offer the choice itself. */
   layerSwitcher?: boolean;
   style?: CSSProperties;
@@ -51,7 +52,7 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
   const [map, setMap] = useState<L.Map | null>(null);
   const initialBaseLayer = useRef(baseLayer);
   const initialLayerSwitcher = useRef(layerSwitcher);
-  /** The base layers by name, and the one on the map. */
+  /** The base layers by id, and the one on the map. */
   const baseLayersRef = useRef<{ layers: Record<string, L.Layer>; current: string }>({ layers: {}, current: '' });
   const baseLayerChanged = useRef(onBaseLayerChange);
   baseLayerChanged.current = onBaseLayerChange;
@@ -67,20 +68,26 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
       zoomControl: false,
     });
 
+    const defs = mapLayers();
     const baseLayers: Record<string, L.Layer> = {};
-    const wanted = BASE_LAYERS.find((def) => def.name === initialBaseLayer.current) ?? BASE_LAYERS[0];
-    BASE_LAYERS.forEach((def) => {
-      const layer = L.layerGroup(def.tiles.map((tile) => L.tileLayer(tile.url, tile.options)));
-      baseLayers[def.name] = layer;
+    /** Leaflet's switcher names its choices by label. */
+    const byLabel: Record<string, L.Layer> = {};
+    const wanted = defs.find((def) => def.id === initialBaseLayer.current) ?? defs[0];
+    defs.forEach((def) => {
+      const layer = L.layerGroup(def.tiles.map((tile) => L.tileLayer(tile.url, tile.options as L.TileLayerOptions)));
+      baseLayers[def.id] = layer;
+      byLabel[def.label] = layer;
       if (def === wanted) layer.addTo(m);
     });
-    baseLayersRef.current = { layers: baseLayers, current: wanted.name };
-    if (BASE_LAYERS.length > 1 && initialLayerSwitcher.current) {
-      L.control.layers(baseLayers).addTo(m);
+    baseLayersRef.current = { layers: baseLayers, current: wanted?.id ?? '' };
+    if (defs.length > 1 && initialLayerSwitcher.current) {
+      L.control.layers(byLabel).addTo(m);
     }
     m.on('baselayerchange', (event: L.LayersControlEvent) => {
-      baseLayersRef.current.current = event.name;
-      baseLayerChanged.current?.(event.name);
+      const id = defs.find((def) => def.label === event.name)?.id;
+      if (!id) return;
+      baseLayersRef.current.current = id;
+      baseLayerChanged.current?.(id);
     });
 
     // Tracks render a black casing under the colored line; own pane keeps
@@ -108,11 +115,11 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
 
   useEffect(() => {
     const base = baseLayersRef.current;
-    const next = BASE_LAYERS.find((def) => def.name === baseLayer) ?? BASE_LAYERS[0];
-    if (!map || next.name === base.current) return;
-    map.removeLayer(base.layers[base.current]);
-    base.layers[next.name].addTo(map);
-    base.current = next.name;
+    const next = base.layers[baseLayer ?? ''] ? baseLayer! : Object.keys(base.layers)[0];
+    if (!map || !next || next === base.current) return;
+    if (base.layers[base.current]) map.removeLayer(base.layers[base.current]);
+    base.layers[next].addTo(map);
+    base.current = next;
   }, [map, baseLayer]);
 
   useEffect(() => {

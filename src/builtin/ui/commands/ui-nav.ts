@@ -84,6 +84,8 @@ export const uiNav = async (cmd: Command): CmdReturn => {
   }
   if (answer.panels.length > 0) await cmd.writeLn('panels');
   for (const panel of answer.panels) await cmd.writeLn(`  ${panel.slot.padEnd(16)} ${panel.label.padEnd(16)} ${panel.route.padEnd(24)} ${panel.id}`);
+  if (answer.layers.length > 0) await cmd.writeLn('map layers');
+  for (const layer of answer.layers) await cmd.writeLn(`  ${layer.label.padEnd(16)} ${layer.id}`);
   for (const warning of answer.warnings) await cmd.writeError(`ui-nav: ${warning}\n`);
   return 0;
 };
@@ -91,7 +93,8 @@ export const uiNav = async (cmd: Command): CmdReturn => {
 uiNav.spec = {
   name: 'ui-nav',
   effect: 'read' as const,
-  description: "The Web UI's sidebar, top bar and panels for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
+  description:
+    "The Web UI's sidebar, top bar, panels and map layers for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
   args: [],
   flags: [],
 };

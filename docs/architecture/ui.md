@@ -132,6 +132,7 @@ resolves the layers for the reader and the shell loads its answer before it draw
     { "id": "archive.create-album", "parent": "ui.create", "title": "Album", "icon": "photo", "color": "blue", "action": { "dialog": "/albums/new" } }
   ],
   "panels": [{ "id": "archive.duplicates", "slot": "nodes.tools", "label": "Duplicates", "icon": "copy", "route": "/duplicates?path={path}" }],
+  "layers": [{ "id": "ui.map", "label": "Map", "order": 10, "tiles": [{ "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "options": { "maxZoom": 19 } }] }],
   "hide": ["archive.albums"]
 }
 ```
@@ -155,6 +156,15 @@ page's own loader and error would not fit, as in a list of entries, `loading` an
 what stands in for the route while it loads and if it fails. A panel's route must not share its
 first segment with the pages it links to, or the link opens inside the panel.
 
+A **map layer** is a base layer every map offers in its picker: a stack of tile sets drawn bottom
+first, each a URL template with Leaflet's `TileLayerOptions` (`minZoom`, `maxNativeZoom`, `maxZoom`,
+`attribution`). The shell's own are the street map, the dark canvas and the satellite imagery
+(`ui.map`, `ui.dark-map`, `ui.satellite`); a module adds one the same way, its tiles served from its
+own folder as `/file/usr/modules/<module>/…`, and an overlay can hide a layer or add a tile server of
+its own. The first layer in order is what a map shows when nothing names another. `MapView` builds
+its layers from them when it is drawn (`mapLayers()` in `signals/nav.ts`) and knows them by id, which
+is what a page's `baseLayer` and the map page's `base` parameter hold.
+
 An entry is known by its id (`<module>.<name>`): a later layer naming an id changes the fields it
 gives and keeps the rest, a new id adds an entry, `hide` takes entries (or whole sections) away. Two
 modules giving one id is a warning and the first keeps it; an overlay may change anything. Entries
@@ -171,7 +181,8 @@ key's place, since a Mac types another character for it), runs it as a click wou
 the tooltip and beside a row; the `?` overlay lists them with the app's own keys
 ([signals/shortcuts.ts](../../src/builtin/ui/src/client/signals/shortcuts.ts)).
 
-What a module gives the UI is navigation entries and routes, nothing else, and an entry's action
+What a module gives the UI is navigation entries and routes, nothing else (besides the map layers
+above, which are data), and an entry's action
 says where to open a route — the same route can be shown all four ways:
 
 - `{ "navigate": "/devices" }` opens it as the page;
@@ -592,9 +603,10 @@ page's bar holds the new-chat button (and the recent-chats menu on a phone), wit
 beside the chat in a bordered box under a filter over their titles. The map page has no header at
 all: the map fills the page under the app bar. Its type menu (`MapTypeMenu`) and base-map picker
 (`MapBaseLayerPicker`) are stacked buttons in its top-right corner; the picker shows each base layer
-as one tile of where the map is looking rather than by name, and replaces Leaflet's own switcher
+as one tile of where the map is looking rather than by name (a tile set's own zooms honoured, so a
+chart that covers another coast leaves the picture to the map beneath it), and replaces Leaflet's own switcher
 there (`MapView`'s `layerSwitcher={false}`; its `baseLayer` follows the URL's `base`, and without
-one is the street map, the first of `BASE_LAYERS`, in either colour scheme; the dark canvas is a pick
+one is the first map layer, the street map, in either colour scheme; the dark canvas is a pick
 in the picker). The search
 box and year slider float over the foot of the map as one translucent panel (`.mrx-map-search`),
 the box above a hairline and the years below it, on the same kind of track as the Year view's: a
@@ -697,7 +709,7 @@ taller.
 
 A location card with no `coverPhoto` shows its map instead. `StaticMap`
 (`components/Map/`) draws the map page's own tiles around the point, with the
-pin on top. It draws the default base layer, the street map, in either colour
+pin on top. It draws the first map layer, the street map, in either colour
 scheme, and uses plain `<img>` tiles instead of one Leaflet map per card, so a hundred cards start no maps. The
 tile URLs are the ones Leaflet uses, so opening the location starts from a warm
 cache. It passes through `EntityCard`'s `coverArt` slot, which a real cover

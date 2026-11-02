@@ -189,3 +189,28 @@ Deno.test('ui-nav: panels put a module route in a shell page, by slot and order'
   assertEquals(nav.panels.map((panel) => panel.id), ['ems.status', 'archive.life-events']);
   assertEquals(nav.warnings, ['archive.half: no route']);
 });
+
+Deno.test('ui-nav: map layers come in order, and one without tiles is left out', () => {
+  const shell: NamedLayer = {
+    source: 'ui',
+    layer: {
+      layers: [
+        { id: 'ui.map', label: 'Map', order: 10, tiles: [{ url: 'https://tiles.example/{z}/{x}/{y}.png', options: { maxZoom: 19 } }] },
+        { id: 'ui.satellite', label: 'Satellite', order: 30, tiles: [{ url: 'https://imagery.example/{z}/{y}/{x}' }] },
+      ],
+    },
+  };
+  const charts: NamedLayer = {
+    source: 'charts',
+    layer: {
+      layers: [
+        { id: 'charts.sea', label: 'Sea charts', order: 20, tiles: [{ url: '/file/usr/modules/charts/{z}/{x}/{y}.png', options: { minZoom: 8 } }] },
+        { id: 'charts.empty', label: 'Nothing', tiles: [] },
+        { id: 'charts.odd', label: 'Odd', tiles: [{ url: 'x', options: [] as never }] },
+      ],
+    },
+  };
+  const nav = resolveNav([shell, charts], [{ source: '/etc/ui/nav.json', layer: { hide: ['ui.satellite'] } }], user);
+  assertEquals(nav.layers.map((layer) => layer.id), ['ui.map', 'charts.sea']);
+  assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options }', 'charts.odd: tiles is not a list of { url, options }']);
+});

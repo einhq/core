@@ -298,7 +298,7 @@ Some of what a module brings is found by where it is, not by a field:
 | `bin/`                    | added to every shell's `PATH`; each file is a command (a shell script or `#!ts` TypeScript)           |
 | `services/<name>/`        | registered as a service: `start.sh` and `config.json` (`description`, `restartPolicy`, …)             |
 | `pipelines/*.yaml`        | registered as pipeline definitions                                                                    |
-| `ui/nav.json`             | linked as `/etc/ui/nav.d/<module>.json`: its sidebar and top-bar entries, each opening a route        |
+| `ui/nav.json`             | linked as `/etc/ui/nav.d/<module>.json`: its sidebar and top-bar entries, panels and map layers       |
 | `etc/config`              | linked as `/etc/config.d/<module>`: the module's own choice of settings, sourced before `/etc/config` |
 | `etc/<x>.d/`              | linked as `/etc/<x>.d/<module>`: what it gives whichever module reads `/etc/<x>.d/*` (`assistant.d`)  |
 | `etc/` (the rest)         | copied into `/etc` when not already there, never overwritten                                          |

@@ -1,5 +1,6 @@
 /**
- * The Web UI's navigation — the sidebar and the top bar — as configuration.
+ * The Web UI's navigation — the sidebar and the top bar — as configuration, with the panels a
+ * page draws and the base layers a map offers.
  *
  * Every module may ship a fragment, `ui/nav.json`, which `mod setup` links into
  * `/etc/ui/nav.d/<module>.json`. The administrator's `/etc/ui/nav.json`, a group's
@@ -106,12 +107,31 @@ export type PanelEntry = {
   signedIn?: boolean;
 };
 
+/**
+ * One base layer a map offers, in its layer picker: a stack of tile sets drawn bottom first (a base
+ * and its labels; a chart over the map it does not cover). A tile set's options are Leaflet's
+ * `TileLayerOptions` (`attribution`, `minZoom`, `maxNativeZoom`, `maxZoom`, …). The first layer
+ * in order is what a map shows when nothing names another.
+ */
+export type MapLayerEntry = {
+  id: string;
+  label: string;
+  tiles: MapTiles[];
+  order?: number;
+  admin?: boolean;
+  signedIn?: boolean;
+};
+
+/** One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. */
+export type MapTiles = { url: string; options?: Record<string, unknown> };
+
 /** One file: a module's fragment or an overlay. */
 export type NavLayer = {
   sections?: Partial<NavSection>[];
   sidebar?: Partial<NavLink>[];
   topbar?: Partial<TopbarEntry>[];
   panels?: Partial<PanelEntry>[];
+  layers?: Partial<MapLayerEntry>[];
   /** Ids to leave out, of any kind. */
   hide?: string[];
 };
@@ -125,6 +145,8 @@ export type UiNav = {
   topbar: ResolvedTopbarEntry[];
   /** Every slot's panels, in order; a page takes those of its own slot. */
   panels: PanelEntry[];
+  /** The maps' base layers, in order. */
+  layers: MapLayerEntry[];
   /** What was left out and why: a missing field, an unknown section, an unreadable file. */
   warnings: string[];
 };
@@ -132,7 +154,8 @@ export type UiNav = {
 /** Where a layer came from, for warnings: a module name or a file path. */
 export type NamedLayer = { source: string; layer: NavLayer };
 
-type Kind = 'sections' | 'sidebar' | 'topbar' | 'panels';
+const KINDS = ['sections', 'sidebar', 'topbar', 'panels', 'layers'] as const;
+type Kind = typeof KINDS[number];
 type Entry = { id: string; order?: number; admin?: boolean; signedIn?: boolean } & Record<string, unknown>;
 
 const DEFAULT_ORDER = 1000;
@@ -142,7 +165,15 @@ const REQUIRED: Record<Kind, string[]> = {
   sidebar: ['section', 'label', 'icon', 'to'],
   topbar: ['title', 'icon'],
   panels: ['slot', 'label', 'route'],
+  layers: ['label'],
 };
+
+const isTiles = (value: unknown): value is MapTiles[] =>
+  Array.isArray(value) && value.length > 0 &&
+  value.every((tiles) =>
+    tiles && typeof tiles === 'object' && typeof tiles.url === 'string' && tiles.url !== '' &&
+    (tiles.options === undefined || (typeof tiles.options === 'object' && tiles.options !== null && !Array.isArray(tiles.options)))
+  );
 
 const isAction = (value: unknown): value is NavAction => {
   if (!value || typeof value !== 'object') return false;
@@ -178,7 +209,7 @@ const byOrder = <T extends { order?: number }>(entries: T[]): T[] =>
  */
 export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], reader: { admin: boolean; guest: boolean }): UiNav => {
   const warnings: string[] = [];
-  const merged: Record<Kind, Map<string, Entry>> = { sections: new Map(), sidebar: new Map(), topbar: new Map(), panels: new Map() };
+  const merged = Object.fromEntries(KINDS.map((kind) => [kind, new Map<string, Entry>()])) as Record<Kind, Map<string, Entry>>;
   const owner = new Map<string, string>();
   const hidden = new Set<string>();
   /** Entries this reader may not see (`admin`, `signedIn`); what names one as its parent goes with it, quietly. */
@@ -189,7 +220,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
       warnings.push(`${source}: not a navigation object`);
       return;
     }
-    for (const kind of ['sections', 'sidebar', 'topbar', 'panels'] as const) {
+    for (const kind of KINDS) {
       const list = layer[kind];
       if (list === undefined) continue;
       if (!Array.isArray(list)) {
@@ -232,6 +263,10 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
       }
       if (kind === 'topbar' && entry.action !== undefined && !isAction(entry.action)) {
         warnings.push(`${entry.id}: action is none of navigate, dialog, drawer, fullscreen or run`);
+        return false;
+      }
+      if (kind === 'layers' && !isTiles(entry.tiles)) {
+        warnings.push(`${entry.id}: tiles is not a list of { url, options }`);
         return false;
       }
       if ((entry.admin === true && !reader.admin) || (entry.signedIn === true && reader.guest)) {
@@ -291,6 +326,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
       .filter((section) => section.items.length > 0),
     topbar: topbar.map((entry) => keyed(entry.menu ? { ...entry, menu: entry.menu.map(keyed) } : entry)),
     panels: byOrder(visible('panels') as unknown as PanelEntry[]),
+    layers: byOrder(visible('layers') as unknown as MapLayerEntry[]),
     warnings,
   };
 };

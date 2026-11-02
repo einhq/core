@@ -1,5 +1,4 @@
 export * from './types.ts';
-export * from './layers.ts';
 export * from './context.ts';
 export * from './icons.ts';
 export * from './MapView.tsx';

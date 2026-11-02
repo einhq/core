@@ -1,9 +1,8 @@
-MODULE_API_VERSION 0.7.7
+MODULE_API_VERSION 0.8.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
 src/builtin/ui/src/client/components/mod.ts AppNavbar d994c630097b @signature=0f26317adbca,onNavigate=baa1abc172f4,onToggleRail=acb4609ac282,rail=e4e86772ae31
-src/builtin/ui/src/client/components/mod.ts BASE_LAYERS cfe3f80b1cf2
 src/builtin/ui/src/client/components/mod.ts BarSegment abc61d7eff90 color=a71a40934adf,key=fdb05a1ff54c,label=af04505f402e,value=8dd8911155c9
 src/builtin/ui/src/client/components/mod.ts BrowseEntityCard fd292ac07a50
 src/builtin/ui/src/client/components/mod.ts Bucket 9a5baeeb1b28 at=8cd35eed1400,count=56355d434a33
@@ -98,7 +97,7 @@ src/builtin/ui/src/client/components/mod.ts MapTrackSpec 676792fd54e2 color=1238
 src/builtin/ui/src/client/components/mod.ts MapTracks 37d7c3f2edf9 @signature=1fcae32afe9d,fit=c52cca61a230,follow=53f80b5d83de,tracks=66a87d6cbb55
 src/builtin/ui/src/client/components/mod.ts MapTracksProps d0be718fcecf fit=811db48a83a6,follow=0e2746401d99,tracks=4d615d33e78a
 src/builtin/ui/src/client/components/mod.ts MapView 921fbe650a4a @signature=63947a3f1a59,baseLayer=56c1e849fcdc,bounds=d75a319bb661,center=8d95320f9e92,children=f8549eefbbf8,layerSwitcher=178ea4687612,onBaseLayerChange=8acfa9947a7b,onClick=cba05844a02b,onMoveEnd=dca04917469d,style=5dcc17338766,zoom=02225d9982f8
-src/builtin/ui/src/client/components/mod.ts MapViewProps 4f104818ed3f baseLayer=3e43cfa2c9b0,bounds=e68a8ed96ded,center=8ee41b2aa6aa,children=6415c6b05203,layerSwitcher=be40b731da40,onBaseLayerChange=7456c0f951ea,onClick=5a79b83a407d,onMoveEnd=e252bf7d8b9b,style=625c0e59d262,zoom=5bf926d1ae31
+src/builtin/ui/src/client/components/mod.ts MapViewProps 9941a595e080 baseLayer=3e43cfa2c9b0,bounds=e68a8ed96ded,center=8ee41b2aa6aa,children=6415c6b05203,layerSwitcher=be40b731da40,onBaseLayerChange=5dcf488f7219,onClick=5a79b83a407d,onMoveEnd=e252bf7d8b9b,style=625c0e59d262,zoom=5bf926d1ae31
 src/builtin/ui/src/client/components/mod.ts Markdown fec6c6ad27a2 @signature=38088c47cbb4,breaks=2862426f30d6,className=757c8b67b7a0,content=8ac8fea942e2,headingIds=197160a1d4a8,image=f4d3d09d90cd,link=232b5800650e,renderImage=03ae3eeecd96
 src/builtin/ui/src/client/components/mod.ts MarkdownEditor 0bea8ea7063e @signature=14740d58b620,autoFocus=f0bb1e20a9c2,description=1eca5f329f27,label=52f9b8b83044,minRows=a96f39d722ad,onChange=9f54af0b3372,placeholder=6b504f866977,required=75f38a32e652,value=9c19b817e1d4
 src/builtin/ui/src/client/components/mod.ts MarkdownEditorProps 6b1ec82b3026 autoFocus=78bc6d38f766,description=44bc7438b335,label=995d88c00ff2,minRows=f634024d19e8,onChange=6c8049023f89,placeholder=ceab9a4efe5b,required=e33495947f08,value=5647ee15e4bf
@@ -184,7 +183,6 @@ src/builtin/ui/src/client/components/mod.ts Terminal d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts TerminalInstance 66e4375697f3 @signature=4816e57e7841,initialCommand=963deed0698f,isActive=7c08a1c023b9,tabId=7df15f6cac70
 src/builtin/ui/src/client/components/mod.ts TerminalTabs d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts TierUsage e3d6b3c3bb24 @signature=4816e57e7841,databaseBytes=8f936a90a5f4,tiers=b9fbeec90bb0
-src/builtin/ui/src/client/components/mod.ts TileLayerDef 3b00a306ee8c name=6d0c36381511,tiles=93be720a43c1
 src/builtin/ui/src/client/components/mod.ts TriggerPopover ca4decd63df7 @signature=4816e57e7841,triggers=ce0822ece2f6
 src/builtin/ui/src/client/components/mod.ts UTILIZATION_BANDS fe84a3cb2fa1
 src/builtin/ui/src/client/components/mod.ts UnservableKinds 6f01af1adcf1 @signature=4816e57e7841,definitions=1145648cf49f,pools=4a18c9a2bdfc
@@ -621,6 +619,8 @@ src/builtin/ui/src/client/signals/mod.ts DRAWER_MIN_WIDTH 91bad66dd0cb
 src/builtin/ui/src/client/signals/mod.ts DirectoryEntry 38a1247eb94a childCount=6c573ebdd234,name=6d0c36381511,path=3fd20668ef6e,pinned=32304c8f670c,title=f6007128d157
 src/builtin/ui/src/client/signals/mod.ts ExecError 6ccd31584da7
 src/builtin/ui/src/client/signals/mod.ts LogFollowEntry 6a845c397976 createdAt=4861eafd73b4,data=a84f1433fe25,id=1a4af43267b0
+src/builtin/ui/src/client/signals/mod.ts MapLayerEntry fb76977800f7 admin=e5caa4ef7900,id=752fa5797ebe,label=af04505f402e,order=9df61d05787c,signedIn=b687c9e9fe67,tiles=08d2b1009995
+src/builtin/ui/src/client/signals/mod.ts MapTiles 558d490a5354 options=77d2e2b4851e,url=53273d06d6ef
 src/builtin/ui/src/client/signals/mod.ts MediaItem 145d9334a3c6 angle=52c82d269c12,atSeconds=bf3de232cfcd,birthtime=4802331e0bcd,duration=b84d0f7db628,fullUrl=b1f7335d213f,hasDerivatives=e3a4d73c8159,height=64579e3c11b3,id=752fa5797ebe,memberPath=c769fc41a1c3,mimetype=2ec7255a33f0,modtime=ae463ff9ff07,name=6d0c36381511,ownership=31113890f47e,path=3fd20668ef6e,pinned=32304c8f670c,sar=abb483ae5649,score=38db802af810,size=113664008cf4,srcSet=7d84880fde1a,stackAlbumPath=14882f77a783,stackCount=a48b3d338e26,takenAt=b8695a78b354,takenAtUtc=3fe822674626,thumbnailUrl=c1f1b6a79c15,type=3fec0e1cf500,width=a3309c29fc2e
 src/builtin/ui/src/client/signals/mod.ts ModuleBundle 3f0e805f01d6 routes=78944a85e918
 src/builtin/ui/src/client/signals/mod.ts NavAction 6c7a1062f716
@@ -640,7 +640,7 @@ src/builtin/ui/src/client/signals/mod.ts SurfaceKind fc7f2753e285
 src/builtin/ui/src/client/signals/mod.ts TERMINAL_WORKSPACE_KEY c2a59a76c585
 src/builtin/ui/src/client/signals/mod.ts TerminalTab 127047f17daa connected=c374fd2d9976,id=752fa5797ebe,initialCommand=f87740187249,pwd=ef0c2a772ffc,title=f6007128d157
 src/builtin/ui/src/client/signals/mod.ts Toast 91ca39af7b74 action=ac294cc3717d,color=ead8596887c0,id=1a4af43267b0,message=ef0bf4d895db,progress=e24bc97d8b72
-src/builtin/ui/src/client/signals/mod.ts UiNav 586186fbe852 panels=7a10cf5ac8e3,sections=9a3a0fc1dafa,topbar=1b979ecf949b,warnings=9e8d69c3a0d6
+src/builtin/ui/src/client/signals/mod.ts UiNav 3e9ae57443f0 layers=26e98a03f410,panels=7a10cf5ac8e3,sections=9a3a0fc1dafa,topbar=1b979ecf949b,warnings=9e8d69c3a0d6
 src/builtin/ui/src/client/signals/mod.ts User ae4e5f4d85f1
 src/builtin/ui/src/client/signals/mod.ts activateNodesTab f6f88bb02fa4
 src/builtin/ui/src/client/signals/mod.ts activeTerminalTab 0a752fffac0f
@@ -707,6 +707,7 @@ src/builtin/ui/src/client/signals/mod.ts loadUiManifest f9707429e5ae
 src/builtin/ui/src/client/signals/mod.ts loadUserConfig d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts login fa4b60dca896
 src/builtin/ui/src/client/signals/mod.ts logout d371a1f4c626
+src/builtin/ui/src/client/signals/mod.ts mapLayers 50d945d95622
 src/builtin/ui/src/client/signals/mod.ts mediaRestored 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts mobileRailHidden 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts mobileSidebarRail 0a752fffac0f
