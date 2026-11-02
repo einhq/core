@@ -78,7 +78,10 @@ changed (`address`, `displayName`, `name`, `locationSource`), or a photo linked 
 attrs** is a shape write: a writable handle on a `position` node touches the node when it closes
 (`ContentWriteHandle`), the counterpart of a file handle's size report, since the shape is registry
 content no attr describes. Without it a point being written would be invisible, and a rule acting
-on `created` runs before the point exists — writers `ensure` the node first and write it after. A `<file>/location` link that `location-link-media` made
+on `created` runs before the point exists — writers `ensure` the node first and write it after.
+A `track` node is touched the same way when points are appended through a writable handle
+(`TrackHandle.onAppended`): on the first append, then at most every five seconds while the handle
+stays open, and on close; points a routing key appends do not touch it. A `<file>/location` link that `location-link-media` made
 from a shape (`linkSource: 'shape'`) announces nothing and never counts toward a centroid;
 otherwise a circle would pull in the photos inside it and let them redraw it, smaller each round.
 A deleted link cannot be followed to its location and is not announced.

@@ -81,6 +81,13 @@ point (or an array of them) on a bound key and it is appended. A handle read
 with an `AbortSignal` blocks until points arrive — `tail -f` on a track — via
 `LISTEN`/`NOTIFY` in postgres and an in-process waiter set in memory.
 
+A handle opened for writing through the VFS also touches the track node, so
+VFS subscribers (a page following the track, a pipeline rule) see an `updated`
+event with no attr changed. `TrackHandle.onAppended` is called on the first
+append that writes a row, then at most every five seconds while the handle stays
+open, and on close for whatever is still unreported. Points appended from a
+routing key go straight into the registry and do not touch the node.
+
 ## Byte-stream view
 
 `TrackHandle.read()` yields points as JSONL in timestamp order, so `cat` works

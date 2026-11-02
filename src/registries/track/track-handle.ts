@@ -4,6 +4,9 @@ import { TrackIO, TrackPoint, TrackRange, TrackReadOptions, TrackReadResult, Tra
 /** Points fetched per read of the byte-stream view. */
 const PAGE = 100;
 
+/** How often, at most, a handle that stays open reports that points were appended. */
+const APPEND_REPORT_MS = 5000;
+
 /**
  * Byte-stream view of a track, so `cat` and `tail -f` work on one.
  *
@@ -19,6 +22,18 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
   private decoder = new TextDecoder();
   /** Bytes of a line that arrived without its newline yet. */
   private pending = '';
+  /** Points were appended since the last report. */
+  private unreported = false;
+  /** When `onAppended` last ran, in ms since the epoch; 0 before the first. */
+  private reportedAt = 0;
+
+  /**
+   * Called after points were appended, so the owner can tell subscribers. It runs
+   * on the first append, then at most once every few seconds while the handle
+   * stays open, and on close for any points not yet reported; never when an
+   * append wrote no row (every point a duplicate).
+   */
+  onAppended?: () => Promise<void>;
 
   constructor(
     id: string,
@@ -97,6 +112,7 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
     }
 
     await super.close();
+    await this.report();
   }
 
   private async appendLines(lines: string[]): Promise<number> {
@@ -104,7 +120,7 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
 
     if (points.length === 0) return 0;
 
-    await this.io.append(points);
+    await this.appended(await this.io.append(points));
 
     return points.length;
   }
@@ -114,7 +130,22 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
     this.assertNotClosed();
     this.assertCanWrite();
 
-    return await this.io.append(points);
+    const written = await this.io.append(points);
+    await this.appended(written);
+    return written;
+  }
+
+  private async appended(written: number): Promise<void> {
+    if (written === 0) return;
+    this.unreported = true;
+    if (Date.now() - this.reportedAt >= APPEND_REPORT_MS) await this.report();
+  }
+
+  private async report(): Promise<void> {
+    if (!this.unreported || !this.onAppended) return;
+    this.unreported = false;
+    this.reportedAt = Date.now();
+    await this.onAppended();
   }
 
   /** Read the track as drawable segments. */

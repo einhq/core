@@ -19,6 +19,7 @@ import { createLogger } from '../managers/logger/mod.ts';
 import { RouterManagerIf } from '../managers/router/mod.ts';
 import { SimilarityMatch, SimilarPair } from '../registries/embedding/mod.ts';
 import { GeoBounds, NearbyMatch, PositionPoint, WithinMatch } from '../registries/position/mod.ts';
+import { TrackHandle } from '../registries/track/track-handle.ts';
 import type { TrackSummary } from '../registries/track/types.ts';
 import {
   PoolClaimRequest,
@@ -4677,6 +4678,21 @@ export class LocalNodeVFS implements NodeVFS {
             else logger.error('position write report failed', { error, path });
           }
         });
+      }
+
+      // A track's points are registry content too, and its handle stays itself
+      // (callers test `instanceof TrackHandle`), so it reports appends through
+      // its own hook rather than a wrapper.
+      if (writable && handle instanceof TrackHandle) {
+        const path = entry.vfsAbsPath;
+        handle.onAppended = async () => {
+          try {
+            await this.update(access, path, { attrs: {} });
+          } catch (error) {
+            if (error instanceof NodeNotFoundError) logger.debug('track append report skipped, node deleted', { path });
+            else logger.error('track append report failed', { error, path });
+          }
+        };
       }
 
       return handle;
