@@ -32,4 +32,3 @@ export * from './CodeEditor/mod.ts';
 export * from './Icon/mod.ts';
 export * from './EmptyState/mod.ts';
 export * from './SectionStream/mod.ts';
-export * from './ShortcutLegend/mod.ts';

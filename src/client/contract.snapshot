@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.8.0
+MODULE_API_VERSION 0.9.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -79,7 +79,6 @@ src/builtin/ui/src/client/components/mod.ts InterpretedFilter 5dd0783a42ac @sign
 src/builtin/ui/src/client/components/mod.ts InterpretedFilterProps 1bef5d2b7c1c color=1238f431f506,details=a4c00cfa9b62,note=384318ea4daa,size=7a7659d77da5
 src/builtin/ui/src/client/components/mod.ts LabelFacets 9378bf5885fa @signature=0296841d6ffa,chosen=008785529899,labels=b28629cde56d,onChoose=439f3fe0f95f,total=eb57c5e83067
 src/builtin/ui/src/client/components/mod.ts LabelFacetsProps 713aefee6af4 chosen=31a9e263ea43,labels=997bff2c6a61,onChoose=aaecddab2e3f,total=08c7a0b849b7
-src/builtin/ui/src/client/components/mod.ts LegendEntry 230bf821d1a8 keys=bcb072cebda9,label=af04505f402e,onClick=5ff6a038515f
 src/builtin/ui/src/client/components/mod.ts ListFilterInput 0ff562b89436 @signature=6676f28ee7bd,onChange=9f54af0b3372,size=cb7a277af2d3,value=9c19b817e1d4,what=04381177c39c
 src/builtin/ui/src/client/components/mod.ts ListFilterInputProps 105ea9da5b64 onChange=6c8049023f89,size=2569de6b74f3,value=5647ee15e4bf,what=4ad9236e0fd8
 src/builtin/ui/src/client/components/mod.ts LogTail aaf5538a83ec @signature=4816e57e7841,height=3a8cb7c42830,path=6f2ed93878c2
@@ -170,8 +169,6 @@ src/builtin/ui/src/client/components/mod.ts ShareButtonProps a3143255c82a compac
 src/builtin/ui/src/client/components/mod.ts ShareModalHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts ShareSelectionAction 767270242128 @signature=4b83223e54ef,album=8d5c422dc085,items=6d58b7e31872,selection=4ac0a761f645
 src/builtin/ui/src/client/components/mod.ts SharingChip 4277eb856778 @signature=db01f72480d2,ownership=332d07315d20,path=aa6112178522
-src/builtin/ui/src/client/components/mod.ts ShortcutLegend 9d83a47e7584 @signature=1329e5e1699d,announce=344a4747b39a,entries=1a6e6da2434c,hidden=a11b8519e428,onHiddenChange=e355452713cd
-src/builtin/ui/src/client/components/mod.ts ShortcutLegendProps 488f11f87a8b announce=bcb255feb112,entries=d1dbef01d73d,hidden=0f90a5c01df4,onHiddenChange=23423996e139
 src/builtin/ui/src/client/components/mod.ts Sparkline cfe21c20b87d @signature=4816e57e7841,bucketMs=ec20a13b1423,buckets=10fafda9933a,height=3a8cb7c42830,windowMs=cd6fee3bf365
 src/builtin/ui/src/client/components/mod.ts StackedBar 27b56c6a0fe1 @signature=4816e57e7841,describe=dfc97a2af323,emptyLabel=948c20bd87a6,height=3a8cb7c42830,legend=66fcdcddbd7c,segments=f0ee19026732
 src/builtin/ui/src/client/components/mod.ts StatTile c372b45055bc @signature=4816e57e7841,accent=dfdd0450a0d5,hint=12882127d7f4,icon=e19ec288ae0e,label=52f9b8b83044,series=c07a2a3ef5d6,seriesMax=a5efef0b5bcb,seriesUnit=6bd71add3bb0,tooltip=a7800f01ea23,value=9c19b817e1d4
