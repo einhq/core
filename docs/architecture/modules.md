@@ -268,7 +268,19 @@ of the host there — `make container-run` does, `MODULE_INSTALL_PATH ?= ./modul
 the installs outlive the container: a new image, a `podman run --replace`, even a new database,
 since boot links whatever is in the folder at every start. Without the mount the folder is the
 container's own and the installs go with it. Hidden entries are not modules, so a staging tree an
-interrupted install left is never linked.
+interrupted install left is never linked, and the next install removes it.
+
+**One at a time, apart from the session.** The installer
+([installer.ts](../../src/modules/installer.ts)), one per process, runs each install in an admin
+shell of its own (`ShellManager.createSystemShell` with its output handed back): that shell runs
+`mod install` with `MOD_INSTALL_JOB` naming the install, which is the command doing the work. The
+`mod install` someone types only starts it and follows its lines, so ending the session, an SSH
+client's timeout or a closed browser tab ends the following, never the install. While one runs,
+the same arguments join it and others are refused. The install keeps its last lines, how many files
+of the module it is unpacking are in place, and its answer; `mod status` reads them, and the
+Modules tab of the settings page asks it every few seconds, so every session sees the install
+whoever started it. It lives in the process: a restart ends it, and leaves the staging tree for
+the next install to clear.
 
 **At boot.** A deployment that wants modules without anyone installing them names them in
 `INSTALL_MODULES` (names or addresses, separated by spaces; `make container-run INSTALL_MODULES=…`).

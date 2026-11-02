@@ -120,6 +120,7 @@ import { modInstall } from './mod/mod-install.ts';
 import { modList } from './mod/mod-list.ts';
 import { modRemove } from './mod/mod-remove.ts';
 import { modSearch } from './mod/mod-search.ts';
+import { modStatus } from './mod/mod-status.ts';
 import { modCache } from './mod/mod-cache.ts';
 import { modSetup } from './mod/mod-setup.ts';
 import { mod } from './mod/mod.ts';
@@ -342,6 +343,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   modList,
   modRemove,
   modSearch,
+  modStatus,
 
   // Service management
   service,

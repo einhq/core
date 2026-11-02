@@ -11,11 +11,13 @@
  * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
  * alone and set nothing up; a module the deployment provides, one for another core and a
  * repository that holds no module leave nothing behind; a private repository is read with its
- * host's token; and mod remove takes an installed module's tree with it.
+ * host's token; an install goes on when the session that asked for it ends, another is refused
+ * while it runs, the same one is joined, and mod status says how it stands; and mod remove takes an
+ * installed module's tree with it.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
+import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleInstallStatus, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
 import { FakeForge, moduleFiles } from '../../../../testing/fake-forge.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
@@ -285,6 +287,39 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'reef')?.installed?.commit, runnable);
       assertEquals(await run('$MOD_PATH/reef/bin/reef'), 'reef 0.1.1');
       await client.execString('mod-remove --force reef');
+    });
+
+    await t.step('an install goes on without the session that asked for it, one at a time, and mod status says how it stands', async () => {
+      await forge.publish('acme', 'module-slow', moduleFiles('slow', '1.0.0', 'slow'));
+      // Left by an install EiN stopped in the middle of: the next one clears it away.
+      await client.execString('mkdir $MOD_INSTALL_PATH/.staging-left');
+      const archive = Promise.withResolvers<void>();
+      forge.hold = archive.promise;
+
+      const asker = await testCtx.server.createShellClient();
+      const asked = asker.exec('mod install slow').catch(() => undefined);
+      let status: ModuleInstallStatus;
+      do {
+        status = await client.execJson<ModuleInstallStatus>('mod status');
+      } while (status.install?.args.join(' ') !== 'slow' || status.install.state !== 'running');
+      asker.close();
+      await asked;
+
+      const other = await install('greet');
+      assertEquals(other.success, false);
+      assertStringIncludes(other.error ?? '', 'mod install slow is running');
+      const joined = await client.execJson<ModuleInstallStatus>('mod install --background slow');
+      assertEquals(joined.install?.id, status.install.id);
+
+      archive.resolve();
+      forge.hold = undefined;
+      const followed = await client.execJson<ModuleInstallStatus>('mod status --follow');
+      assertEquals(followed.install?.state, 'done');
+      assertEquals(followed.install?.result?.installed.map((module) => module.name), ['slow']);
+      assertEquals(await run('$MOD_PATH/slow/bin/slow'), 'slow');
+      assertEquals(await hidden('$MOD_INSTALL_PATH'), []);
+      assertStringIncludes(await run('mod status'), 'mod install slow: done');
+      await client.execString('mod-remove --force slow');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {

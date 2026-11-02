@@ -13,6 +13,7 @@ import { fillWindow, PaneScroll, SPLIT_MIN_WIDTH } from '../ListDetail.tsx';
 import { byState, ModuleList, moduleState } from './ModuleList.tsx';
 import { ModulePanel } from './ModulePanel.tsx';
 import { AddModule } from './AddModule.tsx';
+import { InstallProgress, useModuleInstall } from './ModuleInstall.tsx';
 
 /** The history state of a module opened from the list where they take turns, so going back to the list pops it. */
 const OPENED = { modulesOpened: true };
@@ -30,6 +31,9 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * module instead, which the button beside the filter does. The list is asked fresh rather than reused
  * from the docs' kept answer: a `mod setup` since then changes whether a module works, and an
  * install or a removal here asks it again, and loads the shell's navigation and module pages again.
+ *
+ * Above them, the module install EiN is running, whoever started it, and when one this page saw
+ * running ends, what it came to.
  */
 export function ModulesTab() {
   const { data: modules, loading, error, refetch: refetchList } = useModuleReference({ fresh: true });
@@ -38,6 +42,9 @@ export function ModulesTab() {
     refetchList();
     void reloadModuleUi();
   };
+  const { install, seen, refresh: refreshInstall } = useModuleInstall(refetch);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const shownInstall = install && (install.state === 'running' || (seen && dismissed !== install.id)) ? install : null;
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
   const narrow = width < SPLIT_MIN_WIDTH;
   // On a phone the panel is no box: its sections use the page's width.
@@ -119,7 +126,7 @@ export function ModulesTab() {
       <PaneScroll scrolls={!narrow} viewportRef={detailRef}>
         <Box p={flat ? 0 : narrow ? 'md' : 'lg'}>
           {published
-            ? <AddModule installed={all} onInstalled={refetch} onOpenModule={(name) => go(name)} />
+            ? <AddModule installed={all} install={install} onStarted={refreshInstall} onOpenModule={(name) => go(name)} />
             : firstLoad
             ? <PageLoader label='Loading modules…' />
             : selected
@@ -132,6 +139,8 @@ export function ModulesTab() {
                 section={section}
                 onSection={(next) => go(selected.name, false, next)}
                 onChanged={refetch}
+                install={install}
+                onStarted={refreshInstall}
                 onRemoved={() => {
                   refetch();
                   backToList();
@@ -175,6 +184,7 @@ export function ModulesTab() {
           {error.message}
         </Alert>
       )}
+      {shownInstall && <InstallProgress install={shownInstall} onOpenModule={(name) => go(name)} onDismiss={() => setDismissed(shownInstall.id)} />}
       {body}
     </Stack>
   );

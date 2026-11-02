@@ -25,6 +25,8 @@ export class FakeForge {
   readonly repositories = new Map<string, FakeRepository>();
   /** The archives fetched, as `owner/name@commit`. */
   readonly archives: string[] = [];
+  /** While set, an archive is sent only once it settles: an install waits at its fetch. */
+  hold?: Promise<void>;
   private server?: Deno.HttpServer<Deno.NetAddr>;
   private counter = 0;
 
@@ -75,7 +77,9 @@ export class FakeForge {
       const files = repository?.commits.get(archive[3]);
       if (!repository || !files || !allowed(repository)) return new Response('Not found', { status: 404 });
       this.archives.push(`${archive[1]}/${archive[2]}@${archive[3]}`);
-      return new Response(tarball(archive[2], files));
+      const body = tarball(archive[2], files);
+      const held = this.hold;
+      return new Response(held ? body.pipeThrough(new TransformStream({ start: () => held })) : body);
     }
 
     const list = /^\/api\/v1\/orgs\/([^/]+)\/repos$/.exec(url.pathname);

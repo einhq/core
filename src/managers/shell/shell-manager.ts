@@ -15,9 +15,17 @@ type ShellCreateOpts = Omit<ShellConfig, 'cem' | 'vfs' | 'bufferManager'>;
 
 export interface ShellManagerIf extends ManagerIf {
   createShell(opts: ShellCreateOpts): Promise<Shell>;
-  /** A shell with an admin session at `opts.sessionPath`, its output going to the log. */
-  createSystemShell(opts: ShellCreateOpts): Promise<Shell>;
+  /**
+   * A shell with an admin session at `opts.sessionPath`, its output going to `output` when given,
+   * a chunk at a time, and else to the log.
+   */
+  createSystemShell(opts: ShellCreateOpts, output?: ShellOutput): Promise<Shell>;
+  /** Close a shell this manager made, and forget it. */
+  closeShell(shell: Shell): Promise<void>;
 }
+
+/** Where a system shell's output goes instead of the log: each chunk as written, stderr's with `error`. */
+type ShellOutput = (text: string, error: boolean) => void;
 
 export class ShellManager implements ShellManagerIf {
   private shells = new Map<string, Shell>();
@@ -43,8 +51,16 @@ export class ShellManager implements ShellManagerIf {
     return shell;
   }
 
-  async createSystemShell(opts: ShellCreateOpts): Promise<Shell> {
+  async closeShell(shell: Shell): Promise<void> {
+    this.shells.delete(shell.name);
+    await shell.close();
+  }
+
+  async createSystemShell(opts: ShellCreateOpts, output?: ShellOutput): Promise<Shell> {
     const decoder = new TextDecoder();
+    // A chunk may end inside a character, which the next one finishes.
+    const outDecoder = new TextDecoder();
+    const errDecoder = new TextDecoder();
 
     await this.config.vfs.ensure<SessionAttrs>(
       ADMIN_ACCESS,
@@ -75,7 +91,8 @@ export class ShellManager implements ShellManagerIf {
     stdout.readable.pipeTo(
       new WritableStream<Uint8Array>({
         write(line) {
-          logger.info(decoder.decode(line).trimEnd());
+          if (output) output(outDecoder.decode(line, { stream: true }), false);
+          else logger.info(decoder.decode(line).trimEnd());
         },
       }),
     ).catch((err) => logger.error('stdout pipe failed', err));
@@ -84,7 +101,8 @@ export class ShellManager implements ShellManagerIf {
     stderr.readable.pipeTo(
       new WritableStream<Uint8Array>({
         write(line) {
-          logger.error(decoder.decode(line).trimEnd());
+          if (output) output(errDecoder.decode(line, { stream: true }), true);
+          else logger.error(decoder.decode(line).trimEnd());
         },
       }),
     ).catch((err) => logger.error('stderr pipe failed', err));

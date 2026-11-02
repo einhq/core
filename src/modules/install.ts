@@ -74,9 +74,15 @@ type Unpacked = { files: number; skipped: string[] };
  * Unpack a gzipped tar of a repository into `dest`, which must exist: the entries under its one top
  * directory, which a forge names after the repository. Directories and files are written with
  * their modes, so a command stays executable; symlinks and anything else are left out, and said.
- * A path that would leave `dest` is refused.
+ * A path that would leave `dest` is refused. `unpacked` is told the number of files in place after each.
  */
-export const unpackArchive = async (vfs: NodeVFS, access: Access, archive: ReadableStream<Uint8Array>, dest: string): Promise<Unpacked> => {
+export const unpackArchive = async (
+  vfs: NodeVFS,
+  access: Access,
+  archive: ReadableStream<Uint8Array>,
+  dest: string,
+  unpacked?: (files: number) => Promise<void>,
+): Promise<Unpacked> => {
   const parentOf = (relative: string): string => dirname(relative) === '.' ? '' : dirname(relative);
   const made = new Set<string>(['']);
   const ensureDir = async (relative: string): Promise<void> => {
@@ -119,6 +125,7 @@ export const unpackArchive = async (vfs: NodeVFS, access: Access, archive: Reada
       const bytes = entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();
       await writeFile(vfs, access, join(dest, relative), bytes, entry.header.mode & 0o777 || 0o644);
       files++;
+      await unpacked?.(files);
     } else {
       await entry.readable?.cancel();
       skipped.push(`${relative}: ${type === '2' ? 'a symlink' : `an entry of type '${type}'`}, not installed`);

@@ -2,13 +2,13 @@ import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Stack, Text, T
 import { IconAlertTriangle, IconDownload, IconRefresh } from '@tabler/icons-react';
 import { useState } from 'react';
 import { greaterThan, tryParse } from '@std/semver';
-import type { ModuleEntry, ModuleInstallResult, ModuleSearch, PublishedModule } from '@ein/api';
+import type { ModuleEntry, ModuleInstallJob, ModuleSearch, PublishedModule } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useCommand } from '../../../hooks/useCommand.ts';
 import { formatGroupList } from '../../../lib/accounts.ts';
 import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
-import { Done, Note } from '../Accounts/PanelParts.tsx';
+import { Note } from '../Accounts/PanelParts.tsx';
 import { InstallQuestion } from './InstallQuestion.tsx';
 
 /** What is installed of a published module, by which the row says what can be done. */
@@ -39,14 +39,16 @@ const behind = (module: PublishedModule, entry: ModuleEntry): boolean => {
 
 const short = (commit: string): string => commit.slice(0, 9);
 
-/** What `busy`, `done` and `problem` are keyed by for the install from an address, beside the published repositories. */
+/** What `busy` and `problem` are keyed by for the install from an address, beside the published repositories. */
 const ADDRESS = 'address';
 
 type AddModuleProps = {
   /** The installed modules, for what is installed of each. */
   installed: ModuleEntry[];
-  /** After an install, so the list beside it and the shell's navigation are asked again. */
-  onInstalled: () => void;
+  /** The install EiN is running, or the last one: while one runs, nothing else is installed. */
+  install: ModuleInstallJob | null;
+  /** After an install was started, so how it stands is asked at once. */
+  onStarted: () => void;
   onOpenModule: (name: string) => void;
 };
 
@@ -56,28 +58,32 @@ type AddModuleProps = {
  * `module-*` repository of the module sources (`mod search`), with its version and what is installed of it, and for the
  * administrator a button that installs its newest release this EiN can run, or its default branch when it has none,
  * with what it needs, or updates it when that is past what is installed. Install asks first, in its place, who the module is for
- * (`InstallQuestion`); an update keeps whom it was for. A source that does not answer is named
- * above the list.
+ * (`InstallQuestion`); an update keeps whom it was for. The install runs on its own, which the tab
+ * follows; while one runs, nothing else is installed. A source that does not answer is named above
+ * the list.
  */
-export function AddModule({ installed, onInstalled, onOpenModule }: AddModuleProps) {
+export function AddModule({ installed, install: current, onStarted, onOpenModule }: AddModuleProps) {
   const admin = useAccessIds()?.admin === true;
   const { data, loading, error, refetch } = useCommand<ModuleSearch>('mod search');
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ repository: string; message: string } | null>(null);
-  const [done, setDone] = useState<{ repository: string; message: string; names: string[] } | null>(null);
   const [address, setAddress] = useState('');
   // The install whose question — who it is for — is open, by the key `busy` takes.
   const [asking, setAsking] = useState<string | null>(null);
 
-  /** `mod install <target>`, for `groups` (none: everyone), its outcome said under the row `key` names. */
-  const run = async (key: string, target: string, say: (names: string[]) => string, groups: string[] = []): Promise<boolean> => {
+  // An install EiN runs, whoever started it, holds every Install and Update.
+  const running = current?.state === 'running' ? current : null;
+
+  /**
+   * `mod install --background <target>`, for `groups` (none: everyone): the install runs on its own,
+   * and the tab says how it stands; why it would not start is said under the row `key` names.
+   */
+  const run = async (key: string, target: string, groups: string[] = []): Promise<boolean> => {
     setBusy(key);
     setProblem(null);
-    setDone(null);
     try {
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(target)}${groups.length > 0 ? ` --groups ${shq(formatGroupList(groups))}` : ''}`);
-      const names = result.installed.map((each) => each.name);
-      setDone({ repository: key, message: say(names), names });
+      await execCommand(`mod install --background ${shq(target)}${groups.length > 0 ? ` --groups ${shq(formatGroupList(groups))}` : ''}`);
+      onStarted();
       return true;
     } catch (err) {
       setProblem({ repository: key, message: err instanceof Error ? err.message : String(err) });
@@ -85,50 +91,33 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
     } finally {
       setBusy(null);
       setAsking(null);
-      onInstalled();
     }
   };
 
   /** A published module installed for `groups`, or updated, which keeps whom it is for and asks nothing. */
-  const install = (module: PublishedModule, update: boolean, groups: string[] = []) =>
-    run(
-      module.repository,
-      module.repository,
-      (names) => update ? 'Updated' : names.length > 1 ? `Installed, with ${names.filter((name) => name !== module.name).join(', ')}` : 'Installed',
-      groups,
-    );
+  const install = (module: PublishedModule, groups: string[] = []) => run(module.repository, module.repository, groups);
 
   const installAddress = async (groups: string[]) => {
     const target = address.trim();
     if (!target) return;
-    const installed = await run(ADDRESS, target, (names) => names.length === 0 ? 'Installed at that commit already' : `Installed ${names.join(', ')}`, groups);
-    if (installed) setAddress('');
+    if (await run(ADDRESS, target, groups)) setAddress('');
   };
 
-  /** What the last install under `key` came to; with `open`, a link to each module it installed. */
-  const outcome = (key: string, open = false) => (
-    <>
-      {done?.repository === key && (
-        <Group mt='xs' gap='xs'>
-          <Done>{done.message}</Done>
-          {open && done.names.map((name) => <Anchor key={name} component='button' type='button' size='sm' onClick={() => onOpenModule(name)}>Open {name}</Anchor>)}
-        </Group>
-      )}
-      {problem?.repository === key && (
-        <Alert
-          mt='xs'
-          color='red'
-          p='xs'
-          icon={<IconAlertTriangle size={16} />}
-          withCloseButton
-          closeButtonLabel='Dismiss'
-          onClose={() => setProblem(null)}
-        >
-          <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem.message}</Text>
-        </Alert>
-      )}
-    </>
-  );
+  /** Why the install under `key` would not start. */
+  const outcome = (key: string) =>
+    problem?.repository === key && (
+      <Alert
+        mt='xs'
+        color='red'
+        p='xs'
+        icon={<IconAlertTriangle size={16} />}
+        withCloseButton
+        closeButtonLabel='Dismiss'
+        onClose={() => setProblem(null)}
+      >
+        <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem.message}</Text>
+      </Alert>
+    );
 
   const modules = data?.modules ?? [];
   return (
@@ -162,7 +151,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                   placeholder='https://github.com/owner/module-name@v0.1.0'
                   value={address}
                   onChange={(event) => setAddress(event.currentTarget.value)}
-                  disabled={busy !== null || asking === ADDRESS}
+                  disabled={busy !== null || running !== null || asking === ADDRESS}
                   autoComplete='off'
                   autoCapitalize='off'
                   autoCorrect='off'
@@ -173,7 +162,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                   <Button
                     type='submit'
                     leftSection={<IconDownload size={16} />}
-                    disabled={busy !== null || address.trim() === ''}
+                    disabled={busy !== null || running !== null || address.trim() === ''}
                     style={{ flex: 'none' }}
                   >
                     Install
@@ -181,7 +170,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                 )}
               </Group>
               {asking === ADDRESS && <InstallQuestion busy={busy === ADDRESS} onInstall={(groups) => void installAddress(groups)} onCancel={() => setAsking(null)} />}
-              {outcome(ADDRESS, true)}
+              {outcome(ADDRESS)}
             </Stack>
           </form>
         </Paper>
@@ -208,7 +197,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
       <Stack gap='sm'>
         {modules.map((module) => {
           const standing = standingOf(module, installed);
-          const mine = busy === module.repository;
+          const mine = busy === module.repository || running?.args.includes(module.repository) === true;
           return (
             <Paper key={module.repository} withBorder radius='md' p='sm'>
               <Group justify='space-between' align='flex-start' gap='sm'>
@@ -236,8 +225,8 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                     variant={standing.kind === 'absent' ? 'filled' : 'light'}
                     leftSection={standing.kind === 'absent' ? <IconDownload size={16} /> : <IconRefresh size={16} />}
                     loading={mine}
-                    disabled={busy !== null || module.compatible === false}
-                    onClick={() => standing.kind === 'behind' ? void install(module, true) : setAsking(module.repository)}
+                    disabled={busy !== null || running !== null || module.compatible === false}
+                    onClick={() => standing.kind === 'behind' ? void install(module) : setAsking(module.repository)}
                     style={{ flex: 'none' }}
                   >
                     {standing.kind === 'absent' ? 'Install' : 'Update'}
@@ -248,7 +237,7 @@ export function AddModule({ installed, onInstalled, onOpenModule }: AddModulePro
                 <InstallQuestion
                   name={module.name}
                   busy={mine}
-                  onInstall={(groups) => void install(module, false, groups)}
+                  onInstall={(groups) => void install(module, groups)}
                   onCancel={() => setAsking(null)}
                 />
               )}

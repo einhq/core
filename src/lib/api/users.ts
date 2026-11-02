@@ -273,6 +273,31 @@ export type ModuleInstallResult = {
   failed: string[];
 };
 
+/**
+ * `mod status`, and `mod install --background`: the module install running now, or else the last
+ * one since EiN started; null when there has been none.
+ */
+export type ModuleInstallStatus = { install: ModuleInstallJob | null };
+
+/** One `mod install`, as EiN runs it apart from the session that asked for it. */
+export type ModuleInstallJob = {
+  id: string;
+  /** What it was asked: `mod install`'s arguments. */
+  args: string[];
+  /** Who asked, by account name. */
+  by: string;
+  /** When it started, and when it finished, as ISO times. */
+  startedAt: string;
+  finishedAt?: string;
+  state: 'running' | 'done' | 'failed';
+  /** The module it is unpacking now, and how many of its files are in place. */
+  unpacking?: { module: string; files: number };
+  /** The last lines it said, its errors among them, in order. */
+  lines: { text: string; error?: boolean }[];
+  /** What it came to, once it has finished. */
+  result?: ModuleInstallResult;
+};
+
 /** One module `mod install` put in place. */
 export type InstalledModule = ModuleInstall & {
   name: string;

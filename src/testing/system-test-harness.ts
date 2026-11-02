@@ -197,13 +197,14 @@ export class SystemTestHarness {
 
     let shell: Shell;
 
+    // Booted or not, as in main.ts: the shells EiN opens for itself, such as `mod install`'s.
+    const shellManager = new ShellManager({ cem, vfs, bufferManager });
+    await shellManager.init();
+    sysCore.shellManager = shellManager;
+    this.shellManager = shellManager;
+
     if (this.options.boot) {
       // Full boot: managers + init scripts, like main.ts
-      const shellManager = new ShellManager({ cem, vfs, bufferManager });
-      await shellManager.init();
-      sysCore.shellManager = shellManager;
-      this.shellManager = shellManager;
-
       const serviceManager = new ServiceManager({
         vfs,
         cem,

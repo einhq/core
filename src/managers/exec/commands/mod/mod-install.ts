@@ -25,12 +25,18 @@
  * leaves any module installed already as it is without asking a forge, and `--no-setup`, which
  * leaves the setting up to boot's own `mod setup --all` and the starting of services to its last
  * step.
+ *
+ * The work is the installer's (`src/modules/installer.ts`): one install at a time, in a shell of its
+ * own, so it goes on when the session that asked for it ends. `mod install` starts it and follows
+ * it to its end, saying what it says; interrupted, it stops following and the install goes on.
+ * With `--background` it only starts it. Asked for what is running already, it follows that; asked
+ * for anything else while an install runs, it refuses. `mod status` says how far an install has got.
  */
 
 import { basename, join } from '@std/path';
 import { canParse, parse, parseRange, satisfies } from '@std/semver';
 import { ulid } from '@std/ulid';
-import type { InstalledModule, ModuleInstall, ModuleInstallResult, ServiceEntry } from '../../../../lib/api/mod.ts';
+import type { InstalledModule, ModuleInstall, ModuleInstallResult, ModuleInstallStatus, ServiceEntry } from '../../../../lib/api/mod.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { groupGid } from '../../../../lib/auth/member-gids.ts';
 import { writeModuleGroups } from '../../../../modules/audience.ts';
@@ -57,12 +63,15 @@ import {
   type Tokens,
 } from '../../../../modules/forge.ts';
 import { readInstallRecord, REPLACED_PREFIX, STAGING_PREFIX, unpackArchive, writeInstallRecord } from '../../../../modules/install.ts';
+import { INSTALL_JOB_VAR, installerOf, type InstallJob } from '../../../../modules/installer.ts';
 import { checkCoreApi, checkExports, checkUi, MODULE_API_VERSION, type ModuleManifest, readManifests, readModJson, resolveSetupOrder } from '../../../../modules/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_SOFTLINK } from '../../../../vfs/types/softlink.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { accountNames } from '../system/accounts.ts';
 import { setupOne } from './mod-setup.ts';
+import { followInstall } from './mod-status.ts';
 import { rebuildModulePages } from './module-pages.ts';
 import { ARCHIVE_TIMEOUT_MS, FORGE_TIMEOUT_MS, moduleSources, within } from './sources.ts';
 
@@ -71,6 +80,8 @@ class InstallError extends Error {}
 
 type Run = {
   cmd: Command;
+  /** The install this run does the work of, told how far it has got. */
+  job: InstallJob;
   sources: ModuleSource[];
   tokens: Tokens;
   /** `MOD_INSTALL_PATH`: where installed modules live. */
@@ -89,6 +100,9 @@ type Run = {
 };
 
 const short = (commit: string): string => commit.slice(0, 9);
+
+/** How often an install says how many files of a module it has unpacked. */
+const PROGRESS_EVERY_MS = 10_000;
 
 const say = async (run: Run, line: string): Promise<void> => {
   if (!run.cmd.json) await run.cmd.write(`${line}\n`);
@@ -252,8 +266,21 @@ const installTarget = async (
   let staged = true;
   try {
     let unpacked;
+    let said = Date.now();
+    const unpacking = async (files: number) => {
+      run.job.progress(expected, files);
+      if (Date.now() - said < PROGRESS_EVERY_MS) return;
+      said = Date.now();
+      await say(run, `  ${files} files of ${expected} unpacked`);
+    };
     try {
-      unpacked = await unpackArchive(vfs, cmd.access, await fetchArchive(repository, resolved.commit, run.tokens, within(cmd, ARCHIVE_TIMEOUT_MS)), staging);
+      unpacked = await unpackArchive(
+        vfs,
+        cmd.access,
+        await fetchArchive(repository, resolved.commit, run.tokens, within(cmd, ARCHIVE_TIMEOUT_MS)),
+        staging,
+        unpacking,
+      );
     } catch (error) {
       if (error instanceof ForgeError) throw new InstallError(error.message);
       throw new InstallError(`${repository.repository} at ${short(resolved.commit)}: ${error instanceof Error ? error.message : String(error)}`);
@@ -394,14 +421,71 @@ const affectedBy = async (cmd: Command, changed: Set<string>, skip: Set<string>)
   return order.filter((name) => reached.has(name) && !changed.has(name) && !skip.has(name));
 };
 
+/** Remove the trees an install EiN stopped in the middle of left beside the installed modules. */
+const removeLeftovers = async (run: Run): Promise<void> => {
+  let children;
+  try {
+    children = await run.cmd.sys.vfs.children(ADMIN_ACCESS, run.store);
+  } catch {
+    return;
+  }
+  for (const child of children) {
+    if (!child.name.startsWith(STAGING_PREFIX) && !child.name.startsWith(REPLACED_PREFIX)) continue;
+    await run.cmd.sys.vfs.unlink(ADMIN_ACCESS, join(run.store, child.name), run.store, { recursive: true });
+    await say(run, `Removed ${child.name}, left by an install that did not finish`);
+  }
+};
+
+const parseFlags = (cmd: Command) => parseArgs(cmd.args, { boolean: ['force', 'missing', 'no-setup', 'background'], string: ['groups'], alias: { f: 'force' } });
+
 export const modInstall = async (cmd: Command): CmdReturn => {
-  const flags = parseArgs(cmd.args, { boolean: ['force', 'missing', 'no-setup'], string: ['groups'], alias: { f: 'force' } });
-  const targets = flags._.map(String);
-  if (targets.length === 0) {
+  const flags = parseFlags(cmd);
+  if (flags._.length === 0) {
     await cmd.writeError('mod install: name a module or its repository\n');
-    await cmd.writeError('usage: mod install <name | https://host/owner/module-name>[@ref]... [--groups a,b] [--force] [--missing] [--no-setup]\n');
+    await cmd.writeError(
+      'usage: mod install <name | https://host/owner/module-name>[@ref]... [--groups a,b] [--force] [--missing] [--no-setup] [--background]\n',
+    );
     return 1;
   }
+
+  const installer = installerOf(cmd.sys);
+  const jobId = cmd.env[INSTALL_JOB_VAR];
+  if (jobId) {
+    const job = installer.running;
+    if (job?.id !== jobId) {
+      await cmd.writeError(`mod install: no install ${jobId} is running\n`);
+      return 1;
+    }
+    return await installNow(cmd, job);
+  }
+
+  const args = cmd.args.filter((arg) => arg !== '--background');
+  let job = installer.running;
+  if (job && job.args.join('\0') !== args.join('\0')) {
+    await cmd.writeError(
+      `mod install: mod install ${job.args.join(' ')} is running, since ${job.startedAt.toISOString()}, for ${job.by}; mod status --follow follows it\n`,
+    );
+    return 1;
+  }
+  if (job) {
+    if (!cmd.json && !flags.background) await cmd.write('The same install is running already; following it\n');
+  } else {
+    job = installer.start(args, (await accountNames(cmd))(cmd.access.uid), cmd.env);
+  }
+  if (flags.background) {
+    if (cmd.json) await cmd.writeJSON({ install: job.toJSON() } satisfies ModuleInstallStatus);
+    else await cmd.write('Installing in the background; mod status says how far it has got\n');
+    return 0;
+  }
+  const code = await followInstall(cmd, job);
+  if (cmd.json && job.result) await cmd.writeJSON(job.result satisfies ModuleInstallResult);
+  return code;
+};
+
+/** The install itself, run in the installer's shell for `job`. */
+const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
+  const flags = parseFlags(cmd);
+  const targets = flags._.map(String);
   const groups = typeof flags.groups === 'string' ? flags.groups.split(',').map((group) => group.trim()).filter(Boolean) : [];
   for (const group of groups) {
     if (await groupGid(cmd.sys.vfs, group) === undefined) {
@@ -415,6 +499,7 @@ export const modInstall = async (cmd: Command): CmdReturn => {
 
   const run: Run = {
     cmd,
+    job,
     sources,
     tokens,
     store: cmd.env.MOD_INSTALL_PATH || MOD_INSTALL_PATH,
@@ -425,6 +510,7 @@ export const modInstall = async (cmd: Command): CmdReturn => {
     installed: [],
     visiting: new Set(),
   };
+  await removeLeftovers(run);
 
   const failed: string[] = [];
   const fail = async (message: string): Promise<void> => {
@@ -472,7 +558,7 @@ export const modInstall = async (cmd: Command): CmdReturn => {
 
   if (setUp.length > 0) await rebuildModulePages(cmd);
 
-  if (cmd.json) await cmd.writeJSON({ ok: failed.length === 0, installed: run.installed, failed } satisfies ModuleInstallResult);
+  job.result = { ok: failed.length === 0, installed: run.installed, failed };
   return failed.length === 0 ? 0 : 1;
 };
 
@@ -480,7 +566,8 @@ modInstall.spec = {
   name: 'mod-install',
   admin: true,
   effect: 'write' as const,
-  description: 'Install modules from their repositories, or update them, with the dependencies they lack, and set them up',
+  description:
+    'Install modules from their repositories, or update them, with the dependencies they lack, and set them up: one install at a time, which goes on when the session ends',
   args: [
     {
       name: 'module',
@@ -507,5 +594,6 @@ modInstall.spec = {
       type: 'bool' as const,
       description: 'Put the modules in place without setting them up or starting their services, as boot does before its own mod setup --all',
     },
+    { name: 'background', type: 'bool' as const, description: 'Start the install and return at once; mod status says how far it has got' },
   ],
 };

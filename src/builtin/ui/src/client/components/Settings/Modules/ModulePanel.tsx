@@ -3,7 +3,7 @@ import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/ic
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { tryParse } from '@std/semver';
-import type { ModuleEntry, ModuleInstallResult, NodeTypeReference, ServiceEntry } from '@ein/api';
+import type { ModuleEntry, ModuleInstallJob, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useConfig } from '../../../hooks/useConfig.ts';
 import { useGuide } from '../../../hooks/useGuide.ts';
@@ -45,8 +45,12 @@ type ModulePanelProps = {
   /** The tab asked for; one this module has nothing for shows About. */
   section: string | null;
   onSection: (section: string) => void;
-  /** After it was updated, so the list is asked again. */
+  /** After it changed here, so the list is asked again. */
   onChanged: () => void;
+  /** The install EiN is running, or the last one: while one runs, Update waits. */
+  install: ModuleInstallJob | null;
+  /** After an update was started, so how it stands is asked at once. */
+  onStarted: () => void;
   /** After it was removed. */
   onRemoved: () => void;
 };
@@ -59,7 +63,7 @@ type ModulePanelProps = {
  * A tab is drawn only when the module has something for it, with how many. Commands and settings
  * open in place, a command to its help and a setting to its control.
  */
-export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, onRemoved }: ModulePanelProps) {
+export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, install, onStarted, onRemoved }: ModulePanelProps) {
   const state = moduleState(module);
   const admin = useAccessIds()?.admin === true;
   const { data: commands, loading: commandsLoading } = useCommandReference();
@@ -109,7 +113,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
           <Text span ff='monospace' size='sm'>mod setup {module.name}</Text> sets it up.
         </Note>
       )}
-      {module.installed && <Installed module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} onRemoved={onRemoved} />}
+      {module.installed && <Installed module={module} usedBy={usedBy} admin={admin} install={install} onStarted={onStarted} onRemoved={onRemoved} />}
       <AvailableTo module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} />
       <Box>
         <Button component={Link} to={moduleRoute(module.name)} variant='default' size='xs' leftSection={<IconBook2 size={16} />}>Reference and guide</Button>
@@ -158,15 +162,23 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
   );
 }
 
-type InstalledProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boolean; onChanged: () => void; onRemoved: () => void };
+type InstalledProps = {
+  module: ModuleEntry;
+  usedBy: ModuleEntry[];
+  admin: boolean;
+  install: ModuleInstallJob | null;
+  onStarted: () => void;
+  onRemoved: () => void;
+};
 
 /**
  * Where `mod install` fetched the module from, and for the administrator, Update — the newest
  * release when it was installed at one, the newest commit of the branch it was installed from, or
  * another tag's commit again; one installed at a commit stays there and has none — and Remove,
- * which asks first and says what goes with it.
+ * which asks first and says what goes with it. An update runs on its own, which the tab follows,
+ * and waits while another install runs.
  */
-function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledProps) {
+function Installed({ module, usedBy, admin, install, onStarted, onRemoved }: InstalledProps) {
   const record = module.installed!;
   const pinned = record.ref === record.commit;
   // A release, `v<version>`, is updated to the newest release this core can run, which `mod install` takes without a ref.
@@ -174,17 +186,16 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
   const release = version !== undefined && !version.prerelease?.length;
   const [busy, setBusy] = useState<'update' | 'remove' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
   const confirm = useInlineConfirm();
+  const target = release ? record.repository : `${record.repository}@${record.ref}`;
+  const running = install?.state === 'running' ? install : null;
 
   const update = async () => {
     setBusy('update');
     setProblem(null);
-    setDone(null);
     try {
-      const result = await execCommand<ModuleInstallResult>(`mod install ${shq(release ? record.repository : `${record.repository}@${record.ref}`)}`);
-      setDone(result.installed.some((each) => each.name === module.name) ? 'Updated' : 'Up to date');
-      onChanged();
+      await execCommand(`mod install --background ${shq(target)}`);
+      onStarted();
     } catch (err) {
       setProblem(err instanceof Error ? err.message : String(err));
     } finally {
@@ -221,14 +232,20 @@ function Installed({ module, usedBy, admin, onChanged, onRemoved }: InstalledPro
       {admin && !confirm.open && (
         <Group gap='xs'>
           {!pinned && (
-            <Button size='xs' variant='default' leftSection={<IconRefresh size={16} />} loading={busy === 'update'} disabled={busy !== null} onClick={update}>
+            <Button
+              size='xs'
+              variant='default'
+              leftSection={<IconRefresh size={16} />}
+              loading={busy === 'update' || running?.args.includes(target) === true}
+              disabled={busy !== null || running !== null}
+              onClick={update}
+            >
               Update
             </Button>
           )}
           <Button ref={confirm.opener} size='xs' variant='light' color='red' leftSection={<IconTrash size={16} />} disabled={busy !== null} onClick={confirm.show}>
             Remove
           </Button>
-          {done && <Done>{done}</Done>}
         </Group>
       )}
       {admin && confirm.open && (
