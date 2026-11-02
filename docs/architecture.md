@@ -270,8 +270,8 @@ metadata derived from someone's photo count as theirs (`search --creator`). Owne
 `changetime`/`modtime` stay the step's own.
 
 A mount's `noaudit` option names subtrees, in its own paths and separated by `:`, whose writes
-leave no record either (a move is recorded unless both ends lie inside). The primary instance
-mounts its pg root with `noaudit=$VAR_PATH`: `/var` is machine state nobody authors, and on fry
+leave no record either (a move is recorded unless both ends lie inside). EiN mounts
+its pg root with `noaudit=$VAR_PATH`: `/var` is machine state nobody authors, and on fry
 pipeline instances and their steps under it were 61% of the trail's 5.4 M rows after twelve days
 (ein/core#340), most of them for instances the pipeline pruner had already removed.
 

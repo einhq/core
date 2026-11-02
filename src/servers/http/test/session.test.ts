@@ -26,7 +26,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { baseUrl, vfs } = await harness.startPrimary();
+  const { baseUrl, vfs } = await harness.start();
   const { cookie, sessionPath } = await harness.createHttpSession();
 
   // A file to probe with

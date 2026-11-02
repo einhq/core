@@ -16,7 +16,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { vfs } = await harness.startPrimary();
+  const { vfs } = await harness.start();
 
   try {
     await t.step(`${DOCS_PATH} holds the guide, mounted with its contents and pages`, async () => {

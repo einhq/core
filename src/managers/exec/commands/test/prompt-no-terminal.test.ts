@@ -18,7 +18,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
   let admin: ShellClient | undefined;
 
   try {
@@ -47,7 +47,7 @@ Deno.test({
 
     await t.step('in an interactive shell the question is asked, and a pipe answers it', async () => {
       const { sessionPath } = await harness.createHttpSession();
-      const shell = new InteractiveShell({ vfs: primary.vfs, cem: primary.cem, bufferManager: primary.bufferManager, sessionPath, origin: 'terminal' });
+      const shell = new InteractiveShell({ vfs: instance.vfs, cem: instance.cem, bufferManager: instance.bufferManager, sessionPath, origin: 'terminal' });
       await shell.open();
       try {
         // The module the step above kept

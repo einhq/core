@@ -2,7 +2,7 @@
  * Test Context
  *
  * Thin convenience wrapper around SystemTestHarness for command tests.
- * Boots an in-memory primary (HTTP only, no SSH) and hands out logged-in
+ * Boots an in-memory instance (HTTP only, no SSH) and hands out logged-in
  * shell clients.
  */
 
@@ -36,14 +36,14 @@ export function createTestContext(options: SystemTestOptions = {}) {
     },
 
     async setup(): Promise<TestContext> {
-      const primary = await harness.startPrimary();
+      const instance = await harness.start();
       ctx = {
-        vfs: primary.vfs,
-        cem: primary.cem,
-        router: primary.routerManager,
-        shell: primary.shell,
-        baseUrl: primary.baseUrl,
-        port: primary.httpPort,
+        vfs: instance.vfs,
+        cem: instance.cem,
+        router: instance.routerManager,
+        shell: instance.shell,
+        baseUrl: instance.baseUrl,
+        port: instance.httpPort,
       };
       return ctx;
     },

@@ -16,7 +16,7 @@ import { LocalNodeVFS } from '../vfs/mod.ts';
 export type MemoryTestVfsOptions = {
   /** back files with this directory instead of memory */
   fileRoot?: string;
-  /** mount the data VFS at `/` under a router-only root, as the primary instance does */
+  /** mount the data VFS at `/` under a router-only root, as EiN does */
   rootMount?: boolean;
   /** subtrees whose writes leave no audit record, as the `noaudit` mount option names them */
   unaudited?: readonly string[];

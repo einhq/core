@@ -24,7 +24,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { baseUrl, vfs, cem, shell } = await harness.startPrimary();
+  const { baseUrl, vfs, cem, shell } = await harness.start();
   const { cookie } = await harness.createHttpSession();
   void cem;
   void shell;

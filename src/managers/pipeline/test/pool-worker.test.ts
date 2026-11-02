@@ -34,7 +34,7 @@ async function markers(client: ShellClient, name: string): Promise<string[]> {
   return String(result.data).trim().split('\n').filter(Boolean);
 }
 
-async function writeFile(vfs: Awaited<ReturnType<SystemTestHarness['startPrimary']>>['vfs'], path: string, body: string) {
+async function writeFile(vfs: Awaited<ReturnType<SystemTestHarness['start']>>['vfs'], path: string, body: string) {
   const handle = await vfs.open(ADMIN_ACCESS, path, { mode: 'w' });
   try {
     await handle.write(new TextEncoder().encode(body + '\n'));
@@ -48,7 +48,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { vfs } = await harness.startPrimary();
+  const { vfs } = await harness.start();
   const client = await harness.createShellClient();
   const cmd = testCommands(client);
 

@@ -26,7 +26,7 @@ Deno.test({
   sanitizeOps: false,
 }, async (t) => {
   const harness = new SystemTestHarness({ ssh: false, boot: true });
-  const { vfs, cem, bufferManager } = await harness.startPrimary();
+  const { vfs, cem, bufferManager } = await harness.start();
   const client = await harness.createShellClient();
 
   await client.exec('mkdir -p /opt/tree/alpha /opt/tree/beta && echo x > /opt/tree/apple');

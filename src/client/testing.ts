@@ -10,7 +10,7 @@
  */
 
 /* Harness and shell client */
-export { createSystemTestContext, type PrimaryContext, SystemTestHarness, type SystemTestOptions } from '../testing/system-test-harness.ts';
+export { createSystemTestContext, type InstanceContext, SystemTestHarness, type SystemTestOptions } from '../testing/system-test-harness.ts';
 export { createTestContext, type TestContext } from '../testing/test-context.ts';
 export { createTestVfs, type TestVfs } from '../testing/test-vfs.ts';
 export { type CommandResult, type ExecOptions, ShellClient } from '../testing/shell-client.ts';

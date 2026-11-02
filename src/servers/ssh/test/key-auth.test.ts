@@ -45,8 +45,8 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
-  const port = primary.sshPort;
+  const instance = await harness.start();
+  const port = instance.sshPort;
   const tmp = await Deno.makeTempDir({ prefix: 'ein-key-auth-' });
   let admin: ShellClient | undefined;
   let anna: ShellClient | undefined;

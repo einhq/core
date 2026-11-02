@@ -60,7 +60,7 @@ async function waitFor(predicate: () => Promise<boolean>, what: string, timeoutM
   }
 }
 
-async function writeFile(vfs: Awaited<ReturnType<SystemTestHarness['startPrimary']>>['vfs'], path: string, body: string) {
+async function writeFile(vfs: Awaited<ReturnType<SystemTestHarness['start']>>['vfs'], path: string, body: string) {
   const handle = await vfs.open(ADMIN_ACCESS, path, { mode: 'w' });
   try {
     await handle.write(new TextEncoder().encode(body + '\n'));
@@ -74,7 +74,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { vfs } = await harness.startPrimary();
+  const { vfs } = await harness.start();
   const client = await harness.createShellClient();
 
   const exists = async (path: string): Promise<boolean> => (await client.exec(`info ${path}`)).success;

@@ -16,7 +16,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
   const shell = await harness.createShellClient();
 
   try {
@@ -74,9 +74,9 @@ Deno.test({
     await t.step('stops a command at its deadline and leaves the shell reusable', async () => {
       const { sessionPath } = await harness.createHttpSession();
       const guardedShell = new Shell({
-        cem: primary.cem,
-        vfs: primary.vfs,
-        bufferManager: primary.bufferManager,
+        cem: instance.cem,
+        vfs: instance.vfs,
+        bufferManager: instance.bufferManager,
         sessionPath,
         env: {},
       });
@@ -137,7 +137,7 @@ Deno.test({
     });
 
     await t.step('survives rapid API and interactive socket teardown', async () => {
-      const wsBase = primary.baseUrl.replace('http', 'ws');
+      const wsBase = instance.baseUrl.replace('http', 'ws');
 
       for (let i = 0; i < 4; i++) {
         const sockets = [

@@ -30,7 +30,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  await harness.startPrimary();
+  await harness.start();
 
   try {
     const { client, sftp } = await harness.connectSFTP();
@@ -80,7 +80,7 @@ Deno.test({
         ]);
         await sftp.writeFile('/home/admin/upload.png', data);
 
-        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/upload.png');
+        const node = await harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/upload.png');
         assertEquals(node.attrs.mimetype, 'image/png');
         assertEquals(node.attrs.size, data.length);
         assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
@@ -92,14 +92,14 @@ Deno.test({
         for (let i = 16; i < data.length; i++) data[i] = (i * 13) & 0xff;
         await sftp.writeFile('/home/admin/misnamed.jpg', data);
 
-        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/misnamed.jpg');
+        const node = await harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/misnamed.jpg');
         assertEquals(node.attrs.mimetype, 'image/png');
         assertEquals(node.attrs.size, data.length);
         assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
       });
 
       await t.step('freezes an upload of a type /etc/frozen-uploads lists and refuses to write over it', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.writeFile('/etc/frozen-uploads', await Deno.readFile(new URL('../../../builtin/core/etc/frozen-uploads', import.meta.url)));
         assertEquals((await vfs.get(ADMIN_ACCESS, '/etc/frozen-uploads')).attrs.frozen, undefined);
 
@@ -132,10 +132,10 @@ Deno.test({
         await sftp.writeFile('/home/admin/IMG_0001.jpg.json.filepart', data);
         await sftp.rename('/home/admin/IMG_0001.jpg.json.filepart', '/home/admin/IMG_0001.jpg.json');
 
-        const node = await harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json');
+        const node = await harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json');
         assertEquals(node.attrs.mimetype, 'application/json');
         assertEquals(node.attrs.size, data.length);
-        await assertRejects(() => harness.primary!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json.filepart'));
+        await assertRejects(() => harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/IMG_0001.jpg.json.filepart'));
       });
 
       await t.step('types a file created without content as an empty upload is', async () => {
@@ -144,7 +144,7 @@ Deno.test({
         await sftp.writeFile('/home/admin/empty.md', new Uint8Array());
 
         for (const path of ['/home/admin/created.md', '/home/admin/empty.md']) {
-          const node = await harness.primary!.vfs.get(ADMIN_ACCESS, path);
+          const node = await harness.instance!.vfs.get(ADMIN_ACCESS, path);
           assertEquals(node.attrs.mimetype, 'application/octet-stream');
         }
       });
@@ -195,7 +195,7 @@ Deno.test({
 
         await Promise.all([...paths].map((path) => sftp.writeFile(path, data)));
 
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         const originalOpen = vfs.open;
         const bothReadsStarted = Promise.withResolvers<void>();
         let readsStarted = 0;
@@ -240,7 +240,7 @@ Deno.test({
         for (let i = 0; i < data.length; i++) data[i] = (i * 23 + 5) & 0xff;
         await sftp.writeFile('/home/admin/pipelined-read.bin', data);
 
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         const originalOpen = vfs.open;
         let seekCount = 0;
         vfs.open = async (access, ref, opts) => {
@@ -328,7 +328,7 @@ Deno.test({
       });
 
       await t.step('removing a softlink leaves its target', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.writeFile('/home/admin/link-target.txt', new TextEncoder().encode('kept'));
         await vfs.create(ADMIN_ACCESS, NODE_TYPE_SOFTLINK, '/home/admin', 'to-target', {
           props: { softlink: '/home/admin/link-target.txt' },
@@ -342,7 +342,7 @@ Deno.test({
       });
 
       await t.step('rmdir on a softlink to a directory fails and removes nothing', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.mkdir('/home/admin/link-dir');
         await vfs.create(ADMIN_ACCESS, NODE_TYPE_SOFTLINK, '/home/admin', 'to-dir', {
           props: { softlink: '/home/admin/link-dir' },
@@ -392,7 +392,7 @@ Deno.test({
       });
 
       await t.step('removes a file together with what belongs to it, but not what a link there names', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.writeFile('/home/admin/outside.txt', new TextEncoder().encode('elsewhere'));
         await sftp.writeFile('/home/admin/with-children.txt', new TextEncoder().encode('x'));
         await vfs.create(ADMIN_ACCESS, 'directory', '/home/admin/with-children.txt', 'metadata');
@@ -413,7 +413,7 @@ Deno.test({
       });
 
       await t.step('reaches a shadow directory by name at any depth but never lists it', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.mkdir('/home/admin/album');
         await sftp.writeFile('/home/admin/album/beach.jpg', new TextEncoder().encode('jpeg'));
         await vfs.create(ADMIN_ACCESS, 'directory', '/home/admin/album/beach.jpg', 'metadata');
@@ -449,7 +449,7 @@ Deno.test({
       });
 
       await t.step('a real node named like a shadow wins over the shadow', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.writeFile('/home/admin/album/dune.jpg', new TextEncoder().encode('jpeg'));
         await vfs.create(ADMIN_ACCESS, 'directory', '/home/admin/album/dune.jpg', 'metadata');
 
@@ -463,7 +463,7 @@ Deno.test({
       });
 
       await t.step('reports when the content changed, not when metadata did', async () => {
-        const vfs = harness.primary!.vfs;
+        const vfs = harness.instance!.vfs;
         await sftp.writeFile('/home/admin/timed.txt', new TextEncoder().encode('t'));
         await vfs.update(ADMIN_ACCESS, '/home/admin/timed.txt', { attrs: { writtenAt: '2020-01-02T03:04:05.000Z' } });
         const at = Date.parse('2020-01-02T03:04:05.000Z') / 1000;
@@ -556,7 +556,7 @@ Deno.test({
   sanitizeOps: false,
 }, async () => {
   const scpHarness = new SystemTestHarness();
-  const { vfs } = await scpHarness.startPrimary();
+  const { vfs } = await scpHarness.start();
   const dir = await Deno.makeTempDir();
   try {
     await Deno.writeTextFile(`${dir}/note.txt`, 'a sailboat at the jetty\n');
@@ -567,7 +567,7 @@ Deno.test({
         'admin',
         'scp',
         '-P',
-        String(scpHarness.primary!.sshPort),
+        String(scpHarness.instance!.sshPort),
         '-o',
         'StrictHostKeyChecking=no',
         '-o',

@@ -43,7 +43,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { baseUrl } = await harness.startPrimary();
+  const { baseUrl } = await harness.start();
   const client = await harness.createShellClient();
   const { cookie } = await harness.createHttpSession();
 

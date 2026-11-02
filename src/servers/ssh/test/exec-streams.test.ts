@@ -13,7 +13,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async () => {
-  await harness.startPrimary();
+  await harness.start();
   try {
     const result = await harness.runSSH('echo to-out; echo to-err >&2; nosuchcommand');
     assertEquals(result.stdout, 'to-out\n');

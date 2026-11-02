@@ -68,7 +68,7 @@ Deno.test({
 }, async (t) => {
   // Constructor-read, so it must be set before the harness boots the engine
   // service and cleared in the finally (see admission.test.ts).
-  const { vfs } = await harness.startPrimary();
+  const { vfs } = await harness.start();
   const client = await harness.createShellClient();
 
   const writeFile = async (path: string, body: string): Promise<void> => {

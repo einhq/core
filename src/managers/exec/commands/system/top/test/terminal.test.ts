@@ -22,8 +22,8 @@ Deno.test({
   sanitizeOps: false,
 }, async (t) => {
   const harness = new SystemTestHarness({ boot: true, ssh: false });
-  const primary = await harness.startPrimary();
-  const registry = new InteractiveTerminalRegistry({ vfs: primary.vfs, cem: primary.cem, bufferManager: primary.bufferManager, env: primary.shell.getEnv() }, 0);
+  const instance = await harness.start();
+  const registry = new InteractiveTerminalRegistry({ vfs: instance.vfs, cem: instance.cem, bufferManager: instance.bufferManager, env: instance.shell.getEnv() }, 0);
 
   // The browser's side: what the terminal panel shows, from what the socket sends it.
   const screen = new HeadlessXterm.Terminal({ allowProposedApi: true, cols: 120, rows: 40, convertEol: true });

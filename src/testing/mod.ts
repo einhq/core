@@ -27,7 +27,7 @@
 export { createTestContext, type TestContext } from './test-context.ts';
 export { createTestVfs, type TestVfs, type TestVfsOptions } from './test-vfs.ts';
 export { expandModuleDeps } from './module-deps.ts';
-export { createSystemTestContext, type PrimaryContext, SystemTestHarness, type SystemTestOptions } from './system-test-harness.ts';
+export { createSystemTestContext, type InstanceContext, SystemTestHarness, type SystemTestOptions } from './system-test-harness.ts';
 export { type CommandResult, type ExecOptions, ShellClient } from './shell-client.ts';
 export {
   assertErrorContains,

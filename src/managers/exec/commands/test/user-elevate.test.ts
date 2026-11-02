@@ -21,7 +21,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
   const clients: ShellClient[] = [];
   const open = async (opts?: { username?: string; password?: string; login?: boolean }) => {
     const client = await harness.createShellClient(opts);
@@ -38,7 +38,7 @@ Deno.test({
     const annaUid = (await admin.execJson<{ uid: number }>('attrs /etc/users/anna')).uid;
     const whoami = (client: ShellClient) => client.execJson<Whoami>('user-whoami');
     /** Anna's sessions, as the administrator reads them. */
-    const annaSessions = async () => (await primary.vfs.children<SessionAttrs>(ADMIN_ACCESS, SESSIONS_PATH)).filter((entry) => entry.node.attrs.access?.uid === annaUid);
+    const annaSessions = async () => (await instance.vfs.children<SessionAttrs>(ADMIN_ACCESS, SESSIONS_PATH)).filter((entry) => entry.node.attrs.access?.uid === annaUid);
 
     await t.step('boot makes the sudo group', async () => {
       await cmd.shouldSucceed('group-exists sudo');
@@ -121,7 +121,7 @@ Deno.test({
       const elevated = await harness.createHttpSession({ uid: annaUid, gid: annaUid, gids: [annaUid], elevated: true });
       const plain = await harness.createHttpSession({ uid: annaUid, gid: annaUid, gids: [annaUid] });
       const read = async (cookie: string) => {
-        const res = await fetch(`${primary.baseUrl}/file${PROBE}`, { headers: { cookie } });
+        const res = await fetch(`${instance.baseUrl}/file${PROBE}`, { headers: { cookie } });
         await res.body?.cancel();
         return res.ok;
       };
@@ -136,7 +136,7 @@ Deno.test({
       await testCommands(browser).shouldSucceed('login --session anna secret && user-elevate --session --password=secret');
       await testCommands(anna).shouldSucceed('user-elevate --password=secret');
       await testCommands(anna).shouldSucceed('sleep 300 &');
-      const elevatedRunning = () => primary.cem.states().filter((s) => s.state === 'running' && s.opts?.access.uid === annaUid && s.opts.access.elevated === true);
+      const elevatedRunning = () => instance.cem.states().filter((s) => s.state === 'running' && s.opts?.access.uid === annaUid && s.opts.access.elevated === true);
       assert(elevatedRunning().length >= 1, 'a command runs elevated before she is taken out');
 
       await cmd.shouldSucceed('group-remove-member sudo anna');

@@ -1,7 +1,7 @@
 /**
  * System Test Harness
  *
- * Starts a primary instance (HTTP + SSH) for end-to-end testing. Provides
+ * Starts an EiN instance (HTTP + SSH) for end-to-end testing. Provides
  * SSH/SFTP client factories.
  */
 
@@ -89,7 +89,7 @@ const passwordEnv: Record<string, string> = {
   CFG_PASSWORD_HASH_LOGN: '10',
 };
 
-const primaryEnv: Record<string, string> = {
+const baseEnv: Record<string, string> = {
   ...pathEnv(),
   ADMIN_USERNAME: 'admin',
   ADMIN_UID: '0',
@@ -106,7 +106,7 @@ export type SystemTestOptions = {
   boot?: boolean;
   /** back the file registry with this disk directory instead of memory (needed when external tools must read node content) */
   fileRoot?: string;
-  /** mount the data VFS at `/` under a router-only root, as the primary instance does */
+  /** mount the data VFS at `/` under a router-only root, as EiN does */
   rootMount?: boolean;
   /** keep the nodes, the db file tier and the queues in PostgreSQL tables instead of memory (not with `fileRoot` or `rootMount`) */
   pg?: PgTestVfsOptions;
@@ -124,7 +124,7 @@ export type SystemTestOptions = {
   verbose?: boolean;
 };
 
-export type PrimaryContext = {
+export type InstanceContext = {
   vfs: NodeVFS;
   cem: ExecutionManager;
   bufferManager: BufferManagerIf;
@@ -143,52 +143,52 @@ export type SSHExecResult = {
 };
 
 export class SystemTestHarness {
-  private primaryVfs?: LocalNodeVFS;
-  private primaryRouterManager?: RouterManager;
-  private primaryBufferManager?: BufferManager;
-  private primaryShell?: Shell;
+  private vfs?: LocalNodeVFS;
+  private routerManager?: RouterManager;
+  private bufferManager?: BufferManager;
+  private shell?: Shell;
   private sshServer?: SSHServer;
   private httpAbortController?: AbortController;
   private httpServerPromise?: Promise<void>;
   private shellManager?: ShellManager;
   serviceManager?: ServiceManager;
 
-  primary?: PrimaryContext;
+  instance?: InstanceContext;
 
-  /** Modules whose contributions `startPrimary` registered outside boot, dropped in `stop()`. */
+  /** Modules whose contributions `start` registered outside boot, dropped in `stop()`. */
   private contributionOwners: string[] = [];
 
   constructor(private options: SystemTestOptions = {}) {}
 
-  async startPrimary(): Promise<PrimaryContext> {
+  async start(): Promise<InstanceContext> {
     // A test naming `media` gets `media` and everything media declares it needs, in dependency
     // order — otherwise `mod setup` refuses the install and the failure looks unrelated to the
     // test. Expanding here rather than making tests spell out transitive deps keeps `modules:`
     // meaning "what this test is about".
     const modules = expandModuleDeps(this.options.modules ?? []);
-    // `primaryEnv` already carries `$BIN_PATH:$CORE_BIN_PATH` from `pathEnv()`;
+    // `baseEnv` already carries `$BIN_PATH:$CORE_BIN_PATH` from `pathEnv()`;
     // only the extra test modules' bin directories are appended, which is the
     // one thing a test instance has that a real one does not.
     const env = {
-      ...primaryEnv,
+      ...baseEnv,
       ...testEnvironment(modules),
-      PATH: [primaryEnv.PATH, ...modules.map((m) => `${MOD_PATH}/${m}/bin`)].join(':'),
+      PATH: [baseEnv.PATH, ...modules.map((m) => `${MOD_PATH}/${m}/bin`)].join(':'),
       ...this.options.env,
     };
 
     const routerManager = new RouterManager();
     await routerManager.init();
-    this.primaryRouterManager = routerManager;
+    this.routerManager = routerManager;
 
     const bufferManager = new BufferManager();
     await bufferManager.init();
-    this.primaryBufferManager = bufferManager;
+    this.bufferManager = bufferManager;
 
     const vfs = this.options.pg ? await createPgTestVfs(routerManager, this.options.pg) : (await createMemoryTestVfs(routerManager, {
       fileRoot: this.options.fileRoot,
       rootMount: this.options.rootMount,
     })).vfs;
-    this.primaryVfs = vfs;
+    this.vfs = vfs;
 
     const sysCore: SystemCore = { vfs, bufferManager, routerManager };
     const cem = new ExecManager(sysCore);
@@ -222,7 +222,7 @@ export class SystemTestHarness {
       // Launched with them, as main.ts launches it with the container's: `config publish`
       // publishes what the shell was launched with.
       shell = await shellManager.createSystemShell({ sessionPath: '!/.session-system', env: settings });
-      this.primaryShell = shell;
+      this.shell = shell;
 
       // No file roots, so the root above stays and temporary files stay in memory; no ports or
       // browser shell of its own (HEADLESS), since the harness serves HTTP; the test's modules alone.
@@ -231,7 +231,7 @@ export class SystemTestHarness {
         EXTERNAL_DOCS_PATH: join(import.meta.dirname!, 'fixtures', 'guide'),
         DEV_MODULES: modules.join(' '),
         HEADLESS: '1',
-        COOKIE_NAME: primaryEnv.COOKIE_NAME,
+        COOKIE_NAME: baseEnv.COOKIE_NAME,
         ...settings,
       });
       // The tests sign in as admin/admin.
@@ -256,7 +256,7 @@ export class SystemTestHarness {
       await vfs.update(ADMIN_ACCESS, TEMP_PATH, { props: { mode: 0o777 } });
 
       shell = await this.createSystemShell(cem, vfs, bufferManager, env);
-      this.primaryShell = shell;
+      this.shell = shell;
 
       await shell.runAndCapture(`mount ${BIN_PATH} command`);
 
@@ -326,7 +326,7 @@ export class SystemTestHarness {
 
     routerManager.release();
 
-    this.primary = {
+    this.instance = {
       vfs,
       cem,
       bufferManager,
@@ -337,18 +337,18 @@ export class SystemTestHarness {
       baseUrl: `http://localhost:${httpPort}`,
     };
 
-    return this.primary;
+    return this.instance;
   }
 
   /** Create an HTTP session node and return the Cookie header for it (admin access by default) */
   async createHttpSession(access?: Access): Promise<{ cookie: string; sessionPath: string }> {
-    if (!this.primary) throw new Error('primary not started');
+    if (!this.instance) throw new Error('instance not started');
 
     const name = crypto.randomUUID().replaceAll('-', '');
     const secret = crypto.randomUUID().replaceAll('-', '');
     const sessionPath = `${SESSIONS_PATH}/session-${name}`;
 
-    await this.primary.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, SESSIONS_PATH, `session-${name}`, {
+    await this.instance.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, SESSIONS_PATH, `session-${name}`, {
       props: { mode: 0o700 },
       attrs: {
         secret,
@@ -360,14 +360,14 @@ export class SystemTestHarness {
       },
     });
 
-    return { cookie: `${primaryEnv.COOKIE_NAME}=${name}.${secret}`, sessionPath };
+    return { cookie: `${baseEnv.COOKIE_NAME}=${name}.${secret}`, sessionPath };
   }
 
-  /** Connect a ShellClient to the primary's HTTP API shell, logged in as admin by default */
+  /** Connect a ShellClient to the instance's HTTP API shell, logged in as admin by default */
   async createShellClient(opts?: { username?: string; password?: string; login?: boolean }): Promise<ShellClient> {
-    if (!this.primary) throw new Error('primary not started');
+    if (!this.instance) throw new Error('instance not started');
 
-    const client = await ShellClient.connect(this.primary.baseUrl);
+    const client = await ShellClient.connect(this.instance.baseUrl);
 
     if (opts?.login !== false) {
       const username = opts?.username ?? ADMIN_USERNAME;
@@ -382,9 +382,9 @@ export class SystemTestHarness {
     return client;
   }
 
-  /** Connect an SSH client to the primary's SSH server */
+  /** Connect an SSH client to the instance's SSH server */
   async connectSSH(opts?: { username?: string; password?: string }): Promise<Client> {
-    if (!this.primary) throw new Error('primary not started');
+    if (!this.instance) throw new Error('instance not started');
     if (!this.sshServer) throw new Error('ssh server not started (ssh: false)');
 
     const client = new Client();
@@ -396,7 +396,7 @@ export class SystemTestHarness {
 
     await client.connect({
       host: 'localhost',
-      port: this.primary.sshPort,
+      port: this.instance.sshPort,
       username: opts?.username ?? 'admin',
       password: opts?.password ?? ADMIN_PASSWORD,
       algorithms: { serverHostKey: ['ssh-ed25519'] },
@@ -406,7 +406,7 @@ export class SystemTestHarness {
     return client;
   }
 
-  /** Connect an SFTP client to the primary's SSH server */
+  /** Connect an SFTP client to the instance's SSH server */
   async connectSFTP(opts?: { username?: string; password?: string }): Promise<{ client: Client; sftp: SFTP }> {
     const client = await this.connectSSH(opts);
     const sftp = await client.sftp();
@@ -488,24 +488,24 @@ export class SystemTestHarness {
       } catch { /* expected abort error */ }
     }
 
-    if (this.primaryShell) {
+    if (this.shell) {
       try {
-        await this.primaryShell.close();
+        await this.shell.close();
       } catch { /* ignore */ }
     }
-    if (this.primaryVfs) {
+    if (this.vfs) {
       try {
-        await this.primaryVfs.dispose();
+        await this.vfs.dispose();
       } catch { /* ignore */ }
     }
-    if (this.primaryRouterManager) {
+    if (this.routerManager) {
       try {
-        await this.primaryRouterManager.dispose();
+        await this.routerManager.dispose();
       } catch { /* ignore */ }
     }
-    if (this.primaryBufferManager) {
+    if (this.bufferManager) {
       try {
-        await this.primaryBufferManager.dispose();
+        await this.bufferManager.dispose();
       } catch { /* ignore */ }
     }
   }
@@ -589,7 +589,7 @@ export class SystemTestHarness {
     });
     await vfs.ensure(ADMIN_ACCESS, 'directory', HOMES_PATH, username, { props: { mode: HOME_MODE, uid, gid } });
 
-    await setAccountPassword(vfs, ADMIN_ACCESS, accountPath, password, primaryEnv);
+    await setAccountPassword(vfs, ADMIN_ACCESS, accountPath, password, baseEnv);
   }
 }
 
@@ -602,9 +602,9 @@ export function createSystemTestContext(options?: SystemTestOptions) {
   return {
     harness,
 
-    async setup(): Promise<{ primary: PrimaryContext }> {
-      const primary = await harness.startPrimary();
-      return { primary };
+    async setup(): Promise<{ instance: InstanceContext }> {
+      const instance = await harness.start();
+      return { instance };
     },
 
     async teardown(): Promise<void> {

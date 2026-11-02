@@ -1,7 +1,7 @@
 /**
  * System Integration Tests
  *
- * End-to-end tests with a primary instance (HTTP + SSH).
+ * End-to-end tests with an instance (HTTP + SSH).
  * Tests SFTP upload and SSH command execution.
  */
 
@@ -17,13 +17,13 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
 
   try {
     await t.step('servers keep the ports reserved by their own listeners', () => {
-      assertEquals(primary.httpPort > 0, true);
-      assertEquals(primary.sshPort > 0, true);
-      assertEquals(primary.httpPort === primary.sshPort, false);
+      assertEquals(instance.httpPort > 0, true);
+      assertEquals(instance.sshPort > 0, true);
+      assertEquals(instance.httpPort === instance.sshPort, false);
     });
 
     // -- SFTP tests --
@@ -117,7 +117,7 @@ Deno.test({
     });
 
     await t.step('ssh: exec leaves no session node behind', async () => {
-      const vfs = harness.primary!.vfs;
+      const vfs = harness.instance!.vfs;
       const sshSessions = async () => {
         const children = await vfs.children(ADMIN_ACCESS, SESSIONS_PATH);
         return children.filter((c) => c.name.startsWith('session-ssh-')).length;

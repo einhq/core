@@ -27,7 +27,7 @@ Deno.test({
 
   let server: SshTestServer | undefined;
   let admin: ShellClient | undefined;
-  await harness.startPrimary();
+  await harness.start();
 
   try {
     server = await startSshTestServer({ root });

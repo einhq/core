@@ -15,7 +15,7 @@ Deno.test({
   sanitizeOps: false,
   fn: async (t) => {
     const harness = new SystemTestHarness({ boot: true, ssh: false });
-    const { vfs, cem, bufferManager } = await harness.startPrimary();
+    const { vfs, cem, bufferManager } = await harness.start();
 
     const createShell = async () => {
       const { sessionPath } = await harness.createHttpSession();

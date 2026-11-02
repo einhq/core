@@ -47,7 +47,7 @@ async function waitFor(predicate: () => boolean | Promise<boolean>, message: str
   }
 }
 
-async function ttyNames(vfs: Awaited<ReturnType<SystemTestHarness['startPrimary']>>['vfs'], sessionPath: string): Promise<string[]> {
+async function ttyNames(vfs: Awaited<ReturnType<SystemTestHarness['start']>>['vfs'], sessionPath: string): Promise<string[]> {
   return (await vfs.children(ADMIN_ACCESS, sessionPath))
     .filter(({ node }) => node.type === NODE_TYPE_TTY)
     .map(({ name }) => name);
@@ -59,12 +59,12 @@ Deno.test({
   sanitizeOps: false,
   fn: async (t) => {
     const harness = new SystemTestHarness({ boot: true, ssh: false });
-    const primary = await harness.startPrimary();
+    const instance = await harness.start();
     const config = {
-      vfs: primary.vfs,
-      cem: primary.cem,
-      bufferManager: primary.bufferManager,
-      env: primary.shell.getEnv(),
+      vfs: instance.vfs,
+      cem: instance.cem,
+      bufferManager: instance.bufferManager,
+      env: instance.shell.getEnv(),
     };
 
     try {
@@ -88,7 +88,7 @@ Deno.test({
             () => firstPeer.messages.some((message) => message.includes('"type":"pwd"') && message.includes('/tmp')),
             'terminal did not change cwd',
           );
-          const before = await ttyNames(primary.vfs, sessionPath);
+          const before = await ttyNames(instance.vfs, sessionPath);
           assertEquals(before.length, 1);
 
           await first.write('sleep 0.05 && echo survived-reload\r');
@@ -101,7 +101,7 @@ Deno.test({
           assertEquals(restore.resumed, true);
           assertEquals(restore.pwd, '/tmp');
           assert(restore.snapshot.includes('survived-reload'), restore.snapshot);
-          assertEquals(await ttyNames(primary.vfs, sessionPath), before);
+          assertEquals(await ttyNames(instance.vfs, sessionPath), before);
 
           await second.write('echo partial-');
           await second.detach();
@@ -109,7 +109,7 @@ Deno.test({
           const third = await registry.attach(sessionPath, 'tab-reload', thirdPeer, { resumable: true });
           await third.write('input\r');
           await waitFor(() => thirdPeer.messages.some((message) => message.includes('partial-input')), 'partial input was not retained');
-          assertEquals(await ttyNames(primary.vfs, sessionPath), before);
+          assertEquals(await ttyNames(instance.vfs, sessionPath), before);
           await third.terminate();
         } finally {
           await registry.dispose();
@@ -122,14 +122,14 @@ Deno.test({
         try {
           const firstPeer = new ProbePeer();
           const first = await registry.attach(sessionPath, 'tab-takeover', firstPeer, { resumable: true });
-          const originalTty = (await ttyNames(primary.vfs, sessionPath))[0];
+          const originalTty = (await ttyNames(instance.vfs, sessionPath))[0];
 
           const secondPeer = new ProbePeer();
           const second = await registry.attach(sessionPath, 'tab-takeover', secondPeer, { resumable: true });
           assertEquals(firstPeer.closeCode, 4001);
           await first.detach();
           await new Promise((resolve) => setTimeout(resolve, 80));
-          assertEquals(await ttyNames(primary.vfs, sessionPath), [originalTty]);
+          assertEquals(await ttyNames(instance.vfs, sessionPath), [originalTty]);
 
           await second.write('echo replacement-alive\r');
           await waitFor(() => secondPeer.messages.some((message) => message.includes('replacement-alive')), 'replacement socket received no output');
@@ -144,14 +144,14 @@ Deno.test({
         const registry = new InteractiveTerminalRegistry(config, 30);
         try {
           const first = await registry.attach(sessionPath, 'tab-expire', new ProbePeer(), { resumable: true });
-          const oldTty = (await ttyNames(primary.vfs, sessionPath))[0];
+          const oldTty = (await ttyNames(instance.vfs, sessionPath))[0];
           await first.detach();
-          await waitFor(() => ttyNames(primary.vfs, sessionPath).then((names) => names.length === 0), 'expired tty was not removed');
+          await waitFor(() => ttyNames(instance.vfs, sessionPath).then((names) => names.length === 0), 'expired tty was not removed');
 
           const nextPeer = new ProbePeer();
           const next = await registry.attach(sessionPath, 'tab-expire', nextPeer, { resumable: true });
           assertEquals(nextPeer.restore().resumed, false);
-          const newTty = (await ttyNames(primary.vfs, sessionPath))[0];
+          const newTty = (await ttyNames(instance.vfs, sessionPath))[0];
           assertNotEquals(newTty, oldTty);
           await next.terminate();
         } finally {
@@ -173,7 +173,7 @@ Deno.test({
 
           await admin.exec('config set CFG_TERMINAL_RECONNECT_GRACE_SEC 0');
           await second.detach();
-          assertEquals(await ttyNames(primary.vfs, sessionPath), []);
+          assertEquals(await ttyNames(instance.vfs, sessionPath), []);
         } finally {
           await admin.exec('config unset CFG_TERMINAL_RECONNECT_GRACE_SEC');
           admin.close();
@@ -188,10 +188,10 @@ Deno.test({
         try {
           const first = await registry.attach(firstSession.sessionPath, 'shared-id', new ProbePeer(), { resumable: true });
           const second = await registry.attach(secondSession.sessionPath, 'shared-id', new ProbePeer(), { resumable: true });
-          assertEquals((await ttyNames(primary.vfs, firstSession.sessionPath)).length, 1);
-          assertEquals((await ttyNames(primary.vfs, secondSession.sessionPath)).length, 1);
+          assertEquals((await ttyNames(instance.vfs, firstSession.sessionPath)).length, 1);
+          assertEquals((await ttyNames(instance.vfs, secondSession.sessionPath)).length, 1);
           await first.terminate();
-          assertEquals((await ttyNames(primary.vfs, secondSession.sessionPath)).length, 1);
+          assertEquals((await ttyNames(instance.vfs, secondSession.sessionPath)).length, 1);
           await second.terminate();
         } finally {
           await registry.dispose();
@@ -218,11 +218,11 @@ Deno.test({
           await waitFor(() => exited(typingPeer), 'the terminal that ran logout did not end');
           assertEquals(typingPeer.closeCode, 1000);
           await waitFor(
-            () => ttyNames(primary.vfs, loggedOut.sessionPath).then((names) => names.length === 0),
+            () => ttyNames(instance.vfs, loggedOut.sessionPath).then((names) => names.length === 0),
             'a logged-out terminal kept its tty',
           );
           assert(!exited(otherPeer));
-          assertEquals((await ttyNames(primary.vfs, other.sessionPath)).length, 1);
+          assertEquals((await ttyNames(instance.vfs, other.sessionPath)).length, 1);
 
           const nextPeer = new ProbePeer();
           const next = await registry.attach(loggedOut.sessionPath, 'tab-sibling', nextPeer, { resumable: true });
@@ -242,15 +242,15 @@ Deno.test({
         const legacy = await registry.attach(legacySession.sessionPath, 'legacy-probe', new ProbePeer(), { resumable: false });
         await legacy.detach();
         await waitFor(
-          () => ttyNames(primary.vfs, legacySession.sessionPath).then((names) => names.length === 0),
+          () => ttyNames(instance.vfs, legacySession.sessionPath).then((names) => names.length === 0),
           'legacy tty was retained',
         );
 
         await registry.attach(retainedSession.sessionPath, 'retained-probe', new ProbePeer(), { resumable: true });
-        assertEquals((await ttyNames(primary.vfs, retainedSession.sessionPath)).length, 1);
+        assertEquals((await ttyNames(instance.vfs, retainedSession.sessionPath)).length, 1);
         await registry.dispose();
         await waitFor(
-          () => ttyNames(primary.vfs, retainedSession.sessionPath).then((names) => names.length === 0),
+          () => ttyNames(instance.vfs, retainedSession.sessionPath).then((names) => names.length === 0),
           'registry shutdown left a tty behind',
         );
       });

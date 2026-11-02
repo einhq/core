@@ -29,8 +29,8 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
-  const port = primary.sshPort;
+  const instance = await harness.start();
+  const port = instance.sshPort;
   let admin: ShellClient | undefined;
 
   try {

@@ -82,7 +82,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { baseUrl, vfs } = await harness.startPrimary();
+  const { baseUrl, vfs } = await harness.start();
   const { cookie } = await harness.createHttpSession();
   const port = Number.parseInt(new URL(baseUrl).port, 10);
 

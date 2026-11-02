@@ -23,7 +23,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
   let admin: ShellClient | undefined;
 
   try {
@@ -60,7 +60,7 @@ Deno.test({
     await t.step('in an interactive shell on a web session', async () => {
       const access = { uid: anna.uid, gid: anna.gid, gids: [anna.gid] };
       const { sessionPath } = await harness.createHttpSession(access);
-      const shell = new InteractiveShell({ vfs: primary.vfs, cem: primary.cem, bufferManager: primary.bufferManager, sessionPath, origin: 'terminal' });
+      const shell = new InteractiveShell({ vfs: instance.vfs, cem: instance.cem, bufferManager: instance.bufferManager, sessionPath, origin: 'terminal' });
       await shell.open();
       try {
         assertEquals(await shell.run(POINT_AT_OWN_HOME), 0);
@@ -69,7 +69,7 @@ Deno.test({
 
         assertEquals(shell.getAccess().uid, anna.uid);
         assertEquals(shell.getAccess().gids.includes(ADMIN_GID), false);
-        const session = await primary.vfs.get<SessionAttrs>(ADMIN_ACCESS, sessionPath);
+        const session = await instance.vfs.get<SessionAttrs>(ADMIN_ACCESS, sessionPath);
         assertEquals(session.attrs.access, access);
       } finally {
         await shell.close();

@@ -18,7 +18,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  await harness.startPrimary();
+  await harness.start();
   const client = await harness.createShellClient();
 
   try {

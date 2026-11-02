@@ -14,7 +14,7 @@ import { LocalNodeVFS } from '../mod.ts';
 import { mkdir, mkfile } from './helpers.ts';
 
 Deno.test('VFS child links', async (t) => {
-  // Mounted under a router-only root, as the primary instance is: every id is foreign there.
+  // Mounted under a router-only root, as EiN is: every id is foreign there.
   const ctx = await createTestVfs({ rootMount: true });
   const { vfs } = ctx;
   const disk = await Deno.makeTempDir({ prefix: 'child-links-' });

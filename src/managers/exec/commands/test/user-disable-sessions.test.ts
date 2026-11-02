@@ -24,7 +24,7 @@ Deno.test({
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const primary = await harness.startPrimary();
+  const instance = await harness.start();
   let admin: ShellClient | undefined;
   let anna: ShellClient | undefined;
   let browser: ShellClient | undefined;
@@ -55,7 +55,7 @@ Deno.test({
 
       await cmd.shouldSucceed('user-disable anna');
 
-      const session = await primary.vfs.get<SessionAttrs>(ADMIN_ACCESS, web.sessionPath);
+      const session = await instance.vfs.get<SessionAttrs>(ADMIN_ACCESS, web.sessionPath);
       assertEquals(session.attrs.expired, true);
       assertEquals(session.attrs.access.uid, GUEST_UID);
 
@@ -72,13 +72,13 @@ Deno.test({
 
       await cmd.shouldSucceed('user-delete anna');
 
-      const session = await primary.vfs.get<SessionAttrs>(ADMIN_ACCESS, web.sessionPath);
+      const session = await instance.vfs.get<SessionAttrs>(ADMIN_ACCESS, web.sessionPath);
       assertEquals(session.attrs.expired, true);
     });
 
     await t.step('commands still running as the account are killed, detached jobs too', async () => {
       bert = await harness.createShellClient({ username: 'bert', password: 'secret' });
-      const runningAsBert = () => primary.cem.states().filter((s) => s.state === 'running' && s.opts?.access.uid === bertUid);
+      const runningAsBert = () => instance.cem.states().filter((s) => s.state === 'running' && s.opts?.access.uid === bertUid);
 
       await testCommands(bert).shouldSucceed('sleep 300 &');
       await testCommands(bert).shouldSucceed('{ while true; do echo x >> /home/bert/beat; sleep 0.05; done; } & disown');
