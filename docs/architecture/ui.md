@@ -640,11 +640,12 @@ its card's `StaticMap` as the header background and avatar (`coverArt`).
 An album's page keeps a listing page's height of band (`flowContent`) and has its tabs in the URL
 too, opening on Media: its folders and its media by day, with the sort and media-kind filter in
 the header's controls, at the right end of the tabs' row, while that tab is open; Map, its positioned media clustered by the server as on the Map page
-(`find-within --under`, `AlbumMap`), with the routes the devices recorded over its span, fitted to
-both; and Info (`AlbumInfoTab`, in the person's `InfoSection` boxes), its dates, media by kind and
-how many are on the map, its description, and the people, places, devices and photographers of
-its media (`subjects-in`) and their labels, each opening its own page and its count a search of
-the album's media that have it.
+(`find-within --under`, `AlbumMap`), with the routes its devices (`album-device-list`) recorded
+over its span, fitted to both; and Info (`AlbumInfoTab`, in the person's `InfoSection` boxes), its
+dates, media by kind and how many are on the map, its description, the people, places and
+photographers of its media (`subjects-in`) and their labels, each opening its own page and its
+count a search of the album's media that have it, and its devices, which whoever may write the
+album adds to and takes off (`album-device-add`, `album-device-rm`).
 Pages without an owning VFS node can omit `path`, and pages that do not need an
 identity image can omit `fallback`; neither case attempts a cover lookup. Entity
 search uses this form for its compact search input, type selector and active
