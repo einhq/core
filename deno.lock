@@ -80,6 +80,7 @@
     "npm:mdast-util-from-markdown@^2.0.3": "2.0.3",
     "npm:mime-bytes@0.30.0": "0.30.0",
     "npm:pg@^8.16.3": "8.16.3",
+    "npm:qrcode-generator@^2.0.4": "2.0.4",
     "npm:react-dom@^19.2.3": "19.2.3_react@19.2.3",
     "npm:react-markdown@^10.1.0": "10.1.0_@types+react@19.2.7_react@19.2.3",
     "npm:react-router-dom@^7.12.0": "7.12.0_react@19.2.3_react-dom@19.2.3",
@@ -1467,6 +1468,9 @@
     "property-information@7.2.0": {
       "integrity": "sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg=="
     },
+    "qrcode-generator@2.0.4": {
+      "integrity": "sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g=="
+    },
     "raf-schd@4.0.3": {
       "integrity": "sha512-tQkJl2GRWh83ui2DiPTJz9wEiMN20syf+5oKfB03yYP7ioZcJwsIK8FjrtLwH1m7C7e+Tt2yYBlrOpdT+dyeIQ=="
     },
@@ -2241,6 +2245,7 @@
           "npm:@mantine/hooks@9.6.2",
           "npm:@preact/signals-react@^3.6.1",
           "npm:pg@^8.16.3",
+          "npm:qrcode-generator@^2.0.4",
           "npm:react-dom@^19.2.3",
           "npm:react-router-dom@^7.12.0",
           "npm:react@^19.2.3"
