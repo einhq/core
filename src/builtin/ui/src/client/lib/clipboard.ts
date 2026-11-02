@@ -3,7 +3,7 @@
  * reached over plain HTTP on the home network: there the shown link is selected and copied the
  * older way, which still works, and is left selected for Ctrl+C when even that is refused.
  */
-export async function copyText(text: string, input: HTMLInputElement | null): Promise<boolean> {
+export async function copyText(text: string, input: HTMLInputElement | HTMLTextAreaElement | null): Promise<boolean> {
   try {
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(text);

@@ -1,10 +1,13 @@
-import { Button, Code, Group, Stack, Text, Title } from '@mantine/core';
-import { IconArrowLeft, IconHome, IconRefresh } from '@tabler/icons-react';
-import { type CSSProperties, type ReactNode, useId } from 'react';
+import { Button, Code, Group, Stack, Text, Textarea, Title } from '@mantine/core';
+import { useSignals } from '@preact/signals-react/runtime';
+import { IconArrowLeft, IconCheck, IconCopy, IconHome, IconRefresh } from '@tabler/icons-react';
+import { type CSSProperties, type ReactNode, useId, useRef, useState } from 'react';
 import { isRouteErrorResponse, useLocation, useNavigate, useRouteError } from 'react-router-dom';
 import { useSurface } from '../../hooks/useSurface.ts';
 import { HAT_PATCH } from '../../lib/hat.ts';
+import { copyText } from '../../lib/clipboard.ts';
 import { ModuleLoadError } from '../../lib/module-load-error.ts';
+import { caughtError } from '../../signals/caught-error.ts';
 import { MARK_COLORS } from '../Layout/EinMark.tsx';
 
 /** The fallen hat's colours when something went wrong. */
@@ -77,6 +80,8 @@ type Props = {
   reload?: boolean;
   /** What went wrong, in the error's own words. */
   detail?: string;
+  /** Where it went wrong, for whoever looks into it: offered to read and to copy under `detail`. */
+  trace?: string;
 };
 
 /**
@@ -85,9 +90,11 @@ type Props = {
  * navigation stays; in a dialog or the drawer it is smaller and closes instead, and in a panel it
  * leaves the page around it to go on from.
  */
-function RouteProblem({ title, children, error = false, reload = false, detail }: Props) {
+function RouteProblem({ title, children, error = false, reload = false, detail, trace }: Props) {
   const surface = useSurface();
   const navigate = useNavigate();
+  const traceRef = useRef<HTMLTextAreaElement>(null);
+  const [copied, setCopied] = useState(false);
   const page = surface.kind === 'page';
   const home = (
     <Button variant={reload ? 'default' : 'filled'} leftSection={<IconHome size={16} />} onClick={() => surface.openPage('/')}>
@@ -102,8 +109,29 @@ function RouteProblem({ title, children, error = false, reload = false, detail }
         <Text c='dimmed' size={page ? 'md' : 'sm'} maw={460}>{children}</Text>
       </Stack>
       {detail && <Code block className='mrx-route-problem-detail'>{detail}</Code>}
+      {trace && (
+        <Textarea
+          ref={traceRef}
+          className='mrx-route-problem-trace'
+          aria-label='Where it went wrong'
+          value={trace}
+          readOnly
+          autosize
+          minRows={3}
+          maxRows={8}
+        />
+      )}
       <Group justify='center' gap='xs' mt='xs'>
         {reload && <Button leftSection={<IconRefresh size={16} />} onClick={() => location.reload()}>Reload</Button>}
+        {trace && (
+          <Button
+            variant='default'
+            leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+            onClick={async () => setCopied(await copyText(trace, traceRef.current))}
+          >
+            {copied ? 'Copied' : 'Copy details'}
+          </Button>
+        )}
         {page && !reload && history.length > 1 && (
           <Button variant='subtle' color='gray' leftSection={<IconArrowLeft size={16} />} onClick={() => navigate(-1)}>
             Go back
@@ -126,10 +154,26 @@ export function NotFound() {
 }
 
 /**
+ * An error's stack, the components it was thrown in (React's component stack, which names a
+ * module's components as written, though the shell's are minified), the page and the browser.
+ */
+function traceOf(error: Error, componentStack: string | undefined): string {
+  const head = `${error.name}: ${error.message}`;
+  const stack = error.stack ?? '';
+  return [
+    stack.startsWith(head) ? stack : `${head}\n${stack}`,
+    ...(componentStack ? [`Components:${componentStack}`] : []),
+    `Page: ${location.href}`,
+    `Browser: ${navigator.userAgent}`,
+  ].join('\n\n');
+}
+
+/**
  * A route's `ErrorBoundary`: a module page whose code could not be loaded, or a page that threw
  * while loading or drawing.
  */
 export function RouteError() {
+  useSignals();
   const error = useRouteError();
   if (isRouteErrorResponse(error) && error.status === 404) return <NotFound />;
   if (error instanceof ModuleLoadError) {
@@ -140,8 +184,10 @@ export function RouteError() {
     );
   }
   const detail = isRouteErrorResponse(error) ? `${error.status} ${error.statusText}` : error instanceof Error ? error.message : String(error);
+  const caught = caughtError.value?.error === error ? caughtError.value : null;
+  const trace = error instanceof Error ? traceOf(error, caught?.componentStack) : undefined;
   return (
-    <RouteProblem title='Something broke on this page' error reload detail={detail}>
+    <RouteProblem title='Something broke on this page' error reload detail={detail} trace={trace}>
       The rest of EiN still works. Reloading may help; if it keeps happening, what went wrong is below.
     </RouteProblem>
   );

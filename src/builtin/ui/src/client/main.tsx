@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { crossfadePages } from './lib/page-crossfade.ts';
 import { routes } from './routes.tsx';
+import { caughtError } from './signals/caught-error.ts';
 import { modulePatcher, registerShellRouting } from './signals/module-ui.ts';
 
 const router = createBrowserRouter(routes, {
@@ -27,5 +28,10 @@ crossfadePages(router);
 registerShellRouting(routes, router);
 
 addEventListener('DOMContentLoaded', () => {
-  createRoot(document.getElementById('app')!).render(<RouterProvider router={router} />);
+  createRoot(document.getElementById('app')!, {
+    onCaughtError: (error: unknown, info: { componentStack?: string }) => {
+      console.error(error, info.componentStack);
+      caughtError.value = { error, componentStack: info.componentStack ?? '' };
+    },
+  }).render(<RouterProvider router={router} />);
 });

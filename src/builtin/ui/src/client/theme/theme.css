@@ -2822,6 +2822,15 @@ html.mrx-floating .mrx-scrubber {
   word-break: break-word;
 }
 
+.mrx-route-problem-trace {
+  width: min(560px, 100%);
+}
+
+.mrx-route-problem-trace textarea {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+}
+
 /* Its picture: a patch of the tiling in outline, fading out from a dashed hole, and the hat that
  * left it lying below, in the mark's colours — red for an error. It drops out of the hole once,
  * as the patch, first in those colours too, bursts outward and leaves its outline. */
