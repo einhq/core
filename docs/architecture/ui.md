@@ -551,7 +551,11 @@ room (`--mrx-header-start`, `--mrx-header-end`). A route in
 a dialog or drawer does not stick: it scrolls in its own box. The row's height is
 `stuckHeaderHeight`, which `useHeaderHeight` adds to the app header's, and `--mrx-stuck-header-height`
 for a stylesheet, so the timelines' sticky dates and rails, the return to a tile, the docs contents
-and the settings categories stop below it. While the header scrolls, `--mrx-header-hidden` says how
+and the settings categories stop below it. How far the page scrolls before only the row is left is
+`stuckHeaderAbove` (`--mrx-stuck-header-above`): `FillWindow`, which a view worked in rather than
+scrolled past takes (an album's map), fills the window below the row, starts that far up under the
+header with as much room below it, and on mounting scrolls the page that far, so the header shrinks
+to its row while the view, sticky at the row's foot, grows upward without moving. While the header scrolls, `--mrx-header-hidden` says how
 much of it is under the app header, and the backdrop's top follows it, so the Year page's histogram
 shrinks into what still shows. The band's inset at the sides and foot (`--mrx-header-inset`) is the
 page body's padding, so the header's controls line up with the content. A query changed from a
