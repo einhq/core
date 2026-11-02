@@ -581,7 +581,9 @@ after the node's transaction commits, still under the node's locks. A PostgreSQL
 its own pool connection, so a call made inside the transaction would hold one connection while
 waiting for a second, and as many concurrent writers as the pool has connections would wait on
 each other forever. It also means a rolled-back create leaves no storage and a rolled-back delete
-keeps it.
+keeps it. `dispose` refuses new writes and waits for those under way, after-commit calls included,
+before it stops the registries: on shutdown the pools end after it, and a committed delete whose
+registry call came later would leave its storage behind with no node.
 
 ```mermaid
 graph LR

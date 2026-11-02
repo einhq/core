@@ -56,6 +56,7 @@ import {
   NodeNotSupportedError,
   NodeReadonlyError,
   NodeTierImmutableError,
+  NodeTransactionError,
 } from './errors.ts';
 import type { EdgeMove, NodeStore, NodeUpdate, OwnerRelease, PathNode, ReleasedOwner, StoredPath, StoreNodeQuery, Transaction } from './node-store.ts';
 import type { NodeVFS } from './node-vfs.ts';
@@ -318,6 +319,10 @@ export class LocalNodeVFS implements NodeVFS {
   private lockManager = new IdLockManager();
   /** Mounted into another VFS, which publishes this one's events under their absolute paths. */
   private mounted = false;
+  /** Writes under way, each settled once its after-commit work is done; `dispose` waits for them. */
+  private inFlight = new Set<Promise<unknown>>();
+  /** Set by `dispose`: no write starts after it. */
+  private closed = false;
 
   constructor(
     private store: NodeStore,
@@ -342,8 +347,24 @@ export class LocalNodeVFS implements NodeVFS {
    * here — after the commit, after every lock is gone, and only if the
    * operation succeeded. Work queued with `afterCommit` runs between the two:
    * after the commit, before the locks go.
+   *
+   * A write is refused once `dispose` has begun, and `dispose` waits for those
+   * already under way: a commit whose after-commit work finds the registries
+   * stopped leaves their storage behind with no node (ein/core#917).
    */
-  private async withTransaction<T>(
+  private withTransaction<T>(
+    nodeIds: string[],
+    operation: (mut: Mutation) => Promise<T>,
+  ): Promise<T> {
+    if (this.closed) return Promise.reject(new NodeTransactionError('the vfs is shut down'));
+    const running = this.runTransaction(nodeIds, operation);
+    const settled = running.then(() => {}, () => {});
+    this.inFlight.add(settled);
+    settled.then(() => this.inFlight.delete(settled));
+    return running;
+  }
+
+  private async runTransaction<T>(
     nodeIds: string[],
     operation: (mut: Mutation) => Promise<T>,
   ): Promise<T> {
@@ -537,6 +558,9 @@ export class LocalNodeVFS implements NodeVFS {
   }
 
   async dispose(): Promise<void> {
+    this.closed = true;
+    while (this.inFlight.size > 0) await Promise.all(this.inFlight);
+
     for (const [_vfs, sub] of this.mountSubscriptions) {
       await sub.unsubscribe();
     }
