@@ -751,7 +751,7 @@ pgTest('words in what is said are found through the spoken text index', async (t
       await vfs.create(ADMIN_ACCESS, 'directory', '/', 'said', { props: { mode: 0o755 } });
       for (let i = 0; i < 120; i++) {
         const text = i === 60 ? 'Nu ska vi åka och fiske i sjön.' : `Minut ${i} av samtalet om väder och vind.`;
-        await vfs.create(ADMIN_ACCESS, 'embedding', '/said', `t${i * 60}`, { attrs: { embeddingType: 'text_jina5s', text } });
+        await vfs.create(ADMIN_ACCESS, 'embedding', '/said', `t${i * 60}`, { attrs: { embeddingType: 'text_bgem3', text } });
       }
       await ctx.pool.query(`ANALYZE ${attrsTable}`);
       await ctx.pool.query(`ANALYZE ${nodesTable}`);

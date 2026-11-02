@@ -178,7 +178,7 @@ export interface NodeVFS {
    * lookup per store, without building a path or reading a node.
    *
    * For walking down a known layout from thousands of nodes at once (a file's
-   * `metadata/content/text_jina5s`). Only ids the caller can reach and read
+   * `metadata/content/text_bgem3`). Only ids the caller can reach and read
    * are listed; the children themselves are not read, so a caller that shows
    * what it reaches must read or resolve those nodes. An id held here maps to
    * its children, `[]` for a leaf; an id nobody holds is absent.
