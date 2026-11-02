@@ -70,7 +70,8 @@ of spawning `info`/`attrs` subshells. A fingerprint job asks EMS (`fingerprint.c
 which hashes a picture or a video's keyframes and takes a recording's chromaprint.
 
 The location rules (`modules/archive/lib/location/event-rules.ts`) bind `location.created`,
-`location.updated`, `position.created`, `position.updated` and `softlink.created`. A location is a `location` node; its
+`location.updated`, `position.created`, `position.updated`, `softlink.created`, `softlink.deleted`,
+`track.updated` and `device.updated`. A location is a `location` node; its
 shape is its `position` child, as a photo's GPS point is `<file>/position`. They announce
 `location.changed` — a location created, its shape written, an attr its position derives from
 changed (`address`, `displayName`, `name`, `locationSource`), or a photo linked to it by hand — and
@@ -81,7 +82,9 @@ content no attr describes. Without it a point being written would be invisible, 
 on `created` runs before the point exists — writers `ensure` the node first and write it after.
 A `track` node is touched the same way when points are appended through a writable handle
 (`TrackHandle.onAppended`): on the first append, then at most every five seconds while the handle
-stays open, and on close; points a routing key appends do not touch it. A `<file>/location` link that `location-link-media` made
+stays open, and on close; points a routing key appends do not touch it. That touch on a device's
+`track` child, a device's `kind` or `timezone` changing, and a link added to or removed from its
+`homes/` announce `track.changed` for the device, on which `track-trips` derives its trips again. A `<file>/location` link that `location-link-media` made
 from a shape (`linkSource: 'shape'`) announces nothing and never counts toward a centroid;
 otherwise a circle would pull in the photos inside it and let them redraw it, smaller each round.
 A deleted link cannot be followed to its location and is not announced.
