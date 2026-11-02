@@ -31,7 +31,7 @@ graph TB
     subgraph EMS["EMS (own container, own repo)"]
         EMSAPI["HTTP :8181\n/v0/<ns>/<op>"]
         MODELS["model worker\nRetinaFace · TransFace · bge-m3 · SigLIP2 · SSCD\nPP-OCRv6 · whisper · NeMo · LR-ASD"]
-        TOOLS["tools\nexiftool · ImageMagick · ffmpeg\nfpcalc · tesseract · PyMuPDF"]
+        TOOLS["tools\nexiftool · ImageMagick · PDFium\nffmpeg, with Chromaprint"]
     end
 
     subgraph Modules["Modules (mounted at /usr/modules/)"]
