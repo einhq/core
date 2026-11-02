@@ -89,6 +89,21 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
         return cmd.interrupted ? 130 : 0;
       }
 
+      case 'track': {
+        // Read without a signal, as a log is: a track's points as JSONL, in time order, to the end.
+        const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+        try {
+          while (!cmd.interrupted) {
+            const chunk = await handle.read(LOG_BATCH);
+            if (chunk.length === 0) break;
+            await cmd.write(encoder.decode(chunk));
+          }
+        } finally {
+          await handle.close();
+        }
+        return cmd.interrupted ? 130 : 0;
+      }
+
       case NODE_TYPE_NULL:
         return 0;
 
