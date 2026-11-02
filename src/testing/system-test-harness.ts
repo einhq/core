@@ -197,7 +197,7 @@ export class SystemTestHarness {
     let shell: Shell;
 
     if (this.options.boot) {
-      // Full boot: managers + init scripts (mode `test`), like primary-main.ts
+      // Full boot: managers + init scripts (mode `test`), like main.ts
       const shellManager = new ShellManager({ cem, vfs, bufferManager });
       await shellManager.init();
       sysCore.shellManager = shellManager;
@@ -218,7 +218,7 @@ export class SystemTestHarness {
       // so this is the only route by which a test can configure one, a pool
       // worker included.
       const settings = { ...testEnvironment(modules), ...passwordEnv, ...this.options.env };
-      // Launched with them, as primary-main launches it with the container's: `config publish`
+      // Launched with them, as main.ts launches it with the container's: `config publish`
       // publishes what the shell was launched with.
       shell = await shellManager.createSystemShell({ sessionPath: '!/.session-system', env: settings });
       this.primaryShell = shell;

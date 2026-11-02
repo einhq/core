@@ -187,7 +187,7 @@ export type SourceGraph = {
 };
 
 /**
- * Walk the import graph out from the entry points: `src/*-main.ts`, the shell's client, every
+ * Walk the import graph out from the entry points: `src/main.ts`, the shell's client, every
  * file in a module's `bin/`, `services/` and `etc/`, a manifest's `exports` and `ui.routes`, and
  * the files `deno.jsonc` tasks name.
  */
@@ -220,10 +220,7 @@ export const sourceGraph = async (): Promise<SourceGraph> => {
     return mapped === undefined || isPackageTarget(mapped) ? undefined : resolve(REPO_ROOT, mapped);
   };
 
-  const entries = new Set<string>();
-  for await (const entry of Deno.readDir(join(REPO_ROOT, 'src'))) {
-    if (entry.isFile && entry.name.endsWith('-main.ts')) entries.add(join(REPO_ROOT, 'src', entry.name));
-  }
+  const entries = new Set<string>([join(REPO_ROOT, 'src', 'main.ts')]);
   entries.add(join(UI_SOURCE_DIR, 'src', 'client', 'main.tsx'));
   for (const { manifest, dir } of manifests.values()) {
     for (const sub of ['bin', 'services', 'etc']) for (const path of await filesUnder(join(dir, sub))) entries.add(path);

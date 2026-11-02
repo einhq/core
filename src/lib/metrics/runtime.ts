@@ -127,7 +127,7 @@ const relayCounters = (): RelayCounters => ({ published, queried });
  * The postgres pool, once something owns one.
  *
  * Registered rather than imported because the pool is built in
- * `primary-main.ts` and is not reachable from here — the same reason the relay
+ * `main.ts` and is not reachable from here — the same reason the relay
  * counters above are free-standing. A process without one (a test, an
  * in-memory mount) simply reports no `pool` key.
  *

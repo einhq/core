@@ -1,5 +1,5 @@
 /**
- * The EiN primary: connects to PostgreSQL, builds the VFS and the managers, boots the instance
+ * EiN: connects to PostgreSQL, builds the VFS and the managers, boots the instance
  * and runs until a shutdown signal (`deno task dev`).
  */
 
@@ -45,7 +45,7 @@ const settingsFromEnv = (): Record<string, string> =>
 
 async function main() {
   initializeLogger();
-  logger.info('=== EiN Primary Instance ===');
+  logger.info('=== EiN ===');
   // Every timestamp below is in this zone; a log off the host's clock gives the reader nothing
   // to notice otherwise.
   logger.info('Timezone', { timezone: SYSTEM_TIME_ZONE });

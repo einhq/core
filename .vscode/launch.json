@@ -6,7 +6,7 @@
       "type": "deno",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "program": "src/primary-main.ts",
+      "program": "src/main.ts",
       "env": {}
     },
     {
@@ -14,7 +14,7 @@
       "type": "deno",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "program": "src/primary-main.ts",
+      "program": "src/main.ts",
       "env": { "DEBUG_LOCKS": "1" }
     }
   ]

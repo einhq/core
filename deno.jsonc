@@ -184,7 +184,7 @@
     // no normal entry point reaches: generated module bins and the UI's pages.
     // #!ts bins are not importable as-is (the shebang makes them invalid TS) — it strips line 1
     // beside each original and checks that. Nothing else reaches them.
-    "check": "deno check src/primary-main.ts src/client/mod.ts && deno task check:bins && deno task check:ui",
+    "check": "deno check src/main.ts src/client/mod.ts && deno task check:bins && deno task check:ui",
     "check:bins": "deno run -A scripts/check-module-bins.ts",
     "check:ui": "deno run -A scripts/check-ui.ts",
     "contract:snapshot": "deno run -A scripts/contract.ts",
@@ -192,8 +192,8 @@
     // manifest's imports; the fast tier fails if the two have drifted.
     "sync:modules": "deno run -A scripts/sync-module-configs.ts",
     "lint": "deno lint src/ modules/",
-    "dev": "deno run -A src/primary-main.ts",
-    "dev-w": "deno run --watch -A src/primary-main.ts",
+    "dev": "deno run -A src/main.ts",
+    "dev-w": "deno run --watch -A src/main.ts",
     "bundle-ui-w": "deno run -A src/builtin/ui/src/bundle/bundle.ts --dev",
     "bundle-ui": "deno run -A src/builtin/ui/src/bundle/bundle.ts"
   }

@@ -23,7 +23,7 @@ export type PgTestContext = {
 };
 
 export function pgTestContext(): PgTestContext {
-  // Same session TimeZone the running system pins (`src/primary-main.ts`), so the pg tier
+  // Same session TimeZone the running system pins (`src/main.ts`), so the pg tier
   // exercises the configuration production has. Without it a birthtime aggregate would be
   // bucketed by the server default here and by SYSTEM_TIME_ZONE there, and the store
   // conformance suite would be comparing the memory store against the wrong pg behaviour.

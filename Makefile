@@ -111,7 +111,7 @@ DENO_ARGS        ?=
 # a deployment's default stays INFO. See src/managers/logger/config.ts.
 LOG_LEVEL        ?=
 LOG_MODULES      ?=
-DENO_CMD         := $(if $(DENO_ARGS),deno run -A $(DENO_ARGS) src/primary-main.ts,)
+DENO_CMD         := $(if $(DENO_ARGS),deno run -A $(DENO_ARGS) src/main.ts,)
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -184,10 +184,10 @@ container-shell: ## Open a bash shell in the running EiN container
 
 # --- Dev ---
 
-dev: ## Run primary instance
+dev: ## Run EiN
 	deno task dev
 
-dev-watch: ## Run primary instance with watch
+dev-watch: ## Run EiN with watch
 	deno task dev-w
 
 bundle-ui: ## Bundle UI

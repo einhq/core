@@ -1186,7 +1186,7 @@ URL for the albums page while the nodes behind it live at `/archive/albums`.
 
 ```mermaid
 sequenceDiagram
-    participant M as primary-main.ts
+    participant M as main.ts
     participant R as RouterManager
     participant B as BufferManager
     participant PG as PostgreSQL
@@ -1569,7 +1569,7 @@ Key pieces ([src/testing/](../src/testing/)):
   `mod-groups.test.ts` pins where a module kept to groups puts its PATH line and navigation, and
   that the shell, `ui-nav` and `mod list` give it to its groups' members alone.
 - **Reachability suite** ([src/modules/test/reachability.test.ts](../src/modules/test/reachability.test.ts)) —
-  walks the import graph from the entry points (`src/*-main.ts`, the shell's client, every
+  walks the import graph from the entry points (`src/main.ts`, the shell's client, every
   module's `bin/`, `services/` and `etc/`, its manifest `exports` and `ui.routes`, the files
   `deno.jsonc` tasks name) and fails on a `.ts`/`.tsx` under `src/` or `modules/` it does not
   reach. Tests, `scripts/`, `eval/` and `src/testing/` are not entry points, so a file only its

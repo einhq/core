@@ -21,7 +21,7 @@ EiN grew out of MURRiX and the projects before it, and is dedicated to Birgitta 
 
 ```bash
 make help              # every target
-deno task dev          # the primary instance, http://localhost:8080 and SSH on port 2222
+deno task dev          # EiN, http://localhost:8080 and SSH on port 2222
 deno task test         # the fast in-memory tests
 ```
 
