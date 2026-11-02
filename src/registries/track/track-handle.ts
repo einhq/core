@@ -1,5 +1,5 @@
 import { AbstractResourceHandle, RegistryIf, ResourceHandleIf, ResourceMode } from '../types.ts';
-import { TrackIO, TrackPoint, TrackRange, TrackReadOptions, TrackReadResult, TrackResourceOptions, TrackStat, TrackSummary } from './types.ts';
+import { TrackIO, TrackPoint, TrackPointInput, TrackRange, TrackReadOptions, TrackReadResult, TrackResourceOptions, TrackStat, TrackSummary } from './types.ts';
 
 /** Points fetched per read of the byte-stream view. */
 const PAGE = 100;
@@ -126,7 +126,7 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
   }
 
   /** Append points, upserting on timestamp. Returns rows written. */
-  async appendPoints(points: TrackPoint[]): Promise<number> {
+  async appendPoints(points: TrackPointInput[]): Promise<number> {
     this.assertNotClosed();
     this.assertCanWrite();
 

@@ -490,6 +490,7 @@ src/builtin/ui/src/client/lib/mod.ts changedTopLevel 6cf2b914ae6b
 src/builtin/ui/src/client/lib/mod.ts closePane a7a4a2d69305
 src/builtin/ui/src/client/lib/mod.ts closeTab 3b45ea9e6ab9
 src/builtin/ui/src/client/lib/mod.ts columnsForWidth 9b420798ad6b
+src/builtin/ui/src/client/lib/mod.ts copyText c3da744fb0d7
 src/builtin/ui/src/client/lib/mod.ts countOf 3e8d5d4a5025
 src/builtin/ui/src/client/lib/mod.ts defaultWorkspace 81e1f782a6ea
 src/builtin/ui/src/client/lib/mod.ts describeNodeError d552e6b18d62
@@ -1128,6 +1129,7 @@ src/lib/api/mod.ts SubjectMatch 01cef5f7c778 attr=5043d8c692fc,value=5647ee15e4b
 src/lib/api/mod.ts SubjectsOf c9746fc70700 media=8d2eed26ba20,subjects=237958bac244
 src/lib/api/mod.ts SystemInfo f81e8aa59477 api=0398aee21fe0,build=a2a6852185c3,database=be65addccaf9,denoVersion=c9c36a453d5f,hostname=c983f8ec2462,uptimeMs=7f31c93a294f,version=103f4ae183fc
 src/lib/api/mod.ts TextEmbedding 8f4c92e08581 model=9574a17f64c2,vectors=4a9c29e273fc
+src/lib/api/mod.ts TrackToken 9786d3fc276e createdAt=be639d8a407c,enabled=f70a52e841b2,path=c29ab32b39f5,track=05adc7f6b3e5
 src/lib/api/mod.ts TrashEntry b7fba30a32e2 count=5f7a2d24acdb,id=752fa5797ebe,label=995d88c00ff2,mimetype=fc3dc85c3380,name=6d0c36381511,origPath=8c19a28ebd5f,path=3fd20668ef6e,trashedAt=2c8ead892bf3,type=e22be5ee8605
 src/lib/api/mod.ts TrashPutResult f6567116f44d batch=3a237b429964,entries=064ea5557fb6
 src/lib/api/mod.ts TrashRestoreResult fbff83c59162 remaining=1d9f059d6d67,restored=561c44fa7a9f

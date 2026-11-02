@@ -1050,8 +1050,8 @@ children — except a file from a staging inbox, which `album add` moves into it
 point into a directory only the inbox's owner may enter.
 
 `position` and `track` are core's because they are storage, not meaning: each is a registry with
-its own spatial index (and for a track, `POST /track/<path>` for a live tracker), which a module
-cannot provide. What a position or a track _is for_ is the module's: archive's locations are its own
+its own spatial index (and for a track, `POST /track/<path>` for a script with a session and
+`/tracker/<id>.<token>` for a phone or GPS tracker without one), which a module cannot provide. What a position or a track _is for_ is the module's: archive's locations are its own
 `location` nodes with a `position` child, and archive decides that a device's route is its child
 `track`, and owns `/archive/locations`, `/archive/devices` and every command over them.
 
@@ -1316,17 +1316,29 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 
 ### HTTP (`:8080`) — [src/servers/http/](../src/servers/http/)
 
-| Route                     | Handler                               | Purpose                                                               |
-| ------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
-| `/__shell` (WS upgrade)   | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                    |
-| `GET /file/<path>`        | `get-file`                            | Stream file from VFS (ETag via sha256)                                |
-| `PUT /file/<path>`        | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME  |
-| `POST /file/<dir>/?name=` | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`     |
-| `POST /archive`           | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it      |
-| `GET /archive/<token>`    | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                |
-| `POST /log/<path>`        | `post-log`                            | Append JSON entries to a log node (`ts` backdates)                    |
-| `POST /track/<path>`      | `post-track`                          | Append fixes to a track node (tracker device ingest; dedupes on `ts`) |
-| `GET /*`                  | `get-default`                         | SPA fallback, vhost support                                           |
+| Route                             | Handler                               | Purpose                                                                       |
+| --------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| `/__shell` (WS upgrade)           | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                            |
+| `GET /file/<path>`                | `get-file`                            | Stream file from VFS (ETag via sha256)                                        |
+| `PUT /file/<path>`                | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME          |
+| `POST /file/<dir>/?name=`         | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`             |
+| `POST /archive`                   | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it              |
+| `GET /archive/<token>`            | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                        |
+| `POST /log/<path>`                | `post-log`                            | Append JSON entries to a log node (`ts` backdates)                            |
+| `POST /track/<path>`              | `post-track`                          | Append fixes to a track node with a session (dedupes on `ts`)                 |
+| `GET\|POST /tracker/<id>.<token>` | `tracker`                             | A phone or GPS tracker posts fixes without a session (Traccar, OsmAnd, GPRMC) |
+| `GET /*`                          | `get-default`                         | SPA fallback, vhost support                                                   |
+
+**Tracker links.** `/tracker/<track node id>.<token>` is the one URL a phone or GPS tracker is
+given (`handlers/tracker.ts`). It needs no session: the token is the track's own, made with
+`track-token <track> --new` by whoever may change the track and kept in the track's child `.tracker`
+(a `tracker-token` node, mode 0600 and the administrator's, so it can be shown again; `--new`
+replaces it, `--off` deletes it). The handler finds the track by id, compares the token in constant
+time, and appends as the track's owner (`accessOfUid`), so a track its owner may no longer change,
+or an owner with no active account, takes nothing; every refusal is the same 403, logged with the
+client's address. `tracker-protocols.ts` reads Traccar Client's JSON, the OsmAnd query or form,
+`?gprmc=` sentences and EiN's own points, speed in m/s; a request with no fix — a registration
+ping, a void GPRMC fix — is answered 200 with nothing appended.
 
 File responses own the VFS handle until their body finishes, fails or is cancelled.
 `file-body` pulls bounded chunks directly from the handle and closes it at the

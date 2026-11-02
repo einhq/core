@@ -28,6 +28,7 @@ export * from './similar.ts';
 export * from './stars.ts';
 export * from './feeds.ts';
 export * from './completion.ts';
+export * from './track.ts';
 export * from './trash.ts';
 export * from './position.ts';
 export * from './node.ts';

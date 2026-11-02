@@ -101,7 +101,7 @@ export type TrackReadResult = {
 /** Low-level operations behind a {@link TrackHandle}. */
 export interface TrackIO {
   /** Insert points, ignoring ones whose timestamp is already present. Returns rows written. */
-  append(points: TrackPoint[]): Promise<number>;
+  append(points: TrackPointInput[]): Promise<number>;
   /** Ordered points after `afterTs`, for the byte-stream/follow view. Blocks when a signal is given and nothing is there. */
   page(afterTs: string | undefined, limit: number, signal?: AbortSignal): Promise<TrackPoint[]>;
   /** The viewport read: filter, simplify, split into segments. */
@@ -119,7 +119,7 @@ export interface TrackIO {
  */
 export interface TrackRegistryIf extends RegistryIf<TrackResourceOptions, TrackStat> {
   /** Append points to a track, upserting on timestamp. Returns rows written. */
-  appendPoints(id: string, points: TrackPoint[]): Promise<number>;
+  appendPoints(id: string, points: TrackPointInput[]): Promise<number>;
   /** Read a track as drawable segments. */
   readPoints(id: string, opts?: TrackReadOptions): Promise<TrackReadResult>;
   /** Ordered raw points after `afterTs`. */

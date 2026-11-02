@@ -1,5 +1,6 @@
 import { TrackHandle } from '../../../registries/track/mod.ts';
 import { getSession } from '../session.ts';
+import { fromNative } from '../tracker-protocols.ts';
 import { HttpServerConfig } from '../types.ts';
 
 /**
@@ -16,20 +17,12 @@ export async function handlePostTrack(config: HttpServerConfig, req: Request, ur
   const { responseHeaders, access } = await getSession(config, req.headers, { create: false });
   const vfsPath = decodeURIComponent(url.pathname.replace('/track', ''));
 
-  const text = await req.text();
-  let entries: unknown[];
-  try {
-    const parsed = JSON.parse(text);
-    entries = Array.isArray(parsed) ? parsed : [parsed];
-  } catch {
-    // Fall back to newline-delimited JSON
-    try {
-      entries = text.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
-    } catch {
-      return new Response('invalid JSON body', { status: 400, headers: responseHeaders });
-    }
+  const fixes = fromNative(await req.text());
+  if ('error' in fixes) {
+    return new Response(fixes.error, { status: 400, headers: responseHeaders });
   }
 
+  const entries = fixes.points;
   if (entries.length === 0) {
     return new Response('empty body', { status: 400, headers: responseHeaders });
   }
@@ -42,7 +35,7 @@ export async function handlePostTrack(config: HttpServerConfig, req: Request, ur
       return new Response('not a track node', { status: 400, headers: responseHeaders });
     }
 
-    appended = await handle.appendPoints(entries as Parameters<TrackHandle['appendPoints']>[0]);
+    appended = await handle.appendPoints(entries);
   } catch (error) {
     return new Response(error instanceof Error ? error.message : String(error), { status: 400, headers: responseHeaders });
   } finally {

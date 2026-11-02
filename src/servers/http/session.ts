@@ -137,7 +137,7 @@ type GetSessionOptions = {
    * A request that only needs to know *who is asking* does not need a session:
    * without a cookie the answer is "a guest" either way. Creating one anyway
    * would write a durable node per anonymous request — every asset fetch, every
-   * `PUT /file`, every tracker device posting a fix — none of which could ever
+   * `PUT /file`, every `POST /track` from a script — none of which could ever
    * present it again. Only the SPA document creates one, because it is the one
    * response a browser will actually keep the cookie from.
    */

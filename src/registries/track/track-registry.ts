@@ -20,7 +20,18 @@ import { ensureResource, ResourceMode } from '../types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, summarize } from './lib.ts';
 import { capSegments, expandBounds, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
-import { TrackIO, TrackPoint, TrackRange, TrackReadOptions, TrackReadResult, TrackRegistryIf, TrackResourceOptions, TrackStat, TrackSummary } from './types.ts';
+import {
+  TrackIO,
+  TrackPoint,
+  TrackPointInput,
+  TrackRange,
+  TrackReadOptions,
+  TrackReadResult,
+  TrackRegistryIf,
+  TrackResourceOptions,
+  TrackStat,
+  TrackSummary,
+} from './types.ts';
 
 type TrackRegistryConfig = {
   pool: Pool;
@@ -211,7 +222,7 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     const io: TrackIO = {
-      append: (points: TrackPoint[]) => this.appendPoints(id, points),
+      append: (points: TrackPointInput[]) => this.appendPoints(id, points),
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
@@ -280,7 +291,7 @@ export class TrackRegistry implements TrackRegistryIf {
    * nobody asked for. This way the statement takes seven parameters whatever
    * the file weighs.
    */
-  async appendPoints(id: string, points: TrackPoint[]): Promise<number> {
+  async appendPoints(id: string, points: TrackPointInput[]): Promise<number> {
     const incoming = normalizePoints(points);
 
     if (incoming.length === 0) return 0;

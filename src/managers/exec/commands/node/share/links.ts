@@ -15,43 +15,12 @@ export const LINK_MODE = 0o5;
 /** How long a new link opens what it opens, unless it is given another expiry or none. */
 export const DEFAULT_LINK_DAYS = 30;
 
-/** What a token is made of: letters and digits only, so it is safe in a URL and is never read as a flag. */
-const TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
-/** 22 characters of 62: 130 random bits. */
-const TOKEN_LENGTH = 22;
-
-const TOKEN_PATTERN = /^[A-Za-z0-9]{22}$/;
-
-/** A fresh link token. */
-export const newToken = (): string => {
-  let token = '';
-  while (token.length < TOKEN_LENGTH) {
-    for (const byte of crypto.getRandomValues(new Uint8Array(32))) {
-      // 248 is four times 62: a byte above it would make the first letters likelier than the rest.
-      if (byte < 248 && token.length < TOKEN_LENGTH) token += TOKEN_ALPHABET[byte % TOKEN_ALPHABET.length];
-    }
-  }
-  return token;
-};
-
-/** Whether `token` could be one `newToken` made, before anything is looked up by it. */
-export const isToken = (token: string): boolean => TOKEN_PATTERN.test(token);
-
 /**
  * The id a token's link goes by: in sessions, and as its record's name.
  * Derived from the token so a record is found by it directly, but one-way, so neither the
  * entries anyone may read nor a listing of `/var/links` gives the token away.
  */
 export const linkId = async (token: string): Promise<string> => encodeHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))).slice(0, 16);
-
-/** Whether two tokens are the same, in time that does not depend on where they differ. */
-export const sameToken = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-};
 
 /** A link's record by its id, read as the administrator; undefined when there is none. */
 export const readLink = async (cmd: Command, id: string): Promise<Node<ShareLinkAttrs> | undefined> => {

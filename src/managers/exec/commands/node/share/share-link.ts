@@ -21,6 +21,7 @@ import { join, resolve } from '@std/path';
 import { parseArgs } from '../../../../../lib/args/mod.ts';
 import { ADMIN_ACCESS, ADMIN_UID, isAdmin, isVisitor, verifyAccess } from '../../../../../lib/access/mod.ts';
 import type { ShareLink, ShareLinkCreated, ShareLinkOpened } from '../../../../../lib/api/share.ts';
+import { isToken, newToken, sameToken } from '../../../../../lib/token/mod.ts';
 import { NODE_TYPE_SHARE_LINK, type ShareLinkAttrs } from '../../../../../vfs/types/share-link.ts';
 import type { Command } from '../../../command.ts';
 import type { CmdReturn } from '../../../types.ts';
@@ -30,14 +31,11 @@ import {
   describeLink,
   heldLink,
   isExpired,
-  isToken,
   LINK_MODE,
   linkAccess,
   linkId,
   newLinkUid,
-  newToken,
   readLink,
-  sameToken,
   targetPath,
   titleOf,
   updateHeld,

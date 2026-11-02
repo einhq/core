@@ -9,7 +9,18 @@ import { routingKeysMatch } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { capSegments, expandBounds, inBounds, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
-import { TrackIO, TrackPoint, TrackRange, TrackReadOptions, TrackReadResult, TrackRegistryIf, TrackResourceOptions, TrackStat, TrackSummary } from './types.ts';
+import {
+  TrackIO,
+  TrackPoint,
+  TrackPointInput,
+  TrackRange,
+  TrackReadOptions,
+  TrackReadResult,
+  TrackRegistryIf,
+  TrackResourceOptions,
+  TrackStat,
+  TrackSummary,
+} from './types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, normalizeTime, stripDetail, summarize } from './lib.ts';
 
 type MemoryTrackRegistryConfig = {
@@ -83,7 +94,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     }
 
     const io: TrackIO = {
-      append: (points: TrackPoint[]) => this.appendPoints(id, points),
+      append: (points: TrackPointInput[]) => this.appendPoints(id, points),
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
@@ -144,7 +155,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
   }
 
   /** Insert points in timestamp order, ignoring timestamps already present. */
-  async appendPoints(id: string, points: TrackPoint[]): Promise<number> {
+  async appendPoints(id: string, points: TrackPointInput[]): Promise<number> {
     const stored = this.pointsOf(id);
     const incoming = normalizePoints(points);
 

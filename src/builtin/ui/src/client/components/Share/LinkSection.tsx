@@ -2,34 +2,12 @@ import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, ThemeIcon, Too
 import { IconCheck, IconChevronDown, IconCopy, IconLink, IconTrash } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import type { ShareLink } from '@ein/api';
+import { copyText } from '../../lib/clipboard.ts';
 import { expiryText, LINK_EXPIRIES, openedText, shareLinkUrl } from '../../lib/share-link.ts';
 import type { LinkExpiry } from '../../hooks/useShare.ts';
 import { notify } from '../../signals/notify.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Put `text` on the clipboard. The Clipboard API exists only on a secure page, and EiN is often
- * reached over plain HTTP on the home network: there the shown link is selected and copied the
- * older way, which still works, and is left selected for Ctrl+C when even that is refused.
- */
-async function copyText(text: string, input: HTMLInputElement | null): Promise<boolean> {
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Refused: fall through to the selection.
-  }
-  input?.focus();
-  input?.select();
-  try {
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  }
-}
 
 /**
  * One link: its address, which a click copies, when it stops working, how often it was opened, and

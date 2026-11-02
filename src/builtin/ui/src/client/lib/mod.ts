@@ -1,4 +1,5 @@
 export * from './access.ts';
+export { copyText } from './clipboard.ts';
 export * from './date-buckets.ts';
 export * from './entity-kind.ts';
 export * from './search-filters.ts';

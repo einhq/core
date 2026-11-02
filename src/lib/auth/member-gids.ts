@@ -150,3 +150,16 @@ export const groupEntriesFor = async (vfs: NodeVFS, access: Access, dir: string)
   }
   return { groups, unknown };
 };
+
+/**
+ * The access the account with `uid` signs in with (`userAccess`), or undefined when no active
+ * account has it. For work done as a node's owner without their session: a tracker posting to their
+ * track.
+ */
+export const accessOfUid = async (vfs: NodeVFS, uid: number): Promise<Access | undefined> => {
+  if (uid === ADMIN_ACCESS.uid) return { ...ADMIN_ACCESS, gids: [...ADMIN_ACCESS.gids] };
+  const users = await vfs.children<UserAttrs>(ADMIN_ACCESS, USERS_PATH).catch(() => []);
+  const entry = users.find((candidate) => isUserNode(candidate.node) && candidate.node.attrs.uid === uid);
+  if (!entry || !isUserNode(entry.node) || entry.node.attrs.inactive) return undefined;
+  return await userAccess(vfs, ADMIN_ACCESS, entry.name, entry.node);
+};

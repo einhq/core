@@ -1,3 +1,4 @@
+import { isTrackerPath } from '../../lib/track/tracker.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { ArchiveTicketStore } from './archive-tickets.ts';
@@ -10,6 +11,7 @@ import { handlePostFile } from './handlers/post-file.ts';
 import { handlePostLog } from './handlers/post-log.ts';
 import { handlePostTrack } from './handlers/post-track.ts';
 import { handlePutFile } from './handlers/put-file.ts';
+import { handleTracker } from './handlers/tracker.ts';
 import { HttpServerConfig } from './types.ts';
 import { InteractiveTerminalRegistry } from './ws/interactive-terminal-registry.ts';
 
@@ -43,6 +45,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handlePostLog(config, req, url);
       } else if (url.pathname.startsWith('/track/') && req.method === 'POST') {
         return await handlePostTrack(config, req, url);
+      } else if (isTrackerPath(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
+        return await handleTracker(config, req, url, info.remoteAddr);
       }
 
       if (req.method !== 'GET' && req.method !== 'HEAD') {

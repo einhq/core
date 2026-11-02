@@ -632,7 +632,7 @@ A location has Info (map, details, current residents, geocoding suggestions to p
 (`location-timeline`), Media and Residents; its Edit dialog (`LocationEditModal`) writes the
 details through `location-update` and the shape through `position-set <location>/position`. A device has Info (settings,
 relinking, current owners), Timeline (`device-timeline`), Media, Track (the route it recorded,
-`track-read`; a track's timeline entry opens it, and the Map draws every track) and Owners. Residents, Owners and
+`track-read`; a track's timeline entry opens it, and the Map draws every track; below it, for whoever may change the device, `TrackerSetup`: `tracker-setup --origin <the page's origin>` answers the tracker link and a QR code drawn on the server, which the page shows as a data URL) and Owners. Residents, Owners and
 a person's Homes are the same inline list with the same add/edit/remove, and the headers show
 the current ones (`CurrentPeopleLine`) as a person's shows their current home. The three
 timelines are one hook, `useSubjectTimeline`. A location with coordinates and no cover photo draws

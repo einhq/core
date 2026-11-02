@@ -111,4 +111,11 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     description:
       'A link that opens an album, and what it holds, to whoever has it, without signing in; under /var/links, with when it expires and how often it was opened. `share-link` makes, lists and turns them off.',
   },
+  {
+    type: 'tracker-token',
+    label: 'Tracker token',
+    category: 'system',
+    description:
+      "The secret in the link a phone or GPS tracker posts a track's positions to without signing in: the track's child .tracker, readable by the administrator alone. `track-token` makes, shows and turns it off.",
+  },
 ];
