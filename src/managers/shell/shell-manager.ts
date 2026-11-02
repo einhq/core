@@ -20,8 +20,6 @@ export interface ShellManagerIf extends ManagerIf {
    * a chunk at a time, and else to the log.
    */
   createSystemShell(opts: ShellCreateOpts, output?: ShellOutput): Promise<Shell>;
-  /** Close a shell this manager made, and forget it. */
-  closeShell(shell: Shell): Promise<void>;
 }
 
 /** Where a system shell's output goes instead of the log: each chunk as written, stderr's with `error`. */
@@ -49,11 +47,6 @@ export class ShellManager implements ShellManagerIf {
     await shell.open();
     this.shells.set(shell.name, shell);
     return shell;
-  }
-
-  async closeShell(shell: Shell): Promise<void> {
-    this.shells.delete(shell.name);
-    await shell.close();
   }
 
   async createSystemShell(opts: ShellCreateOpts, output?: ShellOutput): Promise<Shell> {

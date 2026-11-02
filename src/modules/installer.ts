@@ -1,5 +1,5 @@
 /**
- * The module installs EiN runs, one at a time, each in an admin shell of its own: an install goes
+ * The module installs EiN runs, one at a time, in an admin shell of the installer's: an install goes
  * on to its end whatever becomes of the session that asked for it, and anyone may follow it or ask
  * how far it has got (`mod status`). The shell runs `mod install` with `MOD_INSTALL_JOB` naming
  * the install, which is how that command knows it is the one doing the work.
@@ -9,6 +9,7 @@ import { ulid } from '@std/ulid';
 import type { ModuleInstallJob, ModuleInstallResult } from '../lib/api/mod.ts';
 import { shq } from '../lib/shell-quote/mod.ts';
 import { createLogger } from '../managers/logger/mod.ts';
+import type { Shell } from '../managers/shell/mod.ts';
 import type { SystemCore } from '../system-core.ts';
 import type { NodeVFS } from '../vfs/mod.ts';
 
@@ -17,7 +18,7 @@ const logger = createLogger('module-installer');
 /** The variable naming the install a `mod install` does the work of. */
 export const INSTALL_JOB_VAR = 'MOD_INSTALL_JOB';
 
-/** The session of the installer's shells. */
+/** The session of the installer's shell. */
 const SESSION_PATH = '!/.session-mod-install';
 
 /** How many of its lines an install keeps, for whoever follows it from its start. */
@@ -118,10 +119,15 @@ export class InstallJob {
   }
 }
 
-/** Starts installs, one at a time, and keeps the running one or else the last. */
+/**
+ * Starts installs, one at a time, and keeps the running one or else the last. Its shell is made at
+ * the first install, with that caller's environment, and serves every install after it: its
+ * session is a node of the process's own root, which can be made once.
+ */
 class ModuleInstaller {
   /** The install running now, or else the last one. */
   job?: InstallJob;
+  private shell?: Promise<Shell>;
 
   constructor(private readonly sys: SystemCore) {}
 
@@ -131,13 +137,12 @@ class ModuleInstaller {
   }
 
   /**
-   * Start `mod install <args>` for `by`, with the caller's `env`. Throws while another install
-   * runs: the caller follows that one or says so.
+   * Start `mod install <args>` for `by`, with the caller's `env` when it is the first. Throws while
+   * another install runs: the caller follows that one or says so.
    */
   start(args: string[], by: string, env: Record<string, string>): InstallJob {
     if (this.running) throw new Error(`an install is running already: mod install ${this.running.args.join(' ')}`);
-    const shells = this.sys.shellManager;
-    if (!shells) throw new Error('no shells to install in');
+    if (!this.sys.shellManager) throw new Error('no shells to install in');
     const job = new InstallJob(args, by);
     this.job = job;
     void this.run(job, env).catch((error) => {
@@ -151,16 +156,14 @@ class ModuleInstaller {
   }
 
   private async run(job: InstallJob, env: Record<string, string>): Promise<void> {
-    const shells = this.sys.shellManager!;
-    const shell = await shells.createSystemShell(
-      { sessionPath: SESSION_PATH, env: { ...env, JSON_OUTPUT: '0', [INSTALL_JOB_VAR]: job.id } },
-      (text, error) => job.output(text, error),
+    this.shell ??= this.sys.shellManager!.createSystemShell(
+      { sessionPath: SESSION_PATH, env },
+      (text, error) => this.job?.output(text, error),
     );
     let code = 1;
     try {
-      code = await shell.run(`mod install ${job.args.map(shq).join(' ')}`);
+      code = await (await this.shell).run(`${INSTALL_JOB_VAR}=${job.id} JSON_OUTPUT=0 mod install ${job.args.map(shq).join(' ')}`);
     } finally {
-      await shells.closeShell(shell).catch((error) => logger.warn('closing the install shell failed', { error }));
       if (job.state === 'running') job.finish(code, job.result);
       logger.info(`mod install ${job.args.join(' ')}: ${job.state}`);
     }

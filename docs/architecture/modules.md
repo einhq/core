@@ -272,8 +272,10 @@ interrupted install left is never linked, and the next install removes it.
 
 **One at a time, apart from the session.** The installer
 ([installer.ts](../../src/modules/installer.ts)), one per process, runs each install in an admin
-shell of its own (`ShellManager.createSystemShell` with its output handed back): that shell runs
-`mod install` with `MOD_INSTALL_JOB` naming the install, which is the command doing the work. The
+shell of its own, made at the first install and kept (`ShellManager.createSystemShell` with its
+output handed back; its session is a node of the process's own root, `!/…`, which can be made
+once): that shell runs `mod install` with `MOD_INSTALL_JOB` naming the install, which is the
+command doing the work. The
 `mod install` someone types only starts it and follows its lines, so ending the session, an SSH
 client's timeout or a closed browser tab ends the following, never the install. While one runs,
 the same arguments join it and others are refused. The install keeps its last lines, how many files
