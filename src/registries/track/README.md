@@ -65,12 +65,23 @@ cheap enough this way to stay on the request path.
   is what carries a color, and a pause, because joining across a hole would
   draw a line the track never took. The pause threshold scales with the track's
   own sampling rhythm (see `segment.ts`).
+- `still` hides what a device draws while it lies still. A spike is a fix
+  reached and left faster than `maxSpeed` (default 50 kn); those go before
+  simplifying, in SQL as a window over neighbouring fixes, since once thinned a
+  spike's neighbours can be minutes away and the jump no longer looks fast.
+  After simplifying, `collapseStill` (`segment.ts`) drops what spikes remain and
+  finds stays: fixes held within `radius` metres (default 80) for `minMs`
+  (default 15 min) at a median speed of `stillSpeed` m/s or less (default
+  0.5 kn). Excursions that come back within 10 min without getting 300 m away
+  are dropped, and each stay is drawn as two points on its centroid, at arrival
+  and at departure. A fix without a recorded speed, which is every fix of a
+  simplified read, is given one measured over five minutes either side of it.
 - `limit` is the backstop, applied after simplification by striding each
   segment. `truncated` says whether anything was dropped that way.
 
-`MemoryTrackRegistry` reimplements the bbox test and Douglas–Peucker in
-TypeScript, in the same planar degrees `ST_Simplify` uses, so both
-implementations cut a line in the same locations. The conformance suite in
+`MemoryTrackRegistry` reimplements the bbox test, Douglas–Peucker and the
+spike window in TypeScript, in the same planar degrees `ST_Simplify` uses, so
+both implementations cut a line in the same locations. The conformance suite in
 `test/track-conformance.ts` runs against both.
 
 ## Live feed

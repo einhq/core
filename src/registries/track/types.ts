@@ -81,6 +81,24 @@ export type TrackReadOptions = TrackRange & {
   limit?: number;
   /** Override the gap rule (ms). Default is derived from the points themselves. */
   gapMs?: number;
+  /**
+   * Hide what a device draws while it lies still: drop GPS spikes, and collapse
+   * each stay into two points on its centroid, at arrival and at departure.
+   * Applied after simplification. See `collapseStill` in `segment.ts`.
+   */
+  still?: TrackStillOptions;
+};
+
+/** What a still read counts as lying still, and what as a glitch. Every field has a default. */
+export type TrackStillOptions = {
+  /** A stay's fixes stay within this many metres of their centroid. Default 80. */
+  radius?: number;
+  /** How long, in ms, the fixes have to stay within the radius to make a stay. Default 15 min. */
+  minMs?: number;
+  /** At or under this median speed, in m/s, the device counts as lying still. Default 0.5 kn. */
+  stillSpeed?: number;
+  /** A jump implying more than this speed, in m/s, is a GPS glitch. Default 50 kn. */
+  maxSpeed?: number;
 };
 
 /** A drawable run of points: one day, no holes. */

@@ -18,7 +18,7 @@ import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, summarize } from './lib.ts';
-import { capSegments, expandBounds, toSegments } from './segment.ts';
+import { capSegments, dropLoneSpikes, expandBounds, STILL_MAX_SPEED, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
 import {
   TrackIO,
@@ -371,6 +371,9 @@ export class TrackRegistry implements TrackRegistryIf {
    *
    * A day holding a single fix is kept: `ST_Simplify` with `preserveCollapsed`
    * returns a one-vertex line unchanged.
+   *
+   * A `still` read drops lone spikes first, in SQL on the simplified path, and
+   * collapses still periods on what comes back (`toSegments`).
    */
   async readPoints(id: string, opts: TrackReadOptions = {}): Promise<TrackReadResult> {
     const values: unknown[] = [id];
@@ -399,6 +402,26 @@ export class TrackRegistry implements TrackRegistryIf {
     let points: TrackPoint[];
 
     if (tolerance > 0) {
+      // A still read drops lone spikes before simplifying, as `dropLoneSpikes` does: a fix reached
+      // and left faster than the maximum speed.
+      let source = `SELECT ts, geog FROM ${this.pointsTable} WHERE ${where.join(' AND ')}`;
+
+      if (opts.still) {
+        values.push(opts.still.maxSpeed ?? STILL_MAX_SPEED);
+        const max = `$${values.length}::double precision`;
+        source = `
+          SELECT ts, geog FROM (
+            SELECT ts, geog,
+              ST_Distance(LAG(geog) OVER w, geog, false) / EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) AS speed_in,
+              ST_Distance(geog, LEAD(geog) OVER w, false) / EXTRACT(EPOCH FROM LEAD(ts) OVER w - ts) AS speed_out
+            FROM ${this.pointsTable}
+            WHERE ${where.join(' AND ')}
+            WINDOW w AS (ORDER BY ts)
+          ) neighbours
+          WHERE NOT (speed_in > ${max} AND speed_out > ${max})
+        `;
+      }
+
       values.push(tolerance);
 
       const result = await this.query<{ lat: number; lng: number; m: number }>(
@@ -409,8 +432,7 @@ export class TrackRegistry implements TrackRegistryIf {
             ST_MakeLine(
               ST_MakePointM(ST_X(geog::geometry), ST_Y(geog::geometry), EXTRACT(EPOCH FROM ts)) ORDER BY ts
             ) AS line
-          FROM ${this.pointsTable}
-          WHERE ${where.join(' AND ')}
+          FROM (${source}) filtered
           GROUP BY 1
         )
         SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lng, ST_M(dp.geom) AS m
@@ -438,10 +460,11 @@ export class TrackRegistry implements TrackRegistryIf {
       );
 
       points = result.rows.map(fromRow);
+      if (opts.still) points = dropLoneSpikes(points, opts.still.maxSpeed);
     }
 
-    // Simplification already happened in SQL, so this is only the day/pause cut.
-    const full = toSegments(points, 0);
+    // Simplification already happened in SQL; what is left is collapsing still periods and the day/pause cut.
+    const full = toSegments(points, 0, opts.still);
     const fullCount = countPoints(full);
 
     const segments = opts.limit === undefined ? full : capSegments(full, opts.limit);

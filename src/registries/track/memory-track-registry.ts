@@ -7,7 +7,7 @@
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
 import { routingKeysMatch } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
-import { capSegments, expandBounds, inBounds, toSegments } from './segment.ts';
+import { capSegments, dropLoneSpikes, expandBounds, inBounds, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
 import {
   TrackIO,
@@ -195,7 +195,8 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     const tolerance = opts.tolerance ?? 0;
     // A simplified read keeps position and time only, as the PostGIS path does:
     // there it is a vertex of a LINESTRINGM and the rest never comes back.
-    const full = toSegments(tolerance > 0 ? filtered.map(stripDetail) : filtered, tolerance);
+    const despiked = opts.still ? dropLoneSpikes(filtered, opts.still.maxSpeed) : filtered;
+    const full = toSegments(tolerance > 0 ? despiked.map(stripDetail) : despiked, tolerance, opts.still);
     const fullCount = countPoints(full);
 
     const segments = opts.limit === undefined ? full : capSegments(full, opts.limit);
