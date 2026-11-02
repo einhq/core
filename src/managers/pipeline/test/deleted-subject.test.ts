@@ -218,8 +218,10 @@ Deno.test({
       assertEquals((await client.execJson<{ status: string }>(`attrs ${instance}`)).status, 'cancelled');
       const step = await client.execJson<StepAttrs>(`attrs ${instance}/steps/fail`);
       assertEquals([step.status, step.error, step.attempts], ['skipped', TARGET_MISSING, 1]);
-      const counts = (await client.execJson<{ counts: Record<string, number> }>(`pool stat ${POOLS_PATH}/vanishpool`)).counts;
-      assertEquals([counts.done, counts.ready ?? 0], [1, 0]);
+      // The worker ends the step before it completes the job, and the instance ends on the step.
+      const counts = async () => (await client.execJson<{ counts: Record<string, number> }>(`pool stat ${POOLS_PATH}/vanishpool`)).counts;
+      await waitFor(async () => (await counts()).done === 1, 'the job to be completed');
+      assertEquals((await counts()).ready ?? 0, 0);
       assertEquals(errors.filter((line) => line.includes('[ERROR]') && line.includes('test-vanish-pooled')), []);
     });
   } finally {
