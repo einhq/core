@@ -2,22 +2,32 @@
 mknode -p -t directory "$DEV_MODULES_PATH"
 mount "$DEV_MODULES_PATH" filesystem "filesPath=$EXTERNAL_DEV_MODULES_PATH,readonly"
 
-# The deployment's folder for the modules `mod install` installs, read-write
-mknode -p -t directory "$MOD_INSTALL_PATH"
-mount "$MOD_INSTALL_PATH" filesystem "filesPath=$EXTERNAL_MODULE_INSTALL_PATH"
+# The deployment's folder for the modules `mod install` installs, read-write. Without one,
+# `mod install` writes into the instance's store.
+if [ -n "$EXTERNAL_MODULE_INSTALL_PATH" ]; then
+  mknode -p -t directory "$MOD_INSTALL_PATH"
+  mount "$MOD_INSTALL_PATH" filesystem "filesPath=$EXTERNAL_MODULE_INSTALL_PATH"
+fi
 
 # A softlink at $2 to $1, replaced when it points anywhere else.
 link() {
   [ "$(JSON_OUTPUT=1 props -L "$2" 2>/dev/null | jq -r '.softlink // empty')" = "$1" ] || ln -sf "$1" "$2"
 }
 
-# Link each module — a directory with a mod.json — into $MOD_PATH. A name the deployment provides
-# is the deployment's, whatever is installed under it.
+# Link each module — a directory with a mod.json — into $MOD_PATH: those DEV_MODULES names, when it
+# is set (the test harness's, the modules a test loads), or every one provided. A name the
+# deployment provides is the deployment's, whatever is installed under it.
 mkdir -p "$MOD_PATH"
-for mod in $(ls "$DEV_MODULES_PATH"); do
+if [ -n "${DEV_MODULES+set}" ]; then
+  provided="$DEV_MODULES"
+else
+  provided=$(ls "$DEV_MODULES_PATH")
+fi
+for mod in $provided; do
   [ -e "$DEV_MODULES_PATH/$mod/mod.json" ] || continue
   link "$DEV_MODULES_PATH/$mod" "$MOD_PATH/$mod"
 done
+mkdir -p "$MOD_INSTALL_PATH"
 for mod in $(ls "$MOD_INSTALL_PATH"); do
   [ -e "$MOD_INSTALL_PATH/$mod/mod.json" ] || continue
   if [ -e "$DEV_MODULES_PATH/$mod/mod.json" ]; then

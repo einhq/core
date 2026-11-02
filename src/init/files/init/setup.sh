@@ -1,10 +1,10 @@
-# Ensure init scripts are symlinked
-for script in "$INIT_FILES_PATH/init/$INSTANCE_MODE"/[0-9][0-9]_*.sh; do
+# Ensure init scripts are symlinked; a link left dangling by a script that moved is pointed at it
+for script in "$INIT_FILES_PATH/init"/[0-9][0-9]_*.sh; do
   [ -e "$script" ] || continue
 
   name=$(basename $script)
 
-  [ -e "$INIT_PATH/$name" ] || ln -s "$script" "$INIT_PATH/$name"
+  [ -e "$INIT_PATH/$name" ] || ln -sf "$script" "$INIT_PATH/$name"
 done
 
 # Run init scripts

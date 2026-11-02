@@ -1,9 +1,18 @@
-# Mirrors ../primary/00_mount.sh; the temp mount has no external file store here.
+# The machine's floor: the mounts, the event endpoints, and the /var skeleton.
+#
+# Every /var directory is created here rather than by whatever writes to it
+# first, so `ls /` and `ls /var` read the same on a fresh instance as on one
+# that has done some work.
 mkdir -p "$BIN_PATH"
 mount "$BIN_PATH" command
 
 mkdir -p "$TEMP_PATH"
-mount "$TEMP_PATH" memory "mode=777"
+# Its files spill to the deployment's temporary folder; without one they stay in memory.
+if [ -n "$EXTERNAL_FILE_TMP_PATH" ]; then
+  mount "$TEMP_PATH" memory "filesPath=$EXTERNAL_FILE_TMP_PATH,mode=777"
+else
+  mount "$TEMP_PATH" memory "mode=777"
+fi
 
 mkdir -p $VAR_DIRS
 

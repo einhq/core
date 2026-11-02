@@ -13,9 +13,5 @@ user-exists "$GUEST_USERNAME" || user-create "$GUEST_USERNAME" --uid "$GUEST_UID
 
 group-is-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || group-add-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || true
 
-# The test harness signs in as admin/admin.
-ADMIN_PASSWORD="admin"
-if [ ! -e "$USERS_PATH/$ADMIN_USERNAME/.password" ]; then
-  user-passwd "$ADMIN_USERNAME" --new-password $ADMIN_PASSWORD
-  echo "Admin password set to: $ADMIN_PASSWORD"
-fi
+# A new instance's admin password is set once boot is through
+# (src/init/admin-password.ts).

@@ -168,28 +168,25 @@ async function main() {
 
   // Run init scripts
   await boot(systemShell, {
-    mode: 'primary',
-    env: {
-      EXTERNAL_FILE_ROOT_PATH: Deno.env.get('FILE_ROOT_PATH') || resolve(Deno.cwd(), './files'),
-      // Fast, regenerable renditions (thumbnails/crops/transcodes). Defaults to
-      // the durable root, so a single-disk install has one root.
-      EXTERNAL_VOLATILE_FILE_ROOT_PATH: Deno.env.get('VOLATILE_FILE_ROOT_PATH') || Deno.env.get('FILE_ROOT_PATH') ||
-        resolve(Deno.cwd(), './files'),
-      EXTERNAL_FILE_TMP_PATH: Deno.env.get('FILE_TMP_PATH') || '/tmp',
-      EXTERNAL_DEV_MODULES_PATH: Deno.env.get('DEV_MODULES_PATH') || resolve(Deno.cwd(), './modules'),
-      EXTERNAL_MODULE_INSTALL_PATH: moduleInstallPath,
-      INSTALL_MODULES: Deno.env.get('INSTALL_MODULES') ?? '',
-      EXTERNAL_DOCS_PATH: Deno.env.get('DOCS_PATH') || resolve(Deno.cwd(), './guide'),
-      // Every CFG_* the container was launched with, forwarded wholesale.
-      //
-      // Shells take their environment from /etc/bashrc rather than from this
-      // process, and an external tool takes it from the shell that spawned it,
-      // so a setting that stops here reaches nothing. Forwarding the whole
-      // prefix rather than naming them one at a time is what lets a new setting
-      // be added without editing boot: `config publish` then writes them into
-      // /etc/environment so a service restarted later still sees them.
-      ...settingsFromEnv(),
-    },
+    EXTERNAL_FILE_ROOT_PATH: Deno.env.get('FILE_ROOT_PATH') || resolve(Deno.cwd(), './files'),
+    // Fast, regenerable renditions (thumbnails/crops/transcodes). Defaults to
+    // the durable root, so a single-disk install has one root.
+    EXTERNAL_VOLATILE_FILE_ROOT_PATH: Deno.env.get('VOLATILE_FILE_ROOT_PATH') || Deno.env.get('FILE_ROOT_PATH') ||
+      resolve(Deno.cwd(), './files'),
+    EXTERNAL_FILE_TMP_PATH: Deno.env.get('FILE_TMP_PATH') || '/tmp',
+    EXTERNAL_DEV_MODULES_PATH: Deno.env.get('DEV_MODULES_PATH') || resolve(Deno.cwd(), './modules'),
+    EXTERNAL_MODULE_INSTALL_PATH: moduleInstallPath,
+    INSTALL_MODULES: Deno.env.get('INSTALL_MODULES') ?? '',
+    EXTERNAL_DOCS_PATH: Deno.env.get('DOCS_PATH') || resolve(Deno.cwd(), './guide'),
+    // Every CFG_* the container was launched with, forwarded wholesale.
+    //
+    // Shells take their environment from /etc/bashrc rather than from this
+    // process, and an external tool takes it from the shell that spawned it,
+    // so a setting that stops here reaches nothing. Forwarding the whole
+    // prefix rather than naming them one at a time is what lets a new setting
+    // be added without editing boot: `config publish` then writes them into
+    // /etc/environment so a service restarted later still sees them.
+    ...settingsFromEnv(),
   });
 
   // A new instance's admin password: the deployment's, which it keeps, or a random one printed

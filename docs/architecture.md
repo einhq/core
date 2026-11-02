@@ -1542,10 +1542,11 @@ module contract              pgvector) + PgStore           asserted as attempted
 
 Key pieces ([src/testing/](../src/testing/)):
 
-- **SystemTestHarness** — boots an in-memory primary; `boot: true` runs the real init
-  scripts under instance mode `test` ([src/init/files/init/test/](../src/init/files/init/test/))
-  with ShellManager + ServiceManager (pipeline-engine service runs; network services stay
-  disabled since the harness owns HTTP on a random port). The instance hashes passwords at
+- **SystemTestHarness** — boots an in-memory instance; `boot: true` runs the init scripts a
+  deployment runs ([src/init/files/init/](../src/init/files/init/)) with ShellManager +
+  ServiceManager, with no file roots, only the test's modules (`DEV_MODULES`) and `HEADLESS=1`
+  (pipeline-engine service runs; network services stay disabled and no browser shell is linked,
+  since the harness owns HTTP on a random port). The instance hashes passwords at
   `CFG_PASSWORD_HASH_LOGN=10` ([src/lib/auth/password.ts](../src/lib/auth/password.ts)): the
   cost is written into the hash, so every login the tier verifies follows it, and scrypt's
   production cost (~300 ms per hash and per verify) stays out of a tier that boots and logs

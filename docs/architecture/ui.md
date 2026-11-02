@@ -74,7 +74,7 @@ directories rather than running `mkdir -p` before queueing.
 
 The docs section has two halves: a written **guide** and a **reference** read from the running installation, under one `EntityDetailHeader` with a search over both.
 
-**The guide** is the documentation at einhq.eu/docs, written once in the site's repository (ein/einhq.github.io) and bundled, never a copy kept here. The image's `guide` build stage ([src/Containerfile](../../src/Containerfile)) fetches the site's archive (`DOCS_URL`) and keeps, in the site's layout, `docs/**/*.md`, `docs/diagrams/*.svg`, the screenshots the pages name with their 2x files, and the diagrams' two fonts; boot ([08_docs.sh](../../src/init/files/init/primary/08_docs.sh)) mounts it read-only at `/usr/docs/guide` from `$DOCS_PATH` (`/app/guide` in the image). `make container-run GUIDE_PATH=<site checkout>` mounts a checkout of the site instead. Without one the Docs page links to einhq.eu.
+**The guide** is the documentation at einhq.eu/docs, written once in the site's repository (ein/einhq.github.io) and bundled, never a copy kept here. The image's `guide` build stage ([src/Containerfile](../../src/Containerfile)) fetches the site's archive (`DOCS_URL`) and keeps, in the site's layout, `docs/**/*.md`, `docs/diagrams/*.svg`, the screenshots the pages name with their 2x files, and the diagrams' two fonts; boot ([08_docs.sh](../../src/init/files/init/08_docs.sh)) mounts it read-only at `/usr/docs/guide` from `$DOCS_PATH` (`/app/guide` in the image). `make container-run GUIDE_PATH=<site checkout>` mounts a checkout of the site instead. Without one the Docs page links to einhq.eu.
 
 ```
 /usr/docs/guide/

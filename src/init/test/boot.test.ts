@@ -1,5 +1,5 @@
 /**
- * Full boot (instance mode `test`): expected topology, users/groups,
+ * Full boot as the test harness runs it: expected topology, users/groups,
  * core's setup, service registration and setup idempotency.
  */
 
@@ -101,7 +101,7 @@ Deno.test({
 
     await t.step('the layout is exactly what boot exports, sourced once from bashrc', async () => {
       const layoutLine = `[ -r ${ETC_PATH}/layout ] && source ${ETC_PATH}/layout`;
-      const rerun = `EIN_PATH_EXPORTS='${pathExports()}' ${INIT_FILES_PATH}/init/test/09_env.sh`;
+      const rerun = `EIN_PATH_EXPORTS='${pathExports()}' ${INIT_FILES_PATH}/init/09_env.sh`;
 
       await cmd.shouldSucceed(`echo 'export GONE_PATH="/gone"' >> ${ETC_PATH}/layout`);
       await cmd.shouldSucceed(rerun);

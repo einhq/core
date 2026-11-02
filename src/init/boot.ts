@@ -23,16 +23,15 @@ import { ETC_PATH, INIT_FILES_PATH, INIT_PATH, LIB_PATH, pathEnv, pathExports } 
 import { Shell } from '../managers/shell/shell.ts';
 import { LIB_SOURCE_DIR } from '../modules/repo.ts';
 
-type Instance = {
-  mode: 'primary' | string;
-  env?: Record<string, string>;
-};
-
-export async function boot(shell: Shell, instance: Instance): Promise<void> {
+/**
+ * Boot: the init scripts in `files/init`, run in `shell` with `env` exported. What differs between
+ * a deployment and the test harness is in `env`: an unset file root keeps the root `shell` was
+ * given, `HEADLESS` serves nothing, `DEV_MODULES` links some of the provided modules.
+ */
+export async function boot(shell: Shell, env: Record<string, string> = {}): Promise<void> {
   const filesPath = join(import.meta.dirname!, 'files');
 
   const code = await shell.run(`
-export INSTANCE_MODE=${instance.mode}
 export ADMIN_USERNAME=${ADMIN_USERNAME}
 export ADMIN_GROUPNAME=${ADMIN_GROUPNAME}
 export ADMIN_UID=${ADMIN_UID}
@@ -47,19 +46,19 @@ export SSH_GROUPNAME=${SSH_GROUPNAME}
 export SUDO_GROUPNAME=${SUDO_GROUPNAME}
 ${Object.entries(pathEnv()).map(([key, value]) => `export ${key}="${value}"`).join('\n')}
 export EIN_PATH_EXPORTS="${pathExports().replaceAll('"', '\\"')}"
-${Object.entries(instance.env || {}).map(([key, value]) => `export ${key.toUpperCase()}="${value}"`).join('\n')}
+${Object.entries(env).map(([key, value]) => `export ${key.toUpperCase()}="${value}"`).join('\n')}
 
 echo "Mounting init files..."
 mknode -p -t directory /_files
 mount /_files filesystem "filesPath=${filesPath},readonly"
 
 echo "Loading default environment..."
-echo "> /_files/init/$INSTANCE_MODE/env.sh"
-source /_files/init/$INSTANCE_MODE/env.sh
+echo "> /_files/init/env.sh"
+source /_files/init/env.sh
 
 echo "Running boot script..."
-echo "> /_files/init/$INSTANCE_MODE/boot.sh"
-/_files/init/$INSTANCE_MODE/boot.sh
+echo "> /_files/init/boot.sh"
+/_files/init/boot.sh
 
 echo "Mounting core's files..."
 mknode -p -t directory ${LIB_PATH}

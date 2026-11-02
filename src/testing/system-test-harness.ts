@@ -15,6 +15,7 @@ import { RouterManager } from '../managers/router/mod.ts';
 import { ServiceManager } from '../managers/services/mod.ts';
 import { ShellManager } from '../managers/shell/mod.ts';
 import { Shell } from '../managers/shell/shell.ts';
+import { setFirstAdminPassword } from '../init/admin-password.ts';
 import { boot } from '../init/boot.ts';
 import { buildPathExportLine } from '../managers/exec/commands/mod/path-line.ts';
 import { contributionsOf, registerContributions, unregisterContributions } from '../lib/contributions/registry.ts';
@@ -101,7 +102,7 @@ export type SystemTestOptions = {
   httpPort?: number;
   sshPort?: number;
   ssh?: boolean;
-  /** run the full boot sequence (instance mode `test`) with ShellManager + ServiceManager */
+  /** run the full boot sequence with ShellManager + ServiceManager */
   boot?: boolean;
   /** back the file registry with this disk directory instead of memory (needed when external tools must read node content) */
   fileRoot?: string;
@@ -197,7 +198,7 @@ export class SystemTestHarness {
     let shell: Shell;
 
     if (this.options.boot) {
-      // Full boot: managers + init scripts (mode `test`), like main.ts
+      // Full boot: managers + init scripts, like main.ts
       const shellManager = new ShellManager({ cem, vfs, bufferManager });
       await shellManager.init();
       sysCore.shellManager = shellManager;
@@ -223,15 +224,18 @@ export class SystemTestHarness {
       shell = await shellManager.createSystemShell({ sessionPath: '!/.session-system', env: settings });
       this.primaryShell = shell;
 
+      // No file roots, so the root above stays and temporary files stay in memory; no ports or
+      // browser shell of its own (HEADLESS), since the harness serves HTTP; the test's modules alone.
       await boot(shell, {
-        mode: 'test',
-        env: {
-          EXTERNAL_DEV_MODULES_PATH: MODULES_DIR,
-          EXTERNAL_DOCS_PATH: join(import.meta.dirname!, 'fixtures', 'guide'),
-          TEST_MODULES: modules.join(' '),
-          ...settings,
-        },
+        EXTERNAL_DEV_MODULES_PATH: MODULES_DIR,
+        EXTERNAL_DOCS_PATH: join(import.meta.dirname!, 'fixtures', 'guide'),
+        DEV_MODULES: modules.join(' '),
+        HEADLESS: '1',
+        COOKIE_NAME: primaryEnv.COOKIE_NAME,
+        ...settings,
       });
+      // The tests sign in as admin/admin.
+      await setFirstAdminPassword(vfs, { ...passwordEnv, INITIAL_ADMIN_PASSWORD: 'admin' });
     } else {
       // The skeleton a non-booted instance needs, at the paths `pathEnv()` names.
       const ensurePath = async (path: string, mode = 0o755) => {
@@ -247,7 +251,7 @@ export class SystemTestHarness {
       }
       // The archive and core's label tree, as 02_archive.sh makes them at boot; the other roots are
       // the modules' (below).
-      await ensurePath(ARCHIVE_PATH, 0o775);
+      await ensurePath(ARCHIVE_PATH, 0o771);
       await ensureArchiveRoots(vfs, [TAGS_ROOT]);
       await vfs.update(ADMIN_ACCESS, TEMP_PATH, { props: { mode: 0o777 } });
 

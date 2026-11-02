@@ -2,5 +2,5 @@
 # the single source of truth for the layout — including PATH, which must already
 # carry core's bin directory when the first command runs. What is left
 # here is the per-instance identity that has no business being a TypeScript
-# constant.
-export COOKIE_NAME="ein"
+# constant, unless boot was handed one.
+export COOKIE_NAME="${COOKIE_NAME:-ein}"

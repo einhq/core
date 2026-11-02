@@ -146,7 +146,6 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   { key: 'COOKIE_NAME', kind: 'session', description: 'The browser cookie that carries a web session.' },
 
   // System: what boot exports for scripts besides the layout.
-  { key: 'INSTANCE_MODE', kind: 'system', description: 'What this process was started as: primary, or test.' },
   { key: 'ADMIN_USERNAME', kind: 'system', description: 'The built-in administrator account.' },
   { key: 'ADMIN_GROUPNAME', kind: 'system', description: 'Its group.' },
   { key: 'ADMIN_UID', kind: 'system', description: 'Its user id.' },
@@ -185,6 +184,16 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   { key: 'EXTERNAL_DOCS_PATH', kind: 'system', description: 'DOCS_PATH as boot received it: what is mounted at /usr/docs/guide.' },
   { key: 'EXTERNAL_DEV_MODULES_PATH', kind: 'system', description: 'DEV_MODULES_PATH as boot received it.' },
   { key: 'EXTERNAL_MODULE_INSTALL_PATH', kind: 'system', description: 'MODULE_INSTALL_PATH as boot received it.' },
+  {
+    key: 'DEV_MODULES',
+    kind: 'system',
+    description: 'Which of the modules in DEV_MODULES_PATH boot links, when set: the test harness names the modules a test loads. Unset, it links them all.',
+  },
+  {
+    key: 'HEADLESS',
+    kind: 'system',
+    description: 'Set to 1 by the test harness, which serves HTTP itself: boot leaves the HTTP and SSH servers disabled and links no browser shell.',
+  },
 
   // Option: export to change how a command behaves in this shell.
   {
