@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
+import { createExtension } from '../../lib/pg/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingKeysMatch, routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode, ResourceSeekMode } from '../types.ts';
@@ -134,7 +135,7 @@ export class PgLogRegistry implements LogRegistryIf {
       return;
     }
 
-    await this.query(`CREATE EXTENSION IF NOT EXISTS timescaledb;`);
+    await createExtension(this.pool, 'timescaledb');
 
     // `routing_patterns` mirrors the wildcard entries of `routing_keys` as compiled regexes,
     // so postgres runs a regex and never parses a pattern itself.

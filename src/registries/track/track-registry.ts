@@ -13,6 +13,7 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
+import { createExtension } from '../../lib/pg/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
@@ -87,7 +88,7 @@ export class TrackRegistry implements TrackRegistryIf {
       return;
     }
 
-    await this.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+    await createExtension(this.pool, 'postgis');
 
     // The summary lives on this row rather than being aggregated per call: `ls
     // /tracks` asks every track how big it is, and that must not touch the

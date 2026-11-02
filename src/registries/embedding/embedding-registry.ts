@@ -7,6 +7,7 @@
  */
 
 import type { Pool } from 'pg';
+import { createExtension } from '../../lib/pg/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { EmbeddingHandle } from './embedding-handle.ts';
 import { EmbeddingAsyncIO, EmbeddingRegistryIf, EmbeddingResourceOptions, EmbeddingStat, SimilarityMatch, SimilarPair } from './types.ts';
@@ -57,7 +58,7 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
 
     const client = await this.pool.connect();
     try {
-      await client.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+      await createExtension(client, 'vector');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS ${this.embeddingsTable} (

@@ -69,6 +69,7 @@ import {
   type TreeTables,
   TYPED_ORDER_REF,
 } from './query.ts';
+import { createExtension } from '../../lib/pg/mod.ts';
 import type { IndexDecl } from '../../lib/contributions/types.ts';
 import { attrRefOf, NAME_LANGUAGES, type NodeQueryCollation, type NodeQueryOrder } from '../../vfs/query.ts';
 
@@ -546,7 +547,7 @@ export class PgStore implements NodeStore {
       // would be a different expression and the planner would ignore the index.
       // Not partial: `name` is required on files and carried by most other node
       // types, so there is no minority to exclude.
-      await conn.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+      await createExtension(conn, 'pg_trgm');
       await conn.query(`
         CREATE INDEX IF NOT EXISTS ${this.attrsTable}_name_trgm_idx
         ON ${this.attrsTable} USING GIN ((${attrTextExpr('name')}) gin_trgm_ops)
@@ -880,7 +881,7 @@ export class PgStore implements NodeStore {
       const where = index.partial ? ` WHERE (${attrTextExpr(attrRefOf(index.partial))}) IS NOT NULL` : '';
       if (index.using === 'trigram') {
         // Over the uncollated projection, as the name's trigram index is: `contains` emits it.
-        await conn.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+        await createExtension(conn, 'pg_trgm');
         const expr = attrTextExpr(attrRefOf(index.on[0]));
         await conn.query(`CREATE INDEX IF NOT EXISTS ${this.attrsTable}_${index.name}_idx ON ${this.attrsTable} USING GIN ((${expr}) gin_trgm_ops)${where}`);
         // Statistics for the attr, as for `sourceId`: without them the planner takes a substring to

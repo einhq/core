@@ -6,6 +6,7 @@
  */
 
 import type { Pool } from 'pg';
+import { createExtension } from '../../lib/pg/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { assertPolygon, polygonToWkt } from './geo.ts';
 import { PositionHandle } from './position-handle.ts';
@@ -39,7 +40,7 @@ export class PositionRegistry implements PositionRegistryIf {
 
     const client = await this.pool.connect();
     try {
-      await client.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+      await createExtension(client, 'postgis');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS ${this.tableName} (
