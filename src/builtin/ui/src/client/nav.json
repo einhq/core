@@ -110,6 +110,14 @@
             "attribution": "© OpenStreetMap contributors",
             "maxZoom": 19
           }
+        },
+        {
+          "url": "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
+          "options": {
+            "attribution": "© OpenSeaMap contributors",
+            "maxNativeZoom": 18,
+            "maxZoom": 19
+          }
         }
       ]
     },
