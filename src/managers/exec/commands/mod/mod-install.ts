@@ -268,7 +268,7 @@ const installTarget = async (
     let unpacked;
     let said = Date.now();
     const unpacking = async (files: number) => {
-      run.job.progress(expected, files);
+      run.job.progress({ module: expected, files });
       if (Date.now() - said < PROGRESS_EVERY_MS) return;
       said = Date.now();
       await say(run, `  ${files} files of ${expected} unpacked`);
@@ -284,7 +284,10 @@ const installTarget = async (
     } catch (error) {
       if (error instanceof ForgeError) throw new InstallError(error.message);
       throw new InstallError(`${repository.repository} at ${short(resolved.commit)}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      run.job.progress();
     }
+    await say(run, `  ${unpacked.files} files of ${expected} unpacked`);
     for (const skipped of unpacked.skipped) await cmd.writeError(`mod install: ${skipped}\n`);
 
     const manifest = await readModJson(vfs, cmd.access, staging);

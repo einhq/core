@@ -63,9 +63,9 @@ export class InstallJob {
     this.changed();
   }
 
-  /** The module it is unpacking now, and how many of its files are in place. */
-  progress(module: string, files: number): void {
-    this.unpacking = { module, files };
+  /** The module it is unpacking now and how many of its files are in place; nothing once it is unpacked. */
+  progress(unpacking?: { module: string; files: number }): void {
+    this.unpacking = unpacking;
     this.changed();
   }
 

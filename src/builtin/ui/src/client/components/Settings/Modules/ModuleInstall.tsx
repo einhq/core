@@ -70,8 +70,8 @@ type InstallProgressProps = {
 };
 
 /**
- * The install running, for everyone on the Modules tab: what it was asked, who started it, how
- * many files of the module it is unpacking are in place and its last line; once it ends, what it
+ * The install running, for everyone on the Modules tab: what it was asked, who started it, and how
+ * many files of the module it is unpacking are in place, or else its last line; once it ends, what it
  * installed, with a link to each, or why it failed.
  */
 export function InstallProgress({ install, onOpenModule, onDismiss }: InstallProgressProps) {
@@ -86,7 +86,7 @@ export function InstallProgress({ install, onOpenModule, onDismiss }: InstallPro
             Started by {install.by} at {new Date(install.startedAt).toLocaleTimeString()}. It goes on when this page is closed.
           </Text>
           {install.unpacking && <Text size='sm'>{formatCount(install.unpacking.files)} files of {install.unpacking.module} unpacked</Text>}
-          {last && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{last}</Text>}
+          {!install.unpacking && last && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{last}</Text>}
         </Stack>
       </Alert>
     );
