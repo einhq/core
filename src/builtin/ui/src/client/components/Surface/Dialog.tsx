@@ -1,7 +1,10 @@
 import { Box, Modal, type ModalProps, useMantineTheme } from '@mantine/core';
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
+import { useSignals } from '@preact/signals-react/runtime';
+import { type CSSProperties, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { usePhone } from '../../hooks/usePhone.ts';
+import { SurfaceContext } from '../../hooks/useSurface.ts';
 import { navigatePage, onPageChange, pageLocation, pageNavigating } from '../../signals/module-ui.ts';
+import { fullscreenPath } from '../../signals/surface.ts';
 import { HatField, type HatPattern, PATTERN_CONTROLS, patternAccent } from '../EntityDetail/HatField.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { bindScrollbar } from '../Layout/scrollbar.ts';
@@ -206,14 +209,21 @@ export function Dialog(
     ...props
   }: DialogProps,
 ) {
+  useSignals();
   const phone = usePhone();
   const { primaryColor } = useMantineTheme();
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   useBackCloses(backCloses && phone && props.opened, props.onClose);
+  // Under a route open full screen (the lightbox opened from a grid in this dialog) Escape is that
+  // route's: every open modal hears it, and this one would close as well, a second step Back. One
+  // the route opened over itself is drawn inside it, and keeps it.
+  const surface = useContext(SurfaceContext);
+  const underFullscreen = fullscreenPath.value !== null && surface?.kind !== 'fullscreen';
   return (
     <Modal
       centered
       {...props}
+      closeOnEscape={!underFullscreen && (props.closeOnEscape ?? true)}
       size={size === 'screen' ? '100%' : typeof size === 'string' && size in SIZES ? SIZES[size as keyof typeof SIZES] : size}
       xOffset={size === 'screen' ? 'var(--mantine-spacing-xl)' : props.xOffset}
       yOffset={size === 'screen' ? 'var(--mantine-spacing-xl)' : props.yOffset}
