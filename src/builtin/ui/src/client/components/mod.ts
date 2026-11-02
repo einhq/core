@@ -6,6 +6,7 @@ export * from './Terminal/TerminalInstance.tsx';
 export * from './Terminal/TerminalTabs.tsx';
 export * from './Layout/AppHeader.tsx';
 export * from './Layout/AppNavbar.tsx';
+export * from './Layout/FillWindow.tsx';
 export * from './Layout/PageLoader.tsx';
 export * from './Layout/ScrollBox.tsx';
 export * from './Login/LoginForm.tsx';

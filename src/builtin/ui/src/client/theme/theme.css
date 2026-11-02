@@ -701,6 +701,25 @@ html.mrx-page-covered {
   padding-bottom: var(--mantine-spacing-xl);
 }
 
+/* What fills the window below the headers (`FillWindow`) starts `--mrx-stuck-header-above` up under
+ * the page header and keeps as much room below it, so the page scrolls exactly as far as the
+ * header shrinks, and the view, stuck at the stuck row's foot, stays put meanwhile. */
+.mrx-fill-window[data-on-page] {
+  margin-top: calc(var(--mrx-stuck-header-above, 0px) * -1);
+  padding-bottom: var(--mrx-stuck-header-above, 0px);
+}
+
+.mrx-fill-window-view {
+  position: relative;
+  height: 80dvh;
+}
+
+.mrx-fill-window[data-on-page] .mrx-fill-window-view {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 0px) + var(--mrx-stuck-header-height, 0px));
+  height: calc(100dvh - var(--app-shell-header-height, 0px) - var(--mrx-stuck-header-height, 0px));
+}
+
 .mrx-entity-header-controls > * {
   flex-wrap: wrap;
 }

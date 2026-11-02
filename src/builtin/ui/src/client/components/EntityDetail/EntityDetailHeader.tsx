@@ -11,7 +11,7 @@ import { imageLuminance, type LuminanceMap } from '../../lib/image-luminance.ts'
 import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
 import { UploadDropzone } from '../Upload/UploadDropzone.tsx';
 import { userConfig } from '../../signals/config.ts';
-import { stuckHeaderHeight } from '../../signals/stuck-header.ts';
+import { stuckHeaderAbove, stuckHeaderHeight } from '../../signals/stuck-header.ts';
 import { FloatingControls } from './FloatingControls.tsx';
 import { ActionsMenu, CornerActions, type PageActions, useActionGroups } from './HeaderActions.tsx';
 import { entranceTime, HatField, type HatPattern } from './HatField.tsx';
@@ -345,7 +345,8 @@ function useCoverRead(url: string | undefined): { url: string; luminance: Lumina
  * edge — sticks (`data-sticky`) with its top `--mrx-header-above` over the app header's foot, so
  * all above the row, less as much band as the content keeps below it, goes on under the app header.
  * The row's height is `stuckHeaderHeight`, and `--mrx-stuck-header-height` on the document, for
- * what measures against the top of the window.
+ * what measures against the top of the window; how far the page scrolls before only the row is
+ * left is `stuckHeaderAbove`, and `--mrx-stuck-header-above` on the document (`FillWindow`).
  *
  * While the page scrolls, `--mrx-header-hidden` says how much of the header is under the app
  * header, so the backdrop can shrink into what shows; the header has `data-stuck` once only the
@@ -395,7 +396,9 @@ function useStuckHeader(
       const end = endRef?.current?.getBoundingClientRect().width ?? 0;
       header.style.setProperty('--mrx-header-end', `${end > 0 ? end + END_GAP : 0}px`);
       root.style.setProperty('--mrx-stuck-header-height', `${height}px`);
+      root.style.setProperty('--mrx-stuck-header-above', `${above}px`);
       stuckHeaderHeight.value = height;
+      stuckHeaderAbove.value = above;
       follow();
     };
     const onScroll = () => {
@@ -418,7 +421,9 @@ function useStuckHeader(
       for (const name of ['--mrx-header-above', '--mrx-header-hidden']) sticky.style.removeProperty(name);
       for (const name of ['--mrx-header-row-top', '--mrx-header-row-height', '--mrx-header-start', '--mrx-header-end']) header.style.removeProperty(name);
       root.style.removeProperty('--mrx-stuck-header-height');
+      root.style.removeProperty('--mrx-stuck-header-above');
       stuckHeaderHeight.value = 0;
+      stuckHeaderAbove.value = 0;
     };
   }, [enabled, stickyRef, headerRef, rowRef, contentRef, startRef, endRef, appHeader]);
 }
