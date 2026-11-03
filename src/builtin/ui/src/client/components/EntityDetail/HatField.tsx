@@ -68,14 +68,14 @@ const ACCENTS = {
   person: '#da77f2',
   location: '#38d9a9',
   track: '#22b8cf',
-  device: '#ffa94d',
+  device: '#51cf66',
   label: '#f06595',
   media: '#748ffc',
   staging: '#fcc419',
   system: '#a9e34b',
   danger: '#ff6b6b',
   neutral: '#9ba3b0',
-  mixed: [[.05, '#339af0'], [.25, '#da77f2'], [.45, '#38d9a9'], [.62, '#22b8cf'], [.8, '#ffa94d'], [.98, '#f06595']],
+  mixed: [[.05, '#339af0'], [.25, '#da77f2'], [.45, '#38d9a9'], [.62, '#22b8cf'], [.8, '#51cf66'], [.98, '#f06595']],
 } as const satisfies Record<string, string | readonly (readonly [number, string])[]>;
 
 /** A pattern's accent as one colour: `mixed`'s first stop. */
@@ -93,7 +93,7 @@ export const PATTERN_CONTROLS: Partial<Record<HatPattern, readonly [color: strin
   person: ['grape', 7],
   location: ['teal', 9],
   track: ['cyan', 8],
-  device: ['orange', 9],
+  device: ['green', 9],
   label: ['pink', 7],
   media: ['indigo', 7],
   danger: ['red', 8],

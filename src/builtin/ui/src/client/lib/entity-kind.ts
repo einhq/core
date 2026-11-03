@@ -34,7 +34,7 @@ export const ENTITY_KIND_STYLES: Record<EntityKind, EntityKindStyle> = {
   suggested: { label: 'Suggested album', color: 'violet', icon: IconSparkles },
   person: { label: 'Person', color: 'grape', icon: IconUser },
   location: { label: 'Location', color: 'teal', icon: IconMapPin },
-  device: { label: 'Device', color: 'orange', icon: IconDeviceCameraPhone },
+  device: { label: 'Device', color: 'green', icon: IconDeviceCameraPhone },
   track: { label: 'Track', color: 'cyan', icon: IconRoute },
   audio: { label: 'Audio', color: 'pink', icon: IconMusic },
   document: { label: 'Document', color: 'lime', icon: IconFileText },
