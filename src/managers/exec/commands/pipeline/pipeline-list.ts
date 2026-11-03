@@ -21,7 +21,8 @@ export const pipelineList = async (cmd: Command): CmdReturn => {
   try {
     entries = await cmd.sys.vfs.children(cmd.access, defsPath);
   } catch {
-    await cmd.write('No pipelines defined\n');
+    if (cmd.json) await cmd.writeJSON([] satisfies PipelineSummary[]);
+    else await cmd.write('No pipelines defined\n');
     return 0;
   }
 
