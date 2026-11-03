@@ -85,12 +85,6 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
       "The admin account's first password, set at the first start of a new instance. Without it that start sets a random one and prints it to the log once. Changing it later does nothing; the account's password is changed in Settings or with `user-passwd`.",
   },
   {
-    key: 'INITIAL_ADMIN_PASSWORD',
-    kind: 'deployment',
-    description:
-      "The admin account's first password, set at the first start of a new instance; without it that start sets a random one and prints it to the log once. Changing it later does nothing: the account's password is changed in Settings or with `user-passwd`.",
-  },
-  {
     key: 'TZ',
     kind: 'deployment',
     default: "the host's zone",
