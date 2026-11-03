@@ -113,8 +113,9 @@ const ADMISSION_POLL_MS = 100;
 /**
  * How long a step the engine runs itself waits before it runs again, when it could not run yet
  * (`STEP_EXIT_TEMPORARY`). A pooled step
- * rests its whole kind instead (see the pool worker); an inline one has no kind, so each step
- * waits on its own, long enough that a down service is not asked by every waiting step at once.
+ * waits a doubling pause and rests its whole kind when several refuse in a row (see the pool
+ * worker); an inline one has no kind, so each step waits on its own, long enough that a down
+ * service is not asked by every waiting step at once.
  */
 const INLINE_TEMPORARY_WAIT_MS = 5 * 60_000;
 /**

@@ -206,31 +206,45 @@ Deno.test('a step whose service could not do it yet waits again without spending
   assertEquals(step.exitCode, STEP_EXIT_TEMPORARY);
   assertEquals(job?.state, 'ready');
   assertEquals(job?.attempts, 0);
-  // Handed back for after the kind's pause, not at once.
+  // Handed back for after its pause, not at once.
   assert(job!.availableAt.getTime() >= before + 30_000);
 });
 
-Deno.test('a worker that names its kinds rests the kind, not the job, and waking the kind runs it again', async () => {
+/**
+ * A worker that names `STEP` as its kind, over one job per command in `commands`, each its own
+ * instance. `exitOf` says how a command's run ends; it is read on every run.
+ */
+async function kindWorker(commands: string[], exitOf: (command: string) => number) {
   const reg = new MemoryPoolRegistry();
   await reg.init();
   await reg.touch(POOL_ID, { leaseMs: 60_000, backoffMs: 50 });
-
   const vfs = new SettleVfs(reg);
-  vfs.nodes.set(INSTANCE, { status: 'running', triggerPath: INSTANCE } satisfies Partial<PipelineInstanceAttrs> as Record<string, unknown>);
-  vfs.nodes.set(STEP_PATH, { status: 'waiting', dependsOn: [], command: 'step', pool: POOL_ID } as Record<string, unknown>);
-  const added = await reg.add(POOL_ID, {
-    kind: STEP,
-    dedupKey: STEP_PATH,
-    maxAttempts: 1,
-    params: { instancePath: INSTANCE, stepName: STEP, command: 'step' } satisfies PoolJobParams,
-  });
 
-  let code = STEP_EXIT_TEMPORARY;
-  const tty = { runAndCapture: () => Promise.resolve({ code, stdout: '', stderr: '' }) } as unknown as TtyIf;
+  const jobs: { id: PoolJobId; stepPath: string }[] = [];
+  for (const [i, command] of commands.entries()) {
+    const instance = `${PIPELINE_INSTANCES_PATH}/test-settle/k${i}`;
+    const stepPath = join(instance, 'steps', STEP);
+    vfs.nodes.set(instance, { status: 'running', triggerPath: instance } satisfies Partial<PipelineInstanceAttrs> as Record<string, unknown>);
+    vfs.nodes.set(stepPath, { status: 'waiting', dependsOn: [], command: `step-${command}`, pool: POOL_ID } as Record<string, unknown>);
+    const added = await reg.add(POOL_ID, {
+      kind: STEP,
+      dedupKey: stepPath,
+      maxAttempts: 1,
+      params: { instancePath: instance, stepName: STEP, command: `step-${command}` } satisfies PoolJobParams,
+    });
+    jobs.push({ id: added.id, stepPath });
+  }
+
+  const tty = {
+    runAndCapture: (line: string) => {
+      const command = commands.find((c) => line.includes(`step-${c}`)) ?? '';
+      return Promise.resolve({ code: exitOf(command), stdout: '', stderr: '' });
+    },
+  } as unknown as TtyIf;
   const worker = new PoolWorker(vfs as unknown as NodeVFS, tty, { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1 });
   await worker.start();
 
-  const step = () => vfs.nodes.get(STEP_PATH) as unknown as PipelineStepAttrs;
+  const step = (i: number) => vfs.nodes.get(jobs[i].stepPath) as unknown as PipelineStepAttrs;
   const until = async (what: string, done: () => boolean | Promise<boolean>) => {
     const deadline = Date.now() + 10_000;
     while (!(await done())) {
@@ -238,52 +252,75 @@ Deno.test('a worker that names its kinds rests the kind, not the job, and waking
       await new Promise((r) => setTimeout(r, 20));
     }
   };
-
-  try {
-    await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
-    await until('the job is handed back', async () => (await reg.get(POOL_ID, added.id))?.state === 'ready');
-    assertEquals(step().status, 'waiting');
-    // Claimable now: the kind's rest is what holds it back.
-    assert((await reg.get(POOL_ID, added.id))!.availableAt.getTime() <= Date.now());
-
-    code = 0;
-    assertEquals(endRests(), [{ pool: POOL_PATH, kind: STEP }]);
-    await until('the step runs again and completes', () => step().status === 'completed');
-    assertEquals(worker.state().resting, {});
-  } finally {
+  const dispose = async () => {
     await worker.stop();
     await reg.dispose();
+  };
+  return { reg, worker, jobs, step, until, dispose };
+}
+
+Deno.test("a refused job waits its own pause while the kind's other jobs run", async () => {
+  const before = Date.now();
+  const { reg, worker, jobs, step, until, dispose } = await kindWorker(
+    ['needs-card', 'plain-1', 'plain-2'],
+    (command) => command === 'needs-card' ? STEP_EXIT_TEMPORARY : 0,
+  );
+  try {
+    await until('the other jobs complete', () => step(1).status === 'completed' && step(2).status === 'completed');
+    // The refused job is back in line for after its pause, its attempt given back, and the kind
+    // does not rest for it.
+    const held = (await reg.get(POOL_ID, jobs[0].id))!;
+    assertEquals(held.state, 'ready');
+    assertEquals(held.attempts, 0);
+    assert(held.availableAt.getTime() >= before + 30_000);
+    assertEquals(step(0).status, 'waiting');
+    assertEquals(worker.state().resting, {});
+  } finally {
+    await dispose();
+  }
+});
+
+Deno.test("five refusals in a row rest the kind, and waking it runs the kind's other jobs", async () => {
+  let down = true;
+  const commands = ['s0', 's1', 's2', 's3', 's4', 's5'];
+  const { reg, worker, jobs, step, until, dispose } = await kindWorker(commands, () => down ? STEP_EXIT_TEMPORARY : 0);
+  try {
+    await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
+    // Five were refused and wait out their own pauses; the sixth is left for the rest to end.
+    const states = await Promise.all(jobs.map(async ({ id }) => (await reg.get(POOL_ID, id))!.availableAt.getTime() > Date.now()));
+    assertEquals(states, [true, true, true, true, true, false]);
+
+    down = false;
+    assertEquals(endRests(), [{ pool: POOL_PATH, kind: STEP }]);
+    await until("the kind's next job runs and completes", () => step(5).status === 'completed');
+    assertEquals(worker.state().resting, {});
+    assertEquals(step(0).status, 'waiting');
+  } finally {
+    await dispose();
+  }
+});
+
+Deno.test('a completed step clears the count of refusals in a row', async () => {
+  // Refused, refused, done, then four more refused: never five in a row, so the kind never rests.
+  const commands = ['r0', 'r1', 'ok', 'r2', 'r3', 'r4', 'r5'];
+  const { step, worker, until, dispose } = await kindWorker(commands, (command) => command === 'ok' ? 0 : STEP_EXIT_TEMPORARY);
+  try {
+    await until('every job has run once', () => commands.every((_, i) => step(i).exitCode !== undefined));
+    assertEquals(worker.state().resting, {});
+  } finally {
+    await dispose();
   }
 });
 
 Deno.test('waking other kinds leaves a rest alone, and naming the kind ends it', async () => {
-  const reg = new MemoryPoolRegistry();
-  await reg.init();
-  await reg.touch(POOL_ID, { leaseMs: 60_000, backoffMs: 50 });
-
-  const vfs = new SettleVfs(reg);
-  vfs.nodes.set(INSTANCE, { status: 'running', triggerPath: INSTANCE } satisfies Partial<PipelineInstanceAttrs> as Record<string, unknown>);
-  vfs.nodes.set(STEP_PATH, { status: 'waiting', dependsOn: [], command: 'step', pool: POOL_ID } as Record<string, unknown>);
-  await reg.add(POOL_ID, {
-    kind: STEP,
-    dedupKey: STEP_PATH,
-    params: { instancePath: INSTANCE, stepName: STEP, command: 'step' } satisfies PoolJobParams,
-  });
-
-  const worker = new PoolWorker(vfs as unknown as NodeVFS, fixedExitTty(STEP_EXIT_TEMPORARY), { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1 });
-  await worker.start();
+  const { worker, until, dispose } = await kindWorker(['s0', 's1', 's2', 's3', 's4'], () => STEP_EXIT_TEMPORARY);
   try {
-    const deadline = Date.now() + 10_000;
-    while (worker.state().resting[STEP] === undefined) {
-      if (Date.now() > deadline) throw new Error('the kind never rested');
-      await new Promise((r) => setTimeout(r, 20));
-    }
+    await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
     assertEquals(endRests({ kinds: ['another-kind'] }), []);
     assert(worker.state().resting[STEP] !== undefined);
     assertEquals(endRests({ kinds: [STEP] }), [{ pool: POOL_PATH, kind: STEP }]);
   } finally {
-    await worker.stop();
-    await reg.dispose();
+    await dispose();
   }
 });
 

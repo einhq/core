@@ -448,12 +448,14 @@ ein/core#515). Any non-zero exit spends an attempt, as above, except two:
 
 - `STEP_EXIT_TEMPORARY` (75) — a service the step needs could not do it yet: EMS busy, loading a
   model, restarting or unreachable. `PoolWorker` puts the step back to `waiting` with the attempt
-  given back and hands the job back, and the kind rests: 30 s, doubling on each one after up to
-  10 min, ended by the kind's next success or by `pool wake`. The rest is what holds the job back;
-  a worker that names no kinds, and so cannot leave one out of its claims, releases the job with
-  the pause as its delay instead. A down EMS is asked once per pause
-  per kind instead of having a whole backlog spend its attempts in seconds, and nothing is failed
-  however long it stays down.
+  given back and hands the job back for after its own pause: 30 s, doubling each time the same job
+  is refused up to 10 min. The kind's other jobs run meanwhile, so one job needing a model the card
+  cannot take now holds back only itself (ein/core#919). Five refusals of a kind in a row, with
+  none of it completing between, rest the whole kind as well — a worker that names its kinds then
+  leaves it out of its claims for a pause of its own (30 s, doubling to 10 min), ended by the
+  kind's next success or by `pool-wake`. A down EMS is asked once per pause per kind instead of
+  having a whole backlog spend its attempts in seconds, and nothing is failed however long it
+  stays down.
 - `STEP_EXIT_INPUT` (65) — the input is the problem (bytes no decoder can open): the step fails at
   once with `cause: 'input'` and the job with it, whatever attempts are left.
 

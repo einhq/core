@@ -4,7 +4,7 @@ import { createLogger } from '../logger/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
 import { NODE_TYPE_POOL } from '../../vfs/types/pool.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
-import type { PoolJob } from '../../registries/pool/mod.ts';
+import type { PoolJob, PoolJobId } from '../../registries/pool/mod.ts';
 import type { TtyIf } from '../exec/types.ts';
 import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
 import { stepErrorDetail, stepErrorLogDetail } from './step-error.ts';
@@ -23,13 +23,21 @@ const RELEASE_ATTEMPTS = 3;
 const RELEASE_RETRY_MS = 250;
 
 /**
- * How long a kind rests after a step of it could not run yet (`STEP_EXIT_TEMPORARY`): the first
- * pause, doubled on each one after it up to the most. A down service is then asked once per
- * pause per kind instead of having the kind's whole backlog run into it, and a service that comes
- * back is noticed within the pause.
+ * How long a job waits after its step could not run yet (`STEP_EXIT_TEMPORARY`), and how long a
+ * kind rests once `TEMPORARY_REST_AFTER` of its steps could not: the first pause, doubled on each
+ * one after it up to the most. Job and kind keep their own pauses.
  */
 const TEMPORARY_PAUSE_MS = 30_000;
 const TEMPORARY_PAUSE_MAX_MS = 600_000;
+
+/**
+ * Steps of a kind that could not run yet, in a row with none of the kind completing between them,
+ * before the whole kind rests. Fewer is one job's need — a model the card cannot take beside what
+ * it holds — and holds back only that job, so the kind's other jobs run on (ein/core#919). A down
+ * service refuses every job, reaches this within seconds, and is then asked once per pause per
+ * kind instead of having the kind's whole backlog run into it.
+ */
+const TEMPORARY_REST_AFTER = 5;
 
 /**
  * The longest a batching worker keeps its free slots idle for the kind it is leaving (see
@@ -167,8 +175,12 @@ export class PoolWorker {
    * end of the order fewer (ein/core#737).
    */
   private firstKindAt: number;
-  /** Kinds resting after a step said its service could not do it yet — see `TEMPORARY_PAUSE_MS`. */
+  /** Kinds resting after their steps said their service could not do them yet — see `TEMPORARY_REST_AFTER`. */
   private paused = new Map<string, { until: number; ms: number }>();
+  /** Steps of each kind that could not run yet since one of it last completed. */
+  private refusals = new Map<string, number>();
+  /** The pause each job was last handed back with after its step could not run yet, and when. */
+  private jobPauses = new Map<PoolJobId, { ms: number; at: number }>();
   /** Aborted by `endRests` to end a park that is waiting for a rest to run out. */
   private restsEnded = new AbortController();
   /** Since when free slots have been held at a kind boundary, or undefined when they are not. */
@@ -536,8 +548,7 @@ export class PoolWorker {
    * A blocking claim over every kind that is not resting. It also returns, with null, when the
    * first pause ends or `endRests` ends one, so the caller re-decides with that kind back in; the
    * claim loop tells that null from a stop by `running`. With no kinds declared, nothing can be
-   * left out, and a pause holds back only the job it was taken for (it is released with the pause
-   * as its delay).
+   * left out, and only each job's own pause holds it back.
    */
   private async parkedClaim(offer: Record<string, number>): Promise<PoolJob | null> {
     const now = Date.now();
@@ -570,6 +581,22 @@ export class PoolWorker {
     const last = this.paused.get(kind);
     const ms = last ? Math.min(last.ms * 2, TEMPORARY_PAUSE_MAX_MS) : TEMPORARY_PAUSE_MS;
     this.paused.set(kind, { until: Date.now() + ms, ms });
+    return ms;
+  }
+
+  /**
+   * The delay to hand `job` back with after its step could not run yet: the job's last pause
+   * doubled, or the first one. A pause that would long since have run out is forgotten, which
+   * also drops the jobs this worker never claims again.
+   */
+  private pauseJob(job: PoolJob): number {
+    const now = Date.now();
+    for (const [id, p] of this.jobPauses) {
+      if (now - p.at > 2 * TEMPORARY_PAUSE_MAX_MS) this.jobPauses.delete(id);
+    }
+    const last = this.jobPauses.get(job.id);
+    const ms = last ? Math.min(last.ms * 2, TEMPORARY_PAUSE_MAX_MS) : TEMPORARY_PAUSE_MS;
+    this.jobPauses.set(job.id, { ms, at: now });
     return ms;
   }
 
@@ -782,6 +809,8 @@ export class PoolWorker {
       if (code === 0) {
         // The service this kind needs answered, so whatever rest it was given is over.
         this.paused.delete(job.kind);
+        this.refusals.delete(job.kind);
+        this.jobPauses.delete(job.id);
         // Step node first, pool job last — see `releaseJob`.
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
           attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0 },
@@ -795,26 +824,30 @@ export class PoolWorker {
       const logDetail = stepErrorLogDetail(code, stdout, stderr);
 
       // The service the step needs could not do it yet: not the step failing. Back to waiting
-      // with the attempt given back and the kind resting — however long the service takes,
-      // nothing is failed for it. The kind's rest is what holds the job back, so ending the rest
-      // (`endRests`) runs it at once; only a worker that declares no kinds, and so cannot leave
-      // one out of its claims, releases the job after the pause instead.
+      // with the attempt given back, and the job handed back for after its own pause, so the
+      // kind's other jobs go first — however long the service takes, nothing is failed for it.
+      // Enough of these in a row rest the whole kind (`TEMPORARY_REST_AFTER`).
       if (code === STEP_EXIT_TEMPORARY) {
-        const pauseMs = this.pauseKind(job.kind);
+        const delayMs = this.pauseJob(job);
+        const refusals = (this.refusals.get(job.kind) ?? 0) + 1;
+        this.refusals.set(job.kind, refusals);
+        const restMs = refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
           attrs: { status: 'waiting', startedAt: undefined, waitingSince: Date.now(), attempts: job.attempts - 1, exitCode: code, error: detail },
         });
-        const delayMs = this.kinds.length > 0 ? 0 : pauseMs;
         await this.releaseJob(job, () => this.vfs.poolRelease(ADMIN_ACCESS, this.poolPath, job.id, this.owner, delayMs));
-        logger.warn('pooled step could not run yet, kind resting', {
+        logger.warn(restMs === undefined ? 'pooled step could not run yet, job waiting' : 'pooled step could not run yet, kind resting', {
           step: msg.stepName,
           instance: msg.instancePath,
           kind: job.kind,
-          pauseMs,
+          delayMs,
+          refusals,
+          restMs,
           detail: logDetail,
         });
         return;
       }
+      this.jobPauses.delete(job.id);
 
       // The node went while the step ran, as when a photo is deleted during ingest: what the step
       // met was its absence, which no retry can change. Skipped, as a claim would have left it,

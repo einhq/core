@@ -166,8 +166,8 @@ export type PoolKindThroughput = {
   /** When the oldest of its ready jobs was added: how long the back of its line has waited. */
   oldestReadyAt?: number;
   /**
-   * Set while a worker rests the kind after a step of it could not run (exit 75): when it is tried
-   * again. Nothing failed; the kind waits for EMS.
+   * Set while a worker rests the kind after several steps of it in a row could not run (exit 75):
+   * when it is tried again. Nothing failed; the kind waits for EMS.
    */
   restingUntil?: number;
 };

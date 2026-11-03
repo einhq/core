@@ -2,8 +2,9 @@
  * pool-wake — end the rests of kinds this process's pool workers stopped claiming, so they are
  * tried again now rather than when the rest runs out.
  *
- * A kind rests after a step of it could not run: its service could not do it yet. Whoever knows
- * the cause has passed — the service restarted — wakes them.
+ * A kind rests after several steps of it in a row could not run: its service could not do them
+ * yet. Whoever knows the cause has passed — the service restarted — wakes them. The steps that
+ * were refused wait out their own pauses; the kind's other jobs run at once.
  */
 
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
