@@ -41,3 +41,10 @@ mod install archive    # with what it needs; Settings → Modules does the same
 To develop one against this core, check it out as `modules/<name>` instead: those are mounted as
 the deployment's own modules and win over an installed one of the same name. Core names no
 module; which ones a deployment runs is the deployment's choice.
+
+## Licence and contributing
+
+EiN is under the Elastic License 2.0, with a permission to host it free of charge for your
+family and friends, or for your association's members ([LICENSE](LICENSE)). Issues and pull
+requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) says how, and what the contributor
+licence agreement ([CLA.md](CLA.md)) asks.
