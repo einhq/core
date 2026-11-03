@@ -62,7 +62,7 @@ import {
   resolveRef,
   type Tokens,
 } from '../../../../modules/forge.ts';
-import { readInstallRecord, REPLACED_PREFIX, STAGING_PREFIX, unpackArchive, writeInstallRecord } from '../../../../modules/install.ts';
+import { changedBeyondPages, readInstallRecord, REPLACED_PREFIX, STAGING_PREFIX, unpackArchive, writeInstallRecord } from '../../../../modules/install.ts';
 import { INSTALL_JOB_VAR, installerOf, type InstallJob } from '../../../../modules/installer.ts';
 import { checkCoreApi, checkExports, checkUi, MODULE_API_VERSION, type ModuleManifest, readManifests, readModJson, resolveSetupOrder } from '../../../../modules/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
@@ -97,6 +97,8 @@ type Run = {
   installed: InstalledModule[];
   /** The modules being installed, for a dependency that leads back to one of them. */
   visiting: Set<string>;
+  /** The updated modules whose new tree differs from the old only in its pages (`changedBeyondPages`). */
+  pagesOnly: Set<string>;
 };
 
 const short = (commit: string): string => commit.slice(0, 9);
@@ -354,6 +356,10 @@ const installTarget = async (
 
     // The new tree takes the name before the old one is removed, so the name always holds a whole module.
     const updated = await vfs.exists(cmd.access, installedPath, { follow: false });
+    // Only a module with services has anything a comparison could spare, and a module of map tiles
+    // has tens of thousands of files to compare.
+    const hasServices = updated && (await vfs.exists(cmd.access, join(installedPath, 'services')) || await vfs.exists(cmd.access, join(staging, 'services')));
+    if (hasServices && !await changedBeyondPages(vfs, cmd.access, installedPath, staging)) run.pagesOnly.add(name);
     const replaced = `${REPLACED_PREFIX}${name}-${ulid().toLowerCase()}`;
     if (updated) await vfs.rename(cmd.access, run.store, name, run.store, replaced, { failIfExists: true });
     await vfs.rename(cmd.access, run.store, basename(staging), run.store, name, { failIfExists: true });
@@ -512,6 +518,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     missing: flags.missing === true,
     installed: [],
     visiting: new Set(),
+    pagesOnly: new Set(),
   };
   await removeLeftovers(run);
 
@@ -537,18 +544,22 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     }
   }
 
-  // What was put in place runs: set up, dependencies first, with its services started.
+  // What was put in place runs: set up, dependencies first, with its services started. An update
+  // of its pages alone leaves its services running: a restart hangs up every step they have in
+  // flight, minutes of a video's model work among them (ein/core#862).
   const setUp = flags['no-setup'] === true ? [] : run.installed;
   for (const module of setUp) {
     if (await setupOne(cmd, module.name) !== 0) {
       await fail(`${module.name}: its setup failed (mod list --long says why)`);
       continue;
     }
-    await restartServices(cmd, await servicesOf(cmd, module.name));
+    if (run.pagesOnly.has(module.name)) await say(run, `  Only the pages of ${module.name} changed: its services keep running`);
+    else await restartServices(cmd, await servicesOf(cmd, module.name));
   }
 
-  // What depends on an updated module set up again, and its running services restarted.
-  const updated = new Set(setUp.filter((module) => module.updated).map((module) => module.name));
+  // What depends on an updated module set up again, and its running services restarted. Nothing
+  // depends on another module's pages.
+  const updated = new Set(setUp.filter((module) => module.updated && !run.pagesOnly.has(module.name)).map((module) => module.name));
   if (updated.size > 0) {
     const affected = await affectedBy(cmd, updated, new Set(run.installed.map((module) => module.name)));
     const running = affected.length > 0 ? await runningServices(cmd) : new Set<string>();

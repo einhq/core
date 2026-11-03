@@ -15,6 +15,7 @@ import { getMimeFromExt } from '../lib/media/mod.ts';
 import type { NodeVFS } from '../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../vfs/types/file.ts';
+import { MOD_JSON_NAME } from './types.ts';
 
 /** The record of an install, in the module's directory. */
 const INSTALL_RECORD = '.install.json';
@@ -56,6 +57,64 @@ const writeFile = async (vfs: NodeVFS, access: Access, path: string, bytes: Uint
 
 export const writeInstallRecord = async (vfs: NodeVFS, access: Access, modulePath: string, record: ModuleInstall): Promise<void> =>
   await writeFile(vfs, access, join(modulePath, INSTALL_RECORD), new TextEncoder().encode(`${JSON.stringify(record, null, 2)}\n`), 0o644);
+
+/** A module's pages, which only the browser runs: `mod.json`'s `ui` and every file under `ui/`. */
+const PAGES = 'ui';
+
+/** The files under `root`, by their path relative to it, leaving out the pages and the install record. */
+const filesBeyondPages = async (vfs: NodeVFS, access: Access, root: string, relative = ''): Promise<Map<string, number>> => {
+  const files = new Map<string, number>();
+  for (const child of await vfs.children<FileAttrs>(access, join(root, relative))) {
+    const path = relative ? `${relative}/${child.name}` : child.name;
+    if (path === PAGES || path === INSTALL_RECORD) continue;
+    if (child.node.type === NODE_TYPE_DIRECTORY) {
+      for (const [inner, size] of await filesBeyondPages(vfs, access, root, path)) files.set(inner, size);
+    } else {
+      files.set(path, child.node.attrs.size ?? -1);
+    }
+  }
+  return files;
+};
+
+const readBytes = async (vfs: NodeVFS, access: Access, path: string): Promise<Uint8Array> => {
+  const handle = await vfs.open(access, path, { mode: 'r' });
+  try {
+    return new Uint8Array(await new Response(handle.readable).arrayBuffer());
+  } finally {
+    await handle.close();
+  }
+};
+
+/** `mod.json` as its services read it: without the version a release raises, or the pages. */
+const manifestBeyondPages = (bytes: Uint8Array): string => {
+  try {
+    const { version: _version, [PAGES]: _pages, ...rest } = JSON.parse(new TextDecoder().decode(bytes));
+    return JSON.stringify(rest);
+  } catch {
+    return new TextDecoder().decode(bytes);
+  }
+};
+
+/**
+ * Whether the module tree at `after` differs from the one at `before` in anything but its pages:
+ * a file added, removed or changed outside `ui/`, or `mod.json` beyond its `version` and `ui`. The
+ * module's services run none of its pages, so an update that changed only those leaves them
+ * running (ein/core#862).
+ */
+export const changedBeyondPages = async (vfs: NodeVFS, access: Access, before: string, after: string): Promise<boolean> => {
+  const old = await filesBeyondPages(vfs, access, before);
+  const now = await filesBeyondPages(vfs, access, after);
+  if (old.size !== now.size) return true;
+  // Smallest first: a release's commands and libs are small, and a change there ends the reading.
+  for (const [path, size] of [...now].sort(([, a], [, b]) => a - b)) {
+    if (!old.has(path)) return true;
+    const manifest = path === MOD_JSON_NAME;
+    if (!manifest && old.get(path) !== size) return true;
+    const [a, b] = await Promise.all([readBytes(vfs, access, join(before, path)), readBytes(vfs, access, join(after, path))]);
+    if (manifest ? manifestBeyondPages(a) !== manifestBeyondPages(b) : a.length !== b.length || !a.every((byte, i) => byte === b[i])) return true;
+  }
+  return false;
+};
 
 /** The `path` record of a pax extended header, which names the entry after it when its name is too long for the tar header. */
 const paxPath = (bytes: Uint8Array): string | undefined => {

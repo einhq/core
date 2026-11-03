@@ -9,7 +9,7 @@
  * release for another core's module API gives way to the newest for this one's; a ref — a tag, or a
  * commit's id whole or cut short — pins the commit; an update a dependent does not accept is
  * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
- * alone and set nothing up; a module the deployment provides, one for another core and a
+ * alone and set nothing up; an update of a module's pages alone leaves its services running; a module the deployment provides, one for another core and a
  * repository that holds no module leave nothing behind; a private repository is read with its
  * host's token; an install goes on when the session that asked for it ends, another is refused
  * while it runs, the same one is joined, and mod status says how it stands; and mod remove takes an
@@ -18,7 +18,7 @@
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleInstallStatus, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
-import { FakeForge, moduleFiles } from '../../../../testing/fake-forge.ts';
+import { FakeForge, type Files, moduleFiles } from '../../../../testing/fake-forge.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
 const forge = new FakeForge();
@@ -320,6 +320,24 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals(await hidden('$MOD_INSTALL_PATH'), []);
       assertStringIncludes(await run('mod status'), 'mod install slow: done');
       await client.execString('mod-remove --force slow');
+    });
+
+    await t.step("an update of a module's pages alone leaves its services running, and one of its commands does not", async () => {
+      const beacon = (version: string, says: string, page: string): Files => ({
+        ...moduleFiles('beacon', version, says),
+        'services/beacon/start.sh': { text: 'sleep 3600\n', mode: 0o755 },
+        'ui/pages/beacon.tsx': `export default () => '${page}';\n`,
+      });
+      await forge.publish('acme', 'module-beacon', beacon('1.0.0', 'beacon 1', 'first'));
+      assert((await install('beacon')).success);
+
+      await forge.publish('acme', 'module-beacon', beacon('1.0.1', 'beacon 1', 'second'));
+      assertStringIncludes(await run('mod install beacon'), 'Only the pages of beacon changed: its services keep running');
+
+      await forge.publish('acme', 'module-beacon', beacon('1.0.2', 'beacon 2', 'second'));
+      assertEquals((await run('mod install beacon')).includes('Only the pages'), false);
+      assertEquals(await run('$MOD_PATH/beacon/bin/beacon'), 'beacon 2');
+      await client.execString('mod-remove --force beacon');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {
