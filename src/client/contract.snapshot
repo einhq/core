@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.9.2
+MODULE_API_VERSION 0.9.3
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -123,7 +123,7 @@ src/builtin/ui/src/client/components/mod.ts NodesExplorer d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesHeaderTabs d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesPageControls d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts OwnerBadge c0615e973773 @signature=fca09f472f6a,owner=cf46731fc076
-src/builtin/ui/src/client/components/mod.ts PageAction e151065f56b1 button=8c3e93a08d30,color=7b5c3c3524d9,disabled=31a4a7656b0d,icon=eb7e26df3843,label=af04505f402e,onClick=511b228d8079
+src/builtin/ui/src/client/components/mod.ts PageAction ee60b08db415 button=8c3e93a08d30,color=7b5c3c3524d9,disabled=31a4a7656b0d,icon=eb7e26df3843,label=af04505f402e,lead=071d1a45205c,onClick=511b228d8079
 src/builtin/ui/src/client/components/mod.ts PageActions 30b14c43c233 edit=eefc3e347868,items=d82087f1d0e5,share=47f576b31c5b,trash=f273b3b65d47,upload=e80549765a01
 src/builtin/ui/src/client/components/mod.ts PageBar 560af0082ba5 @signature=69f154a098f7,controls=a1e5bc118cc8,flushTabs=1f5b8db5af01,pattern=1c45d7add5c6,tabs=a5db0838bf7e,title=ba1f3813786d
 src/builtin/ui/src/client/components/mod.ts PageLoader a4df196fef51 @signature=7e384d78e265,label=5b994b45efc4

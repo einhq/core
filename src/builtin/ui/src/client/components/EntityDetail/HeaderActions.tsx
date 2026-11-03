@@ -20,11 +20,13 @@ export type PageAction = {
   disabled?: boolean;
   /** A button in the header's corner, after Edit, rather than an item under ⋮. */
   button?: boolean;
+  /** A button in the header's corner before Share, where Upload stands: the page's own way of adding to it. */
+  lead?: boolean;
 };
 
 /**
- * What can be done to what a page shows, laid out the same on every page: Upload, Share and Edit
- * as buttons in the header's corner, in that order, then ⋮ with the page's own items and Move to
+ * What can be done to what a page shows, laid out the same on every page: Upload (or the page's
+ * own `lead` buttons), Share and Edit as buttons in the header's corner, in that order, then ⋮ with the page's own items and Move to
  * trash last. On a phone, and scrolled down in the header's last row, ⋮ stands alone with all of
  * them in it.
  */
@@ -80,13 +82,14 @@ export function useActionGroups(
 
   const buttons: PageAction[] = [
     ...(upload ? [{ label: 'Upload', icon: 'upload', disabled: upload.disabled, onClick: () => openUpload.current?.() }] : []),
+    ...items.filter((item) => item.lead),
     ...(share ? [{ label: 'Share', icon: 'share', onClick: () => openShareModal(share) }] : []),
     ...(edit ? [{ label: 'Edit', icon: 'pencil', onClick: edit }] : []),
-    ...items.filter((item) => item.button),
+    ...items.filter((item) => item.button && !item.lead),
   ];
   const menu = [
     ...(upload?.keepFolders ? [{ label: 'Upload a folder', icon: 'folder-up', disabled: upload.disabled, onClick: () => openFolder.current?.() }] : []),
-    ...items.filter((item) => !item.button),
+    ...items.filter((item) => !item.button && !item.lead),
   ];
   const last: PageAction[] = trash ? [{ label: 'Move to trash', icon: 'trash', color: 'red', onClick: () => void moveToTrash(trash) }] : [];
   return [buttons, menu, last];
