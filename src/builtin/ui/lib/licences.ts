@@ -13,7 +13,8 @@
  *
  * - npm packages: `license` from their `package.json` and their LICENSE/LICENCE/COPYING/NOTICE
  *   files, out of Deno's npm cache or, failing that, the node_modules directory the bundler
- *   materialises;
+ *   materialises; for a package that ships none, its README's licence section, or else the
+ *   LICENSE of its GitHub repository (`npmTexts`);
  * - jsr packages: the LICENSE file at the root of the published version, fetched, as Deno keeps
  *   none under a name that can be read back (for an `@std` package that publishes none, the std
  *   repository's);
@@ -119,13 +120,64 @@ const npmLicence = (pkg: Record<string, unknown>) => {
   return 'unknown';
 };
 
+/** Words a licence's own text has, as against a section that only names one ("MIT"). */
+const LICENCE_TEXT = /Permission is hereby granted|Redistribution and use in source and binary forms|Permission to use, copy, modify|Apache License/;
+
+/** The licence section of a package's README, when it holds the licence's text: its heading to the next of the same level. */
+const readmeLicence = async (dir: string): Promise<string | undefined> => {
+  let readme: string;
+  try {
+    readme = await Deno.readTextFile(join(dir, 'README.md'));
+  } catch {
+    return undefined;
+  }
+  const lines = readme.split('\n');
+  const start = lines.findIndex((line) => /^#{1,6}\s*licen[cs]e\b/i.test(line));
+  if (start < 0) return undefined;
+  const level = lines[start].match(/^#+/)![0].length;
+  const end = lines.findIndex((line, i) => i > start && /^#+\s/.test(line) && line.match(/^#+/)![0].length <= level);
+  const section = lines.slice(start + 1, end < 0 ? undefined : end).join('\n').trim();
+  return LICENCE_TEXT.test(section) ? section : undefined;
+};
+
+/** The GitHub repository a `package.json` names, as `owner/name`. */
+const githubRepository = (pkg: Record<string, unknown>): string | undefined => {
+  const repository = pkg.repository;
+  const url = typeof repository === 'string' ? repository : (repository as { url?: unknown } | undefined)?.url;
+  if (typeof url !== 'string') return undefined;
+  const shorthand = url.match(/^(?:github:)?([\w.-]+)\/([\w.-]+)$/);
+  const full = url.match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/#]|$)/);
+  const [, owner, name] = shorthand ?? full ?? [];
+  return owner && name ? `${owner}/${name}` : undefined;
+};
+
+/**
+ * The texts of an npm package's licence and notices: the files it ships, or, for one that ships
+ * none, the licence section of its README, or else the LICENSE of the GitHub repository it names,
+ * as that repository holds it now. A borrowed text says where it is from.
+ */
+async function npmTexts(dir: string, pkg: Record<string, unknown>): Promise<string[]> {
+  const shipped = await noticesIn(dir);
+  if (shipped.length) return shipped;
+  const readme = await readmeLicence(dir);
+  if (readme) return [`(The package ships no licence file; this is the licence section of its README.)\n\n${readme}`];
+  const repository = githubRepository(pkg);
+  if (!repository) return [];
+  for (const file of [...LICENCE_FILES, 'license', 'license.md']) {
+    const url = `https://raw.githubusercontent.com/${repository}/HEAD/${file}`;
+    const text = await fetchFirst([url]);
+    if (text) return [`(The package ships no licence file; this is the one in its repository, https://github.com/${repository}/blob/HEAD/${file}.)\n\n${text}`];
+  }
+  return [];
+}
+
 /** An npm package's entry, from the first of `dirs` that holds it. */
 async function npmEntry({ name, version }: Package, dirs: string[]): Promise<Entry> {
   const source = `https://www.npmjs.com/package/${name}/v/${version}`;
   for (const dir of dirs) {
     if (!(await exists(join(dir, 'package.json')))) continue;
     const pkg = JSON.parse(await Deno.readTextFile(join(dir, 'package.json')));
-    return { name: `${name} ${version}`, licence: npmLicence(pkg), source, texts: await noticesIn(dir) };
+    return { name: `${name} ${version}`, licence: npmLicence(pkg), source, texts: await npmTexts(dir, pkg) };
   }
   return { name: `${name} ${version}`, licence: 'unknown', source, texts: [] };
 }
