@@ -255,9 +255,10 @@ export const listSource = (name: string, items: Candidate[], start = 0): Candida
  * Measured on the archive's judged picture queries (ein/core#361) and its known items — a person by
  * name, a file by its name or its description, an album by what it shows (ein/core#524): pictures
  * carry search. Text in a picture (`content`) helps the queries for written words at 0.3 and
- * drowns the pictures at 1. A hand-written description (`authored`) at 1 finds the picture it
- * describes from a paraphrase twice as often as at 0.3 (nDCG@10 0.35 → 0.61); the hits it adds to
- * the picture queries are descriptions of what was asked, unjudged rather than wrong. A name —
+ * drowns the pictures at 1. A hand-written description (`authored`) at 0.9 puts the picture it
+ * describes into the top 10 from a paraphrase for 11 of 15 judged descriptions, against 8 at 0.3
+ * (nDCG@10 0.35 → 0.50). At 1 its best hit ties a picture's rank 1 and pushes descriptions that
+ * only name the subject into the picture queries' top 10 (nDCG@10 −0.02); at 0.9 that costs 0.007. A name —
  * exact or a whole-word prefix — is the best answer when there is one: at 1.6 it leads alone what
  * two similarity channels agree on, a picture's and its text's at rank 1 (1.3), and a picture with
  * the name written in it (`CONFIDENT_HIT_WEIGHT`), and costs the picture queries nothing against 1.
@@ -269,7 +270,7 @@ export const listSource = (name: string, items: Candidate[], start = 0): Candida
 const CHANNEL_WEIGHTS: Record<SearchRankChannel, number> = {
   picture: 1,
   content: 0.3,
-  authored: 1,
+  authored: 0.9,
   name: 1.6,
   description: 0.3,
   transcript: 0.3,
