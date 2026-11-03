@@ -3,11 +3,13 @@
  * mimetype sniffing, sha256/size, ETag caching and permission mapping.
  */
 
-import { sha256 } from '@noble/hashes/sha2.js';
 import { assertEquals, assertStringIncludes } from '@std/assert';
 import { encodeHex } from '@std/encoding';
 import { ADMIN_ACCESS, GUEST_GID, GUEST_UID } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
+
+/** `data`'s SHA-256, in hex. */
+const sha256Hex = async (data: Uint8Array) => encodeHex(new Uint8Array(await crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>)));
 
 const harness = new SystemTestHarness({ ssh: false });
 
@@ -41,7 +43,7 @@ Deno.test({
       assertEquals(res.status, 201);
       const attrs = await res.json();
       assertEquals(attrs.size, body.length);
-      assertEquals(attrs.sha256, encodeHex(sha256.create().update(body).digest()));
+      assertEquals(attrs.sha256, await sha256Hex(body));
       assertEquals(attrs.mimetype.startsWith('text/'), true);
     });
 
@@ -380,7 +382,7 @@ Deno.test({
      * 304 forever — the empty body would outlive the backfill that fixes the rendition.
      */
     await t.step('an empty rendition 404s a revalidation rather than answering 304', async () => {
-      const emptySha = encodeHex(sha256(new Uint8Array(0)));
+      const emptySha = await sha256Hex(new Uint8Array(0));
       const res = await fetch(`${baseUrl}/file/tmp/empty-rendition.bin`, {
         headers: { cookie, 'if-none-match': `"${emptySha}"` },
       });

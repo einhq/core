@@ -9,9 +9,6 @@
  * `crypto.subtle.digest` is *not* the answer here despite being the obvious web
  * API: it takes a whole BufferSource and rejects an async iterable, so it
  * cannot hash a stream without buffering the entire file.
- *
- * `@noble/hashes` stays in `deno.jsonc` for the tests: an independent pure-JS
- * implementation asserting against this one is what catches a divergence.
  */
 
 import { createHash } from 'node:crypto';

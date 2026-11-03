@@ -6,7 +6,6 @@
  * writes.
  */
 
-import { sha256 } from '@noble/hashes/sha2.js';
 import { assertEquals } from '@std/assert';
 import { assertRejects } from '@std/assert';
 import { encodeHex } from '@std/encoding';
@@ -15,6 +14,9 @@ import { STATUS_CODE } from 'ssh2';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
 import { NODE_TYPE_SOFTLINK } from '../../../vfs/types/softlink.ts';
+
+/** `data`'s SHA-256, in hex. */
+const sha256Hex = async (data: Uint8Array) => encodeHex(new Uint8Array(await crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>)));
 
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
@@ -83,7 +85,7 @@ Deno.test({
         const node = await harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/upload.png');
         assertEquals(node.attrs.mimetype, 'image/png');
         assertEquals(node.attrs.size, data.length);
-        assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
+        assertEquals(node.attrs.sha256, await sha256Hex(data));
       });
 
       await t.step('files an upload by its bytes, not its name', async () => {
@@ -95,7 +97,7 @@ Deno.test({
         const node = await harness.instance!.vfs.get(ADMIN_ACCESS, '/home/admin/misnamed.jpg');
         assertEquals(node.attrs.mimetype, 'image/png');
         assertEquals(node.attrs.size, data.length);
-        assertEquals(node.attrs.sha256, encodeHex(sha256(data)));
+        assertEquals(node.attrs.sha256, await sha256Hex(data));
       });
 
       await t.step('freezes an upload of a type /etc/frozen-uploads lists and refuses to write over it', async () => {

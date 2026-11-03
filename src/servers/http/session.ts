@@ -1,4 +1,3 @@
-import { getCookies, setCookie } from '@std/http';
 import { basename, dirname, join } from '@std/path';
 import { ulid } from '@std/ulid';
 import { Access, ADMIN_ACCESS, GUEST_ACCESS, GUEST_GID, GUEST_UID, isGuest, storedAccess } from '../../lib/access/mod.ts';
@@ -21,6 +20,16 @@ export type SessionConfig = {
   vfs: NodeVFS;
   env: Record<string, string>;
 };
+
+/** The value of the cookie `name` in a request's `Cookie` header; the last, when it is there twice. */
+function cookieValue(headers: Headers, name: string): string | undefined {
+  let value: string | undefined;
+  for (const pair of (headers.get('cookie') ?? '').split(';')) {
+    const at = pair.indexOf('=');
+    if (at > 0 && pair.slice(0, at).trim() === name) value = pair.slice(at + 1).trim();
+  }
+  return value;
+}
 
 function parseSessionCookie(value?: string): { name: string; secret: string } | false {
   if (!value || !value.includes('.')) {
@@ -97,7 +106,7 @@ export function isForwardedHttps(headers: Headers): boolean {
  * `Lax` still keeps the cookie off cross-site requests that are not a top-level
  * GET: an upload, and the shell's WebSocket.
  *
- * `path: '/'` is the whole point of this being a function. Without it the
+ * `Path=/` is the whole point of this being a function. Without it the
  * browser derives a default-path from the request URI, which is the directory
  * of whatever URL happened to mint the session: a first visit to
  * `/pipelines/media-describe/<id>` would scope the cookie to
@@ -107,15 +116,8 @@ export function isForwardedHttps(headers: Headers): boolean {
  * a node that dies with the socket.
  */
 function issueCookie(config: SessionConfig, requestHeaders: Headers, responseHeaders: Headers, name: string, secret: string, maxAgeSec: number): void {
-  setCookie(responseHeaders, {
-    name: config.env.COOKIE_NAME,
-    value: `${name}.${secret}`,
-    path: '/',
-    secure: isForwardedHttps(requestHeaders),
-    httpOnly: true,
-    sameSite: 'Lax',
-    maxAge: maxAgeSec,
-  });
+  const secure = isForwardedHttps(requestHeaders) ? ['Secure'] : [];
+  responseHeaders.append('set-cookie', [`${config.env.COOKIE_NAME}=${name}.${secret}`, ...secure, 'HttpOnly', `Max-Age=${maxAgeSec}`, 'SameSite=Lax', 'Path=/'].join('; '));
 }
 
 type GetSessionOptions = {
@@ -157,7 +159,7 @@ export async function getSession(
   opts: GetSessionOptions = {},
 ): Promise<{ responseHeaders: Headers; sessionPath: NodePath; access: Access }> {
   const responseHeaders = new Headers();
-  const sessionIdent = parseSessionCookie(getCookies(headers)[config.env.COOKIE_NAME]);
+  const sessionIdent = parseSessionCookie(cookieValue(headers, config.env.COOKIE_NAME));
 
   let sessionNode: Node<SessionAttrs> | undefined = undefined;
   let sessionPath: NodePath = '';
