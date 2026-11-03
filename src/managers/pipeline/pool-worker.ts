@@ -31,11 +31,16 @@ const TEMPORARY_PAUSE_MS = 30_000;
 const TEMPORARY_PAUSE_MAX_MS = 600_000;
 
 /**
- * Steps of a kind that could not run yet, in a row with none of the kind completing between them,
- * before the whole kind rests. Fewer is one job's need — a model the card cannot take beside what
- * it holds — and holds back only that job, so the kind's other jobs run on (ein/core#919). A down
- * service refuses every job, reaches this within seconds, and is then asked once per pause per
- * kind instead of having the kind's whole backlog run into it.
+ * Jobs of a kind whose steps could not run yet, in a row with none of the kind completing between
+ * them, before the whole kind rests. Fewer is one job's need — a model the card cannot take beside
+ * what it holds — and holds back only that job, so the kind's other jobs run on (ein/core#919). A
+ * down service refuses every job, reaches this within seconds, and is then asked by a few jobs per
+ * pause instead of having the kind's whole backlog run into it.
+ *
+ * Only a job refused for the first time counts, and the count starts over when the kind rests. A
+ * job this worker already handed back is one whose own need is known; its pause runs out about when
+ * the kind's rest does, and were it to count, the jobs a rest was for would rest the kind again the
+ * moment it woke, ahead of the jobs that would run (ein/core#945).
  */
 const TEMPORARY_REST_AFTER = 5;
 
@@ -177,8 +182,13 @@ export class PoolWorker {
   private firstKindAt: number;
   /** Kinds resting after their steps said their service could not do them yet — see `TEMPORARY_REST_AFTER`. */
   private paused = new Map<string, { until: number; ms: number }>();
-  /** Steps of each kind that could not run yet since one of it last completed. */
+  /** Jobs of each kind refused for the first time since one of it last completed or the kind last rested. */
   private refusals = new Map<string, number>();
+  /**
+   * The kind a batching worker left because it was resting, to go back to once the rest ends
+   * rather than when the kind it went to drains or runs out its quantum — see `claimBatched`.
+   */
+  private restedFrom: string | undefined;
   /** The pause each job was last handed back with after its step could not run yet, and when. */
   private jobPauses = new Map<PoolJobId, { ms: number; at: number }>();
   /** Aborted by `endRests` to end a park that is waiting for a rest to run out. */
@@ -352,7 +362,8 @@ export class PoolWorker {
 
   /**
    * Stay on one kind until it drains or its quantum expires, then rotate to another kind that
-   * actually has work. See `kindQuantumMs` for what the quantum holds back.
+   * actually has work. See `kindQuantumMs` for what the quantum holds back. A kind left because it
+   * was resting is taken up again as soon as the rest is over (`returnFromRest`).
    *
    * Order matters here. The expired quantum is checked *before* the current kind, or a kind
    * with an endless supply of work would hold the card forever and the quantum would never be
@@ -362,6 +373,9 @@ export class PoolWorker {
    * idle worker parks instead of spinning through kinds.
    */
   private async claimBatched(): Promise<PoolJob | null | undefined> {
+    const returned = await this.returnFromRest();
+    if (returned !== null) return returned;
+
     const current = this.currentKind;
     const expired = current !== undefined && Date.now() - this.kindSince >= this.kindQuantumMs;
 
@@ -381,8 +395,7 @@ export class PoolWorker {
             to: kind,
             heldMs: Date.now() - this.kindSince,
           });
-          this.currentKind = kind;
-          this.kindSince = Date.now();
+          this.takeKind(kind);
           return job;
         }
       }
@@ -400,6 +413,7 @@ export class PoolWorker {
       if (!this.isPaused(this.currentKind) && this.holdAtBoundary()) return undefined;
     }
 
+    const resting = this.currentKind !== undefined && this.isPaused(this.currentKind);
     const order = this.currentKind === undefined ? this.fromFirstKind() : this.kindsAfter(this.currentKind);
     for (const kind of order) {
       const job = await this.tryClaimKind(kind);
@@ -407,10 +421,10 @@ export class PoolWorker {
         // Only a real rotation is worth a line. The first claim of a worker's life has no
         // previous kind, and logging that as "rotating" reads as churn that never happened.
         if (this.currentKind !== undefined && kind !== this.currentKind) {
-          logger.info('kind drained, rotating', { pool: this.poolPath, from: this.currentKind, to: kind });
+          logger.info(resting ? 'kind resting, rotating' : 'kind drained, rotating', { pool: this.poolPath, from: this.currentKind, to: kind });
+          if (resting) this.restedFrom = this.currentKind;
         }
-        this.currentKind = kind;
-        this.kindSince = Date.now();
+        this.takeKind(kind);
         return job;
       }
     }
@@ -418,10 +432,41 @@ export class PoolWorker {
     // Nothing anywhere. Park on the kinds not resting; whatever arrives first sets the next
     // batch. A resting kind wakes the park when its pause ends.
     const job = await this.parkedClaim(this.remaining);
-    if (job) {
-      this.currentKind = job.kind;
-      this.kindSince = Date.now();
+    if (job) this.takeKind(job.kind);
+    return job;
+  }
+
+  /** Start a batch of `kind` now. */
+  private takeKind(kind: string): void {
+    this.currentKind = kind;
+    this.kindSince = Date.now();
+    if (this.restedFrom === kind) this.restedFrom = undefined;
+  }
+
+  /**
+   * Go back to the kind this worker left because it was resting, once the rest is over: run out,
+   * ended by one of its jobs completing, or by `endRests`. The kind the worker went to has not had
+   * its quantum, and holding it for one would hold the rested kind's whole backlog for as long —
+   * an hour on fry — behind a few jobs that each needed what the card could not give
+   * (ein/core#945). The cost is an earlier swap of model families on the card. The return waits
+   * at the kind boundary as a rotation does.
+   *
+   * The job, `undefined` while held at the boundary, or null when there is nothing to return to:
+   * no kind was left for a rest, it rests still, or it has nothing ready now.
+   */
+  private async returnFromRest(): Promise<PoolJob | null | undefined> {
+    const kind = this.restedFrom;
+    if (kind === undefined || this.isPaused(kind)) return null;
+    if (kind === this.currentKind) {
+      this.restedFrom = undefined;
+      return null;
     }
+    if (this.holdAtBoundary()) return undefined;
+    this.restedFrom = undefined;
+    const job = await this.tryClaimKind(kind);
+    if (!job) return null;
+    logger.info('kind rest over, returning', { pool: this.poolPath, from: this.currentKind, to: kind, heldMs: Date.now() - this.kindSince });
+    this.takeKind(kind);
     return job;
   }
 
@@ -586,10 +631,10 @@ export class PoolWorker {
 
   /**
    * The delay to hand `job` back with after its step could not run yet: the job's last pause
-   * doubled, or the first one. A pause that would long since have run out is forgotten, which
-   * also drops the jobs this worker never claims again.
+   * doubled, or the first one, and whether it was refused before. A pause that would long since
+   * have run out is forgotten, which also drops the jobs this worker never claims again.
    */
-  private pauseJob(job: PoolJob): number {
+  private pauseJob(job: PoolJob): { delayMs: number; again: boolean } {
     const now = Date.now();
     for (const [id, p] of this.jobPauses) {
       if (now - p.at > 2 * TEMPORARY_PAUSE_MAX_MS) this.jobPauses.delete(id);
@@ -597,7 +642,7 @@ export class PoolWorker {
     const last = this.jobPauses.get(job.id);
     const ms = last ? Math.min(last.ms * 2, TEMPORARY_PAUSE_MAX_MS) : TEMPORARY_PAUSE_MS;
     this.jobPauses.set(job.id, { ms, at: now });
-    return ms;
+    return { delayMs: ms, again: last !== undefined };
   }
 
   /**
@@ -826,12 +871,12 @@ export class PoolWorker {
       // The service the step needs could not do it yet: not the step failing. Back to waiting
       // with the attempt given back, and the job handed back for after its own pause, so the
       // kind's other jobs go first — however long the service takes, nothing is failed for it.
-      // Enough of these in a row rest the whole kind (`TEMPORARY_REST_AFTER`).
+      // Enough jobs refused for the first time in a row rest the whole kind (`TEMPORARY_REST_AFTER`).
       if (code === STEP_EXIT_TEMPORARY) {
-        const delayMs = this.pauseJob(job);
-        const refusals = (this.refusals.get(job.kind) ?? 0) + 1;
-        this.refusals.set(job.kind, refusals);
+        const { delayMs, again } = this.pauseJob(job);
+        const refusals = (this.refusals.get(job.kind) ?? 0) + (again ? 0 : 1);
         const restMs = refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
+        this.refusals.set(job.kind, restMs === undefined ? refusals : 0);
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
           attrs: { status: 'waiting', startedAt: undefined, waitingSince: Date.now(), attempts: job.attempts - 1, exitCode: code, error: detail },
         });

@@ -142,6 +142,35 @@ Deno.test('a resting kind is not claimed, and its in-flight command holds nothin
   assertEquals(asked.filter((kind) => kind === 'gpu-faces').length, 1);
 });
 
+Deno.test('a worker that left a resting kind goes back to it when the rest ends, not when the quantum does', async () => {
+  const { worker } = makeWorker({ 'gpu-faces': 5, 'gpu-describe': 5 }, 60 * 60_000);
+
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-faces');
+  // Five of its jobs in a row could not run: each needed a model the card could not take yet.
+  worker.paused.set('gpu-faces', { until: Date.now() + 30_000, ms: 30_000 });
+  const describe = (await worker.claimBatched())!;
+  assertEquals(describe.kind, 'gpu-describe');
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-describe');
+
+  // The rest is over, with an hour of gpu-describe's quantum left. The return still waits at
+  // the kind boundary while gpu-describe has a command in flight.
+  worker.paused.set('gpu-faces', { until: Date.now() - 1, ms: 30_000 });
+  worker.inFlight.set(1, { job: describe, abort: new AbortController() });
+  assertEquals(await worker.claimBatched(), undefined);
+  worker.inFlight.clear();
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-faces');
+  assertEquals(worker.currentKind, 'gpu-faces');
+});
+
+Deno.test('a worker that left a drained kind stays on the next one', async () => {
+  const { worker, available } = makeWorker({ 'gpu-faces': 1, 'gpu-describe': 5 }, 60 * 60_000);
+
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-faces');
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-describe');
+  available['gpu-faces'] = 5;
+  assertEquals((await worker.claimBatched())!.kind, 'gpu-describe');
+});
+
 Deno.test('an expired quantum with nothing else waiting keeps the kind and restarts the clock', async () => {
   const { worker } = makeWorker({ 'gpu-faces': 5, 'gpu-describe': 0 });
 

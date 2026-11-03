@@ -212,9 +212,10 @@ Deno.test('a step whose service could not do it yet waits again without spending
 
 /**
  * A worker that names `STEP` as its kind, over one job per command in `commands`, each its own
- * instance. `exitOf` says how a command's run ends; it is read on every run.
+ * instance. `exitOf` says how a command's run ends; it is read on every run. The jobs at
+ * `refusedBefore` start out as handed back once already by this worker, as if their pause had run.
  */
-async function kindWorker(commands: string[], exitOf: (command: string) => number) {
+async function kindWorker(commands: string[], exitOf: (command: string) => number, refusedBefore: number[] = []) {
   const reg = new MemoryPoolRegistry();
   await reg.init();
   await reg.touch(POOL_ID, { leaseMs: 60_000, backoffMs: 50 });
@@ -242,6 +243,8 @@ async function kindWorker(commands: string[], exitOf: (command: string) => numbe
     },
   } as unknown as TtyIf;
   const worker = new PoolWorker(vfs as unknown as NodeVFS, tty, { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1 });
+  const jobPauses = (worker as unknown as { jobPauses: Map<PoolJobId, { ms: number; at: number }> }).jobPauses;
+  for (const i of refusedBefore) jobPauses.set(jobs[i].id, { ms: 30_000, at: Date.now() - 30_000 });
   await worker.start();
 
   const step = (i: number) => vfs.nodes.get(jobs[i].stepPath) as unknown as PipelineStepAttrs;
@@ -306,6 +309,32 @@ Deno.test('a completed step clears the count of refusals in a row', async () => 
   const { step, worker, until, dispose } = await kindWorker(commands, (command) => command === 'ok' ? 0 : STEP_EXIT_TEMPORARY);
   try {
     await until('every job has run once', () => commands.every((_, i) => step(i).exitCode !== undefined));
+    assertEquals(worker.state().resting, {});
+  } finally {
+    await dispose();
+  }
+});
+
+Deno.test('a job refused before does not count toward resting the kind', async () => {
+  // Five refused in a row, but four of them were refused before: their own need, already known.
+  const commands = ['again-0', 'again-1', 'again-2', 'again-3', 'fresh'];
+  const { step, worker, until, dispose } = await kindWorker(commands, () => STEP_EXIT_TEMPORARY, [0, 1, 2, 3]);
+  try {
+    await until('every job has run once', () => commands.every((_, i) => step(i).exitCode !== undefined));
+    assertEquals(worker.state().resting, {});
+  } finally {
+    await dispose();
+  }
+});
+
+Deno.test('the count of refusals starts over when the kind rests', async () => {
+  const commands = ['s0', 's1', 's2', 's3', 's4', 's5'];
+  const { step, worker, until, dispose } = await kindWorker(commands, () => STEP_EXIT_TEMPORARY);
+  try {
+    await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
+    endRests({ kinds: [STEP] });
+    // The sixth is the first refusal after the rest, not the sixth in a row.
+    await until('the sixth job has run', () => step(5).exitCode !== undefined);
     assertEquals(worker.state().resting, {});
   } finally {
     await dispose();

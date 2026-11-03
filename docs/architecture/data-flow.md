@@ -450,12 +450,15 @@ ein/core#515). Any non-zero exit spends an attempt, as above, except two:
   model, restarting or unreachable. `PoolWorker` puts the step back to `waiting` with the attempt
   given back and hands the job back for after its own pause: 30 s, doubling each time the same job
   is refused up to 10 min. The kind's other jobs run meanwhile, so one job needing a model the card
-  cannot take now holds back only itself (ein/core#919). Five refusals of a kind in a row, with
-  none of it completing between, rest the whole kind as well — a worker that names its kinds then
-  leaves it out of its claims for a pause of its own (30 s, doubling to 10 min), ended by the
-  kind's next success or by `pool-wake`. A down EMS is asked once per pause per kind instead of
-  having a whole backlog spend its attempts in seconds, and nothing is failed however long it
-  stays down.
+  cannot take now holds back only itself (ein/core#919). Five jobs of a kind refused in a row, each
+  for the first time, with none of the kind completing between, rest the whole kind as well — a
+  worker that names its kinds then leaves it out of its claims for a pause of its own (30 s,
+  doubling to 10 min), ended by the kind's next success or by `pool-wake`. A job refused again
+  does not count, and the count starts over when the kind rests: the refused jobs' pauses run out
+  about when the kind's rest does, and counting them would rest the kind again the moment it woke,
+  ahead of the jobs that would run (ein/core#945). A down EMS is asked by a few jobs per pause
+  instead of having a whole backlog spend its attempts in seconds, and nothing is failed however
+  long it stays down.
 - `STEP_EXIT_INPUT` (65) — the input is the problem (bytes no decoder can open): the step fails at
   once with `cause: 'input'` and the job with it, whatever attempts are left.
 
@@ -475,6 +478,12 @@ worker leaving a kind keeps its free slots idle while the old kind's commands fi
 model families are not started together as a batch turns over. Past five minutes the old kind's
 last command is a long one — a diarize over a long video — and the free slots go to the next kind
 beside it rather than waiting it out (ein/core#511).
+
+**A batching worker goes back to a kind it left for a rest when the rest ends**, not when the kind
+it went to drains or runs out its quantum. Five handwritten pages in a row whose model cannot get
+onto the card rest the `ocr` kind; holding the next kind for a whole quantum would hold `ocr`'s
+plain pages behind them for an hour (ein/core#945). The return waits at the kind boundary as a
+rotation does, and costs an earlier swap of model families on the card.
 
 **No step is stopped for taking long** (ein/core#358). A step runs to its end
 however long that is: a long step is working, and stopping it throws the work away and
