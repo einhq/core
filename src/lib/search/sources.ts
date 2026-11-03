@@ -71,6 +71,12 @@ export type Candidate = {
   atSeconds?: number;
   /** A text hit's rank in each channel that found it; see `fuseChannels`. */
   channels?: Partial<Record<SearchRankChannel, number>>;
+  /**
+   * A `name` hit whose name also carries the one date the search asks for ("Autumn trip 2014" for
+   * "autumn trip" in 2014): it is what the search names, so the date filter keeps it when it has no
+   * date of its own.
+   */
+  namesDate?: boolean;
 };
 
 export interface CandidateSource {
@@ -298,9 +304,26 @@ const PROVIDER_CHANNELS = new Set<string>(
 /** One channel's hits, best score per path. */
 export type ChannelHits = Map<string, { score: number; atSeconds?: number; confident?: boolean }>;
 
-/** Rank 1 for the best score; path breaks ties, so the ranks are the same on every page. */
-export const rankChannel = (hits: ChannelHits): Map<string, number> =>
-  new Map([...hits].sort((a, b) => b[1].score - a[1].score || a[0].localeCompare(b[0])).map(([path], index) => [path, index + 1]));
+/**
+ * Rank 1 for the best score; path breaks ties, so the ranks are the same on every page. The paths
+ * in `ahead` rank before every other, by score among themselves.
+ */
+export const rankChannel = (hits: ChannelHits, ahead: ReadonlySet<string> = new Set()): Map<string, number> =>
+  new Map(
+    [...hits]
+      .sort((a, b) => Number(ahead.has(b[0])) - Number(ahead.has(a[0])) || b[1].score - a[1].score || a[0].localeCompare(b[0]))
+      .map(([path], index) => [path, index + 1]),
+  );
+
+/** Whether `name` holds `word` whole, not inside a longer word or number. */
+const carriesWord = (name: string, word: string): boolean => {
+  const edge = /[\p{L}\p{N}]/u;
+  const lower = name.toLowerCase();
+  for (let at = lower.indexOf(word.toLowerCase()); at >= 0; at = lower.indexOf(word.toLowerCase(), at + 1)) {
+    if (!edge.test(name[at - 1] ?? '') && !edge.test(name[at + word.length] ?? '')) return true;
+  }
+  return false;
+};
 
 /** A hit's weight in the fusion: its channel's, but a partial name's less and a confident hit's more. */
 const hitWeight = (channel: SearchRankChannel, hit: { score: number; confident?: boolean } | undefined): number => {
@@ -375,10 +398,17 @@ export const textSource = async (
     within?: { path: string; providers: ReadonlySet<string> };
     /** Leave out what lies under these directories, at the providers that take `--not-within`. */
     notWithin?: { roots: readonly string[]; providers: ReadonlySet<string> };
+    /**
+     * The one date the search asks for, which `question` does not hold. A `name` hit whose name
+     * carries it is named by the words and the date together: it ranks ahead of the names that
+     * match only the words, and is marked `namesDate`.
+     */
+    date?: string;
   } = {},
 ): Promise<CandidateSource & { capped: boolean }> => {
   const byPath = new Map<string, Candidate>();
   const channels = new Map<SearchChannel, ChannelHits>();
+  const namesDate = new Set<string>();
 
   // Providers are independent read-only subshells, so fan them out at once
   // rather than paying each one's latency back to back.
@@ -431,6 +461,7 @@ export const textSource = async (
         channels.set(channel, hits);
         const before = hits.get(path);
         if (!before || score > before.score) hits.set(path, { score, ...(atSeconds !== undefined ? { atSeconds } : {}), ...(confident ? { confident } : {}) });
+        if (channel === 'name' && opts.date !== undefined && typeof hit?.name === 'string' && carriesWord(hit.name, opts.date)) namesDate.add(path);
 
         const existing = byPath.get(path);
         if (!existing) {
@@ -453,7 +484,10 @@ export const textSource = async (
     }
   }
 
-  const ranks = new Map<SearchRankChannel, Map<string, number>>([...channels].map(([channel, hits]) => [channel, rankChannel(hits)]));
+  const ranks = new Map<SearchRankChannel, Map<string, number>>(
+    [...channels].map(([channel, hits]) => [channel, rankChannel(hits, channel === 'name' ? namesDate : undefined)]),
+  );
+  for (const path of namesDate) byPath.get(path)!.namesDate = true;
   // A subject the query named brings its media with it — see `expandSubjectHits`.
   if (opts.expand) {
     const subject = await opts.expand(byPath, channels.get('name') ?? new Map(), ranks.get('name') ?? new Map());

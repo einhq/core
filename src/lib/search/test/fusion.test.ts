@@ -9,6 +9,11 @@ Deno.test('a channel ranks by its own score, path breaking ties', () => {
   assertEquals([...rankChannel(hits([['/b', 0.2], ['/c', 0.9], ['/a', 0.2]]))], [['/c', 1], ['/a', 2], ['/b', 3]]);
 });
 
+Deno.test('the paths ranked ahead lead the channel, by score among themselves', () => {
+  const ranked = rankChannel(hits([['/a', 1], ['/b', 0.8], ['/c', 0.9]]), new Set(['/b', '/c']));
+  assertEquals([...ranked], [['/c', 1], ['/b', 2], ['/a', 3]]);
+});
+
 Deno.test('scores on different scales meet only as ranks', () => {
   // A SigLIP2 cosine of 0.12 is a clear match; a text cosine of 0.8 is not more of one.
   const ranks = new Map<SearchRankChannel, Map<string, number>>([

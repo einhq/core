@@ -1060,6 +1060,12 @@ export const search = async (cmd: Command): CmdReturn => {
     await cmd.writeError(`search: cannot parse --to date '${toRaw}' (expected YYYY, YYYY-MM or YYYY-MM-DD)\n`);
     return 1;
   }
+  /**
+   * A window of one date — typed among the words, or given as both bounds, which is how the search
+   * box sends the year it read — that a name may carry too: "autumn trip 2014" names the album
+   * "Autumn trip 2014" as much as it asks for that year's pictures (ein/core#971).
+   */
+  const namedDate = fromRaw !== undefined && fromRaw === toRaw ? fromRaw : undefined;
 
   // Region
   let region: Region | undefined;
@@ -1562,6 +1568,7 @@ export const search = async (cmd: Command): CmdReturn => {
           : {}),
         ...(withinPath ? { within: { path: withinPath, providers: providerWithin } } : {}),
         ...(unlisted.length > 0 ? { notWithin: { roots: unlisted, providers: providerNotWithin } } : {}),
+        ...(namedDate !== undefined ? { date: namedDate } : {}),
       });
       driver = text;
       // A provider had more than it answered; the refill loop below can only ever report the
@@ -1745,11 +1752,12 @@ export const search = async (cmd: Command): CmdReturn => {
     if (missingAsPredicates.some((condition) => !matchesCondition(node.attrs, condition))) return false;
 
     if (needsTime) {
-      // The wall clock, matching the store-side `timeConditions` this stands in for.
+      // The wall clock, matching the store-side `timeConditions` this stands in for. What has no
+      // date of its own but is named by the date asked (`namedDate`) is what the query means.
       const takenAt = node.attrs.takenAt as string | undefined;
-      if (!takenAt) return false;
-      if (from !== undefined && takenAt < from) return false;
-      if (to !== undefined && takenAt >= to) return false;
+      if (!takenAt && !candidate.namesDate) return false;
+      if (takenAt && from !== undefined && takenAt < from) return false;
+      if (takenAt && to !== undefined && takenAt >= to) return false;
     }
 
     for (const group of matchGroupsAsPredicates) {
