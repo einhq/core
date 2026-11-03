@@ -2074,7 +2074,13 @@ search.spec = {
   effect: 'read' as const,
   description: 'Faceted search over content: text, time, region, kind, tags, subjects (people, locations, devices) and containers',
   args: [
-    { name: 'query', type: 'string' as const, description: 'search query text (optional)', optional: true },
+    {
+      name: 'query',
+      type: 'string' as const,
+      description:
+        "search query text (optional). A year or date among the words (sailing 2011) is a time window, not words. A name that carries the window's one date, typed so or given as both --from and --to, is found though it has no date of its own: the album 'Autumn trip 2014' for 'autumn trip 2014'",
+      optional: true,
+    },
   ],
   flags: [
     { name: 'l', type: 'number' as const, description: `page size (default ${DEFAULT_LIMIT}, max ${MAX_LIMIT})` },
