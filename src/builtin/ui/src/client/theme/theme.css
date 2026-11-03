@@ -2431,10 +2431,12 @@ html.mrx-floating .mrx-scrubber {
  */
 .mrx-timeline-feed {
   overflow-anchor: none;
+  /* The rows below are laid out by the feed's own width, not the window's, so it fits a column. */
+  container-type: inline-size;
 }
 
 .mrx-timeline-group {
-  /* Narrower on a phone, where the gutter is a fifth of the screen. A date range
+  /* Narrower in a narrow feed, where the gutter is a fifth of its width. A date range
      wraps to two lines at either width, so only single dates pay for it. */
   --mrx-date-col: 58px;
   --mrx-entry-col: 520px;
@@ -2467,7 +2469,7 @@ html.mrx-floating .mrx-scrubber {
 }
 
 /**
- * From `sm` up the entry column is a fixed width and the three columns are
+ * Once the feed is wide enough for it, the entry column is a fixed width and the three columns are
  * centred as a group, which is the only way this block *can* be centred: its
  * right edge is ragged (a birthday is three words, an album has a description),
  * so narrowing the page container just moves a left-aligned block around. Fixing
@@ -2475,10 +2477,11 @@ html.mrx-floating .mrx-scrubber {
  * each row is its own grid, so an auto-sized column would set its own width per
  * row and the dates would stagger.
  *
- * Below `sm` there is no space to centre anything into: the entry column takes
- * what is left and the block starts at the edge.
+ * Narrower, on a phone or in a column beside other content, there is no space to centre anything
+ * into: the entry column takes what is left and the block starts at the edge. 40em clears the
+ * fixed row (76 + 26 + 520 px).
  */
-@media (min-width: 48em) {
+@container (min-width: 40em) {
   .mrx-timeline-group {
     --mrx-date-col: 76px;
   }
