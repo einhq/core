@@ -47,7 +47,8 @@ const hash = async (text: string): Promise<string> => {
 
 type Member = { name: string };
 type ObjectType = { properties?: Member[]; methods?: Member[]; callSignatures?: unknown[]; indexSignatures?: unknown[]; constructors?: unknown[] };
-type Param = { kind?: string; props?: { key?: string }[] };
+type TsType = { kind?: string; value?: unknown };
+type Param = { kind?: string; props?: { key?: string }[]; tsType?: TsType };
 type Declaration = {
   kind?: string;
   def?: ObjectType & { typeParams?: unknown[]; tsType?: { kind?: string; value?: ObjectType }; params?: Param[] };
@@ -70,6 +71,28 @@ const propMembers = async (declaration: Declaration): Promise<string | undefined
 };
 
 /**
+ * A function whose parameters are all plain names (`text: string`, not destructured, defaulted or
+ * rest): each alternative of each parameter's type is a member, `<index>|<hash>`, a type that is no
+ * union being its one alternative, and everything else in the declaration is the member
+ * `@signature`. A parameter that only widened (`HTMLInputElement | null` to `HTMLInputElement |
+ * HTMLTextAreaElement | null`) then counts as extended, since every call that compiled still does,
+ * while a lost alternative or a changed return type still counts as changed.
+ */
+const paramMembers = async (declaration: Declaration): Promise<string | undefined> => {
+  const params = declaration.kind === 'function' ? declaration.def?.params : undefined;
+  if (!params?.length || params.some((param) => param.kind !== 'identifier' || !param.tsType)) return undefined;
+  const signature = { ...declaration, def: { ...declaration.def, params: params.map((param) => ({ ...param, tsType: undefined })) } };
+  const alternatives = await Promise.all(params.flatMap((param, index) => {
+    const type = param.tsType!;
+    return (type.kind === 'union' ? type.value as TsType[] : [type]).map(async (alternative) => {
+      const hashed = await hash(JSON.stringify(strip(alternative)));
+      return `${index}|${hashed}=${hashed}`;
+    });
+  }));
+  return [...alternatives, `@signature=${await hash(JSON.stringify(strip(signature)))}`].sort().join(',');
+};
+
+/**
  * The members of an interface, or of a type that is a plain object type (`type X = { … }`, as
  * every answer in `@ein/api` is), each hashed: what lets the test tell a type that only gained a
  * member — a compatible change, nothing a module used is gone — from one that changed or lost one. An
@@ -79,8 +102,8 @@ const propMembers = async (declaration: Declaration): Promise<string | undefined
 const memberHashes = async (declarations: Declaration[]): Promise<string | undefined> => {
   const [declaration] = declarations;
   if (declarations.length === 1) {
-    const props = await propMembers(declaration);
-    if (props) return props;
+    const fn = await propMembers(declaration) ?? await paramMembers(declaration);
+    if (fn) return fn;
   }
   const literal = declaration?.kind === 'typeAlias' && declaration.def?.tsType?.kind === 'typeLiteral' && !declaration.def.typeParams?.length
     ? declaration.def.tsType.value
@@ -98,7 +121,7 @@ const memberHashes = async (declarations: Declaration[]): Promise<string | undef
   return hashed.sort().join(',');
 };
 
-/** `<entry> <symbol> <hash> [<member>=<hash>,…]` per exported symbol, sorted; members for an interface, an object type or a function of one destructured object. */
+/** `<entry> <symbol> <hash> [<member>=<hash>,…]` per exported symbol, sorted; members for an interface, an object type, a function of one destructured object or one of plain parameters. */
 export const contractSurface = async (): Promise<string[]> => {
   const root = new URL('..', import.meta.url).pathname;
   const lines: string[] = [];

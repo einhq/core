@@ -2,8 +2,9 @@
  * The module contract changes only with its version.
  *
  * `MODULE_API_VERSION` is what a module's `coreApi` range is checked against. This compares the contract's surface
- * (`scripts/contract.ts`) with the snapshot of the version it claims to be: an added symbol, or an
- * interface or object type that only gained members, needs a compatible bump; a removed or changed one a breaking bump,
+ * (`scripts/contract.ts`) with the snapshot of the version it claims to be: an added symbol, or one whose members
+ * only grew (an interface or object type's fields, a component's props, the alternatives of a function's parameter
+ * types), needs a compatible bump; a removed or changed one a breaking bump,
  * and after bumping the snapshot is rewritten with `deno task contract:snapshot`. As in semver's caret ranges, below
  * 1.0.0 the minor is the breaking part and the patch the compatible one; from 1.0.0 the major and the minor.
  */
@@ -20,7 +21,7 @@ const bySymbol = (lines: string[]): Map<string, Symbol> =>
     return [`${entry} ${name}`, { hash, ...(members ? { members: new Map(members.split(',').map((m) => m.split('=') as [string, string])) } : {}) }];
   }));
 
-/** An interface or object type that kept every member it had, unchanged, and only gained some: nothing a module used is gone. */
+/** A symbol that kept every member it had, unchanged, and only gained some: nothing a module used is gone. */
 const onlyExtended = (was: Symbol, now: Symbol): boolean => !!was.members && !!now.members && [...was.members].every(([name, hash]) => now.members!.get(name) === hash);
 
 const parts = (version: string): number[] => version.split('.').map(Number);

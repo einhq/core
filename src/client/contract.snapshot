@@ -45,7 +45,7 @@ src/builtin/ui/src/client/components/mod.ts EnvironmentReference d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts ExploreRow 40e9de491874 @signature=0c8ff7c06470,children=f8549eefbbf8
 src/builtin/ui/src/client/components/mod.ts ExploreSection b9d16150d86a @signature=68af475426bf,children=f8549eefbbf8,icon=e19ec288ae0e,title=ba1f3813786d,to=719a16ee34d7
 src/builtin/ui/src/client/components/mod.ts FamilyDirection a7a40c284c87
-src/builtin/ui/src/client/components/mod.ts FamilyTree 104408ad2b5a
+src/builtin/ui/src/client/components/mod.ts FamilyTree 104408ad2b5a 0|4c0014b50ce2=4c0014b50ce2,@signature=07a5c0418a03
 src/builtin/ui/src/client/components/mod.ts FamilyTreeCard d9199dbd893f @signature=beaa1bd98652,collapsible=c20771877346,content=8ac8fea942e2,editable=f8e749d0f585,expanding=fd926a5fd634,isRoot=b7bd54e45f50,moreChildren=75f675163810,moreParents=b163de0680b1,node=aa1a07b9f75e,onAddRelation=11726aca3478,onCollapse=4fbb3fce4981,onExpand=721ed2d002fa,onRemoveRelation=2d3648c55f12,x=2c7d232de845,y=57bea54fa2f9
 src/builtin/ui/src/client/components/mod.ts FamilyTreeCardProps ee6d95b0c464 collapsible=52c85e5c71ff,content=0046d67893e8,editable=c63768a458a6,expanding=e452c1bef1b7,isRoot=17cf855b100e,moreChildren=bc5de741a576,moreParents=454397dcaaf7,node=75342e9b348c,onAddRelation=1ee15d712b8f,onCollapse=63b6291addb6,onExpand=25dcf0047a97,onRemoveRelation=f8f352013b40,x=d0b937254e19,y=9df0ea69c6d9
 src/builtin/ui/src/client/components/mod.ts FamilyTreeProps 041ed355f8d9 editable=b8a24564a694,emptyMessage=7edc9ebf14a9,expanded=dd4070259c22,expanding=bcd754b02290,fill=36f6842573ef,fit=811db48a83a6,graph=b51161be21c9,inset=234fdc1a4a48,loading=6ab16fe49a65,onAddRelation=ae2e93ee14f5,onCollapse=ad71b5cc14d4,onExpand=984751eaf726,onRemoveRelation=75c6928c08eb,renderCard=d2afc79d7164
@@ -185,7 +185,7 @@ src/builtin/ui/src/client/components/mod.ts TriggerPopover ca4decd63df7 @signatu
 src/builtin/ui/src/client/components/mod.ts UTILIZATION_BANDS fe84a3cb2fa1
 src/builtin/ui/src/client/components/mod.ts UnservableKinds 6f01af1adcf1 @signature=4816e57e7841,definitions=1145648cf49f,pools=4a18c9a2bdfc
 src/builtin/ui/src/client/components/mod.ts UploadDropTarget ac53746ac27a description=644be3c4d4da,label=af04505f402e,path=183fb41c38c5
-src/builtin/ui/src/client/components/mod.ts UploadDropzone d923a9cb360f
+src/builtin/ui/src/client/components/mod.ts UploadDropzone d923a9cb360f 0|979381d4d71e=979381d4d71e,0|b2bd20186606=b2bd20186606,@signature=07a5c0418a03
 src/builtin/ui/src/client/components/mod.ts UploadDropzoneProps 9a7490664458
 src/builtin/ui/src/client/components/mod.ts UploadIndicator d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts WAITING_COLOR bc2d2a037728
@@ -198,36 +198,36 @@ src/builtin/ui/src/client/components/mod.ts Workload 8209a0d00b3f
 src/builtin/ui/src/client/components/mod.ts WorkloadBar 8861658fd52d @signature=4816e57e7841,cancelled=d0bf322cbc7f,counts=2648a544f047,height=3a8cb7c42830,legend=66fcdcddbd7c,waiting=8f5b4006e5db
 src/builtin/ui/src/client/components/mod.ts WorkloadState 81136de33559
 src/builtin/ui/src/client/components/mod.ts clusterIcon 83e3c97ea853
-src/builtin/ui/src/client/components/mod.ts commandAnchor f9969fb62c83
-src/builtin/ui/src/client/components/mod.ts commandRoute f9969fb62c83
-src/builtin/ui/src/client/components/mod.ts displayNames 2110bdfa58e9
+src/builtin/ui/src/client/components/mod.ts commandAnchor f9969fb62c83 0|336e2b46aff6=336e2b46aff6,@signature=6358a41c59d5
+src/builtin/ui/src/client/components/mod.ts commandRoute f9969fb62c83 0|336e2b46aff6=336e2b46aff6,@signature=6358a41c59d5
+src/builtin/ui/src/client/components/mod.ts displayNames 2110bdfa58e9 0|23df4d99abdf=23df4d99abdf,@signature=7115b2976846
 src/builtin/ui/src/client/components/mod.ts elapsed a820f77ac017
 src/builtin/ui/src/client/components/mod.ts entityKindIcon c3e32905aef3
-src/builtin/ui/src/client/components/mod.ts envAnchor b73d3a4d54b6
-src/builtin/ui/src/client/components/mod.ts formatRange 54ee524268a6
-src/builtin/ui/src/client/components/mod.ts hasPills 87e1a484c09f
-src/builtin/ui/src/client/components/mod.ts highlightRanges 247885687552
-src/builtin/ui/src/client/components/mod.ts lifeSpan 0b49dd08cb70
-src/builtin/ui/src/client/components/mod.ts moduleRoute f9969fb62c83
-src/builtin/ui/src/client/components/mod.ts nodeTypeAnchor 3c392a124ac5
-src/builtin/ui/src/client/components/mod.ts nodeTypeColor 3c392a124ac5
+src/builtin/ui/src/client/components/mod.ts envAnchor b73d3a4d54b6 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=665a86c3e14a
+src/builtin/ui/src/client/components/mod.ts formatRange 54ee524268a6 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=583eaee7cd26
+src/builtin/ui/src/client/components/mod.ts hasPills 87e1a484c09f 0|1ec22b324ce9=1ec22b324ce9,@signature=dc261f0993e6
+src/builtin/ui/src/client/components/mod.ts highlightRanges 247885687552 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=6ec83d8c8781
+src/builtin/ui/src/client/components/mod.ts lifeSpan 0b49dd08cb70 0|bfeff8d18e59=bfeff8d18e59,@signature=a9493545479c
+src/builtin/ui/src/client/components/mod.ts moduleRoute f9969fb62c83 0|336e2b46aff6=336e2b46aff6,@signature=6358a41c59d5
+src/builtin/ui/src/client/components/mod.ts nodeTypeAnchor 3c392a124ac5 0|336e2b46aff6=336e2b46aff6,@signature=0d55205e77cc
+src/builtin/ui/src/client/components/mod.ts nodeTypeColor 3c392a124ac5 0|336e2b46aff6=336e2b46aff6,@signature=0d55205e77cc
 src/builtin/ui/src/client/components/mod.ts numberedPinIcon a55c04e4ceed
-src/builtin/ui/src/client/components/mod.ts pileIcon 85abe50f295b
+src/builtin/ui/src/client/components/mod.ts pileIcon 85abe50f295b 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=f94952a2a123
 src/builtin/ui/src/client/components/mod.ts pinIcon 8bec277e864a
-src/builtin/ui/src/client/components/mod.ts searchResultRoute 91fa00c986dc
-src/builtin/ui/src/client/components/mod.ts settingAnchor 7d2cd6bb37f3
-src/builtin/ui/src/client/components/mod.ts statusColor f703bef40474
-src/builtin/ui/src/client/components/mod.ts subcommandsByGroup 50575dd56943
-src/builtin/ui/src/client/components/mod.ts thumbnailIcon c42ad9d7c79a
-src/builtin/ui/src/client/components/mod.ts useBackCloses dfa035415982
+src/builtin/ui/src/client/components/mod.ts searchResultRoute 91fa00c986dc 0|bd019462beec=bd019462beec,@signature=b28a90fdf2c1
+src/builtin/ui/src/client/components/mod.ts settingAnchor 7d2cd6bb37f3 0|336e2b46aff6=336e2b46aff6,@signature=27f0f62d76d0
+src/builtin/ui/src/client/components/mod.ts statusColor f703bef40474 0|336e2b46aff6=336e2b46aff6,@signature=fa3e59dd8dbf
+src/builtin/ui/src/client/components/mod.ts subcommandsByGroup 50575dd56943 0|23df4d99abdf=23df4d99abdf,1|3764d5859a1b=3764d5859a1b,@signature=d046de4c69e7
+src/builtin/ui/src/client/components/mod.ts thumbnailIcon c42ad9d7c79a 0|336e2b46aff6=336e2b46aff6,@signature=574007bd8342
+src/builtin/ui/src/client/components/mod.ts useBackCloses dfa035415982 0|c06d55bc013d=c06d55bc013d,1|c1d58a2d45e9=c1d58a2d45e9,@signature=0cfb06c21bcc
 src/builtin/ui/src/client/components/mod.ts useCardFit f6297ebd18b7
 src/builtin/ui/src/client/components/mod.ts useMap 16209d1b03ee
-src/builtin/ui/src/client/components/mod.ts useScrollToHash e76ddd291509
+src/builtin/ui/src/client/components/mod.ts useScrollToHash e76ddd291509 0|c06d55bc013d=c06d55bc013d,@signature=fee702da2d50
 src/builtin/ui/src/client/components/mod.ts useSelectionBar d2adf16b4e60
-src/builtin/ui/src/client/components/mod.ts useSettingDraft 04fb8a6b962c
-src/builtin/ui/src/client/components/mod.ts utilizationColor fc206c9ec768
+src/builtin/ui/src/client/components/mod.ts useSettingDraft 04fb8a6b962c 0|d06c7a327499=d06c7a327499,1|a2b5a860b7ea=a2b5a860b7ea,2|d0a2117e1431=d0a2117e1431,@signature=ae1d5f88c116
+src/builtin/ui/src/client/components/mod.ts utilizationColor fc206c9ec768 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=5ed465eeea05
 src/builtin/ui/src/client/components/mod.ts vertexIcon 5b44fd86d677
-src/builtin/ui/src/client/components/mod.ts withLineBreaks 7881ebcc390c
+src/builtin/ui/src/client/components/mod.ts withLineBreaks 7881ebcc390c 0|336e2b46aff6=336e2b46aff6,@signature=9c23048bf999
 src/builtin/ui/src/client/hooks/mod.ts AlbumCoverRef 8b5cc93a2352
 src/builtin/ui/src/client/hooks/mod.ts AlbumEntry da441fdc3d3e coverUrl=eb10bba52e9f,days=575330863d2e,description=644be3c4d4da,hasFilesDir=4dad19e9492f,itemCount=4d8bfbfc94ac,kind=9b443cc16867,labels=f3fc6f89a365,locationPath=6aae7918ba2a,memberCount=e0f652b4f1ba,modtime=ae463ff9ff07,name=6d0c36381511,origin=f6983cac8c99,overall=5c4f3c606f83,path=3fd20668ef6e,pinned=32304c8f670c,provisional=fcd81efc0295,timeEnd=d9349e5d58b6,timeStart=03ab81ef701d,title=f6007128d157
 src/builtin/ui/src/client/hooks/mod.ts CommandHit 11853d3977ae description=644be3c4d4da,effect=71aef9046e29,name=6d0c36381511,score=cdcc05f75100
@@ -309,68 +309,68 @@ src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_IDLE_MS ab6d0b9f6050
 src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_LIVE_MS 788cba558ddc
 src/builtin/ui/src/client/hooks/mod.ts WhoamiResult 0e39545b00c0
 src/builtin/ui/src/client/hooks/mod.ts buildSearchCommand 357e22a258bf
-src/builtin/ui/src/client/hooks/mod.ts forgetAlbumCover 3dda68d4cf97
-src/builtin/ui/src/client/hooks/mod.ts forgetCover 447d5d805193
-src/builtin/ui/src/client/hooks/mod.ts hasAnyFilter 6565685233be
-src/builtin/ui/src/client/hooks/mod.ts holdElement 96a6f6a98071
+src/builtin/ui/src/client/hooks/mod.ts forgetAlbumCover 3dda68d4cf97 0|336e2b46aff6=336e2b46aff6,@signature=88b1fbc174de
+src/builtin/ui/src/client/hooks/mod.ts forgetCover 447d5d805193 0|336e2b46aff6=336e2b46aff6,@signature=b02f8d96aa81
+src/builtin/ui/src/client/hooks/mod.ts hasAnyFilter 6565685233be 0|c63d7b2b0545=c63d7b2b0545,@signature=dc261f0993e6
+src/builtin/ui/src/client/hooks/mod.ts holdElement 96a6f6a98071 0|4004e3b1108e=4004e3b1108e,1|6586740ed67c=6586740ed67c,@signature=3723f5c1a97c
 src/builtin/ui/src/client/hooks/mod.ts loadAccessIds 86c5e8b91f6e
 src/builtin/ui/src/client/hooks/mod.ts reloadIdentities d371a1f4c626
-src/builtin/ui/src/client/hooks/mod.ts searchResultToMediaItem fbd32e98b36a
+src/builtin/ui/src/client/hooks/mod.ts searchResultToMediaItem fbd32e98b36a 0|00e9aadd5dcb=00e9aadd5dcb,@signature=386a3c3a4dac
 src/builtin/ui/src/client/hooks/mod.ts useAccessIds 55c9e2a62a9b
-src/builtin/ui/src/client/hooks/mod.ts useAlbumCover f11057385c94
+src/builtin/ui/src/client/hooks/mod.ts useAlbumCover f11057385c94 0|f874e365b7a0=f874e365b7a0,1|c06d55bc013d=c06d55bc013d,@signature=dff022967242
 src/builtin/ui/src/client/hooks/mod.ts useAppHeaderHeight 197be745efe7
-src/builtin/ui/src/client/hooks/mod.ts useCommand 3cdb111780a7
-src/builtin/ui/src/client/hooks/mod.ts useCommandFind c39a43522a2a
+src/builtin/ui/src/client/hooks/mod.ts useCommand 3cdb111780a7 0|336e2b46aff6=336e2b46aff6,@signature=7ec6cb5c1437
+src/builtin/ui/src/client/hooks/mod.ts useCommandFind c39a43522a2a 0|336e2b46aff6=336e2b46aff6,@signature=101fbb392f46
 src/builtin/ui/src/client/hooks/mod.ts useCommandQueue d20dd21f3e73
 src/builtin/ui/src/client/hooks/mod.ts useCommandReference 51fae67f903b
-src/builtin/ui/src/client/hooks/mod.ts useConfig 74daa24318c8
+src/builtin/ui/src/client/hooks/mod.ts useConfig 74daa24318c8 0|07417c174d31=07417c174d31,0|a726c4d87eb1=a726c4d87eb1,@signature=a8c398f8dc5e
 src/builtin/ui/src/client/hooks/mod.ts useCover e84f2e58ac22
-src/builtin/ui/src/client/hooks/mod.ts useDropTarget ef2d6cb8b294
+src/builtin/ui/src/client/hooks/mod.ts useDropTarget ef2d6cb8b294 0|13c7cb9e0538=13c7cb9e0538,@signature=c20e6f34cff5
 src/builtin/ui/src/client/hooks/mod.ts useElementWidth a4f30aa3c2a9
-src/builtin/ui/src/client/hooks/mod.ts useEntityComplete 332e19a07c40
+src/builtin/ui/src/client/hooks/mod.ts useEntityComplete 332e19a07c40 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,1|6952841946da=6952841946da,@signature=ce9775ed500f
 src/builtin/ui/src/client/hooks/mod.ts useEnvReference 40cc094946b0
 src/builtin/ui/src/client/hooks/mod.ts useEventDrivenData f926fdb19e55
 src/builtin/ui/src/client/hooks/mod.ts useGuide 90d488b7f42d
 src/builtin/ui/src/client/hooks/mod.ts useHeaderHeight 197be745efe7
 src/builtin/ui/src/client/hooks/mod.ts useIdentities 1210adf11ebe
 src/builtin/ui/src/client/hooks/mod.ts useLabels 821370a1c211
-src/builtin/ui/src/client/hooks/mod.ts useLasso 653fd51448d7
+src/builtin/ui/src/client/hooks/mod.ts useLasso 653fd51448d7 0|839723bfc5b2=839723bfc5b2,@signature=d82627a7a046
 src/builtin/ui/src/client/hooks/mod.ts useLoadMoreSentinel 52958ca4a776
 src/builtin/ui/src/client/hooks/mod.ts useLogFollow 2262a87fe706
 src/builtin/ui/src/client/hooks/mod.ts useLogTail c442c479f0e1
-src/builtin/ui/src/client/hooks/mod.ts useMediaSelection 88a1d931da33
+src/builtin/ui/src/client/hooks/mod.ts useMediaSelection 88a1d931da33 0|94d5131d984e=94d5131d984e,@signature=8177a37317c2
 src/builtin/ui/src/client/hooks/mod.ts useMentionComplete 22ba1db2a8f1
 src/builtin/ui/src/client/hooks/mod.ts useModuleReference 0d719d8f1391
-src/builtin/ui/src/client/hooks/mod.ts useNodeAttrs 4cd44609a939
-src/builtin/ui/src/client/hooks/mod.ts useNodeEvents 08ae350229e9
-src/builtin/ui/src/client/hooks/mod.ts useNodeNames 999e0d283f62
+src/builtin/ui/src/client/hooks/mod.ts useNodeAttrs 4cd44609a939 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=a143903ea66d
+src/builtin/ui/src/client/hooks/mod.ts useNodeEvents 08ae350229e9 0|20775459a06d=20775459a06d,1|182435618c6b=182435618c6b,@signature=c230a46e5b81
+src/builtin/ui/src/client/hooks/mod.ts useNodeNames 999e0d283f62 0|dfa2c59f3b81=dfa2c59f3b81,@signature=0d54280ab504
 src/builtin/ui/src/client/hooks/mod.ts useNodeOps f47196b85b77
-src/builtin/ui/src/client/hooks/mod.ts useNodeStat 5f9770e651b5
+src/builtin/ui/src/client/hooks/mod.ts useNodeStat 5f9770e651b5 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,@signature=372372d04483
 src/builtin/ui/src/client/hooks/mod.ts useNodeTree 6043404847bc
 src/builtin/ui/src/client/hooks/mod.ts useNodeTypeReference 3bb3a05f2c95
 src/builtin/ui/src/client/hooks/mod.ts usePageSubject 42490c5e721c @signature=834e71694942,about=00f35a4be9a6,node=aa1a07b9f75e,title=ba1f3813786d
-src/builtin/ui/src/client/hooks/mod.ts usePersistedState cf2072aa6bf3
+src/builtin/ui/src/client/hooks/mod.ts usePersistedState cf2072aa6bf3 0|336e2b46aff6=336e2b46aff6,1|2d4e7846df03=2d4e7846df03,@signature=abfb3b620813
 src/builtin/ui/src/client/hooks/mod.ts usePhone 1ca2bf2455f3
 src/builtin/ui/src/client/hooks/mod.ts usePipelineActions d2adf16b4e60
-src/builtin/ui/src/client/hooks/mod.ts usePipelineInstances 978ad62b777f
+src/builtin/ui/src/client/hooks/mod.ts usePipelineInstances 978ad62b777f 0|3abd9ecba7c1=3abd9ecba7c1,@signature=575fd95f9584
 src/builtin/ui/src/client/hooks/mod.ts usePipelineOverview d2adf16b4e60
-src/builtin/ui/src/client/hooks/mod.ts usePipelineStatus bff411651351
+src/builtin/ui/src/client/hooks/mod.ts usePipelineStatus bff411651351 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,1|336e2b46aff6=336e2b46aff6,1|e47c90b8d195=e47c90b8d195,@signature=8cdf997309a7
 src/builtin/ui/src/client/hooks/mod.ts usePipelines d2adf16b4e60
 src/builtin/ui/src/client/hooks/mod.ts usePolledCommand f456c8ffd809
-src/builtin/ui/src/client/hooks/mod.ts usePrependHold ebda82c19296
-src/builtin/ui/src/client/hooks/mod.ts useSearch d54123404a68
+src/builtin/ui/src/client/hooks/mod.ts usePrependHold ebda82c19296 0|e2e9e83e047a=e2e9e83e047a,1|6586740ed67c=6586740ed67c,@signature=3e61c7a70ff7
+src/builtin/ui/src/client/hooks/mod.ts useSearch d54123404a68 0|4a656dc0aca2=4a656dc0aca2,@signature=cd37f5162f04
 src/builtin/ui/src/client/hooks/mod.ts useSearchBox 3abcfc216626 @signature=98c5fa9c4f8a,apply=af4c2a935e10,filters=0e12378283f6,natural=305178060502
 src/builtin/ui/src/client/hooks/mod.ts useSectionSelection fddaebb692ea
-src/builtin/ui/src/client/hooks/mod.ts useSelection 5ec9fbba8404
-src/builtin/ui/src/client/hooks/mod.ts useSettledInViewport 1012a5391a9a
-src/builtin/ui/src/client/hooks/mod.ts useShortcutHelp 53c82aa249f2
+src/builtin/ui/src/client/hooks/mod.ts useSelection 5ec9fbba8404 0|a16bff8fef55=a16bff8fef55,@signature=41aa30fe2cac
+src/builtin/ui/src/client/hooks/mod.ts useSettledInViewport 1012a5391a9a 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=28a3bb27070f
+src/builtin/ui/src/client/hooks/mod.ts useShortcutHelp 53c82aa249f2 0|336e2b46aff6=336e2b46aff6,1|82d1a53becaa=82d1a53becaa,@signature=c65016e880e3
 src/builtin/ui/src/client/hooks/mod.ts useStatsOverview d2adf16b4e60
 src/builtin/ui/src/client/hooks/mod.ts useSurface 6a09db9a2445
-src/builtin/ui/src/client/hooks/mod.ts useTerminalWorkspaceIsolation 28656c65f935
-src/builtin/ui/src/client/hooks/mod.ts useUrlParam 3097b0c09a80
-src/builtin/ui/src/client/hooks/mod.ts useVerticalWindow 550c63be8f55
-src/builtin/ui/src/client/hooks/mod.ts useWebSocket 43c412c96a0c
-src/builtin/ui/src/client/hooks/mod.ts useXtermMedia 11d6bbf5a954
+src/builtin/ui/src/client/hooks/mod.ts useTerminalWorkspaceIsolation 28656c65f935 0|336e2b46aff6=336e2b46aff6,@signature=982501ce30b3
+src/builtin/ui/src/client/hooks/mod.ts useUrlParam 3097b0c09a80 0|336e2b46aff6=336e2b46aff6,@signature=31664133e889
+src/builtin/ui/src/client/hooks/mod.ts useVerticalWindow 550c63be8f55 0|db8be5589a44=db8be5589a44,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=91df5dd030a6
+src/builtin/ui/src/client/hooks/mod.ts useWebSocket 43c412c96a0c 0|336e2b46aff6=336e2b46aff6,@signature=0f5fd482c8ad
+src/builtin/ui/src/client/hooks/mod.ts useXtermMedia 11d6bbf5a954 0|587c3cc7ad63=587c3cc7ad63,1|6a07dfee17b6=6a07dfee17b6,2|7ad423138be5=7ad423138be5,@signature=aaba4a8d36a2
 src/builtin/ui/src/client/lib/mod.ts AccessBit 12d0838a94fe
 src/builtin/ui/src/client/lib/mod.ts AccessIds 83a2e328df5f admin=e5caa4ef7900,gids=8cf05d2e594e,uid=d8def3ee020e
 src/builtin/ui/src/client/lib/mod.ts BucketOptions 5b41c82c2e48
@@ -465,149 +465,149 @@ src/builtin/ui/src/client/lib/mod.ts VIEW_MODES 42b75ae2867b
 src/builtin/ui/src/client/lib/mod.ts ViewMode 75642da7fba6
 src/builtin/ui/src/client/lib/mod.ts WAVEFORM_ASPECT ea376360d1f6
 src/builtin/ui/src/client/lib/mod.ts WebSocketClient aad0b9585f32
-src/builtin/ui/src/client/lib/mod.ts activeTabOf a861283fada6
-src/builtin/ui/src/client/lib/mod.ts addTab 3ea994764e9c
-src/builtin/ui/src/client/lib/mod.ts albumDates 03bc8844f794
-src/builtin/ui/src/client/lib/mod.ts applyCompletion 13b244139290
-src/builtin/ui/src/client/lib/mod.ts attrText 34b249720847
-src/builtin/ui/src/client/lib/mod.ts attrValue 87405eedd0b3
-src/builtin/ui/src/client/lib/mod.ts attrsWriteArgs 0f5cba656a7c
-src/builtin/ui/src/client/lib/mod.ts baseName a90ef74a89ee
+src/builtin/ui/src/client/lib/mod.ts activeTabOf a861283fada6 0|473959244f57=473959244f57,@signature=8158c0a5cfcb
+src/builtin/ui/src/client/lib/mod.ts addTab 3ea994764e9c 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|7ab8b2a97b46=7ab8b2a97b46,@signature=069bef2673ca
+src/builtin/ui/src/client/lib/mod.ts albumDates 03bc8844f794 0|803a222e6f94=803a222e6f94,0|e3f367155691=e3f367155691,@signature=9bdcbbf99f98
+src/builtin/ui/src/client/lib/mod.ts applyCompletion 13b244139290 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,2|d903be8c7fd1=d903be8c7fd1,3|157423158961=157423158961,@signature=a4906cb4f896
+src/builtin/ui/src/client/lib/mod.ts attrText 34b249720847 0|e2e9e83e047a=e2e9e83e047a,@signature=04fe420b81f4
+src/builtin/ui/src/client/lib/mod.ts attrValue 87405eedd0b3 0|336e2b46aff6=336e2b46aff6,1|e2e9e83e047a=e2e9e83e047a,@signature=b567f04b7f67
+src/builtin/ui/src/client/lib/mod.ts attrsWriteArgs 0f5cba656a7c 0|9c9b1d3e8bfb=9c9b1d3e8bfb,1|9c9b1d3e8bfb=9c9b1d3e8bfb,2|272071b4b55f=272071b4b55f,@signature=c474d121502f
+src/builtin/ui/src/client/lib/mod.ts baseName a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
 src/builtin/ui/src/client/lib/mod.ts bucketByDate 70c1c93f0c5e
-src/builtin/ui/src/client/lib/mod.ts bucketKey a6c4f424f316
-src/builtin/ui/src/client/lib/mod.ts bucketLabel 7d2cd6bb37f3
-src/builtin/ui/src/client/lib/mod.ts bumpDerivativeVersion c6a7aabc3791
-src/builtin/ui/src/client/lib/mod.ts bust e0bcb0ec6e68
-src/builtin/ui/src/client/lib/mod.ts bustSrcSet 9eb46e2739a9
-src/builtin/ui/src/client/lib/mod.ts canAccess 65824dc98540
-src/builtin/ui/src/client/lib/mod.ts canList b1284e500603
-src/builtin/ui/src/client/lib/mod.ts canWrite b1284e500603
-src/builtin/ui/src/client/lib/mod.ts canWriteEach 2c74c1750966
+src/builtin/ui/src/client/lib/mod.ts bucketKey a6c4f424f316 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,1|4b651112d6c7=4b651112d6c7,@signature=c405fd7c4d20
+src/builtin/ui/src/client/lib/mod.ts bucketLabel 7d2cd6bb37f3 0|336e2b46aff6=336e2b46aff6,@signature=27f0f62d76d0
+src/builtin/ui/src/client/lib/mod.ts bumpDerivativeVersion c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/lib/mod.ts bust e0bcb0ec6e68 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=1a9d2d8d2e64
+src/builtin/ui/src/client/lib/mod.ts bustSrcSet 9eb46e2739a9 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=dde59226f8a5
+src/builtin/ui/src/client/lib/mod.ts canAccess 65824dc98540 0|ae7f1984f7b2=ae7f1984f7b2,1|562a9ef480dd=562a9ef480dd,1|e47c90b8d195=e47c90b8d195,2|ac54bbbfbadc=ac54bbbfbadc,@signature=dd0974dbe50b
+src/builtin/ui/src/client/lib/mod.ts canList b1284e500603 0|ae7f1984f7b2=ae7f1984f7b2,1|562a9ef480dd=562a9ef480dd,1|e47c90b8d195=e47c90b8d195,@signature=4c3b08442b5d
+src/builtin/ui/src/client/lib/mod.ts canWrite b1284e500603 0|ae7f1984f7b2=ae7f1984f7b2,1|562a9ef480dd=562a9ef480dd,1|e47c90b8d195=e47c90b8d195,@signature=4c3b08442b5d
+src/builtin/ui/src/client/lib/mod.ts canWriteEach 2c74c1750966 0|cf6b3c7b5afa=cf6b3c7b5afa,1|562a9ef480dd=562a9ef480dd,1|e47c90b8d195=e47c90b8d195,@signature=9f86a75231f0
 src/builtin/ui/src/client/lib/mod.ts cardLayout 58fc726be003
 src/builtin/ui/src/client/lib/mod.ts cardPosition dfc99a945a8a
 src/builtin/ui/src/client/lib/mod.ts cardRangeForVerticalWindow f0103085b8fc
-src/builtin/ui/src/client/lib/mod.ts cardTextHeight dedd28c1f485
-src/builtin/ui/src/client/lib/mod.ts changedTopLevel 6cf2b914ae6b
-src/builtin/ui/src/client/lib/mod.ts closePane a7a4a2d69305
-src/builtin/ui/src/client/lib/mod.ts closeTab 3b45ea9e6ab9
+src/builtin/ui/src/client/lib/mod.ts cardTextHeight dedd28c1f485 0|80dbc359f29c=80dbc359f29c,@signature=ced22ee5f80e
+src/builtin/ui/src/client/lib/mod.ts changedTopLevel 6cf2b914ae6b 0|9c9b1d3e8bfb=9c9b1d3e8bfb,1|9c9b1d3e8bfb=9c9b1d3e8bfb,@signature=8f48ee7d94be
+src/builtin/ui/src/client/lib/mod.ts closePane a7a4a2d69305 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,@signature=e25ca1de8e7b
+src/builtin/ui/src/client/lib/mod.ts closeTab 3b45ea9e6ab9 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,@signature=f71f7e1466ea
 src/builtin/ui/src/client/lib/mod.ts columnsForWidth 9b420798ad6b
-src/builtin/ui/src/client/lib/mod.ts copyText d854c63dd684
-src/builtin/ui/src/client/lib/mod.ts countOf 3e8d5d4a5025
+src/builtin/ui/src/client/lib/mod.ts copyText d854c63dd684 0|336e2b46aff6=336e2b46aff6,1|200c4bbb9601=200c4bbb9601,1|c6374001a893=c6374001a893,1|e47c90b8d195=e47c90b8d195,@signature=6be18960841a
+src/builtin/ui/src/client/lib/mod.ts countOf 3e8d5d4a5025 0|b3d9da3d9fc5=b3d9da3d9fc5,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=4eef6caa8d5f
 src/builtin/ui/src/client/lib/mod.ts defaultWorkspace 81e1f782a6ea
-src/builtin/ui/src/client/lib/mod.ts describeNodeError d552e6b18d62
-src/builtin/ui/src/client/lib/mod.ts displayDims 3de7f72ef51b
-src/builtin/ui/src/client/lib/mod.ts displayUrl 6775abbbb867
-src/builtin/ui/src/client/lib/mod.ts dropAllowed 7b8d0ff644f3
+src/builtin/ui/src/client/lib/mod.ts describeNodeError d552e6b18d62 0|e2e9e83e047a=e2e9e83e047a,@signature=9fce72105833
+src/builtin/ui/src/client/lib/mod.ts displayDims 3de7f72ef51b 0|9a275a247a7d=9a275a247a7d,@signature=1acfc20a44dd
+src/builtin/ui/src/client/lib/mod.ts displayUrl 6775abbbb867 0|336e2b46aff6=336e2b46aff6,1|eb7a76db9276=eb7a76db9276,2|c06d55bc013d=c06d55bc013d,3|b6f947317c10=b6f947317c10,@signature=8c406347f2da
+src/builtin/ui/src/client/lib/mod.ts dropAllowed 7b8d0ff644f3 0|a16bff8fef55=a16bff8fef55,1|336e2b46aff6=336e2b46aff6,@signature=f193dac85761
 src/builtin/ui/src/client/lib/mod.ts endMediaDrag df01802e180a
-src/builtin/ui/src/client/lib/mod.ts entityKindOf 09002a788a8c
+src/builtin/ui/src/client/lib/mod.ts entityKindOf 09002a788a8c 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=181b3e59098e
 src/builtin/ui/src/client/lib/mod.ts entriesToTreeNodes de090e4132d7
-src/builtin/ui/src/client/lib/mod.ts fileUrl a90ef74a89ee
-src/builtin/ui/src/client/lib/mod.ts filtersFromMentions 5ec2718fd543
+src/builtin/ui/src/client/lib/mod.ts fileUrl a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
+src/builtin/ui/src/client/lib/mod.ts filtersFromMentions 5ec2718fd543 0|e4d28e70980d=e4d28e70980d,1|472db73a7ae1=472db73a7ae1,@signature=36d3ce49303e
 src/builtin/ui/src/client/lib/mod.ts filtersFromNaturalQuery 9ae712c591d2
-src/builtin/ui/src/client/lib/mod.ts filtersFromParams fd7340356186
+src/builtin/ui/src/client/lib/mod.ts filtersFromParams fd7340356186 0|c5cdf14498b4=c5cdf14498b4,@signature=d19a96564b08
 src/builtin/ui/src/client/lib/mod.ts flattenAttrs 7d2431e3d785
-src/builtin/ui/src/client/lib/mod.ts foldText 6aff3ac4b124
-src/builtin/ui/src/client/lib/mod.ts forgetAspect c6a7aabc3791
-src/builtin/ui/src/client/lib/mod.ts forgetMediaSet c6a7aabc3791
-src/builtin/ui/src/client/lib/mod.ts formatBytes 551d31459314
-src/builtin/ui/src/client/lib/mod.ts formatClock 80c229e09d9e
-src/builtin/ui/src/client/lib/mod.ts formatCount 90a1811d0279
-src/builtin/ui/src/client/lib/mod.ts formatDuration 26f1537238c8
-src/builtin/ui/src/client/lib/mod.ts formatRange 54ee524268a6
-src/builtin/ui/src/client/lib/mod.ts formatUptime c917dce0aa57
-src/builtin/ui/src/client/lib/mod.ts gridNeighbour e7eb3154cdf8
-src/builtin/ui/src/client/lib/mod.ts gridSrcSet b0e1d183b06e
-src/builtin/ui/src/client/lib/mod.ts gridUrl 311f0c31fabb
-src/builtin/ui/src/client/lib/mod.ts hasBit 69af07f2681d
-src/builtin/ui/src/client/lib/mod.ts imageSrcSet 6775abbbb867
-src/builtin/ui/src/client/lib/mod.ts isAccessDenied bcbfc0454e45
-src/builtin/ui/src/client/lib/mod.ts isContainer fbfd1bfc9a0a
-src/builtin/ui/src/client/lib/mod.ts isDirectory eccb2bd550e0
-src/builtin/ui/src/client/lib/mod.ts isGuest 2271cb919ba1
-src/builtin/ui/src/client/lib/mod.ts isHidden e13f58370737
-src/builtin/ui/src/client/lib/mod.ts isInside d112990a48a6
-src/builtin/ui/src/client/lib/mod.ts isMediaDrag 35d0d26bc6e0
-src/builtin/ui/src/client/lib/mod.ts isMediaFile eccb2bd550e0
-src/builtin/ui/src/client/lib/mod.ts isNotFound bcbfc0454e45
-src/builtin/ui/src/client/lib/mod.ts isTablerName ad1834245c08
-src/builtin/ui/src/client/lib/mod.ts isTextLike 71aa6c10ac66
-src/builtin/ui/src/client/lib/mod.ts joinPath ac95a57d87d2
-src/builtin/ui/src/client/lib/mod.ts kindFill f41e3eafb56d
-src/builtin/ui/src/client/lib/mod.ts kindGlyph f41e3eafb56d
-src/builtin/ui/src/client/lib/mod.ts languageFor 31360372adc4
-src/builtin/ui/src/client/lib/mod.ts lassoSelection 6a8f7f41d4de
-src/builtin/ui/src/client/lib/mod.ts lightboxPathFromSearch 867b58720c90
-src/builtin/ui/src/client/lib/mod.ts lightboxRoute a90ef74a89ee
-src/builtin/ui/src/client/lib/mod.ts loadIcon b543d6aa4658
-src/builtin/ui/src/client/lib/mod.ts loadMediaSet c048d4bf907d
-src/builtin/ui/src/client/lib/mod.ts loginReturnPath 3c6bba36366e
-src/builtin/ui/src/client/lib/mod.ts loginUrlFor a90ef74a89ee
-src/builtin/ui/src/client/lib/mod.ts matchesText 019a1c592e0e
+src/builtin/ui/src/client/lib/mod.ts foldText 6aff3ac4b124 0|336e2b46aff6=336e2b46aff6,@signature=d27e86770286
+src/builtin/ui/src/client/lib/mod.ts forgetAspect c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/lib/mod.ts forgetMediaSet c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/lib/mod.ts formatBytes 551d31459314 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=fb16a295bf49
+src/builtin/ui/src/client/lib/mod.ts formatClock 80c229e09d9e 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=c00518025796
+src/builtin/ui/src/client/lib/mod.ts formatCount 90a1811d0279 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=04fe420b81f4
+src/builtin/ui/src/client/lib/mod.ts formatDuration 26f1537238c8 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=e118f3e14d35
+src/builtin/ui/src/client/lib/mod.ts formatRange 54ee524268a6 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=583eaee7cd26
+src/builtin/ui/src/client/lib/mod.ts formatUptime c917dce0aa57 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=9e073bdf7727
+src/builtin/ui/src/client/lib/mod.ts gridNeighbour e7eb3154cdf8 0|521adbf96790=521adbf96790,1|b3d9da3d9fc5=b3d9da3d9fc5,2|c388037e2b96=c388037e2b96,@signature=5de4cd61a5c7
+src/builtin/ui/src/client/lib/mod.ts gridSrcSet b0e1d183b06e 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,2|b3d9da3d9fc5=b3d9da3d9fc5,3|b6f947317c10=b6f947317c10,@signature=8dc2463266fd
+src/builtin/ui/src/client/lib/mod.ts gridUrl 311f0c31fabb 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=03ccf17196f6
+src/builtin/ui/src/client/lib/mod.ts hasBit 69af07f2681d 0|b3d9da3d9fc5=b3d9da3d9fc5,1|26de26064953=26de26064953,2|68cdec24bb4b=68cdec24bb4b,@signature=edca26f67669
+src/builtin/ui/src/client/lib/mod.ts imageSrcSet 6775abbbb867 0|336e2b46aff6=336e2b46aff6,1|eb7a76db9276=eb7a76db9276,2|c06d55bc013d=c06d55bc013d,3|b6f947317c10=b6f947317c10,@signature=8c406347f2da
+src/builtin/ui/src/client/lib/mod.ts isAccessDenied bcbfc0454e45 0|e2e9e83e047a=e2e9e83e047a,@signature=5d5a78f01854
+src/builtin/ui/src/client/lib/mod.ts isContainer fbfd1bfc9a0a 0|79b0508f5116=79b0508f5116,@signature=74bf9d86dcc7
+src/builtin/ui/src/client/lib/mod.ts isDirectory eccb2bd550e0 0|2eb159b578e0=2eb159b578e0,@signature=74bf9d86dcc7
+src/builtin/ui/src/client/lib/mod.ts isGuest 2271cb919ba1 0|562a9ef480dd=562a9ef480dd,0|e47c90b8d195=e47c90b8d195,@signature=f5e19df4d261
+src/builtin/ui/src/client/lib/mod.ts isHidden e13f58370737 0|ae1200aed81d=ae1200aed81d,@signature=74bf9d86dcc7
+src/builtin/ui/src/client/lib/mod.ts isInside d112990a48a6 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=e29685797095
+src/builtin/ui/src/client/lib/mod.ts isMediaDrag 35d0d26bc6e0 0|d3fcb32cf6c5=d3fcb32cf6c5,0|dfa2c59f3b81=dfa2c59f3b81,@signature=511c8d9c909a
+src/builtin/ui/src/client/lib/mod.ts isMediaFile eccb2bd550e0 0|2eb159b578e0=2eb159b578e0,@signature=74bf9d86dcc7
+src/builtin/ui/src/client/lib/mod.ts isNotFound bcbfc0454e45 0|e2e9e83e047a=e2e9e83e047a,@signature=5d5a78f01854
+src/builtin/ui/src/client/lib/mod.ts isTablerName ad1834245c08 0|336e2b46aff6=336e2b46aff6,@signature=05c23847954e
+src/builtin/ui/src/client/lib/mod.ts isTextLike 71aa6c10ac66 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=a0b99351ad9d
+src/builtin/ui/src/client/lib/mod.ts joinPath ac95a57d87d2 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=6c9856e57327
+src/builtin/ui/src/client/lib/mod.ts kindFill f41e3eafb56d 0|e7b8121bac73=e7b8121bac73,@signature=61ef69562617
+src/builtin/ui/src/client/lib/mod.ts kindGlyph f41e3eafb56d 0|e7b8121bac73=e7b8121bac73,@signature=61ef69562617
+src/builtin/ui/src/client/lib/mod.ts languageFor 31360372adc4 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=3800047090bf
+src/builtin/ui/src/client/lib/mod.ts lassoSelection 6a8f7f41d4de 0|2000bd708b8a=2000bd708b8a,1|f4b9ca6a7021=f4b9ca6a7021,2|8cfc9212b495=8cfc9212b495,@signature=cbae968f078e
+src/builtin/ui/src/client/lib/mod.ts lightboxPathFromSearch 867b58720c90 0|336e2b46aff6=336e2b46aff6,@signature=0baf6bc3bf5c
+src/builtin/ui/src/client/lib/mod.ts lightboxRoute a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
+src/builtin/ui/src/client/lib/mod.ts loadIcon b543d6aa4658 0|336e2b46aff6=336e2b46aff6,@signature=0baf8ec2df5f
+src/builtin/ui/src/client/lib/mod.ts loadMediaSet c048d4bf907d 0|336e2b46aff6=336e2b46aff6,1|afd012024260=afd012024260,@signature=42d709b15be5
+src/builtin/ui/src/client/lib/mod.ts loginReturnPath 3c6bba36366e 0|c5cdf14498b4=c5cdf14498b4,@signature=6eac2d6cd167
+src/builtin/ui/src/client/lib/mod.ts loginUrlFor a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
+src/builtin/ui/src/client/lib/mod.ts matchesText 019a1c592e0e 0|9e1c8a9614dd=9e1c8a9614dd,1|336e2b46aff6=336e2b46aff6,@signature=a2298183deb6
 src/builtin/ui/src/client/lib/mod.ts mediaDrag 0a752fffac0f
-src/builtin/ui/src/client/lib/mod.ts mediaItemFrom f279caa26c24
-src/builtin/ui/src/client/lib/mod.ts mentionAtCaret 92a99aaac68c
-src/builtin/ui/src/client/lib/mod.ts modeOctal 7fc8095b3966
-src/builtin/ui/src/client/lib/mod.ts modeString 7fc8095b3966
-src/builtin/ui/src/client/lib/mod.ts monthLabel 7d2cd6bb37f3
-src/builtin/ui/src/client/lib/mod.ts nameProblem 1ab777b83b46
-src/builtin/ui/src/client/lib/mod.ts naturalSearchDetails ac9094a683b4
+src/builtin/ui/src/client/lib/mod.ts mediaItemFrom f279caa26c24 0|d0de4fc1d6ad=d0de4fc1d6ad,@signature=ff4e364be933
+src/builtin/ui/src/client/lib/mod.ts mentionAtCaret 92a99aaac68c 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=b1b3fb6502dc
+src/builtin/ui/src/client/lib/mod.ts modeOctal 7fc8095b3966 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=de39118fc3e6
+src/builtin/ui/src/client/lib/mod.ts modeString 7fc8095b3966 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=de39118fc3e6
+src/builtin/ui/src/client/lib/mod.ts monthLabel 7d2cd6bb37f3 0|336e2b46aff6=336e2b46aff6,@signature=27f0f62d76d0
+src/builtin/ui/src/client/lib/mod.ts nameProblem 1ab777b83b46 0|336e2b46aff6=336e2b46aff6,@signature=808132c70b34
+src/builtin/ui/src/client/lib/mod.ts naturalSearchDetails ac9094a683b4 0|e4d28e70980d=e4d28e70980d,1|12e74ce29eb6=12e74ce29eb6,2|dd4692a2169c=dd4692a2169c,@signature=b7746ecfde85
 src/builtin/ui/src/client/lib/mod.ts newPane 1d0c8441bdbf
 src/builtin/ui/src/client/lib/mod.ts newTab 77fb8266ce1c
 src/builtin/ui/src/client/lib/mod.ts newTabId dd3b444eb293
-src/builtin/ui/src/client/lib/mod.ts nodeKindOf c296c1ed2f72
-src/builtin/ui/src/client/lib/mod.ts nodeTypeLabel dc0ca99ba0b0
-src/builtin/ui/src/client/lib/mod.ts normalizePath fbf3b5d517d8
-src/builtin/ui/src/client/lib/mod.ts openPane 74aad83db859
-src/builtin/ui/src/client/lib/mod.ts openTargetFor 6e8cd638a3b6
+src/builtin/ui/src/client/lib/mod.ts nodeKindOf c296c1ed2f72 0|79b0508f5116=79b0508f5116,@signature=4179d9647a55
+src/builtin/ui/src/client/lib/mod.ts nodeTypeLabel dc0ca99ba0b0 0|79b0508f5116=79b0508f5116,@signature=9d976931e9dc
+src/builtin/ui/src/client/lib/mod.ts normalizePath fbf3b5d517d8 0|336e2b46aff6=336e2b46aff6,@signature=c814c715af0f
+src/builtin/ui/src/client/lib/mod.ts openPane 74aad83db859 0|fcd5397ec702=fcd5397ec702,1|473959244f57=473959244f57,@signature=4a482637e623
+src/builtin/ui/src/client/lib/mod.ts openTargetFor 6e8cd638a3b6 0|79b0508f5116=79b0508f5116,1|336e2b46aff6=336e2b46aff6,2|a0729bc06cb9=a0729bc06cb9,2|e47c90b8d195=e47c90b8d195,@signature=2518061308ea
 src/builtin/ui/src/client/lib/mod.ts paramsFromFilters 7bd4305ce2b8
-src/builtin/ui/src/client/lib/mod.ts parentPath a90ef74a89ee
-src/builtin/ui/src/client/lib/mod.ts parseAttrsJson da31e86ff4da
-src/builtin/ui/src/client/lib/mod.ts parseMentions 7674df2209ed
-src/builtin/ui/src/client/lib/mod.ts parseNodesWorkspace c9b219bdc9a3
-src/builtin/ui/src/client/lib/mod.ts parseOctal 6cf61c5edf6d
-src/builtin/ui/src/client/lib/mod.ts pathCrumbs a0770f2a409a
-src/builtin/ui/src/client/lib/mod.ts peekMediaSet 8ea37d084c5c
-src/builtin/ui/src/client/lib/mod.ts plainMarkdown 6aff3ac4b124
-src/builtin/ui/src/client/lib/mod.ts posterUrl 6775abbbb867
-src/builtin/ui/src/client/lib/mod.ts prefetchMediaSet ba2599d7fede
+src/builtin/ui/src/client/lib/mod.ts parentPath a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
+src/builtin/ui/src/client/lib/mod.ts parseAttrsJson da31e86ff4da 0|336e2b46aff6=336e2b46aff6,@signature=2d0eb50f83ab
+src/builtin/ui/src/client/lib/mod.ts parseMentions 7674df2209ed 0|336e2b46aff6=336e2b46aff6,1|e92f857b850a=e92f857b850a,@signature=005e25925161
+src/builtin/ui/src/client/lib/mod.ts parseNodesWorkspace c9b219bdc9a3 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,@signature=e700253536a2
+src/builtin/ui/src/client/lib/mod.ts parseOctal 6cf61c5edf6d 0|336e2b46aff6=336e2b46aff6,@signature=875ab8d509b9
+src/builtin/ui/src/client/lib/mod.ts pathCrumbs a0770f2a409a 0|336e2b46aff6=336e2b46aff6,@signature=fe0f0895b03b
+src/builtin/ui/src/client/lib/mod.ts peekMediaSet 8ea37d084c5c 0|336e2b46aff6=336e2b46aff6,@signature=7be9f8f7f135
+src/builtin/ui/src/client/lib/mod.ts plainMarkdown 6aff3ac4b124 0|336e2b46aff6=336e2b46aff6,@signature=d27e86770286
+src/builtin/ui/src/client/lib/mod.ts posterUrl 6775abbbb867 0|336e2b46aff6=336e2b46aff6,1|eb7a76db9276=eb7a76db9276,2|c06d55bc013d=c06d55bc013d,3|b6f947317c10=b6f947317c10,@signature=8c406347f2da
+src/builtin/ui/src/client/lib/mod.ts prefetchMediaSet ba2599d7fede 0|336e2b46aff6=336e2b46aff6,1|afd012024260=afd012024260,@signature=3c046eeb2d07
 src/builtin/ui/src/client/lib/mod.ts preloadIcons 27bdc6ad17df
-src/builtin/ui/src/client/lib/mod.ts queryWords 18ee60f5a0af
-src/builtin/ui/src/client/lib/mod.ts sameHits 00de4eb62fd4
-src/builtin/ui/src/client/lib/mod.ts sectionHit e9c5a64e5816
-src/builtin/ui/src/client/lib/mod.ts setActiveTab 3b45ea9e6ab9
-src/builtin/ui/src/client/lib/mod.ts setColumns dd586fc9ba18
+src/builtin/ui/src/client/lib/mod.ts queryWords 18ee60f5a0af 0|336e2b46aff6=336e2b46aff6,@signature=e9618345473c
+src/builtin/ui/src/client/lib/mod.ts sameHits 00de4eb62fd4 0|f4b9ca6a7021=f4b9ca6a7021,1|f4b9ca6a7021=f4b9ca6a7021,@signature=b8282f786a37
+src/builtin/ui/src/client/lib/mod.ts sectionHit e9c5a64e5816 0|79a556091416=79a556091416,1|63025b360575=63025b360575,@signature=20e79e13b789
+src/builtin/ui/src/client/lib/mod.ts setActiveTab 3b45ea9e6ab9 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,@signature=f71f7e1466ea
+src/builtin/ui/src/client/lib/mod.ts setColumns dd586fc9ba18 0|fcd5397ec702=fcd5397ec702,1|a29be0de2cf0=a29be0de2cf0,@signature=56e9a8fa5496
 src/builtin/ui/src/client/lib/mod.ts setDragChip 14e08e9dd5bd
-src/builtin/ui/src/client/lib/mod.ts setFocused 08f7977d3683
-src/builtin/ui/src/client/lib/mod.ts setShowHidden 9e0e6adfcd71
-src/builtin/ui/src/client/lib/mod.ts setSplit 003371bdc486
-src/builtin/ui/src/client/lib/mod.ts setTabPath c7a82d0cdffa
-src/builtin/ui/src/client/lib/mod.ts setTabSort 8a1b059ddf42
-src/builtin/ui/src/client/lib/mod.ts setTabView 97def42eaba6
-src/builtin/ui/src/client/lib/mod.ts setTool f67077f962dd
-src/builtin/ui/src/client/lib/mod.ts setToolsOpen 50a2b32bf827
-src/builtin/ui/src/client/lib/mod.ts setToolsWidth 38a2ac8dc387
-src/builtin/ui/src/client/lib/mod.ts shq 92d188ce1039
-src/builtin/ui/src/client/lib/mod.ts sortEntries b1590edc4ef8
-src/builtin/ui/src/client/lib/mod.ts splitSubject dd6a4c881269
-src/builtin/ui/src/client/lib/mod.ts startMediaDrag a32165b07844
-src/builtin/ui/src/client/lib/mod.ts subjectArg f7315d20231a
-src/builtin/ui/src/client/lib/mod.ts subjectRefs 947785184221
-src/builtin/ui/src/client/lib/mod.ts takeMediaDrag 97dcadbd452f
-src/builtin/ui/src/client/lib/mod.ts textFromFilters a3b1b3fa9170
-src/builtin/ui/src/client/lib/mod.ts textPartsOf dcf3405d6db3
-src/builtin/ui/src/client/lib/mod.ts textScore 5382fef76ed9
-src/builtin/ui/src/client/lib/mod.ts thumbnailUrl 311f0c31fabb
-src/builtin/ui/src/client/lib/mod.ts tileIndex beccbe680716
-src/builtin/ui/src/client/lib/mod.ts tilesInRect dba53d8919b5
-src/builtin/ui/src/client/lib/mod.ts transformToDirectory 128d9b20801b
-src/builtin/ui/src/client/lib/mod.ts typeFromPath 2a83e6bdbf57
-src/builtin/ui/src/client/lib/mod.ts unflattenAttrs 618813746f50
-src/builtin/ui/src/client/lib/mod.ts uploadFiles 0a2871b98d5d
-src/builtin/ui/src/client/lib/mod.ts uploadsUnder 67b71d1bd879
+src/builtin/ui/src/client/lib/mod.ts setFocused 08f7977d3683 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,@signature=9089386a866d
+src/builtin/ui/src/client/lib/mod.ts setShowHidden 9e0e6adfcd71 0|fcd5397ec702=fcd5397ec702,1|c06d55bc013d=c06d55bc013d,@signature=934a94aae571
+src/builtin/ui/src/client/lib/mod.ts setSplit 003371bdc486 0|fcd5397ec702=fcd5397ec702,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=b00ca53ad702
+src/builtin/ui/src/client/lib/mod.ts setTabPath c7a82d0cdffa 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,3|336e2b46aff6=336e2b46aff6,@signature=4f2b39dc6fd0
+src/builtin/ui/src/client/lib/mod.ts setTabSort 8a1b059ddf42 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,3|c358f382e06a=c358f382e06a,@signature=ee7f2e5e9f2e
+src/builtin/ui/src/client/lib/mod.ts setTabView 97def42eaba6 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,3|93207f1fa32b=93207f1fa32b,@signature=3d71237d5523
+src/builtin/ui/src/client/lib/mod.ts setTool f67077f962dd 0|fcd5397ec702=fcd5397ec702,1|20729fd2b271=20729fd2b271,@signature=2b5fd5fc60a5
+src/builtin/ui/src/client/lib/mod.ts setToolsOpen 50a2b32bf827 0|fcd5397ec702=fcd5397ec702,1|c06d55bc013d=c06d55bc013d,@signature=bf1193e519eb
+src/builtin/ui/src/client/lib/mod.ts setToolsWidth 38a2ac8dc387 0|fcd5397ec702=fcd5397ec702,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=ccc20a3d72db
+src/builtin/ui/src/client/lib/mod.ts shq 92d188ce1039 0|336e2b46aff6=336e2b46aff6,@signature=04fe420b81f4
+src/builtin/ui/src/client/lib/mod.ts sortEntries b1590edc4ef8 0|a5f08901a68c=a5f08901a68c,1|98c0e270fe80=98c0e270fe80,@signature=564d8cc1bfb3
+src/builtin/ui/src/client/lib/mod.ts splitSubject dd6a4c881269 0|336e2b46aff6=336e2b46aff6,@signature=711f592c5be5
+src/builtin/ui/src/client/lib/mod.ts startMediaDrag a32165b07844 0|639b89a53178=639b89a53178,1|c9005bb41a15=c9005bb41a15,2|af937a37882f=af937a37882f,2|e47c90b8d195=e47c90b8d195,@signature=6fffb0d05335
+src/builtin/ui/src/client/lib/mod.ts subjectArg f7315d20231a 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=72425cf75309
+src/builtin/ui/src/client/lib/mod.ts subjectRefs 947785184221 0|803a222e6f94=803a222e6f94,0|dfa2c59f3b81=dfa2c59f3b81,1|336e2b46aff6=336e2b46aff6,@signature=4b8dd279758a
+src/builtin/ui/src/client/lib/mod.ts takeMediaDrag 97dcadbd452f 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,0|e47c90b8d195=e47c90b8d195,@signature=445d0fcf2101
+src/builtin/ui/src/client/lib/mod.ts textFromFilters a3b1b3fa9170 0|e4d28e70980d=e4d28e70980d,1|6f73321cfa3c=6f73321cfa3c,@signature=0fdb9eb2358c
+src/builtin/ui/src/client/lib/mod.ts textPartsOf dcf3405d6db3 0|0cc99ee4fd24=0cc99ee4fd24,1|c3cb0974d39d=c3cb0974d39d,@signature=32085a449ffd
+src/builtin/ui/src/client/lib/mod.ts textScore 5382fef76ed9 0|336e2b46aff6=336e2b46aff6,1|9e1c8a9614dd=9e1c8a9614dd,2|336e2b46aff6=336e2b46aff6,@signature=0371e4fa1481
+src/builtin/ui/src/client/lib/mod.ts thumbnailUrl 311f0c31fabb 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=03ccf17196f6
+src/builtin/ui/src/client/lib/mod.ts tileIndex beccbe680716 0|12ab5112325b=12ab5112325b,@signature=21586ae83854
+src/builtin/ui/src/client/lib/mod.ts tilesInRect dba53d8919b5 0|1f3b85ad294d=1f3b85ad294d,1|79a556091416=79a556091416,@signature=876d916e7db1
+src/builtin/ui/src/client/lib/mod.ts transformToDirectory 128d9b20801b 0|2eb159b578e0=2eb159b578e0,1|336e2b46aff6=336e2b46aff6,@signature=041b51f7f41d
+src/builtin/ui/src/client/lib/mod.ts typeFromPath 2a83e6bdbf57 0|336e2b46aff6=336e2b46aff6,@signature=3cb43d81869e
+src/builtin/ui/src/client/lib/mod.ts unflattenAttrs 618813746f50 0|d626ca893cae=d626ca893cae,1|9c9b1d3e8bfb=9c9b1d3e8bfb,@signature=ffff99e69a75
+src/builtin/ui/src/client/lib/mod.ts uploadFiles 0a2871b98d5d 0|8a388d8d138e=8a388d8d138e,@signature=8c75806820be
+src/builtin/ui/src/client/lib/mod.ts uploadsUnder 67b71d1bd879 0|c3dbef45b010=c3dbef45b010,1|336e2b46aff6=336e2b46aff6,@signature=988ff3f2b0d0
 src/builtin/ui/src/client/lib/mod.ts uuidv4 d2adf16b4e60
-src/builtin/ui/src/client/lib/mod.ts versionOf 479a24056dd4
-src/builtin/ui/src/client/lib/mod.ts withBit 4cbec2b6e583
-src/builtin/ui/src/client/lib/mod.ts withLightboxSearch 2c0aee030ca1
+src/builtin/ui/src/client/lib/mod.ts versionOf 479a24056dd4 0|336e2b46aff6=336e2b46aff6,@signature=fb200a0e8fa5
+src/builtin/ui/src/client/lib/mod.ts withBit 4cbec2b6e583 0|b3d9da3d9fc5=b3d9da3d9fc5,1|26de26064953=26de26064953,2|68cdec24bb4b=68cdec24bb4b,3|c06d55bc013d=c06d55bc013d,@signature=f91e339f8621
+src/builtin/ui/src/client/lib/mod.ts withLightboxSearch 2c0aee030ca1 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=20cd29abcb9e
 src/builtin/ui/src/client/signals/mod.ts ActionContext b21d7e30c8eb navigate=870a398fa6ad
 src/builtin/ui/src/client/signals/mod.ts CodeEditorRequest a6beb3e379c8
 src/builtin/ui/src/client/signals/mod.ts ConfigEntry c53adf64a7e7
@@ -641,43 +641,43 @@ src/builtin/ui/src/client/signals/mod.ts TerminalTab 127047f17daa connected=c374
 src/builtin/ui/src/client/signals/mod.ts Toast 91ca39af7b74 action=ac294cc3717d,color=ead8596887c0,id=1a4af43267b0,message=ef0bf4d895db,progress=e24bc97d8b72
 src/builtin/ui/src/client/signals/mod.ts UiNav 3e9ae57443f0 layers=26e98a03f410,panels=7a10cf5ac8e3,sections=9a3a0fc1dafa,topbar=1b979ecf949b,warnings=9e8d69c3a0d6
 src/builtin/ui/src/client/signals/mod.ts User ae4e5f4d85f1
-src/builtin/ui/src/client/signals/mod.ts activateNodesTab f6f88bb02fa4
+src/builtin/ui/src/client/signals/mod.ts activateNodesTab f6f88bb02fa4 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,@signature=a4c7e29d3544
 src/builtin/ui/src/client/signals/mod.ts activeTerminalTab 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts addNodesTab 87af4b99e96d
-src/builtin/ui/src/client/signals/mod.ts addTerminalTab 2b19adca8d5e
-src/builtin/ui/src/client/signals/mod.ts addToQueue 3ed2f27e74dc
+src/builtin/ui/src/client/signals/mod.ts addNodesTab 87af4b99e96d 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,2|9e8977589afb=9e8977589afb,3|6895b0473416=6895b0473416,@signature=fcb16610c0f1
+src/builtin/ui/src/client/signals/mod.ts addTerminalTab 2b19adca8d5e 0|336e2b46aff6=336e2b46aff6,@signature=9eed3c083843
+src/builtin/ui/src/client/signals/mod.ts addToQueue 3ed2f27e74dc 0|2d40315a7ced=2d40315a7ced,1|841ee5d2ff1e=841ee5d2ff1e,2|f159caee25ba=f159caee25ba,@signature=768905cc57e5
 src/builtin/ui/src/client/signals/mod.ts albumMediaList 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts awaitModuleRoutes 87b04f2dde74
 src/builtin/ui/src/client/signals/mod.ts cancelUploads df01802e180a
-src/builtin/ui/src/client/signals/mod.ts changePassword e8006cdb8e9e
+src/builtin/ui/src/client/signals/mod.ts changePassword e8006cdb8e9e 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=8295fdcc2aea
 src/builtin/ui/src/client/signals/mod.ts checkAuth d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts clearFinished df01802e180a
-src/builtin/ui/src/client/signals/mod.ts clearLightboxReturn c6a7aabc3791
+src/builtin/ui/src/client/signals/mod.ts clearLightboxReturn c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts closeCodeEditor df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeDialog df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeDrawer df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeFullscreen df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeLightboxWithoutReturn df01802e180a
-src/builtin/ui/src/client/signals/mod.ts closeNodesPane 32d2afe1f504
-src/builtin/ui/src/client/signals/mod.ts closeNodesTab f6f88bb02fa4
+src/builtin/ui/src/client/signals/mod.ts closeNodesPane 32d2afe1f504 0|badb793e217b=badb793e217b,@signature=b27fc63f755f
+src/builtin/ui/src/client/signals/mod.ts closeNodesTab f6f88bb02fa4 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,@signature=a4c7e29d3544
 src/builtin/ui/src/client/signals/mod.ts closeShareModal df01802e180a
-src/builtin/ui/src/client/signals/mod.ts closeTerminalTab 22de26fcf923
+src/builtin/ui/src/client/signals/mod.ts closeTerminalTab 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts codeEditorRequest 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentMediaIndex 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentMediaItem 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentUser 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts decreaseTerminalHeight df01802e180a
 src/builtin/ui/src/client/signals/mod.ts dialogPath 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts dismissToast 0fca54eb99e5
+src/builtin/ui/src/client/signals/mod.ts dismissToast 0fca54eb99e5 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=fc14bb46be45
 src/builtin/ui/src/client/signals/mod.ts drawerPath 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts drawerShows 42ce360356f0
+src/builtin/ui/src/client/signals/mod.ts drawerShows 42ce360356f0 0|336e2b46aff6=336e2b46aff6,@signature=b2f51633f916
 src/builtin/ui/src/client/signals/mod.ts drawerWidth 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts elevate eac20ab02ee3
-src/builtin/ui/src/client/signals/mod.ts endLightbox 257a04a3df95
+src/builtin/ui/src/client/signals/mod.ts elevate eac20ab02ee3 0|336e2b46aff6=336e2b46aff6,@signature=941bcdef6825
+src/builtin/ui/src/client/signals/mod.ts endLightbox 257a04a3df95 0|c06d55bc013d=c06d55bc013d,@signature=9d17700382b0
 src/builtin/ui/src/client/signals/mod.ts execCommand ea04f10d79b6
-src/builtin/ui/src/client/signals/mod.ts execScript f24d96188b4d
-src/builtin/ui/src/client/signals/mod.ts focusNodesPane 32d2afe1f504
-src/builtin/ui/src/client/signals/mod.ts followLog 9543462b4554
+src/builtin/ui/src/client/signals/mod.ts execScript f24d96188b4d 0|336e2b46aff6=336e2b46aff6,@signature=a958246754ac
+src/builtin/ui/src/client/signals/mod.ts focusNodesPane 32d2afe1f504 0|badb793e217b=badb793e217b,@signature=b27fc63f755f
+src/builtin/ui/src/client/signals/mod.ts followLog 9543462b4554 0|336e2b46aff6=336e2b46aff6,1|8d3da5c8a2f3=8d3da5c8a2f3,2|9215c3ad3cd9=9215c3ad3cd9,@signature=1f73e47a0bda
 src/builtin/ui/src/client/signals/mod.ts fullscreenBesideDrawer 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts fullscreenPath 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts goToNextMedia df01802e180a
@@ -694,17 +694,17 @@ src/builtin/ui/src/client/signals/mod.ts isAuthenticated 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts isLightboxOpen 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts isUploading 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts leaveElevation d371a1f4c626
-src/builtin/ui/src/client/signals/mod.ts leaveFullscreen deb6122821e8
+src/builtin/ui/src/client/signals/mod.ts leaveFullscreen deb6122821e8 0|336e2b46aff6=336e2b46aff6,@signature=ce794e8590a3
 src/builtin/ui/src/client/signals/mod.ts lightboxReturnPath 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts linkVisitor 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts listNodes 2421bccbcc30
+src/builtin/ui/src/client/signals/mod.ts listNodes 2421bccbcc30 0|336e2b46aff6=336e2b46aff6,@signature=81c6959824a6
 src/builtin/ui/src/client/signals/mod.ts listingVersion 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts loadModuleBundle e9623f594c2c
+src/builtin/ui/src/client/signals/mod.ts loadModuleBundle e9623f594c2c 0|336e2b46aff6=336e2b46aff6,@signature=c4be0018a009
 src/builtin/ui/src/client/signals/mod.ts loadNav d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts loadStars 902193cc3eaf
 src/builtin/ui/src/client/signals/mod.ts loadUiManifest f9707429e5ae
 src/builtin/ui/src/client/signals/mod.ts loadUserConfig d371a1f4c626
-src/builtin/ui/src/client/signals/mod.ts login fa4b60dca896
+src/builtin/ui/src/client/signals/mod.ts login fa4b60dca896 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=14c289a106ea
 src/builtin/ui/src/client/signals/mod.ts logout d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts mapLayers 50d945d95622
 src/builtin/ui/src/client/signals/mod.ts mediaRestored 0a752fffac0f
@@ -712,8 +712,8 @@ src/builtin/ui/src/client/signals/mod.ts mobileRailHidden 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts mobileSidebarRail 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts modulePatcher d2adf16b4e60
 src/builtin/ui/src/client/signals/mod.ts moduleRoutePaths 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts navigatePage c11992f92313
-src/builtin/ui/src/client/signals/mod.ts nextMediaIndex 6c74116902e7
+src/builtin/ui/src/client/signals/mod.ts navigatePage c11992f92313 0|b3d9da3d9fc5=b3d9da3d9fc5,0|e84c739762f7=e84c739762f7,1|7b338d8ffb1c=7b338d8ffb1c,@signature=bbf9cb1a920e
+src/builtin/ui/src/client/signals/mod.ts nextMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts nextTerminalTab df01802e180a
 src/builtin/ui/src/client/signals/mod.ts nodeClipboard 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodeDragPaths 0a752fffac0f
@@ -724,92 +724,92 @@ src/builtin/ui/src/client/signals/mod.ts nodesPropertiesPath 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodesReveal 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodesWorkspace 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts noteOutsideEdit df01802e180a
-src/builtin/ui/src/client/signals/mod.ts noteSharingChanged c6a7aabc3791
-src/builtin/ui/src/client/signals/mod.ts notify 817908abef83
-src/builtin/ui/src/client/signals/mod.ts notifyProgress 5c333c7fefb7
-src/builtin/ui/src/client/signals/mod.ts offerLightboxList b1cb1f3d8557
-src/builtin/ui/src/client/signals/mod.ts onOutsideEdit 075ec8024074
-src/builtin/ui/src/client/signals/mod.ts onPageChange 7270185e6f78
-src/builtin/ui/src/client/signals/mod.ts openCodeEditor c1c3ead56a68
-src/builtin/ui/src/client/signals/mod.ts openDialog c6a7aabc3791
-src/builtin/ui/src/client/signals/mod.ts openDrawer c6a7aabc3791
-src/builtin/ui/src/client/signals/mod.ts openFullscreen c6a7aabc3791
-src/builtin/ui/src/client/signals/mod.ts openMediaAt b13ffd4c2a70
+src/builtin/ui/src/client/signals/mod.ts noteSharingChanged c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts notify 817908abef83 0|41a599ff613a=41a599ff613a,@signature=d98f1d450c30
+src/builtin/ui/src/client/signals/mod.ts notifyProgress 5c333c7fefb7 0|ae0dd6371acf=ae0dd6371acf,@signature=6cdd6ed3774d
+src/builtin/ui/src/client/signals/mod.ts offerLightboxList b1cb1f3d8557 0|74a96c6a6bb8=74a96c6a6bb8,@signature=e97a7606062b
+src/builtin/ui/src/client/signals/mod.ts onOutsideEdit 075ec8024074 0|c1d58a2d45e9=c1d58a2d45e9,@signature=40f4ac307bcf
+src/builtin/ui/src/client/signals/mod.ts onPageChange 7270185e6f78 0|441200a305c9=441200a305c9,@signature=4f7134bf8a74
+src/builtin/ui/src/client/signals/mod.ts openCodeEditor c1c3ead56a68 0|7954c6b9bee7=7954c6b9bee7,@signature=9c52dad348b0
+src/builtin/ui/src/client/signals/mod.ts openDialog c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts openDrawer c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts openFullscreen c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts openMediaAt b13ffd4c2a70 0|b3d9da3d9fc5=b3d9da3d9fc5,1|74a96c6a6bb8=74a96c6a6bb8,@signature=dd85016c6178
 src/builtin/ui/src/client/signals/mod.ts openNodesPane df01802e180a
-src/builtin/ui/src/client/signals/mod.ts openRoute 102274c1ae47
-src/builtin/ui/src/client/signals/mod.ts openShareLink a3e3cb4523bd
-src/builtin/ui/src/client/signals/mod.ts openShareModal c6a7aabc3791
+src/builtin/ui/src/client/signals/mod.ts openRoute 102274c1ae47 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=ea190cca78f5
+src/builtin/ui/src/client/signals/mod.ts openShareLink a3e3cb4523bd 0|336e2b46aff6=336e2b46aff6,@signature=506a4c7bc189
+src/builtin/ui/src/client/signals/mod.ts openShareModal c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts openShortcutHelp df01802e180a
-src/builtin/ui/src/client/signals/mod.ts openTerminalTab 2b19adca8d5e
+src/builtin/ui/src/client/signals/mod.ts openTerminalTab 2b19adca8d5e 0|336e2b46aff6=336e2b46aff6,@signature=9eed3c083843
 src/builtin/ui/src/client/signals/mod.ts pageLocation 0de199860121
 src/builtin/ui/src/client/signals/mod.ts pageNavigating 1ca2bf2455f3
 src/builtin/ui/src/client/signals/mod.ts pageShown 88ad6ac9c700
 src/builtin/ui/src/client/signals/mod.ts panelRoute 221d81d7acfb
-src/builtin/ui/src/client/signals/mod.ts panelsOf b22c58dff461
-src/builtin/ui/src/client/signals/mod.ts parseTerminalWorkspace 788f61e7591a
+src/builtin/ui/src/client/signals/mod.ts panelsOf b22c58dff461 0|336e2b46aff6=336e2b46aff6,@signature=421505b970ef
+src/builtin/ui/src/client/signals/mod.ts parseTerminalWorkspace 788f61e7591a 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,@signature=fa98ef4bf891
 src/builtin/ui/src/client/signals/mod.ts phoneGridColumns 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts prefetchRoute 79066b5784da
-src/builtin/ui/src/client/signals/mod.ts prevMediaIndex 6c74116902e7
+src/builtin/ui/src/client/signals/mod.ts prefetchRoute 79066b5784da 0|336e2b46aff6=336e2b46aff6,@signature=3a2cf293b720
+src/builtin/ui/src/client/signals/mod.ts prevMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts prevTerminalTab df01802e180a
-src/builtin/ui/src/client/signals/mod.ts registerShellRouting b8c1cd1add0c
-src/builtin/ui/src/client/signals/mod.ts registerTerminalTerminator dc0940e333c4
+src/builtin/ui/src/client/signals/mod.ts registerShellRouting b8c1cd1add0c 0|297eb8125b4b=297eb8125b4b,1|1fd3650ff197=1fd3650ff197,@signature=0fbe28db9331
+src/builtin/ui/src/client/signals/mod.ts registerTerminalTerminator dc0940e333c4 0|336e2b46aff6=336e2b46aff6,1|c1d58a2d45e9=c1d58a2d45e9,@signature=48d9c3b2cabd
 src/builtin/ui/src/client/signals/mod.ts reloadModuleUi d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts reloadUiManifest f9707429e5ae
-src/builtin/ui/src/client/signals/mod.ts resetCopiedTerminalWorkspace 4d4f6f36e8b5
+src/builtin/ui/src/client/signals/mod.ts resetCopiedTerminalWorkspace 4d4f6f36e8b5 0|336e2b46aff6=336e2b46aff6,@signature=69e4a2499ceb
 src/builtin/ui/src/client/signals/mod.ts resetTerminalWorkspace df01802e180a
 src/builtin/ui/src/client/signals/mod.ts retryFailed df01802e180a
-src/builtin/ui/src/client/signals/mod.ts revealNodeInNewTab c6a7aabc3791
-src/builtin/ui/src/client/signals/mod.ts routeBase a90ef74a89ee
-src/builtin/ui/src/client/signals/mod.ts runNavAction e82c8704d252
+src/builtin/ui/src/client/signals/mod.ts revealNodeInNewTab c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts routeBase a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
+src/builtin/ui/src/client/signals/mod.ts runNavAction e82c8704d252 0|c6c83f775cd9=c6c83f775cd9,1|79cda95873d9=79cda95873d9,@signature=cd73bdef45df
 src/builtin/ui/src/client/signals/mod.ts searchableKinds 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts setDrawerWidth 7e8a59842996
-src/builtin/ui/src/client/signals/mod.ts setNodesColumns 73bfb13ad9ed
-src/builtin/ui/src/client/signals/mod.ts setNodesCurrent bd59c3c6156a
-src/builtin/ui/src/client/signals/mod.ts setNodesProperties 227dca166712
-src/builtin/ui/src/client/signals/mod.ts setNodesShowHidden aa2e15f60501
-src/builtin/ui/src/client/signals/mod.ts setNodesSplit 1618f526b484
-src/builtin/ui/src/client/signals/mod.ts setNodesTabPath 1e7cdcb7025b
-src/builtin/ui/src/client/signals/mod.ts setNodesTabSort 4081bf692b2e
-src/builtin/ui/src/client/signals/mod.ts setNodesTabView 031a00ff702b
-src/builtin/ui/src/client/signals/mod.ts setNodesTool a1920bc7bdd8
-src/builtin/ui/src/client/signals/mod.ts setNodesToolsOpen d56aa1b05154
-src/builtin/ui/src/client/signals/mod.ts setNodesToolsWidth 7e8a59842996
-src/builtin/ui/src/client/signals/mod.ts setPhoneGridColumns 32ca2215ef58
-src/builtin/ui/src/client/signals/mod.ts setStarred 73bc12d3ef4b
-src/builtin/ui/src/client/signals/mod.ts setTabConnected 32d2be996009
-src/builtin/ui/src/client/signals/mod.ts setTabPwd f3d08e3eb59b
+src/builtin/ui/src/client/signals/mod.ts setDrawerWidth 7e8a59842996 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=311bdacb8319
+src/builtin/ui/src/client/signals/mod.ts setNodesColumns 73bfb13ad9ed 0|a29be0de2cf0=a29be0de2cf0,@signature=8ed874893a7b
+src/builtin/ui/src/client/signals/mod.ts setNodesCurrent bd59c3c6156a 0|badb793e217b=badb793e217b,1|e47c90b8d195=e47c90b8d195,1|e5ec96bc0b31=e5ec96bc0b31,@signature=2cb7d87f31a2
+src/builtin/ui/src/client/signals/mod.ts setNodesProperties 227dca166712 0|c06d55bc013d=c06d55bc013d,@signature=8f222f321071
+src/builtin/ui/src/client/signals/mod.ts setNodesShowHidden aa2e15f60501 0|c06d55bc013d=c06d55bc013d,@signature=e08dd1952ab1
+src/builtin/ui/src/client/signals/mod.ts setNodesSplit 1618f526b484 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=8f826f1eacfc
+src/builtin/ui/src/client/signals/mod.ts setNodesTabPath 1e7cdcb7025b 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=c61b59732962
+src/builtin/ui/src/client/signals/mod.ts setNodesTabSort 4081bf692b2e 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,2|6895b0473416=6895b0473416,@signature=9aa8232b3633
+src/builtin/ui/src/client/signals/mod.ts setNodesTabView 031a00ff702b 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,2|9e8977589afb=9e8977589afb,@signature=ba1661300385
+src/builtin/ui/src/client/signals/mod.ts setNodesTool a1920bc7bdd8 0|0af44fa21d2c=0af44fa21d2c,@signature=97acbaa5131c
+src/builtin/ui/src/client/signals/mod.ts setNodesToolsOpen d56aa1b05154 0|c06d55bc013d=c06d55bc013d,@signature=edfa51c8c584
+src/builtin/ui/src/client/signals/mod.ts setNodesToolsWidth 7e8a59842996 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=311bdacb8319
+src/builtin/ui/src/client/signals/mod.ts setPhoneGridColumns 32ca2215ef58 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=8ed874893a7b
+src/builtin/ui/src/client/signals/mod.ts setStarred 73bc12d3ef4b 0|dfa2c59f3b81=dfa2c59f3b81,1|c06d55bc013d=c06d55bc013d,@signature=075337907713
+src/builtin/ui/src/client/signals/mod.ts setTabConnected 32d2be996009 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=dadf78fd853e
+src/builtin/ui/src/client/signals/mod.ts setTabPwd f3d08e3eb59b 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=4d48961d4994
 src/builtin/ui/src/client/signals/mod.ts shareModalPath 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts sharingChanged 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shellChildRoutes aca6ce793499
 src/builtin/ui/src/client/signals/mod.ts shellClientConnected 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shellClientEpoch 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts showLightboxPath c6a7aabc3791
+src/builtin/ui/src/client/signals/mod.ts showLightboxPath c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts sidebarCollapsed 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts starredPaths 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts startNodesAtHome 5d52ad64cb76
-src/builtin/ui/src/client/signals/mod.ts subscribeNodes 9b41477ea61b
-src/builtin/ui/src/client/signals/mod.ts switchTerminalTab 22de26fcf923
+src/builtin/ui/src/client/signals/mod.ts startNodesAtHome 5d52ad64cb76 0|336e2b46aff6=336e2b46aff6,@signature=9c8b1ac5580b
+src/builtin/ui/src/client/signals/mod.ts subscribeNodes 9b41477ea61b 0|179996693b0b=179996693b0b,1|e51efb410451=e51efb410451,@signature=f483c6feb287
+src/builtin/ui/src/client/signals/mod.ts switchTerminalTab 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts terminalHeight 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts terminalMaximizedToggle df01802e180a
 src/builtin/ui/src/client/signals/mod.ts terminalOpen 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts terminalOpenToggle df01802e180a
-src/builtin/ui/src/client/signals/mod.ts terminalTabExited 22de26fcf923
+src/builtin/ui/src/client/signals/mod.ts terminalTabExited 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts terminalTabs 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts terminalWorkspaceId 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts toggleDrawer c6a7aabc3791
+src/builtin/ui/src/client/signals/mod.ts toggleDrawer c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts toggleMobileRailHidden df01802e180a
-src/builtin/ui/src/client/signals/mod.ts toggleSidebar 19ae7121f60b
+src/builtin/ui/src/client/signals/mod.ts toggleSidebar 19ae7121f60b 0|c06d55bc013d=c06d55bc013d,@signature=b813ead0096e
 src/builtin/ui/src/client/signals/mod.ts uiNav 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts underBase 1bdf9393838a
-src/builtin/ui/src/client/signals/mod.ts updateUser ca2da7633a8c
+src/builtin/ui/src/client/signals/mod.ts underBase 1bdf9393838a 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=6183d5a22072
+src/builtin/ui/src/client/signals/mod.ts updateUser ca2da7633a8c 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=84a08d86f458
 src/builtin/ui/src/client/signals/mod.ts uploadActive 143fbb81766b
 src/builtin/ui/src/client/signals/mod.ts uploadBatchDone 06de7ea68c68
 src/builtin/ui/src/client/signals/mod.ts uploadFailures 05ad7f467c64
 src/builtin/ui/src/client/signals/mod.ts uploadSummary 910db6c4e35b
 src/builtin/ui/src/client/signals/mod.ts uploadSummaryByTarget 42a9fc90ef3a
 src/builtin/ui/src/client/signals/mod.ts userConfig 0a752fffac0f
-src/builtin/ui/src/client/signals/mod.ts userConfigFlag c94b4ece18b1
-src/builtin/ui/src/client/signals/mod.ts userConfigNumber 9251dddfa346
+src/builtin/ui/src/client/signals/mod.ts userConfigFlag c94b4ece18b1 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=431965e076d3
+src/builtin/ui/src/client/signals/mod.ts userConfigNumber 9251dddfa346 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=10cfc1b21a33
 src/builtin/ui/src/client/theme/mod.ts cssVariablesResolver d2adf16b4e60
 src/builtin/ui/src/client/theme/mod.ts dark b922de6a6d59
 src/builtin/ui/src/client/theme/mod.ts marine b922de6a6d59
@@ -914,67 +914,67 @@ src/client/mod.ts UNLISTED_ATTR 51f4fee69c37
 src/client/mod.ts UserAttrs 4135d96d102a
 src/client/mod.ts UserId 701cc16d35f7
 src/client/mod.ts WithinMatch 8f507a04a664
-src/client/mod.ts accessOfUser 6def14e11626
-src/client/mod.ts applySharePreference 55dd6d25bd7d
-src/client/mod.ts boundsContain de73c5594c42
-src/client/mod.ts collectUnknownFlags 39b96e07cae3
-src/client/mod.ts commandCatalogue f792d0142683
-src/client/mod.ts commandsIn 9638f072126e
+src/client/mod.ts accessOfUser 6def14e11626 0|2b21fab7e24a=2b21fab7e24a,1|175dd1db44d3=175dd1db44d3,2|336e2b46aff6=336e2b46aff6,@signature=e14aa4d341bf
+src/client/mod.ts applySharePreference 55dd6d25bd7d 0|01cf56cdc9c9=01cf56cdc9c9,1|336e2b46aff6=336e2b46aff6,@signature=ae2c915f6ac9
+src/client/mod.ts boundsContain de73c5594c42 0|45dd44dcba3b=45dd44dcba3b,1|b3d9da3d9fc5=b3d9da3d9fc5,2|b3d9da3d9fc5=b3d9da3d9fc5,@signature=23d371bb9c41
+src/client/mod.ts collectUnknownFlags 39b96e07cae3 0|a16bff8fef55=a16bff8fef55,@signature=4e997493c556
+src/client/mod.ts commandCatalogue f792d0142683 0|5499dd5ab1a4=5499dd5ab1a4,@signature=8a313878ffe7
+src/client/mod.ts commandsIn 9638f072126e 0|336e2b46aff6=336e2b46aff6,@signature=bc32739bf753
 src/client/mod.ts forgetCommandCatalogues df01802e180a
-src/client/mod.ts formatOffset 0b78147b6e38
-src/client/mod.ts groupEntriesFor 90a7fa690d9c
-src/client/mod.ts guestMayBrowse 7ba8b4a387fe
-src/client/mod.ts haversineMeters 92a735fb0f6f
-src/client/mod.ts isAdmin 70860d386e5f
-src/client/mod.ts isCaptureTime 09d89603cb5a
-src/client/mod.ts isDomainEvent 47589a5cbc09
-src/client/mod.ts isFileKind 3f8ee7763f7b
-src/client/mod.ts isKind 09d89603cb5a
-src/client/mod.ts isOriginalMedia 255627aa6503
-src/client/mod.ts isRawExtension 2dd2c253d5ca
-src/client/mod.ts isRawMimetype 965935810dd7
-src/client/mod.ts isUnlistedPath 05324e8fb8c6
-src/client/mod.ts isVisitor 70860d386e5f
-src/client/mod.ts judgeLine 8d3452bb525c
-src/client/mod.ts kindConditions 265b7b439e59
-src/client/mod.ts listCommands 35edfa0a960c
-src/client/mod.ts lowerBound c1c917c55e2a
-src/client/mod.ts mayUseModule dc77e3338bf0
-src/client/mod.ts moduleGroupGids d9d92a6f3052
-src/client/mod.ts moduleOf c234fba4d06a
+src/client/mod.ts formatOffset 0b78147b6e38 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=30d724efa521
+src/client/mod.ts groupEntriesFor 90a7fa690d9c 0|2b21fab7e24a=2b21fab7e24a,1|175dd1db44d3=175dd1db44d3,2|336e2b46aff6=336e2b46aff6,@signature=3189b1ae2a42
+src/client/mod.ts guestMayBrowse 7ba8b4a387fe 0|2b21fab7e24a=2b21fab7e24a,@signature=d62cbcd7b1fe
+src/client/mod.ts haversineMeters 92a735fb0f6f 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,2|b3d9da3d9fc5=b3d9da3d9fc5,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=139a5f86b451
+src/client/mod.ts isAdmin 70860d386e5f 0|e05c872d6b52=e05c872d6b52,@signature=f5e19df4d261
+src/client/mod.ts isCaptureTime 09d89603cb5a 0|336e2b46aff6=336e2b46aff6,@signature=4bfc1674af74
+src/client/mod.ts isDomainEvent 47589a5cbc09 0|e2e9e83e047a=e2e9e83e047a,@signature=ea4c3e3d11f9
+src/client/mod.ts isFileKind 3f8ee7763f7b 0|336e2b46aff6=336e2b46aff6,@signature=4ce293b2bb15
+src/client/mod.ts isKind 09d89603cb5a 0|336e2b46aff6=336e2b46aff6,@signature=4bfc1674af74
+src/client/mod.ts isOriginalMedia 255627aa6503 0|c10d90c22e70=c10d90c22e70,@signature=e3f68757bee2
+src/client/mod.ts isRawExtension 2dd2c253d5ca 0|336e2b46aff6=336e2b46aff6,@signature=bfc5ef97287c
+src/client/mod.ts isRawMimetype 965935810dd7 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,0|e47c90b8d195=e47c90b8d195,@signature=dc5f571d4eb6
+src/client/mod.ts isUnlistedPath 05324e8fb8c6 0|dfa2c59f3b81=dfa2c59f3b81,1|336e2b46aff6=336e2b46aff6,@signature=8cbd7ebbd7e2
+src/client/mod.ts isVisitor 70860d386e5f 0|e05c872d6b52=e05c872d6b52,@signature=f5e19df4d261
+src/client/mod.ts judgeLine 8d3452bb525c 0|336e2b46aff6=336e2b46aff6,1|55eb87e721b1=55eb87e721b1,@signature=f7d4c800ea8f
+src/client/mod.ts kindConditions 265b7b439e59 0|4951c1ad6592=4951c1ad6592,@signature=63c8cf899f66
+src/client/mod.ts listCommands 35edfa0a960c 0|5499dd5ab1a4=5499dd5ab1a4,@signature=e6c98baac63e
+src/client/mod.ts lowerBound c1c917c55e2a 0|336e2b46aff6=336e2b46aff6,@signature=c3495290fb82
+src/client/mod.ts mayUseModule dc77e3338bf0 0|eed78692970f=eed78692970f,1|6b134919b8bd=6b134919b8bd,2|336e2b46aff6=336e2b46aff6,@signature=6f8ff76772e3
+src/client/mod.ts moduleGroupGids d9d92a6f3052 0|eed78692970f=eed78692970f,1|336e2b46aff6=336e2b46aff6,@signature=02a17c083d65
+src/client/mod.ts moduleOf c234fba4d06a 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,1|336e2b46aff6=336e2b46aff6,@signature=c3fcdbda65cd
 src/client/mod.ts nodeOwnership 6bb3cf997713 @signature=b6249f4a5a3b,props=21035dcfe863
-src/client/mod.ts offsetOf 5cff3d3e8883
+src/client/mod.ts offsetOf 5cff3d3e8883 0|336e2b46aff6=336e2b46aff6,@signature=5c7497184f12
 src/client/mod.ts parseArgs 0a752fffac0f
 src/client/mod.ts parseCaptureTime 2c0bd41e9df1
-src/client/mod.ts periodBoundsUtc df19c46dcfeb
-src/client/mod.ts pointInPolygon a97e58cc3aec
-src/client/mod.ts precisionOf 11ef3ef6bac6
-src/client/mod.ts readComments 32bd81f0ff14
-src/client/mod.ts readCoverTarget 3d1120dde44b
-src/client/mod.ts readSettings 1f20f42ca86e
-src/client/mod.ts readTail cc18da999206
-src/client/mod.ts refineMimeByName 507ea9b3e316
-src/client/mod.ts reportUnknownFlags 6a78c6fb1de8
-src/client/mod.ts resolveDefaultOwnership 3952ad1b2c31
-src/client/mod.ts serializeEvent 57955ee54d3b
-src/client/mod.ts seriesPath f9969fb62c83
-src/client/mod.ts serviceKey 3b76acd40e0e
+src/client/mod.ts periodBoundsUtc df19c46dcfeb 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=3ff780983684
+src/client/mod.ts pointInPolygon a97e58cc3aec 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,2|5491a649ee2a=5491a649ee2a,@signature=8591dd6d80d5
+src/client/mod.ts precisionOf 11ef3ef6bac6 0|336e2b46aff6=336e2b46aff6,@signature=27485333b6de
+src/client/mod.ts readComments 32bd81f0ff14 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,@signature=bfaae59ae325
+src/client/mod.ts readCoverTarget 3d1120dde44b 0|2b21fab7e24a=2b21fab7e24a,1|175dd1db44d3=175dd1db44d3,2|336e2b46aff6=336e2b46aff6,@signature=f5a19ef47a9f
+src/client/mod.ts readSettings 1f20f42ca86e 0|d78cb581f075=d78cb581f075,1|175dd1db44d3=175dd1db44d3,2|619766deeb64=619766deeb64,@signature=b772afb160d7
+src/client/mod.ts readTail cc18da999206 0|2b21fab7e24a=2b21fab7e24a,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=0451835f9428
+src/client/mod.ts refineMimeByName 507ea9b3e316 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=5d850c6098ae
+src/client/mod.ts reportUnknownFlags 6a78c6fb1de8 0|15d7e3c609a0=15d7e3c609a0,1|a16bff8fef55=a16bff8fef55,@signature=278d12e8dcf1
+src/client/mod.ts resolveDefaultOwnership 3952ad1b2c31 0|c273bb9e9528=c273bb9e9528,1|e05c872d6b52=e05c872d6b52,@signature=fd55c929ac82
+src/client/mod.ts serializeEvent 57955ee54d3b 0|7190da9f1f50=7190da9f1f50,@signature=66d5f20ec183
+src/client/mod.ts seriesPath f9969fb62c83 0|336e2b46aff6=336e2b46aff6,@signature=6358a41c59d5
+src/client/mod.ts serviceKey 3b76acd40e0e 0|d78cb581f075=d78cb581f075,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=ee51eb9069eb
 src/client/mod.ts setCover fc605e4b80de
-src/client/mod.ts shq 92d188ce1039
+src/client/mod.ts shq 92d188ce1039 0|336e2b46aff6=336e2b46aff6,@signature=04fe420b81f4
 src/client/mod.ts stepPhase dabab03c4cac
-src/client/mod.ts taggedPaths efaadb4c8575
+src/client/mod.ts taggedPaths efaadb4c8575 0|2ca3fefdf56f=2ca3fefdf56f,1|a16bff8fef55=a16bff8fef55,@signature=bd40479db74c
 src/client/mod.ts toUtc 2abb7b1fd96c
-src/client/mod.ts toolCallToCommandLine 6adafd3f3455
-src/client/mod.ts toolDescription a0a4b3f92dba
-src/client/mod.ts toolSchema d80d11d335cd
-src/client/mod.ts unlistedIds 7205b4d3f6f5
-src/client/mod.ts unlistedRoots 29c005424157
-src/client/mod.ts upperBoundExclusive c1c917c55e2a
-src/client/mod.ts verifyAccess 353c3daee7d6
-src/client/mod.ts wallClockOf 92d188ce1039
-src/client/mod.ts withHostPath 9108a4237bdd
-src/client/mod.ts withHostPaths a8b8ba8d7c51
-src/client/mod.ts withOffset 4e27ae453ef0
+src/client/mod.ts toolCallToCommandLine 6adafd3f3455 0|eea3d5dcff68=eea3d5dcff68,1|9c9b1d3e8bfb=9c9b1d3e8bfb,@signature=b8aaa901b87a
+src/client/mod.ts toolDescription a0a4b3f92dba 0|eea3d5dcff68=eea3d5dcff68,@signature=234fd90a976e
+src/client/mod.ts toolSchema d80d11d335cd 0|eea3d5dcff68=eea3d5dcff68,@signature=5dc70304ffe0
+src/client/mod.ts unlistedIds 7205b4d3f6f5 0|2b21fab7e24a=2b21fab7e24a,1|fc853c152d17=fc853c152d17,@signature=c4e101a2c83b
+src/client/mod.ts unlistedRoots 29c005424157 0|2b21fab7e24a=2b21fab7e24a,@signature=c77f8fdcaef4
+src/client/mod.ts upperBoundExclusive c1c917c55e2a 0|336e2b46aff6=336e2b46aff6,@signature=c3495290fb82
+src/client/mod.ts verifyAccess 353c3daee7d6 0|e05c872d6b52=e05c872d6b52,1|f4c89c8d8886=f4c89c8d8886,2|11b832eef333=11b832eef333,@signature=522bd562b07f
+src/client/mod.ts wallClockOf 92d188ce1039 0|336e2b46aff6=336e2b46aff6,@signature=04fe420b81f4
+src/client/mod.ts withHostPath 9108a4237bdd 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,2|7190150d3525=7190150d3525,@signature=615cd3ee6b2d
+src/client/mod.ts withHostPaths a8b8ba8d7c51 0|8dcbaff60bef=8dcbaff60bef,1|a16bff8fef55=a16bff8fef55,2|f28cbbbdbfc6=f28cbbbdbfc6,@signature=72124ce6d762
+src/client/mod.ts withOffset 4e27ae453ef0 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=06c24ea4331c
 src/lib/api/mod.ts ArgCompleteType d91fb6b71d55
 src/lib/api/mod.ts AuditChange a6155ab3c9ba from=403446cbad2f,to=f2843449c172
 src/lib/api/mod.ts AuditEntry c2a637f1d646
@@ -1146,10 +1146,10 @@ src/lib/api/mod.ts UserRole ee233c346180
 src/lib/api/mod.ts UserUpdated 559f15e82855 updated=fdd29c0093ac,username=02356e67b2c7
 src/lib/api/mod.ts Whoami 0e39545b00c0
 src/lib/api/mod.ts Wire 66ac924bb486
-src/lib/api/mod.ts accountNameProblem 3e60a4f617ea
-src/lib/api/mod.ts emailProblem 575f75ff7b21
-src/lib/api/mod.ts normalizeEmail d358c7df85e2
-src/lib/api/mod.ts suggestUsername 3a2065bfbeb5
+src/lib/api/mod.ts accountNameProblem 3e60a4f617ea 0|336e2b46aff6=336e2b46aff6,@signature=1b0dad74a13f
+src/lib/api/mod.ts emailProblem 575f75ff7b21 0|336e2b46aff6=336e2b46aff6,@signature=a775bf37e49d
+src/lib/api/mod.ts normalizeEmail d358c7df85e2 0|336e2b46aff6=336e2b46aff6,@signature=c9279ae3a117
+src/lib/api/mod.ts suggestUsername 3a2065bfbeb5 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|2aa6c6de03e2=2aa6c6de03e2,@signature=f32418ae522c
 src/lib/api/mod.ts usernameCandidates badb67306d54
 src/lib/paths.ts ARCHIVE_PATH 5d105d800e20
 src/lib/paths.ts BASHRC_GROUPS_PATH 629098147f14
@@ -1201,7 +1201,7 @@ src/lib/paths.ts USR_PATH 390524eb5ec3
 src/lib/paths.ts VAR_DIRS a8af9cd57253
 src/lib/paths.ts VAR_PATH 34b2018592a4
 src/lib/paths.ts WWW_PATH 629098147f14
-src/lib/paths.ts homePath 35a498e165e2
-src/lib/paths.ts isTrashPath 42ce360356f0
+src/lib/paths.ts homePath 35a498e165e2 0|336e2b46aff6=336e2b46aff6,@signature=a647865336fe
+src/lib/paths.ts isTrashPath 42ce360356f0 0|336e2b46aff6=336e2b46aff6,@signature=b2f51633f916
 src/lib/paths.ts pathEnv 71d19ae92ac9
 src/lib/paths.ts pathExports dd3b444eb293
