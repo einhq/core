@@ -63,7 +63,6 @@
     // in a config of its own, outside this repository.
     // Pinned exactly, not caret: @mantine/core's peer dependency on @mantine/hooks is an
     // exact pin, so a caret range can drift hooks to a version core rejects.
-    "@mantine/charts": "npm:@mantine/charts@9.6.2",
     "@mantine/core": "npm:@mantine/core@9.6.2",
     "@mantine/dates": "npm:@mantine/dates@9.6.2",
     "@mantine/dropzone": "npm:@mantine/dropzone@9.6.2",
@@ -88,9 +87,6 @@
     "@codemirror/legacy-modes": "npm:@codemirror/legacy-modes@^6.4.2",
     "@codemirror/theme-one-dark": "npm:@codemirror/theme-one-dark@^6.1.2",
     "dayjs": "npm:dayjs@^1.11.13",
-    // @mantine/charts' peer dependency (the chat's chart card), listed for the same reason.
-    // ~460 KB minified on every page load: the bundle does no code splitting.
-    "recharts": "npm:recharts@^3.10.1",
     // Mantine documents drag-and-drop against this (the maintained react-beautiful-dnd fork);
     // 18.x is the React 19 line. Used by the bulk set-time dialog, which is nothing but a
     // reorderable list — hand-rolled HTML5 dragging would lose keyboard reordering.

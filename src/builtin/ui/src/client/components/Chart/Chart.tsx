@@ -1,29 +1,12 @@
-import { BarChart, ChartTooltip, LineChart, type LineChartProps, PieChart } from '@mantine/charts';
-import { Box, Group, Text } from '@mantine/core';
-import { STATS_COLORS } from '../Stats/palette.ts';
+import { Box, Group, Paper, Text } from '@mantine/core';
+import { useElementSize } from '@mantine/hooks';
+import { useState } from 'react';
+import { allDates, AxisPlot, COLOR, format, PiePlot, type PlotProps, SLICES, type Tip } from './plots.tsx';
 
-const HEIGHT = 220;
-/** The line or bars: the app's accent. */
-const COLOR = 'marine.4';
-/** Pie slices, in order: the Stats page's colour-blind-safe set, then the rest of Okabe–Ito. */
-const SLICES = [
-  STATS_COLORS.engagements,
-  STATS_COLORS.marriages,
-  STATS_COLORS.births,
-  STATS_COLORS.deaths,
-  '#f0e442',
-  '#0072b2',
-  '#d55e00',
-  '#999999',
-];
-/** More points than this and a dot on each is a smear. */
-const DOTS_UP_TO = 40;
+/** The width drawn at until the box is measured, and where nothing measures it. */
+const FALLBACK_WIDTH = 480;
 
-const DATE = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?$/;
-const numbers = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
-const format = (value: number) => numbers.format(value);
 const withUnit = (unit: string | undefined) => (value: number) => unit ? `${format(value)} ${unit}` : format(value);
-const day = (time: number) => new Date(time).toISOString().slice(0, 10);
 
 /** What a `Chart` draws: labelled values, in order. */
 export type ChartSpec = {
@@ -35,76 +18,23 @@ export type ChartSpec = {
 };
 
 /**
- * A small chart of labelled values: a line over time, bars to compare, or a pie of a whole —
- * `@mantine/charts`, which the shell keeps to itself, behind a shape a module can hand over.
+ * A small chart of labelled values: a line over time, bars to compare, or a pie of a whole, drawn
+ * as SVG at the width of its box. Pointing at a point, bar or slice shows its label and value.
  *
  * A line whose every label is a date is spaced by time, not evenly: a weight log with a gap of a year
- * should show the gap.
+ * should show the gap. A line's value axis fits its values; bars stand on zero.
  */
 export function Chart({ chart }: { chart: ChartSpec }) {
   const { kind, title, unit, points } = chart;
+  const { ref, width: measured } = useElementSize();
+  const width = measured || FALLBACK_WIDTH;
+  const [tip, setTip] = useState<Tip | null>(null);
   // The unit goes in the tooltip and beside the title; on every axis tick it wraps and crowds the axis.
   const valueFormatter = withUnit(unit);
-  const name = title ?? unit ?? 'value';
-  const series = [{ name, color: COLOR }];
   const summary = `${title ? `${title}: ` : ''}${points.map((point) => `${point.label} ${valueFormatter(point.value)}`).join(', ')}`;
-  const dated = kind === 'line' && points.every((point) => DATE.test(point.label));
-  const tooltipProps: LineChartProps['tooltipProps'] = {
-    content: ({ label, payload }) => (
-      <ChartTooltip
-        label={dated && typeof label === 'number' ? day(label) : String(label ?? '')}
-        payload={payload}
-        series={series}
-        valueFormatter={valueFormatter}
-      />
-    ),
-  };
-
-  let body;
-  if (kind === 'pie') {
-    body = (
-      <PieChart
-        h={HEIGHT}
-        size={HEIGHT - 40}
-        data={points.map((point, index) => ({ name: point.label, value: point.value, color: SLICES[index % SLICES.length] }))}
-        withTooltip
-        tooltipDataSource='segment'
-        withLegend
-        valueFormatter={valueFormatter}
-        strokeColor='var(--mantine-color-body)'
-      />
-    );
-  } else if (dated) {
-    const data = points.map((point) => ({ time: Date.parse(point.label.replace(' ', 'T') + (point.label.length > 10 ? 'Z' : '')), [name]: point.value }));
-    body = (
-      <LineChart
-        h={HEIGHT}
-        data={data}
-        dataKey='time'
-        series={series}
-        curveType='linear'
-        withDots={points.length <= DOTS_UP_TO}
-        valueFormatter={format}
-        xAxisProps={{ type: 'number', scale: 'time', domain: ['dataMin', 'dataMax'], tickFormatter: (time: number) => day(time) }}
-        yAxisProps={{ domain: ['auto', 'auto'] }}
-        tooltipProps={tooltipProps}
-      />
-    );
-  } else {
-    const data = points.map((point) => ({ label: point.label, [name]: point.value }));
-    const Plot = kind === 'line' ? LineChart : BarChart;
-    body = (
-      <Plot
-        h={HEIGHT}
-        data={data}
-        dataKey='label'
-        series={series}
-        valueFormatter={format}
-        tooltipProps={tooltipProps}
-        {...(kind === 'line' ? { curveType: 'linear' as const, withDots: points.length <= DOTS_UP_TO, yAxisProps: { domain: ['auto', 'auto'] } } : {})}
-      />
-    );
-  }
+  const dated = kind === 'line' && allDates(points.map((point) => point.label));
+  const props: PlotProps = { points, width, active: tip?.index, onTip: setTip };
+  const active = tip ? points[tip.index] : undefined;
 
   return (
     <Box className='mrx-chart' role='img' aria-label={summary}>
@@ -114,7 +44,60 @@ export function Chart({ chart }: { chart: ChartSpec }) {
           {unit && kind !== 'pie' && <Text size='xs' c='dimmed'>{unit}</Text>}
         </Group>
       )}
-      {body}
+      <Box ref={ref} pos='relative'>
+        {points.length === 0
+          ? <Text size='sm' c='dimmed'>Nothing to chart.</Text>
+          : kind === 'pie'
+          ? <PiePlot {...props} />
+          : <AxisPlot {...props} bars={kind === 'bar'} dated={dated} />}
+        {tip && active && (
+          <ChartTip
+            tip={tip}
+            width={width}
+            label={active.label}
+            value={valueFormatter(active.value)}
+            color={kind === 'pie' ? SLICES[tip.index % SLICES.length] : COLOR}
+          />
+        )}
+      </Box>
+      {kind === 'pie' && (
+        <Group gap='sm' justify='center' mt={6}>
+          {points.map((point, index) => (
+            <Group key={index} gap={6} wrap='nowrap'>
+              <Box aria-hidden w={10} h={10} style={{ borderRadius: 2, background: SLICES[index % SLICES.length] }} />
+              <Text size='xs' c='dimmed'>{point.label}</Text>
+            </Group>
+          ))}
+        </Group>
+      )}
     </Box>
+  );
+}
+
+/** A point's label and value, above where it points, or below when that is near the top. */
+function ChartTip({ tip, width, label, value, color }: { tip: Tip; width: number; label: string; value: string; color: string }) {
+  const below = tip.y < 56;
+  return (
+    <Paper
+      shadow='md'
+      withBorder
+      px='xs'
+      py={6}
+      style={{
+        position: 'absolute',
+        left: Math.min(Math.max(tip.x, 64), width - 64),
+        top: tip.y,
+        transform: below ? 'translate(-50%, 12px)' : 'translate(-50%, calc(-100% - 12px))',
+        pointerEvents: 'none',
+        whiteSpace: 'nowrap',
+        zIndex: 1,
+      }}
+    >
+      <Text size='xs' c='dimmed'>{label}</Text>
+      <Group gap={6} wrap='nowrap'>
+        <Box aria-hidden w={8} h={8} style={{ borderRadius: '50%', background: color }} />
+        <Text size='sm' fw={500}>{value}</Text>
+      </Group>
+    </Paper>
   );
 }

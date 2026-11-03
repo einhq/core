@@ -5,7 +5,6 @@
 import '@mantine/core/styles.css';
 import '@mantine/dropzone/styles.css';
 import '@mantine/dates/styles.css';
-import '@mantine/charts/styles.css';
 import '@xterm/xterm/css/xterm.css';
 import './lend.ts';
 import { createRoot } from 'react-dom/client';
