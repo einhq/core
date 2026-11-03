@@ -1,6 +1,6 @@
 # EiN core: what this image passes on
 
-EiN's own code is under the MIT licence, in /app/LICENSE. The image also carries code made by
+EiN's own code is under the Elastic License 2.0, with a permission added, in /app/LICENSE. The image also carries code made by
 others, each under its own licence.
 
 ## The packages core is built from, and the fonts

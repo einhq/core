@@ -123,7 +123,7 @@ export async function writeLicences(repoDir: string, fontsDir: string, out: stri
   let text = [
     'EiN: third-party notices',
     '',
-    "EiN's own code is under the MIT licence (https://github.com/einhq/core/blob/main/LICENSE).",
+    "EiN's own code is under the Elastic License 2.0, with a permission added (https://github.com/einhq/core/blob/main/LICENSE).",
     'It is built from, and its Web UI carries, the third-party code and fonts below, each under its',
     'own licence, whose text follows its entry.',
     '',
