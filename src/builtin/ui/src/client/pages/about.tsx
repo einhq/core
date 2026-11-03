@@ -112,8 +112,8 @@ export default function AboutPage() {
           run commands in the background as nodes change, and this interface. Modules build on the core's versioned module API to add functionality for different uses.
         </Text>
         <Text size='xs' c='dimmed'>
-          EiN is under the Elastic License 2.0, which also lets you host it free of charge for your family and friends, and is built on open-source packages and fonts, each
-          under its own: <Anchor href='/public/licences.txt' target='_blank' size='xs'>third-party notices</Anchor>.
+          EiN is under the Elastic License 2.0, which also lets you host it free of charge for your family and friends or your association's members, and is built on
+          open-source packages and fonts, each under its own: <Anchor href='/public/licences.txt' target='_blank' size='xs'>third-party notices</Anchor>.
         </Text>
       </Stack>
 
