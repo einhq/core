@@ -65,7 +65,13 @@ export function normalizeTime(value: string | undefined, what: string): string |
 }
 
 /** A simplified read carries position and time only. */
-export const stripDetail = ({ lat, lng, ts }: TrackPoint): TrackPoint => ({ lat, lng, ts });
+const stripDetail = ({ lat, lng, ts }: TrackPoint): TrackPoint => ({ lat, lng, ts });
+
+/** A simplified vertex as a still read takes it in: position, time and a person's acceptance. */
+export const vertexOf = ({ lat, lng, ts, manual }: TrackPoint): TrackPoint => manual === 'accept' ? { lat, lng, ts, manual } : { lat, lng, ts };
+
+/** Simplified segments as a read returns them, the verdict `vertexOf` kept dropped again. */
+export const stripSegments = (segments: TrackSegment[]): TrackSegment[] => segments.map(({ day, points }) => ({ day, points: points.map(stripDetail) }));
 
 export const countPoints = (segments: TrackSegment[]): number => segments.reduce((sum, segment) => sum + segment.points.length, 0);
 

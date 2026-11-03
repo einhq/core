@@ -6,7 +6,7 @@
 
 import { assertAlmostEquals, assertEquals, assertRejects } from '@std/assert';
 import type { RouterManagerIf } from '../../../managers/router/mod.ts';
-import type { TrackPoint, TrackRegistryIf } from '../types.ts';
+import type { TrackPoint, TrackReadResult, TrackRegistryIf } from '../types.ts';
 import { waitFor } from '../../test/relay-wait.ts';
 
 export type TrackSetup = {
@@ -428,9 +428,32 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           assertEquals((await registry.summary('t-out')).bbox!.north > 59, true);
           assertEquals((await registry.readPoints('t-out', { rejected: 'only' })).points, 0);
 
+          // A still read takes them as ground, not as a spike, and the way back from them too.
+          const far = (read: TrackReadResult) => allPoints(read.segments).filter((point) => point.lat > 59).length;
+          assertEquals((await registry.readPoints('t-out', { still: {} })).points, 25);
+          const simplified = await registry.readPoints('t-out', { tolerance: 0.00001 });
+          assertEquals(far(simplified) > 0, true);
+          assertEquals(far(await registry.readPoints('t-out', { tolerance: 0.00001, still: {} })), far(simplified));
+          assertEquals(
+            (await registry.readPoints('t-out', { tolerance: 0.00001, still: {} })).segments.flatMap((segment) => segment.points).every((point) => point.manual === undefined),
+            true,
+          );
+
           assertEquals(await registry.markPoints('t-out', {}, null), 5);
           assertEquals((await registry.readPoints('t-out')).points, 20);
           assertEquals((await registry.summary('t-out')).points, 20);
+        });
+
+        await t.step('a lone fix a person accepts is not dropped as a spike', async () => {
+          const points = excursion(3000, 1);
+          await registry.touch('t-vouched', {});
+          await registry.appendPoints('t-vouched', points);
+          assertEquals((await registry.readPoints('t-vouched', { still: {} })).points, 20);
+          assertEquals(await registry.markPoints('t-vouched', at(points[10]), 'accept'), 1);
+
+          const far = (read: TrackReadResult) => allPoints(read.segments).filter((point) => point.lat > 59).length;
+          assertEquals(far(await registry.readPoints('t-vouched', { still: {} })), 1);
+          assertEquals(far(await registry.readPoints('t-vouched', { tolerance: 0.00001, still: {} })), 1);
         });
 
         await t.step("a rejected excursion a person rejects too is the rules' again once cleared", async () => {
@@ -608,6 +631,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't-lone',
             't-out',
             't-still',
+            't-vouched',
             't1',
             't10',
             't11',
@@ -619,7 +643,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't7',
             't9',
           ]);
-          assertEquals(await registry.count(), 17);
+          assertEquals(await registry.count(), 18);
         });
       } finally {
         await teardown();

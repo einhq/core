@@ -194,12 +194,17 @@ function impliedSpeed(a: Fix, b: Fix): number {
   return dt <= 0 ? Infinity : distance(a.point, b.point) / (dt / 1000);
 }
 
+/** Whether a person accepted the fix, which no spike filter overrules. */
+const vouched = (point: TrackPoint): boolean => point.manual === 'accept';
+
 /**
- * Drop fixes whose implied speed from the last accepted fix exceeds `maxSpeed`.
+ * Drop fixes whose implied speed from the last kept fix exceeds `maxSpeed`.
  *
- * Measuring from the last *accepted* fix also drops a cluster of glitches that
+ * Measuring from the last *kept* fix also drops a cluster of glitches that
  * agree with each other but not with the track. Once fixes have been rejected
- * for longer than `SPIKE_MAX_MS` the jump is taken as real.
+ * for longer than `SPIKE_MAX_MS` the jump is taken as real. A fix a person
+ * accepted is kept, and so is the one after it: the verdict covers the leaps
+ * into and out of what they accepted.
  */
 function dropSpikes(fixes: Fix[], maxSpeed: number): Fix[] {
   if (fixes.length < 2) return fixes;
@@ -209,7 +214,11 @@ function dropSpikes(fixes: Fix[], maxSpeed: number): Fix[] {
 
   for (let i = 1; i < fixes.length; i++) {
     const fix = fixes[i];
-    if (impliedSpeed(out[out.length - 1], fix) <= maxSpeed || (rejectedSince !== null && fix.ms - rejectedSince > SPIKE_MAX_MS)) {
+    const last = out[out.length - 1];
+    if (
+      vouched(fix.point) || vouched(last.point) || impliedSpeed(last, fix) <= maxSpeed ||
+      (rejectedSince !== null && fix.ms - rejectedSince > SPIKE_MAX_MS)
+    ) {
       out.push(fix);
       rejectedSince = null;
     } else if (rejectedSince === null) {
@@ -221,7 +230,8 @@ function dropSpikes(fixes: Fix[], maxSpeed: number): Fix[] {
 }
 
 /**
- * Drop each fix reached and left at more than `maxSpeed`, judged against its neighbours alone.
+ * Drop each fix reached and left at more than `maxSpeed`, judged against its neighbours alone,
+ * unless a person accepted it.
  *
  * A still read does this first, on every point it filtered, before simplifying: thinned out, a
  * spike's neighbours can be minutes away and the jump to it no longer looks fast to
@@ -230,7 +240,9 @@ function dropSpikes(fixes: Fix[], maxSpeed: number): Fix[] {
  */
 export function dropLoneSpikes(points: TrackPoint[], maxSpeed: number = STILL_MAX_SPEED): TrackPoint[] {
   const fixes = points.map((point) => ({ point, ms: Date.parse(point.ts), speed: null }));
-  return points.filter((_, i) => !(i > 0 && i < fixes.length - 1 && impliedSpeed(fixes[i - 1], fixes[i]) > maxSpeed && impliedSpeed(fixes[i], fixes[i + 1]) > maxSpeed));
+  return points.filter((point, i) =>
+    vouched(point) || !(i > 0 && i < fixes.length - 1 && impliedSpeed(fixes[i - 1], fixes[i]) > maxSpeed && impliedSpeed(fixes[i], fixes[i + 1]) > maxSpeed)
+  );
 }
 
 /**
@@ -284,7 +296,9 @@ function medianSpeed(fixes: Fix[]): number | null {
  * recorded a speed.
  *
  * A point without a recorded speed (every point of a simplified read) is given
- * one measured from the points around it.
+ * one measured from the points around it. A point's `manual` verdict is what
+ * `dropSpikes` goes by, so a simplified read keeps it on its vertices until
+ * this has run.
  */
 export function collapseStill(points: TrackPoint[], options: TrackStillOptions = {}): TrackPoint[] {
   const { radius, minMs, stillSpeed, maxSpeed } = { ...STILL_DEFAULTS, ...options };

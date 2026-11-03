@@ -258,3 +258,14 @@ Deno.test('still: a higher maximum speed keeps a fast jump', () => {
   assertEquals(collapseStill(points).length, 1);
   assertEquals(collapseStill(points, { maxSpeed: 150 }).length, 3);
 });
+
+Deno.test('still: a run a person accepted is no spike, nor the way back from it', () => {
+  // Under way at 10 m/s, a minute of it 200 km off, and back on course.
+  const going = (from: number, count: number, off = 0) => Array.from({ length: count }, (_, i) => fix((from + i) * SEC, (from + i) * 10 + off));
+  const away = going(20, 60, 200_000);
+  const points = [...going(0, 20), ...away, ...going(80, 20)];
+
+  assert(collapseStill(points).length < 100);
+  const accepted = points.map((point) => away.includes(point) ? { ...point, manual: 'accept' as const } : point);
+  assertEquals(collapseStill(accepted).length, 100);
+});

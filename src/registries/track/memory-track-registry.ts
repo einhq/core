@@ -24,7 +24,7 @@ import {
   TrackSummary,
   TrackVerdict,
 } from './types.ts';
-import { countPoints, DEFAULT_MARGIN, normalizePoints, normalizeTime, stripDetail, summarize } from './lib.ts';
+import { countPoints, DEFAULT_MARGIN, normalizePoints, normalizeTime, stripSegments, summarize, vertexOf } from './lib.ts';
 
 type MemoryTrackRegistryConfig = {
   router: RouterManagerIf;
@@ -225,10 +225,12 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
 
     const tolerance = opts.tolerance ?? 0;
     const full = splitRuns([...runOf.keys()], (point, previous) => runOf.get(point) !== runOf.get(previous)).flatMap((run) => {
+      const marked = run.map((point) => this.marked(id, point));
+      const despiked = opts.still ? dropLoneSpikes(marked, opts.still.maxSpeed) : marked;
+      if (tolerance <= 0) return toSegments(despiked, tolerance, opts.still);
       // A simplified read keeps position and time only, as the PostGIS path does:
       // there it is a vertex of a LINESTRINGM and the rest never comes back.
-      const despiked = opts.still ? dropLoneSpikes(run, opts.still.maxSpeed) : run;
-      return toSegments(tolerance > 0 ? despiked.map(stripDetail) : despiked.map((point) => this.marked(id, point)), tolerance, opts.still);
+      return stripSegments(toSegments(despiked.map(vertexOf), tolerance, opts.still));
     });
     const fullCount = countPoints(full);
 

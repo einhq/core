@@ -101,8 +101,9 @@ export type TrackReadOptions = TrackRange & {
    */
   rejected?: boolean | 'only';
   /**
-   * Hide what a device draws while it lies still: drop GPS spikes, and collapse
-   * each stay into two points on its centroid, at arrival and at departure.
+   * Hide what a device draws while it lies still: drop GPS spikes (never a fix a
+   * person accepted), and collapse each stay into two points on its centroid, at
+   * arrival and at departure.
    * Applied after simplification. See `collapseStill` in `segment.ts`.
    */
   still?: TrackStillOptions;

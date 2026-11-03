@@ -22,7 +22,7 @@ import { createExtension } from '../../lib/pg/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
-import { countPoints, DEFAULT_MARGIN, normalizePoints, summarize } from './lib.ts';
+import { countPoints, DEFAULT_MARGIN, normalizePoints, stripSegments, summarize } from './lib.ts';
 import { judgeFixes, JUMP_MAX_GAP_MS, JUMP_MIN_M, RULES_REACH_MS, RULES_VERSION } from './rules.ts';
 import { capSegments, dropLoneSpikes, expandBounds, splitRuns, STILL_MAX_SPEED, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
@@ -415,7 +415,9 @@ export class TrackRegistry implements TrackRegistryIf {
    * returns a one-vertex line unchanged.
    *
    * A `still` read drops lone spikes first, in SQL on the simplified path, and
-   * collapses still periods on what comes back (`toSegments`).
+   * collapses still periods on what comes back (`toSegments`). A fix a person
+   * accepted is no spike to either, so a simplified vertex carries its `manual`
+   * verdict until then.
    *
    * Rejected fixes are left out unless asked for. The fix a jump lands on starts
    * a new run, numbered in SQL, and nothing joins two runs: each is despiked,
@@ -470,39 +472,42 @@ export class TrackRegistry implements TrackRegistryIf {
 
     if (tolerance > 0) {
       // A still read drops lone spikes before simplifying, as `dropLoneSpikes` does: a fix reached
-      // and left faster than the maximum speed, within its run.
+      // and left faster than the maximum speed, within its run, unless a person accepted it.
       let source = numbered;
 
       if (opts.still) {
         values.push(opts.still.maxSpeed ?? STILL_MAX_SPEED);
         const max = `$${values.length}::double precision`;
         source = `
-          SELECT ts, geog, run FROM (
-            SELECT ts, geog, run,
+          SELECT ts, geog, run, manual FROM (
+            SELECT ts, geog, run, manual,
               ST_Distance(LAG(geog) OVER w, geog, false) / EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) AS speed_in,
               ST_Distance(geog, LEAD(geog) OVER w, false) / EXTRACT(EPOCH FROM LEAD(ts) OVER w - ts) AS speed_out
             FROM (${numbered}) numbered
             WINDOW w AS (PARTITION BY run ORDER BY ts)
           ) neighbours
-          WHERE NOT (speed_in > ${max} AND speed_out > ${max})
+          WHERE manual = 'accept' OR NOT (speed_in > ${max} AND speed_out > ${max})
         `;
       }
 
       values.push(tolerance);
 
-      const result = await this.query<{ lat: number; lng: number; m: number; run: number }>(
+      // A vertex keeps its fix's M, so the accepted fixes' Ms say which vertices a person accepted.
+      const result = await this.query<{ lat: number; lng: number; m: number; run: number; accepted: boolean }>(
         `
         WITH lines AS (
           SELECT
             (ts AT TIME ZONE 'UTC')::date AS day,
             run,
             ST_MakeLine(
-              ST_MakePointM(ST_X(geog::geometry), ST_Y(geog::geometry), EXTRACT(EPOCH FROM ts)) ORDER BY ts
-            ) AS line
+              ST_MakePointM(ST_X(geog::geometry), ST_Y(geog::geometry), EXTRACT(EPOCH FROM ts)::double precision) ORDER BY ts
+            ) AS line,
+            array_agg(EXTRACT(EPOCH FROM ts)::double precision) FILTER (WHERE manual = 'accept') AS accepted
           FROM (${source}) filtered
           GROUP BY 1, 2
         )
-        SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lng, ST_M(dp.geom) AS m, l.run
+        SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lng, ST_M(dp.geom) AS m, l.run,
+          COALESCE(ST_M(dp.geom) = ANY(l.accepted), false) AS accepted
         FROM lines l
         CROSS JOIN LATERAL ST_DumpPoints(ST_Simplify(l.line, $${values.length}::double precision, true)) dp
         ORDER BY l.day, l.run, dp.path[1]
@@ -510,8 +515,9 @@ export class TrackRegistry implements TrackRegistryIf {
         values,
       );
 
-      runs = splitRuns(result.rows, (row, previous) => row.run !== previous.run)
-        .map((run) => run.map((row) => ({ lat: row.lat, lng: row.lng, ts: new Date(row.m * 1000).toISOString() })));
+      runs = splitRuns(result.rows, (row, previous) => row.run !== previous.run).map((run) =>
+        run.map((row): TrackPoint => ({ lat: row.lat, lng: row.lng, ts: new Date(row.m * 1000).toISOString(), ...(row.accepted && { manual: 'accept' }) }))
+      );
     } else {
       const result = await this.query<PointRow & { run: number }>(
         `
@@ -529,7 +535,8 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     // Simplification already happened in SQL; what is left is collapsing still periods and the day/pause cut.
-    const full = runs.flatMap((run) => toSegments(run, 0, opts.still));
+    const cut = runs.flatMap((run) => toSegments(run, 0, opts.still));
+    const full = tolerance > 0 ? stripSegments(cut) : cut;
     const fullCount = countPoints(full);
 
     const segments = opts.limit === undefined ? full : capSegments(full, opts.limit);
