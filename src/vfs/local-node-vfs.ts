@@ -18,7 +18,7 @@ import { GroupId, Ownership, UserId } from '../lib/mode/mod.ts';
 import { createLogger } from '../managers/logger/mod.ts';
 import { RouterManagerIf } from '../managers/router/mod.ts';
 import { SimilarityMatch, SimilarPair } from '../registries/embedding/mod.ts';
-import { GeoBounds, NearbyMatch, PositionPoint, WithinMatch } from '../registries/position/mod.ts';
+import { GeoBounds, NearbyMatch, PositionFilter, PositionPoint, WithinMatch } from '../registries/position/mod.ts';
 import { TrackHandle } from '../registries/track/track-handle.ts';
 import type { TrackSummary } from '../registries/track/types.ts';
 import {
@@ -39,7 +39,7 @@ import { ResourceHandleIf, ResourceMode, ResourceStat } from '../registries/type
 import { VfsEventEmitter } from '../vfs/event-emitter.ts';
 import { SizeTrackingHandle } from '../vfs/size-tracking-handle.ts';
 import { ContentWriteHandle } from './content-write-handle.ts';
-import { type AuditInput, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
+import { type AuditInput, type AuditOp, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
@@ -159,6 +159,12 @@ const LIST_BATCH = 256;
  * the bound leaves the pool to everyone else.
  */
 const STORAGE_DELETES = 8;
+
+/** The writes that change a node's parents: a position's owners follow them. */
+const PARENT_OPS: ReadonlySet<AuditOp> = new Set(['create', 'move', 'link', 'unlink']);
+
+/** Positions `recordUnowned` gives owners per round. */
+const OWNERS_BATCH = 5000;
 
 /** A deleted node's registry storage: its id in `reg`, and the routing opts the registry takes. */
 type StorageRemoval = { reg: NonNullable<VfsRegistries[keyof VfsRegistries]>; id: string; type: NodeType; opts?: NodeAttrs };
@@ -398,7 +404,11 @@ export class LocalNodeVFS implements NodeVFS {
     // the memory store only when asked (tests), the rest never. Paths are this
     // VFS's own — relative to its mount point; `audit` rebases them on read.
     const records: AuditRecord[] = [];
+    /** Positions this write gave other parents, whose owners are recorded once it commits. */
+    const placed = new Set<NodeId>();
     const audit: Mutation['audit'] = (access, input) => {
+      // Every change of a node's parents is audited, whether or not the store keeps the trail.
+      if (input.node.type === NODE_TYPE_POSITION && PARENT_OPS.has(input.op)) placed.add(input.node.id);
       if (!this.store.auditing || EPHEMERAL_NODE_TYPES.has(input.node.type) || this.unaudited(input)) return;
       const record = auditRecord(access, input);
       if (record) records.push(record);
@@ -422,6 +432,7 @@ export class LocalNodeVFS implements NodeVFS {
       }
 
       for (const work of committed) await work();
+      if (placed.size > 0) await this.recordOwners([...placed]);
 
       return result;
     });
@@ -560,6 +571,49 @@ export class LocalNodeVFS implements NodeVFS {
     }
 
     await this.finishStorageDeletes();
+    await this.recordUnowned();
+  }
+
+  /**
+   * Record the owners of the positions that have none recorded: those stored before the registry
+   * kept them, or whose write was cut off before `recordOwners` ran. A failure is logged, not
+   * thrown: the searches without a filter do not need them, and the next `initialize` tries again.
+   */
+  private async recordUnowned(): Promise<void> {
+    const reg = this.regs.position;
+    if (!reg) return;
+
+    let recorded = 0;
+    try {
+      for (let ids = await reg.unowned(OWNERS_BATCH); ids.length > 0; ids = await reg.unowned(OWNERS_BATCH)) {
+        await reg.setOwners(await this.ownerTypesOf(ids));
+        recorded += ids.length;
+      }
+    } catch (error) {
+      logger.error('position owners not recorded', { error, recorded });
+      return;
+    }
+    if (recorded > 0) logger.info('recorded the owners of positions', { count: recorded });
+  }
+
+  /**
+   * Record in the position registry the types of the nodes each of `ids` is a child of, which its
+   * searches filter on. Nothing here throws: it follows a committed write.
+   */
+  private async recordOwners(ids: NodeId[]): Promise<void> {
+    if (!this.regs.position) return;
+    try {
+      await this.regs.position.setOwners(await this.ownerTypesOf(ids));
+    } catch (error) {
+      logger.error('position owners not recorded', { error, count: ids.length });
+    }
+  }
+
+  /** The types of the parents of each of `ids`; an id with none, or no longer stored, has an empty list. */
+  private async ownerTypesOf(ids: NodeId[]): Promise<Map<NodeId, string[]>> {
+    const links = await this.parentLinksOf(ids);
+    const parents = await this.readNodes([...new Set([...links.values()].flat().map((link) => link.parentId))]);
+    return new Map(ids.map((id) => [id, [...new Set((links.get(id) ?? []).flatMap((link) => parents.get(link.parentId)?.type ?? []))]]));
   }
 
   /**
@@ -1380,16 +1434,17 @@ export class LocalNodeVFS implements NodeVFS {
     lng: number,
     radiusMeters = 10000,
     limit = 10,
+    filter?: PositionFilter,
   ): Promise<NearbyMatch[]> {
     const matches: NearbyMatch[] = [];
 
     if (this.regs.position) {
-      const own = await this.regs.position.findNearby(lat, lng, radiusMeters, bypassesAccess(access) ? limit : limit * 2);
+      const own = await this.regs.position.findNearby(lat, lng, radiusMeters, bypassesAccess(access) ? limit : limit * 2, filter);
       matches.push(...await this.onlyVisible(access, own, (match) => [match.id]));
     }
 
     for (const mount of this.mountpoints) {
-      matches.push(...await this.throughMount(access, mount, await mount.vfs.findNearby(access, lat, lng, radiusMeters, limit)));
+      matches.push(...await this.throughMount(access, mount, await mount.vfs.findNearby(access, lat, lng, radiusMeters, limit, filter)));
     }
 
     matches.sort((a, b) => a.distance - b.distance);
@@ -1400,15 +1455,16 @@ export class LocalNodeVFS implements NodeVFS {
     access: Access,
     bounds: GeoBounds,
     limit = 100,
+    filter?: PositionFilter,
   ): Promise<WithinMatch[]> {
     const matches: WithinMatch[] = [];
 
     if (this.regs.position) {
-      matches.push(...await this.onlyVisible(access, await this.regs.position.findWithin(bounds, limit), (match) => [match.id]));
+      matches.push(...await this.onlyVisible(access, await this.regs.position.findWithin(bounds, limit, filter), (match) => [match.id]));
     }
 
     for (const mount of this.mountpoints) {
-      matches.push(...await this.throughMount(access, mount, await mount.vfs.findWithin(access, bounds, limit)));
+      matches.push(...await this.throughMount(access, mount, await mount.vfs.findWithin(access, bounds, limit, filter)));
     }
 
     return matches.slice(0, limit);
@@ -1419,16 +1475,17 @@ export class LocalNodeVFS implements NodeVFS {
     lat: number,
     lng: number,
     limit = 10,
+    filter?: PositionFilter,
   ): Promise<NearbyMatch[]> {
     const matches: NearbyMatch[] = [];
 
     if (this.regs.position) {
-      const own = await this.regs.position.findContaining(lat, lng, bypassesAccess(access) ? limit : limit * 2);
+      const own = await this.regs.position.findContaining(lat, lng, bypassesAccess(access) ? limit : limit * 2, filter);
       matches.push(...await this.onlyVisible(access, own, (match) => [match.id]));
     }
 
     for (const mount of this.mountpoints) {
-      matches.push(...await this.throughMount(access, mount, await mount.vfs.findContaining(access, lat, lng, limit)));
+      matches.push(...await this.throughMount(access, mount, await mount.vfs.findContaining(access, lat, lng, limit, filter)));
     }
 
     matches.sort((a, b) => a.distance - b.distance);

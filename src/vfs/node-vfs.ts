@@ -1,7 +1,7 @@
 import { Access } from '../lib/access/types.ts';
 import type { GroupId, UserId } from '../lib/mode/mod.ts';
 import type { SimilarityMatch, SimilarPair } from '../registries/embedding/types.ts';
-import type { GeoBounds, NearbyMatch, PositionPoint, WithinMatch } from '../registries/position/types.ts';
+import type { GeoBounds, NearbyMatch, PositionFilter, PositionPoint, WithinMatch } from '../registries/position/types.ts';
 import type {
   PoolClaimRequest,
   PoolCounts,
@@ -519,6 +519,9 @@ export interface NodeVFS {
   ): Promise<Map<NodeId, Uint8Array>>;
 
   // ===== Geo Search =====
+  // A `filter` limits a search to the positions of some types of node: `{ ownerTypes: ['location'] }`
+  // finds locations and leaves out the photos beside them, before `limit` is applied.
+
   /**
    * Find positions within a radius of a point across this VFS and all
    * mounted sub-VFS instances recursively, sorted by distance.
@@ -529,6 +532,7 @@ export interface NodeVFS {
     lng: number,
     radiusMeters?: number,
     limit?: number,
+    filter?: PositionFilter,
   ): Promise<NearbyMatch[]>;
 
   /**
@@ -539,6 +543,7 @@ export interface NodeVFS {
     access: Access,
     bounds: GeoBounds,
     limit?: number,
+    filter?: PositionFilter,
   ): Promise<WithinMatch[]>;
 
   /**
@@ -551,6 +556,7 @@ export interface NodeVFS {
     lat: number,
     lng: number,
     limit?: number,
+    filter?: PositionFilter,
   ): Promise<NearbyMatch[]>;
 
   /**

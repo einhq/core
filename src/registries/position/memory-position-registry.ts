@@ -8,7 +8,18 @@
 import { ensureResource, ResourceMode } from '../types.ts';
 import { assertPolygon, boundsContain, haversineMeters, pointInPolygon, polygonCentroid } from './geo.ts';
 import { PositionHandle } from './position-handle.ts';
-import { GeoBounds, NearbyMatch, PositionAsyncIO, PositionData, PositionPoint, PositionRegistryIf, PositionResourceOptions, PositionStat, WithinMatch } from './types.ts';
+import {
+  GeoBounds,
+  NearbyMatch,
+  PositionAsyncIO,
+  PositionData,
+  PositionFilter,
+  PositionPoint,
+  PositionRegistryIf,
+  PositionResourceOptions,
+  PositionStat,
+  WithinMatch,
+} from './types.ts';
 
 type MemoryPositionEntry = {
   lat?: number;
@@ -16,6 +27,14 @@ type MemoryPositionEntry = {
   radius?: number;
   polygon?: PositionPoint[];
   size: number;
+  /** The types of its owners; absent until recorded. */
+  owners?: string[];
+};
+
+/** Whether `filter` keeps an entry. */
+const kept = (entry: MemoryPositionEntry, filter?: PositionFilter): boolean => {
+  const types = filter?.ownerTypes;
+  return types === undefined || (entry.owners ?? []).some((type) => types.includes(type));
 };
 
 export class MemoryPositionRegistry implements PositionRegistryIf {
@@ -138,11 +157,11 @@ export class MemoryPositionRegistry implements PositionRegistryIf {
    * Find positions within a given radius of a point.
    * Returns up to `limit` matches ordered by distance.
    */
-  async findNearby(lat: number, lng: number, radiusMeters = 10000, limit = 10): Promise<NearbyMatch[]> {
+  async findNearby(lat: number, lng: number, radiusMeters = 10000, limit = 10, filter?: PositionFilter): Promise<NearbyMatch[]> {
     const matches: NearbyMatch[] = [];
 
     for (const [id, entry] of this.entries) {
-      if (entry.lat === undefined || entry.lng === undefined) continue;
+      if (entry.lat === undefined || entry.lng === undefined || !kept(entry, filter)) continue;
 
       const distance = haversineMeters(lat, lng, entry.lat, entry.lng);
       if (distance <= radiusMeters) {
@@ -159,11 +178,11 @@ export class MemoryPositionRegistry implements PositionRegistryIf {
    * Find position points inside a bounding box.
    * Returns up to `limit` matches with their coordinates.
    */
-  async findWithin(bounds: GeoBounds, limit = 100): Promise<WithinMatch[]> {
+  async findWithin(bounds: GeoBounds, limit = 100, filter?: PositionFilter): Promise<WithinMatch[]> {
     const matches: WithinMatch[] = [];
 
     for (const [id, entry] of this.entries) {
-      if (entry.lat === undefined || entry.lng === undefined) continue;
+      if (entry.lat === undefined || entry.lng === undefined || !kept(entry, filter)) continue;
 
       if (boundsContain(bounds, entry.lat, entry.lng)) {
         matches.push({ id, lat: entry.lat, lng: entry.lng });
@@ -178,11 +197,11 @@ export class MemoryPositionRegistry implements PositionRegistryIf {
    * Find positions whose shape contains a point: polygon coverage, or point
    * within radius of the center for polygon-less positions.
    */
-  async findContaining(lat: number, lng: number, limit = 10): Promise<NearbyMatch[]> {
+  async findContaining(lat: number, lng: number, limit = 10, filter?: PositionFilter): Promise<NearbyMatch[]> {
     const matches: NearbyMatch[] = [];
 
     for (const [id, entry] of this.entries) {
-      if (entry.lat === undefined || entry.lng === undefined) continue;
+      if (entry.lat === undefined || entry.lng === undefined || !kept(entry, filter)) continue;
 
       const contained = entry.polygon
         ? pointInPolygon(lat, lng, entry.polygon)
@@ -206,5 +225,21 @@ export class MemoryPositionRegistry implements PositionRegistryIf {
       if (entry?.lat !== undefined && entry.lng !== undefined) points.set(id, { lat: entry.lat, lng: entry.lng });
     }
     return points;
+  }
+
+  async setOwners(owners: Map<string, string[]>): Promise<void> {
+    for (const [id, types] of owners) {
+      const entry = this.entries.get(id);
+      if (entry) entry.owners = [...new Set(types)];
+    }
+  }
+
+  async unowned(limit: number): Promise<string[]> {
+    const ids: string[] = [];
+    for (const [id, entry] of this.entries) {
+      if (ids.length >= limit) break;
+      if (entry.owners === undefined) ids.push(id);
+    }
+    return ids;
   }
 }

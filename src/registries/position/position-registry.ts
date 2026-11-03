@@ -10,13 +10,28 @@ import { createExtension } from '../../lib/pg/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { assertPolygon, polygonToWkt } from './geo.ts';
 import { PositionHandle } from './position-handle.ts';
-import { GeoBounds, NearbyMatch, PositionAsyncIO, PositionData, PositionPoint, PositionRegistryIf, PositionResourceOptions, PositionStat, WithinMatch } from './types.ts';
+import {
+  GeoBounds,
+  NearbyMatch,
+  PositionAsyncIO,
+  PositionData,
+  PositionFilter,
+  PositionPoint,
+  PositionRegistryIf,
+  PositionResourceOptions,
+  PositionStat,
+  WithinMatch,
+} from './types.ts';
 
 /** What the PostgreSQL-backed registry needs. Here rather than in `types.ts`, which is a contract type file and must not reach `pg`. */
 type PositionRegistryConfig = {
   pool: Pool;
   name: string;
 };
+
+/** The condition `filter` adds to a search, its value taking parameter `$index`; nothing without one. */
+const ownersClause = (filter: PositionFilter | undefined, index: number): { sql: string; params: unknown[] } =>
+  filter?.ownerTypes === undefined ? { sql: '', params: [] } : { sql: `AND owner_types && $${index}::text[]`, params: [filter.ownerTypes] };
 
 export class PositionRegistry implements PositionRegistryIf {
   private tableName: string;
@@ -48,9 +63,38 @@ export class PositionRegistry implements PositionRegistryIf {
           geog          GEOGRAPHY(POINT, 4326),
           radius        DOUBLE PRECISION NOT NULL DEFAULT 0,
           polygon       GEOGRAPHY(POLYGON, 4326),
+          owner_types   TEXT[],
           size_bytes    INT NOT NULL DEFAULT 0,
           created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
         )
+      `);
+
+      // A table made before `owner_types` gains it here, empty: its rows are `unowned` until the
+      // VFS records them. Looked up first, since the ALTER waits for every reader of the table.
+      const hasOwners = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'owner_types'`,
+        [this.tableName],
+      );
+      if (hasOwners.rowCount === 0) {
+        await client.query(`SET lock_timeout = '10s'`);
+        try {
+          await client.query(`ALTER TABLE ${this.tableName} ADD COLUMN IF NOT EXISTS owner_types TEXT[]`);
+        } finally {
+          await client.query(`RESET lock_timeout`);
+        }
+      }
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS ${this.tableName}_owner_types_idx
+        ON ${this.tableName}
+        USING GIN (owner_types)
+      `);
+
+      // `unowned` at every boot, which finds none once they are recorded
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS ${this.tableName}_unowned_idx
+        ON ${this.tableName} (id)
+        WHERE owner_types IS NULL
       `);
 
       await client.query(`
@@ -218,10 +262,11 @@ export class PositionRegistry implements PositionRegistryIf {
    * Find positions within a given radius of a point.
    * Returns up to `limit` matches ordered by distance.
    */
-  async findNearby(lat: number, lng: number, radiusMeters = 10000, limit = 10): Promise<NearbyMatch[]> {
+  async findNearby(lat: number, lng: number, radiusMeters = 10000, limit = 10, filter?: PositionFilter): Promise<NearbyMatch[]> {
     const client = await this.pool.connect();
 
     try {
+      const owners = ownersClause(filter, 5);
       const result = await client.query<NearbyMatch>(
         `
         SELECT
@@ -230,10 +275,11 @@ export class PositionRegistry implements PositionRegistryIf {
         FROM ${this.tableName}
         WHERE geog IS NOT NULL
           AND ST_DWithin(geog, ST_Point($1, $2)::geography, $3)
+          ${owners.sql}
         ORDER BY distance
         LIMIT $4
         `,
-        [lng, lat, radiusMeters, limit],
+        [lng, lat, radiusMeters, limit, ...owners.params],
       );
 
       return result.rows.map((row) => ({
@@ -249,10 +295,11 @@ export class PositionRegistry implements PositionRegistryIf {
    * Find position points inside a bounding box.
    * Returns up to `limit` matches with their coordinates.
    */
-  async findWithin(bounds: GeoBounds, limit = 100): Promise<WithinMatch[]> {
+  async findWithin(bounds: GeoBounds, limit = 100, filter?: PositionFilter): Promise<WithinMatch[]> {
     const client = await this.pool.connect();
 
     try {
+      const owners = ownersClause(filter, 6);
       const result = await client.query<WithinMatch>(
         `
         SELECT
@@ -262,9 +309,10 @@ export class PositionRegistry implements PositionRegistryIf {
         FROM ${this.tableName}
         WHERE geog IS NOT NULL
           AND geog::geometry && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          ${owners.sql}
         LIMIT $5
         `,
-        [bounds.west, bounds.south, bounds.east, bounds.north, limit],
+        [bounds.west, bounds.south, bounds.east, bounds.north, limit, ...owners.params],
       );
 
       return result.rows.map((row) => ({
@@ -281,23 +329,25 @@ export class PositionRegistry implements PositionRegistryIf {
    * Find positions whose shape contains a point: polygon coverage, or point
    * within radius of the center for polygon-less positions.
    */
-  async findContaining(lat: number, lng: number, limit = 10): Promise<NearbyMatch[]> {
+  async findContaining(lat: number, lng: number, limit = 10, filter?: PositionFilter): Promise<NearbyMatch[]> {
     const client = await this.pool.connect();
 
     try {
+      const owners = ownersClause(filter, 4);
       const result = await client.query<NearbyMatch>(
         `
         SELECT
           id::text,
           ST_Distance(geog, ST_Point($1, $2)::geography) AS distance
         FROM ${this.tableName}
-        WHERE (polygon IS NOT NULL AND ST_Covers(polygon, ST_Point($1, $2)::geography))
+        WHERE ((polygon IS NOT NULL AND ST_Covers(polygon, ST_Point($1, $2)::geography))
            OR (polygon IS NULL AND geog IS NOT NULL AND radius > 0
-               AND ST_DWithin(geog, ST_Point($1, $2)::geography, radius))
+               AND ST_DWithin(geog, ST_Point($1, $2)::geography, radius)))
+          ${owners.sql}
         ORDER BY distance
         LIMIT $3
         `,
-        [lng, lat, limit],
+        [lng, lat, limit, ...owners.params],
       );
 
       return result.rows.map((row) => ({
@@ -330,6 +380,40 @@ export class PositionRegistry implements PositionRegistryIf {
 
       for (const row of result.rows) points.set(row.id, { lat: row.lat, lng: row.lng });
       return points;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Every id's owner types in one statement; an id with no row matches nothing. */
+  async setOwners(owners: Map<string, string[]>): Promise<void> {
+    if (owners.size === 0) return;
+    const client = await this.pool.connect();
+
+    try {
+      await client.query(
+        `
+        UPDATE ${this.tableName} AS p
+        SET owner_types = ARRAY(SELECT DISTINCT jsonb_array_elements_text(o.types))
+        FROM jsonb_each($1::jsonb) AS o(id, types)
+        WHERE p.id = o.id
+        `,
+        [JSON.stringify(Object.fromEntries(owners))],
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  async unowned(limit: number): Promise<string[]> {
+    const client = await this.pool.connect();
+
+    try {
+      const result = await client.query<{ id: string }>(
+        `SELECT id::text FROM ${this.tableName} WHERE owner_types IS NULL LIMIT $1`,
+        [limit],
+      );
+      return result.rows.map((row) => row.id);
     } finally {
       client.release();
     }

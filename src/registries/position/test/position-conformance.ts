@@ -212,6 +212,47 @@ export function positionConformanceTests(name: string, setup: () => Promise<Posi
         assertEquals((await registry.getPoints([])).size, 0);
       });
 
+      await t.step('an owner filter keeps the positions with an owner of those types, before the limit', async () => {
+        // Somewhere no other step writes: a photo nearer than the place, and a place with two owners.
+        await writePosition(registry, 'ow-photo', { lat: -33.9, lng: 18.4, radius: 50 });
+        await writePosition(registry, 'ow-place', { lat: -33.901, lng: 18.4, radius: 500 });
+        await writePosition(registry, 'ow-both', { lat: -33.902, lng: 18.4, radius: 500 });
+        await writePosition(registry, 'ow-none', { lat: -33.9, lng: 18.4, radius: 500 });
+        await registry.setOwners(new Map([['ow-photo', ['file']], ['ow-place', ['location']], ['ow-both', ['location', 'event']], ['ow-none', []]]));
+
+        const location = { ownerTypes: ['location'] };
+        assertEquals((await registry.findNearby(-33.9, 18.4, 1000, 1, location)).map((m) => m.id), ['ow-place']);
+        assertEquals((await registry.findNearby(-33.9, 18.4, 1000, 10, location)).map((m) => m.id), ['ow-place', 'ow-both']);
+        assertEquals((await registry.findNearby(-33.9, 18.4, 1000, 10, { ownerTypes: ['event', 'file'] })).map((m) => m.id), ['ow-photo', 'ow-both']);
+        assertEquals((await registry.findNearby(-33.9, 18.4, 1000, 10, { ownerTypes: [] })).length, 0);
+        assertEquals((await registry.findNearby(-33.9, 18.4, 1000, 10)).length, 4);
+
+        const box = { north: -33.8, south: -34, east: 18.5, west: 18.3 };
+        assertEquals((await registry.findWithin(box, 100, location)).map((m) => m.id).sort(), ['ow-both', 'ow-place']);
+        assertEquals((await registry.findWithin(box, 100, { ownerTypes: ['file'] })).map((m) => m.id), ['ow-photo']);
+
+        assertEquals((await registry.findContaining(-33.9, 18.4, 1, location)).map((m) => m.id), ['ow-place']);
+        assertEquals((await registry.findContaining(-33.9, 18.4, 10, { ownerTypes: ['file'] })).map((m) => m.id), ['ow-photo']);
+      });
+
+      await t.step('setOwners replaces the owners, and unowned lists the positions never given any', async () => {
+        await writePosition(registry, 'ow-moved', { lat: -33.95, lng: 18.45 });
+        assertEquals((await registry.unowned(100_000)).includes('ow-moved'), true);
+        assertEquals((await registry.unowned(1)).length, 1);
+
+        await registry.setOwners(new Map([['ow-moved', ['file']], ['ow-unknown', ['file']]]));
+        await registry.setOwners(new Map([['ow-moved', ['location', 'location']]]));
+        assertEquals(await registry.exists('ow-unknown'), false);
+        const unowned = await registry.unowned(100_000);
+        assertEquals(unowned.includes('ow-moved'), false);
+        // An empty list is recorded too: a position with no owner is not unowned.
+        assertEquals(unowned.includes('ow-none'), false);
+
+        const near = { lat: -33.95, lng: 18.45 };
+        assertEquals((await registry.findNearby(near.lat, near.lng, 10, 10, { ownerTypes: ['file'] })).length, 0);
+        assertEquals((await registry.findNearby(near.lat, near.lng, 10, 10, { ownerTypes: ['location'] })).map((m) => m.id), ['ow-moved']);
+      });
+
       await t.step('delete removes the position from queries', async () => {
         await writePosition(registry, 'gone', { lat: 30, lng: 30, radius: 1000 });
         assertEquals(await registry.delete('gone'), true);

@@ -215,7 +215,7 @@ export type { SubjectEntry, SubjectListing, SubjectMatch, SubjectsOf } from '../
 
 // Plane geometry over the position registry's shapes.
 export { boundsContain, pointInPolygon } from '../registries/position/geo.ts';
-export type { GeoBounds, PositionData, PositionPoint, WithinMatch } from '../registries/position/types.ts';
+export type { GeoBounds, PositionData, PositionFilter, PositionPoint, WithinMatch } from '../registries/position/types.ts';
 
 // What the track registry knows about a track without reading its points (`NodeVFS.trackSummaries`).
 export type { TrackSummary } from '../registries/track/types.ts';

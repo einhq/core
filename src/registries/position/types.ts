@@ -52,30 +52,48 @@ export type WithinMatch = PositionPoint & {
   id: string;
 };
 
+/**
+ * What a search is limited to. A position's owners are the nodes it is a child of (a location, a
+ * file); `ownerTypes` keeps the positions with an owner of one of those types. Without it, every
+ * position matches.
+ */
+export type PositionFilter = {
+  ownerTypes?: string[];
+};
+
 /** Registry interface for storing and querying geographic positions. */
 export interface PositionRegistryIf extends RegistryIf<PositionResourceOptions, PositionStat> {
   /**
    * Find positions within a given radius of a point.
    * Returns up to `limit` matches ordered by distance.
    */
-  findNearby(lat: number, lng: number, radiusMeters?: number, limit?: number): Promise<NearbyMatch[]>;
+  findNearby(lat: number, lng: number, radiusMeters?: number, limit?: number, filter?: PositionFilter): Promise<NearbyMatch[]>;
 
   /**
    * Find position points inside a bounding box.
    * Returns up to `limit` matches with their coordinates.
    */
-  findWithin(bounds: GeoBounds, limit?: number): Promise<WithinMatch[]>;
+  findWithin(bounds: GeoBounds, limit?: number, filter?: PositionFilter): Promise<WithinMatch[]>;
 
   /**
    * Find positions whose shape contains a point: the polygon covers it, or —
    * for polygon-less positions — the point is within radius of the center.
    * Returns up to `limit` matches ordered by distance to the center.
    */
-  findContaining(lat: number, lng: number, limit?: number): Promise<NearbyMatch[]>;
+  findContaining(lat: number, lng: number, limit?: number, filter?: PositionFilter): Promise<NearbyMatch[]>;
 
   /**
    * The point of each of `ids`, in one lookup: a polygon's is its centroid. Ids with no stored
    * point (unknown, or cleared) are absent from the map.
    */
   getPoints(ids: string[]): Promise<Map<string, PositionPoint>>;
+
+  /**
+   * Record the types of each position's owners, replacing what it had: what `PositionFilter`
+   * matches. A position with no owner gets an empty list. Ids not stored are skipped.
+   */
+  setOwners(owners: Map<string, string[]>): Promise<void>;
+
+  /** Up to `limit` stored positions whose owners were never recorded. */
+  unowned(limit: number): Promise<string[]>;
 }
