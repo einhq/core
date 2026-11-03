@@ -246,22 +246,25 @@ export const listSource = (name: string, items: Candidate[], start = 0): Candida
  * cosine, a text cosine, a name ladder — so hits are only compared within a channel, by rank, and
  * a file's score is the weighted sum of `weight / (RRF_K + rank)` over the channels that found it.
  *
- * Measured on the archive's judged picture queries (ein/core#361): pictures carry search.
- * Text in a picture (`content`) helps the queries for written words at 0.3 and drowns the pictures
- * at 1; a hand-written description is about the day rather than what the picture shows, and costs
- * at more than 0.3. A name — exact or a whole-word prefix — is the best answer when there is one: at 1.5 it
- * leads alone what two similarity channels agree on, a picture's and its text's at rank 1 (1.3), and
- * costs the eval nothing at 1.5 rather than 1 (ein/core#664). The eval has nothing spoken,
- * no description of a node and no album to judge; those weights follow the measured ones
- * (ein/core#524). An album's pictures (`members`) count for less than a name: an album found
- * by its pictures alone should not tie with a person called what was asked. `subject` is the media
- * of a person, place or camera whose name matched, under the subject itself.
+ * Measured on the archive's judged picture queries (ein/core#361) and its known items — a person by
+ * name, a file by its name or its description, an album by what it shows (ein/core#524): pictures
+ * carry search. Text in a picture (`content`) helps the queries for written words at 0.3 and
+ * drowns the pictures at 1. A hand-written description (`authored`) at 1 finds the picture it
+ * describes from a paraphrase twice as often as at 0.3 (nDCG@10 0.35 → 0.61); the hits it adds to
+ * the picture queries are descriptions of what was asked, unjudged rather than wrong. A name —
+ * exact or a whole-word prefix — is the best answer when there is one: at 1.6 it leads alone what
+ * two similarity channels agree on, a picture's and its text's at rank 1 (1.3), and a picture with
+ * the name written in it (`CONFIDENT_HIT_WEIGHT`), and costs the picture queries nothing against 1.
+ * An album's pictures (`members`) count for less than a name: an album found by its pictures alone
+ * should not tie with a person called what was asked, and at 1 albums fill the picture queries'
+ * top 10 (nDCG@10 0.66 → 0.36); an album is found by what it shows under `--kind album`.
+ * `subject` is the media of a person, place or camera whose name matched, under the subject itself.
  */
 const CHANNEL_WEIGHTS: Record<SearchRankChannel, number> = {
   picture: 1,
   content: 0.3,
-  authored: 0.3,
-  name: 1.5,
+  authored: 1,
+  name: 1.6,
   description: 0.3,
   transcript: 0.3,
   members: 0.5,
@@ -278,12 +281,12 @@ export const CONFIDENT_NAME = 0.75;
 const PARTIAL_NAME_WEIGHT = 0.3;
 
 /**
- * A hit its provider marks `confident` counts as a name does, whatever its channel: a transcript
- * that says what was asked is the recording meant (ein/core#524), and a picture with the
- * word written in it is the one asked for, ahead of those the similarities found
- * (ein/core#664).
+ * A hit its provider marks `confident` counts almost as a name does, whatever its channel: a
+ * transcript that says what was asked is the recording meant (ein/core#524), and a picture with the
+ * word written in it is the one asked for, ahead of those the similarities found (ein/core#664).
+ * Just under a name, so a person called what was asked leads the pictures with their name on them.
  */
-const CONFIDENT_HIT_WEIGHT = CHANNEL_WEIGHTS.name;
+const CONFIDENT_HIT_WEIGHT = 1.5;
 
 /** The constant from the original RRF paper, which every engine that ships RRF defaults to. */
 const RRF_K = 60;

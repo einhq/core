@@ -32,7 +32,7 @@ Deno.test('a file two full channels agree on outranks one that leads a single ch
 Deno.test('equal fused scores order by path, so every page sees the same order', () => {
   const ranks = new Map<SearchRankChannel, Map<string, number>>([
     ['content', new Map([['/b', 1]])],
-    ['authored', new Map([['/a', 1]])],
+    ['transcript', new Map([['/a', 1]])],
   ]);
   assertEquals(fuseChannels(candidates('/b', '/a'), ranks).map((candidate) => candidate.path), ['/a', '/b']);
 });
@@ -81,4 +81,17 @@ Deno.test('a picture with the words written in it leads pictures two channels fo
     '/a.jpg',
     '/c.jpg',
   ]);
+});
+
+Deno.test('a person called what was asked leads a picture with their name written in it', () => {
+  // The picture's path sorts first, so only the weights put the person ahead.
+  const ranks = new Map<SearchRankChannel, Map<string, number>>([
+    ['name', new Map([['/people/anna', 1]])],
+    ['content', new Map([['/albums/invite.jpg', 1]])],
+  ]);
+  const said = new Map<'name' | 'content', ChannelHits>([
+    ['name', hits([['/people/anna', 0.8]])],
+    ['content', new Map([['/albums/invite.jpg', { score: 1.2, confident: true }]])],
+  ]);
+  assertEquals(fuseChannels(candidates('/albums/invite.jpg', '/people/anna'), ranks, said).map((candidate) => candidate.path), ['/people/anna', '/albums/invite.jpg']);
 });
