@@ -1,7 +1,7 @@
 /**
  * Utility command coverage — the commands pipeline filter/skipIf/condition
  * scripts and module scripts depend on: jq, grep, head, tail, wc, seq,
- * uuid, date, env, plus mount listing, its mount point and its admin gate.
+ * uuid, date, env, plus mount listing, its mount point, nopublish and its admin gate.
  */
 
 import { assertEquals, assertMatch } from '@std/assert';
@@ -136,6 +136,19 @@ Deno.test({
         assertEquals((await client.execString(`cat ${point}/note.txt`)).trim(), 'hello');
       } finally {
         await client.exec(`unmount ${point}`);
+      }
+    });
+
+    await t.step('a nopublish mount keeps its events off the queues', async () => {
+      const base = `/tmp/mount-${crypto.randomUUID()}`;
+      await cmd.shouldSucceed(`mkdir -p ${base} && mkqueue ${base}/q -k system.vfs.file.created`);
+      await cmd.shouldSucceed(`mount ${base}/plain memory && mount ${base}/quiet memory nopublish`);
+      try {
+        await cmd.shouldSucceed(`echo a > ${base}/quiet/note.txt && echo b > ${base}/plain/note.txt`);
+        const queued = await client.execJson<{ items: { data: { path: string } }[] }>(`queue-peek ${base}/q`);
+        assertEquals(queued.items.map((item) => item.data.path), [`${base}/plain/note.txt`]);
+      } finally {
+        await client.exec(`unmount ${base}/plain; unmount ${base}/quiet`);
       }
     });
 

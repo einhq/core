@@ -315,7 +315,8 @@ async function mountOne(cmd: Command, entry: FstabEntry, lazy: boolean): Promise
     await ensureMountPoint(cmd, entry.point);
     await cmd.sys.vfs.mount(cmd.access, entry.point, vfs, {
       readonly: options.readonly === '1',
-      publish,
+      // `nopublish`: its events reach in-process subscribers only, none of the queues.
+      publish: publish && options.nopublish !== '1',
     });
   } catch (error) {
     // A connection opened for a mount that did not happen must not linger
@@ -437,7 +438,7 @@ mount.spec = {
       name: 'options',
       type: 'string' as const,
       description:
-        'k=v,... — any: readonly, noaudit (paths, separated by `:`, whose writes the audit trail skips); sftp: host, port, user, path, key (identity file), hostkey (SHA256:… to pin), uid, gid',
+        'k=v,... — any: readonly, noaudit (paths, separated by `:`, whose writes the audit trail skips), nopublish (its events reach no queue, so no pipeline or service bound to one sees them); sftp: host, port, user, path, key (identity file), hostkey (SHA256:… to pin), uid, gid',
     },
   ],
   flags: [

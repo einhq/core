@@ -262,12 +262,14 @@ its `mod.json` is read at each tag going down (`findRelease`), one request per r
 and that release is fetched instead. Only when none qualifies is the module refused with the newest
 release's `coreApi` error. The newest is fetched first, so the usual case costs nothing extra.
 
-**Where it lives.** `/var/lib/modules` is a filesystem mount, read-write, of the folder
-`MODULE_INSTALL_PATH` names (`/modules-installed` in the container). A deployment mounts a folder
-of the host there — `make container-run` does, `MODULE_INSTALL_PATH ?= ./modules-installed` — so
-the installs outlive the container: a new image, a `podman run --replace`, even a new database,
-since boot links whatever is in the folder at every start. Without the mount the folder is the
-container's own and the installs go with it. Hidden entries are not modules, so a staging tree an
+**Where it lives.** `/var/lib/modules` is a filesystem mount, read-write and `nopublish`, of the
+folder `MODULE_INSTALL_PATH` names (`/modules-installed` in the container). Its events reach no
+queue: an install writes tens of thousands of files, and each queue bound to file events would
+store, poll and read every one (ein/core#923). A deployment mounts a folder of the host there —
+`make container-run` does, `MODULE_INSTALL_PATH ?= ./modules-installed` — so the installs outlive
+the container: a new image, a `podman run --replace`, even a new database, since boot links
+whatever is in the folder at every start. Without the mount the folder is the container's own and
+the installs go with it. Hidden entries are not modules, so a staging tree an
 interrupted install left is never linked, and the next install removes it.
 
 **One at a time, apart from the session.** The installer

@@ -174,7 +174,10 @@ by default), never by the server's numeric ids; the permission bits are the serv
 An sftp mount is mounted with `publish: false`: its events reach in-process subscribers but never
 the router, so no pipeline or bridge is triggered by them. A pipeline would give a file
 children (`metadata/`, `thumbnails/`), which a mirror cannot hold. The relay marks such events
-`unpublished`, which survives any outer relays.
+`unpublished`, which survives any outer relays. Any mount takes the same with the `nopublish`
+option; boot mounts the installed modules (`/var/lib/modules`) so, as an install writes thousands
+of files no queue consumer wants, and each event would cost every bound queue a stored message, a
+poll and a read of the node it names (ein/core#923).
 
 Mounts live in memory. `mount --save` also records one in `/etc/fstab` (`unmount --save` drops
 it), and `05_fstab.sh` runs `mount -a` at boot. There an sftp mount is lazy: it mounts without

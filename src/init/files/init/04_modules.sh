@@ -3,10 +3,11 @@ mknode -p -t directory "$DEV_MODULES_PATH"
 mount "$DEV_MODULES_PATH" filesystem "filesPath=$EXTERNAL_DEV_MODULES_PATH,readonly"
 
 # The deployment's folder for the modules `mod install` installs, read-write. Without one,
-# `mod install` writes into the instance's store.
+# `mod install` writes into the instance's store. No queue is bound to a module's files, and an
+# install writes thousands of them, so their events stay in-process (ein/core#923).
 if [ -n "$EXTERNAL_MODULE_INSTALL_PATH" ]; then
   mknode -p -t directory "$MOD_INSTALL_PATH"
-  mount "$MOD_INSTALL_PATH" filesystem "filesPath=$EXTERNAL_MODULE_INSTALL_PATH"
+  mount "$MOD_INSTALL_PATH" filesystem "filesPath=$EXTERNAL_MODULE_INSTALL_PATH,nopublish"
 fi
 
 # A softlink at $2 to $1, replaced when it points anywhere else.
