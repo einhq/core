@@ -22,15 +22,16 @@ ignored rather than appended twice.
 ## Schema
 
 ```
-<name>_tracks         id, routing_keys, routing_patterns, points, first_ts, last_ts, north/south/east/west
-<name>_tracks_points  track_id, ts, geog GEOGRAPHY(POINT,4326), alt, speed, course
+<name>_tracks         id, routing_keys, routing_patterns, points, first_ts, last_ts, north/south/east/west, rules
+<name>_tracks_points  track_id, ts, geog GEOGRAPHY(POINT,4326), alt, speed, course, rule
                       PRIMARY KEY (track_id, ts)
                       GIST ((geog::geometry))
 ```
 
 The summary lives on the track row and is folded forward on every append inside
 the same transaction, because listing the tracks asks every track how big it is and
-that must not touch the points table. A delete recomputes it instead — a
+that must not touch the points table. It describes the accepted fixes, those no
+rule rejected (see Rules). A delete recomputes it instead — a
 deletion can move any bound, and deletes are rare. `summaries(ids)` answers a
 listing in one query; the registry is the only place the summary is kept, so a
 point appended from a routing key is in the next listing like any other.
@@ -48,6 +49,31 @@ the count wraps and postgres reports a mismatch against a number nobody asked
 for (`bind message has 465 parameter formats but 0 parameters`). An import is
 cheap enough this way to stay on the request path.
 
+## Rules
+
+A track keeps every fix it is given, and judges each against its neighbours as it
+is stored (`rules.ts`). A leap is one step of over 1 km in at most 30 minutes; a jump
+is a leap faster than 600 km/h, which nothing on the ground or the water does.
+
+- `excursion`: a run the track leaps into and back out of, to near where it was,
+  within two hours, with at least one of the leaps a jump; or a position the track
+  leaps back onto to the last decimal after being away from it longer than it was
+  there, which is how a phone falling back to a cell position looks. Rejected: left
+  out of reads and of the summary.
+- `jump`: any other jump with steady going on both sides, as when a logger starts
+  again somewhere else. The fixes are kept and the line is cut before it.
+
+A logger on an aircraft is fast at every step, so neither rule sees it.
+
+The verdict is the point row's `rule`, NULL for accepted. An append judges the
+fixes within reach of what it wrote (two and a half hours either way) in its own
+transaction: a window function looks for a leap first, and only a window holding
+one, or a fix already judged, is read and judged in TypeScript. A delete judges the
+fixes around its ends. The track row's `rules` is the version of the rules it was
+judged by; a track judged by an older one is judged again, a chunk at a time, before
+its next read or write. Rejected fixes stay: `rejected` reads them too, marked, and
+the byte-stream view always carries them.
+
 ## Reads
 
 `readPoints(id, opts)` returns drawable segments, not raw rows:
@@ -61,9 +87,10 @@ cheap enough this way to stay on the request path.
   the matching fixes (M carries the fix time) and runs `ST_Simplify` on it, so
   what crosses the wire is already drawable. A simplified read carries position
   and time only — `alt`/`speed`/`course` are not vertices of a line.
-- The result is then cut into segments on two boundaries: a day, because that
-  is what carries a color, and a pause, because joining across a hole would
-  draw a line the track never took. The pause threshold scales with the track's
+- The result is then cut into segments on three boundaries: a day, because that
+  is what carries a color, a pause, and a jump, because joining across either
+  would draw a line the track never took. A jump starts a run, numbered in SQL,
+  and each run is despiked, simplified and cut on its own. The pause threshold scales with the track's
   own sampling rhythm (see `segment.ts`).
 - `still` hides what a device draws while it lies still. A spike is a fix
   reached and left faster than `maxSpeed` (default 50 kn); those go before

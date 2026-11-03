@@ -10,6 +10,10 @@
  * detail is `ST_Simplify` over a per-day `ST_MakeLine`, so a zoomed-out map is
  * cheap in postgres *and* on the wire — the vertices that cannot be seen are
  * never sent.
+ *
+ * Every write is judged by the rules (`rules.ts`) in its own transaction: a
+ * fix's `rule` says whether it was rejected or the line is cut before it, and
+ * a read leaves out what was rejected.
  */
 import type { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
@@ -18,7 +22,8 @@ import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, summarize } from './lib.ts';
-import { capSegments, dropLoneSpikes, expandBounds, STILL_MAX_SPEED, toSegments } from './segment.ts';
+import { judgeFixes, JUMP_MAX_GAP_MS, JUMP_MIN_M, RULES_REACH_MS, RULES_VERSION } from './rules.ts';
+import { capSegments, dropLoneSpikes, expandBounds, splitRuns, STILL_MAX_SPEED, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
 import {
   TrackIO,
@@ -48,7 +53,10 @@ type TrackRegistryConfig = {
 };
 
 /** Query function bound to the transaction's client. */
-type QueryFn = (sql: string, params?: unknown[]) => Promise<{ rowCount: number | null }>;
+type QueryFn = <T extends Record<string, unknown> = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<{ rowCount: number | null; rows: T[] }>;
+
+/** How many fixes a track judged from scratch is judged in at a time. */
+const JUDGE_CHUNK = 50_000;
 
 type SummaryRow = {
   points: number;
@@ -67,7 +75,11 @@ type PointRow = {
   alt: number | null;
   speed: number | null;
   course: number | null;
+  rule: string | null;
 };
+
+/** The fixes a read leaves out unless it asks for the rejected ones. */
+const ACCEPTED = `rule IS DISTINCT FROM 'excursion'`;
 
 export class TrackRegistry implements TrackRegistryIf {
   private initialized = false;
@@ -83,6 +95,9 @@ export class TrackRegistry implements TrackRegistryIf {
   private listeningChannels = new Set<string>();
 
   private bound = new BoundRoutingKeys(() => this.loadBoundKeys());
+
+  // Each track judged by the current rules since this registry started, or being judged
+  private judged = new Map<string, Promise<void>>();
 
   constructor(private config: TrackRegistryConfig) {
     const name = `${config.name}_tracks`;
@@ -120,6 +135,9 @@ export class TrackRegistry implements TrackRegistryIf {
       )
     `);
 
+    // The version of the rules the track's fixes were last judged by; 0 for never.
+    await this.query(`ALTER TABLE ${this.tracksTable} ADD COLUMN IF NOT EXISTS rules INTEGER NOT NULL DEFAULT 0`);
+
     await this.query(`
       CREATE INDEX IF NOT EXISTS ${this.tracksTable}_routing_keys_idx
       ON ${this.tracksTable} USING GIN (routing_keys)
@@ -143,6 +161,10 @@ export class TrackRegistry implements TrackRegistryIf {
         PRIMARY KEY (track_id, ts)
       )
     `);
+
+    // What the rules made of the fix: NULL for accepted, `excursion` for rejected, `jump` for a fix
+    // the line is cut before.
+    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS rule TEXT`);
 
     // Viewport reads run in planar lon/lat space — a geography envelope cannot
     // span 180+ degrees of longitude.
@@ -200,15 +222,15 @@ export class TrackRegistry implements TrackRegistryIf {
 
     const result = await this.query(
       `
-      INSERT INTO ${this.tracksTable} (id, routing_keys, routing_patterns)
-      VALUES ($1, $2, $3)
+      INSERT INTO ${this.tracksTable} (id, routing_keys, routing_patterns, rules)
+      VALUES ($1, $2, $3, $4)
       ON CONFLICT (id) DO UPDATE SET
         routing_keys = EXCLUDED.routing_keys,
         routing_patterns = EXCLUDED.routing_patterns
       WHERE ${this.tracksTable}.routing_keys IS DISTINCT FROM EXCLUDED.routing_keys
         OR ${this.tracksTable}.routing_patterns IS DISTINCT FROM EXCLUDED.routing_patterns
       `,
-      [id, routingKeys, routingPatternSources(routingKeys)],
+      [id, routingKeys, routingPatternSources(routingKeys), RULES_VERSION],
     );
 
     return result.rowCount === 1;
@@ -257,6 +279,7 @@ export class TrackRegistry implements TrackRegistryIf {
 
   async delete(id: string): Promise<boolean> {
     const result = await this.query(`DELETE FROM ${this.tracksTable} WHERE id = $1`, [id]);
+    this.judged.delete(id);
 
     // Reloaded rather than subtracted: another track may still bind a key this
     // one had, and a key removed in error is a silently dropped relay.
@@ -281,8 +304,10 @@ export class TrackRegistry implements TrackRegistryIf {
   }
 
   /**
-   * Insert points, ignoring timestamps already present, and fold them into the
-   * summary in the same transaction so the two cannot drift.
+   * Insert points, ignoring timestamps already present, judge the fixes within
+   * reach of them, and fold them into the summary in the same transaction so
+   * the two cannot drift. When the judging changed a verdict the summary is
+   * counted again instead, since a rejected fix is no part of it.
    *
    * A whole GPX file arrives in one call, so the points travel as six parallel
    * arrays and are unnested into rows in postgres. A tuple list does not survive
@@ -296,6 +321,7 @@ export class TrackRegistry implements TrackRegistryIf {
 
     if (incoming.length === 0) return 0;
 
+    await this.ensureJudged(id);
     const summary = summarize(incoming);
 
     const ts = incoming.map((point) => point.ts);
@@ -330,7 +356,9 @@ export class TrackRegistry implements TrackRegistryIf {
 
       const written = inserted.rowCount ?? 0;
 
-      if (written > 0) {
+      if (written > 0 && await this.judgeAround(q, id, Date.parse(summary.firstTs!), Date.parse(summary.lastTs!)) > 0) {
+        await this.recount(q, id);
+      } else if (written > 0) {
         await q(
           `
           UPDATE ${this.tracksTable} SET
@@ -374,10 +402,18 @@ export class TrackRegistry implements TrackRegistryIf {
    *
    * A `still` read drops lone spikes first, in SQL on the simplified path, and
    * collapses still periods on what comes back (`toSegments`).
+   *
+   * Rejected fixes are left out unless asked for. The fix a jump lands on starts
+   * a new run, numbered in SQL, and nothing joins two runs: each is despiked,
+   * simplified and cut on its own.
    */
   async readPoints(id: string, opts: TrackReadOptions = {}): Promise<TrackReadResult> {
+    await this.ensureJudged(id);
+
     const values: unknown[] = [id];
     const where: string[] = [`track_id = $1`];
+
+    if (!opts.rejected) where.push(ACCEPTED);
 
     if (opts.from !== undefined) {
       values.push(opts.from);
@@ -399,24 +435,29 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     const tolerance = opts.tolerance ?? 0;
-    let points: TrackPoint[];
+    let runs: TrackPoint[][];
 
     if (tolerance > 0) {
+      const numbered = `
+        SELECT ts, geog, COUNT(*) FILTER (WHERE rule = 'jump') OVER (ORDER BY ts)::int AS run
+        FROM ${this.pointsTable}
+        WHERE ${where.join(' AND ')}
+      `;
+
       // A still read drops lone spikes before simplifying, as `dropLoneSpikes` does: a fix reached
-      // and left faster than the maximum speed.
-      let source = `SELECT ts, geog FROM ${this.pointsTable} WHERE ${where.join(' AND ')}`;
+      // and left faster than the maximum speed, within its run.
+      let source = numbered;
 
       if (opts.still) {
         values.push(opts.still.maxSpeed ?? STILL_MAX_SPEED);
         const max = `$${values.length}::double precision`;
         source = `
-          SELECT ts, geog FROM (
-            SELECT ts, geog,
+          SELECT ts, geog, run FROM (
+            SELECT ts, geog, run,
               ST_Distance(LAG(geog) OVER w, geog, false) / EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) AS speed_in,
               ST_Distance(geog, LEAD(geog) OVER w, false) / EXTRACT(EPOCH FROM LEAD(ts) OVER w - ts) AS speed_out
-            FROM ${this.pointsTable}
-            WHERE ${where.join(' AND ')}
-            WINDOW w AS (ORDER BY ts)
+            FROM (${numbered}) numbered
+            WINDOW w AS (PARTITION BY run ORDER BY ts)
           ) neighbours
           WHERE NOT (speed_in > ${max} AND speed_out > ${max})
         `;
@@ -424,34 +465,32 @@ export class TrackRegistry implements TrackRegistryIf {
 
       values.push(tolerance);
 
-      const result = await this.query<{ lat: number; lng: number; m: number }>(
+      const result = await this.query<{ lat: number; lng: number; m: number; run: number }>(
         `
         WITH lines AS (
           SELECT
             (ts AT TIME ZONE 'UTC')::date AS day,
+            run,
             ST_MakeLine(
               ST_MakePointM(ST_X(geog::geometry), ST_Y(geog::geometry), EXTRACT(EPOCH FROM ts)) ORDER BY ts
             ) AS line
           FROM (${source}) filtered
-          GROUP BY 1
+          GROUP BY 1, 2
         )
-        SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lng, ST_M(dp.geom) AS m
+        SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lng, ST_M(dp.geom) AS m, l.run
         FROM lines l
         CROSS JOIN LATERAL ST_DumpPoints(ST_Simplify(l.line, $${values.length}::double precision, true)) dp
-        ORDER BY l.day, dp.path[1]
+        ORDER BY l.day, l.run, dp.path[1]
         `,
         values,
       );
 
-      points = result.rows.map((row) => ({
-        lat: row.lat,
-        lng: row.lng,
-        ts: new Date(row.m * 1000).toISOString(),
-      }));
+      runs = splitRuns(result.rows, (row, previous) => row.run !== previous.run)
+        .map((run) => run.map((row) => ({ lat: row.lat, lng: row.lng, ts: new Date(row.m * 1000).toISOString() })));
     } else {
       const result = await this.query<PointRow>(
         `
-        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course
+        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule
         FROM ${this.pointsTable}
         WHERE ${where.join(' AND ')}
         ORDER BY ts
@@ -459,12 +498,14 @@ export class TrackRegistry implements TrackRegistryIf {
         values,
       );
 
-      points = result.rows.map(fromRow);
-      if (opts.still) points = dropLoneSpikes(points, opts.still.maxSpeed);
+      runs = splitRuns(result.rows, (row) => row.rule === 'jump').map((run) => {
+        const points = run.map(fromRow);
+        return opts.still ? dropLoneSpikes(points, opts.still.maxSpeed) : points;
+      });
     }
 
     // Simplification already happened in SQL; what is left is collapsing still periods and the day/pause cut.
-    const full = toSegments(points, 0, opts.still);
+    const full = runs.flatMap((run) => toSegments(run, 0, opts.still));
     const fullCount = countPoints(full);
 
     const segments = opts.limit === undefined ? full : capSegments(full, opts.limit);
@@ -474,6 +515,8 @@ export class TrackRegistry implements TrackRegistryIf {
   }
 
   async pagePoints(id: string, afterTs: string | undefined, limit: number, signal?: AbortSignal): Promise<TrackPoint[]> {
+    await this.ensureJudged(id);
+
     const values: unknown[] = [id, limit];
     let cursor = '';
 
@@ -483,7 +526,7 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     const sql = `
-      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course
+      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule
       FROM ${this.pointsTable}
       WHERE track_id = $1 ${cursor}
       ORDER BY ts
@@ -540,10 +583,13 @@ export class TrackRegistry implements TrackRegistryIf {
   }
 
   /**
-   * Delete a time range. The summary is recomputed rather than adjusted — a
-   * deletion can move any of its bounds, and this is rare enough to pay for.
+   * Delete a time range, and judge again the fixes within reach of its ends.
+   * The summary is recomputed rather than adjusted — a deletion can move any
+   * of its bounds, and this is rare enough to pay for.
    */
   async deletePoints(id: string, range: TrackRange): Promise<number> {
+    await this.ensureJudged(id);
+
     const values: unknown[] = [id];
     const where: string[] = [`track_id = $1`];
 
@@ -567,29 +613,163 @@ export class TrackRegistry implements TrackRegistryIf {
 
       const result = await q(`DELETE FROM ${this.pointsTable} WHERE ${where.join(' AND ')}`, values);
 
-      await q(
-        `
-        UPDATE ${this.tracksTable} t SET
-          points = agg.points, first_ts = agg.first_ts, last_ts = agg.last_ts,
-          north = agg.north, south = agg.south, east = agg.east, west = agg.west
-        FROM (
-          SELECT
-            COUNT(*) AS points, MIN(ts) AS first_ts, MAX(ts) AS last_ts,
-            MAX(ST_Y(geog::geometry)) AS north, MIN(ST_Y(geog::geometry)) AS south,
-            MAX(ST_X(geog::geometry)) AS east,  MIN(ST_X(geog::geometry)) AS west
-          FROM ${this.pointsTable} WHERE track_id = $1
-        ) agg
-        WHERE t.id = $1
-        `,
-        [id],
-      );
+      if ((result.rowCount ?? 0) > 0) {
+        for (const end of [range.from, range.to]) {
+          if (end !== undefined) await this.judgeAround(q, id, Date.parse(end), Date.parse(end));
+        }
+      }
+
+      await this.recount(q, id);
 
       return result.rowCount ?? 0;
     });
   }
 
   async summary(id: string): Promise<TrackSummary> {
+    await this.ensureJudged(id);
     return toSummary(await this.summaryRow(id));
+  }
+
+  /** Count the summary again from the track's accepted fixes. */
+  private async recount(q: QueryFn, id: string): Promise<void> {
+    await q(
+      `
+      UPDATE ${this.tracksTable} t SET
+        points = agg.points, first_ts = agg.first_ts, last_ts = agg.last_ts,
+        north = agg.north, south = agg.south, east = agg.east, west = agg.west
+      FROM (
+        SELECT
+          COUNT(*) AS points, MIN(ts) AS first_ts, MAX(ts) AS last_ts,
+          MAX(ST_Y(geog::geometry)) AS north, MIN(ST_Y(geog::geometry)) AS south,
+          MAX(ST_X(geog::geometry)) AS east,  MIN(ST_X(geog::geometry)) AS west
+        FROM ${this.pointsTable} WHERE track_id = $1 AND ${ACCEPTED}
+      ) agg
+      WHERE t.id = $1
+      `,
+      [id],
+    );
+  }
+
+  /**
+   * Judge again what a change between `from` and `to` (epoch ms) can have
+   * changed the verdict of: the fixes within `RULES_REACH_MS` of it. Every rule
+   * needs a leap, so a window holding none, and no fix a rule marked, is left
+   * as it is without reading it. Returns how many verdicts changed.
+   */
+  private async judgeAround(q: QueryFn, id: string, from: number, to: number): Promise<number> {
+    const low = from - RULES_REACH_MS;
+    const high = to + RULES_REACH_MS;
+    const check = await q<{ found: boolean }>(
+      `
+      SELECT EXISTS (
+        SELECT 1 FROM (
+          SELECT rule,
+            EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) * 1000 AS gap,
+            ST_Distance(LAG(geog) OVER w, geog, false) AS distance
+          FROM ${this.pointsTable}
+          WHERE track_id = $1 AND ts >= $2 AND ts <= $3
+          WINDOW w AS (ORDER BY ts)
+        ) steps
+        WHERE rule IS NOT NULL OR (gap <= $4 AND distance > $5)
+      ) AS found
+      `,
+      // A spheroid is not a sphere: a little short of the rules' distance, so no leap is missed.
+      [id, new Date(low), new Date(high), JUMP_MAX_GAP_MS, JUMP_MIN_M * 0.99],
+    );
+
+    return check.rows[0]?.found ? await this.judgeWindow(q, id, low, high) : 0;
+  }
+
+  /**
+   * Judge the fixes between `from` and `to` (epoch ms, inclusive), reading
+   * `RULES_REACH_MS` more on each side for what they are judged against, and
+   * write the verdicts that changed. Returns how many did.
+   */
+  private async judgeWindow(q: QueryFn, id: string, from: number, to: number): Promise<number> {
+    const result = await q<{ ts: Date; lat: number; lng: number; rule: string | null }>(
+      `
+      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, rule
+      FROM ${this.pointsTable}
+      WHERE track_id = $1 AND ts >= $2 AND ts <= $3
+      ORDER BY ts
+      `,
+      [id, new Date(from - RULES_REACH_MS), new Date(to + RULES_REACH_MS)],
+    );
+
+    const fixes = result.rows.map((row) => ({ ms: new Date(row.ts).getTime(), lat: row.lat, lng: row.lng }));
+    const verdicts = judgeFixes(fixes);
+    const ts: Date[] = [];
+    const rules: (string | null)[] = [];
+
+    fixes.forEach((fix, i) => {
+      if (fix.ms < from || fix.ms > to || (verdicts[i] ?? null) === result.rows[i].rule) return;
+      ts.push(new Date(fix.ms));
+      rules.push(verdicts[i]);
+    });
+
+    if (ts.length > 0) {
+      await q(
+        `
+        UPDATE ${this.pointsTable} p SET rule = verdict.rule
+        FROM unnest($2::timestamptz[], $3::text[]) AS verdict(ts, rule)
+        WHERE p.track_id = $1 AND p.ts = verdict.ts
+        `,
+        [id, ts, rules],
+      );
+    }
+
+    return ts.length;
+  }
+
+  /**
+   * Judge a track by the current rules once, if it was last judged by older
+   * ones: every fix, `JUDGE_CHUNK` at a time, then the summary again. Later
+   * calls share the first.
+   */
+  private ensureJudged(id: string): Promise<void> {
+    let pending = this.judged.get(id);
+
+    if (!pending) {
+      pending = this.judgeTrack(id).catch((error) => {
+        this.judged.delete(id);
+        throw error;
+      });
+      this.judged.set(id, pending);
+    }
+
+    return pending;
+  }
+
+  private async judgeTrack(id: string): Promise<void> {
+    const version = await this.query<{ rules: number }>(`SELECT rules FROM ${this.tracksTable} WHERE id = $1`, [id]);
+    if ((version.rows[0]?.rules ?? RULES_VERSION) >= RULES_VERSION) return;
+
+    await this.transaction(async (q) => {
+      // Locked first, as the other writers lock it.
+      await q(`SELECT 1 FROM ${this.tracksTable} WHERE id = $1 FOR UPDATE`, [id]);
+
+      const span = (await q<{ first: Date | null; last: Date | null }>(
+        `SELECT MIN(ts) AS first, MAX(ts) AS last FROM ${this.pointsTable} WHERE track_id = $1`,
+        [id],
+      )).rows[0];
+      let from = span?.first ? new Date(span.first).getTime() : undefined;
+      const last = span?.last ? new Date(span.last).getTime() : 0;
+
+      while (from !== undefined) {
+        // The first fix of the next chunk, if there is one.
+        const next = (await q<{ ts: Date }>(
+          `SELECT ts FROM ${this.pointsTable} WHERE track_id = $1 AND ts >= $2 ORDER BY ts OFFSET $3 LIMIT 1`,
+          [id, new Date(from), JUDGE_CHUNK],
+        )).rows[0]?.ts;
+        const end = next ? new Date(next).getTime() : undefined;
+
+        await this.judgeWindow(q, id, from, end !== undefined ? end - 1 : last);
+        from = end;
+      }
+
+      await this.recount(q, id);
+      await q(`UPDATE ${this.tracksTable} SET rules = $2 WHERE id = $1`, [id, RULES_VERSION]);
+    });
   }
 
   async summaries(ids: string[]): Promise<Map<string, TrackSummary>> {
@@ -738,6 +918,7 @@ const fromRow = (row: PointRow): TrackPoint => {
   if (row.alt !== null) point.alt = row.alt;
   if (row.speed !== null) point.speed = row.speed;
   if (row.course !== null) point.course = row.course;
+  if (row.rule === 'excursion') point.rejected = row.rule;
 
   return point;
 };

@@ -19,10 +19,12 @@ export type TrackPoint = {
   alt?: number;
   speed?: number;
   course?: number;
+  /** The rule that rejected the fix (`rules.ts`), on a fix read with its rejected ones. */
+  rejected?: 'excursion';
 };
 
 /** A point on the way in, where the caller may not have a timestamp yet. */
-export type TrackPointInput = Omit<TrackPoint, 'ts'> & { ts?: string };
+export type TrackPointInput = Omit<TrackPoint, 'ts' | 'rejected'> & { ts?: string };
 
 /** Geographic bounding box. Same shape as the position registry's GeoBounds. */
 export type TrackBounds = {
@@ -33,9 +35,9 @@ export type TrackBounds = {
 };
 
 /**
- * What a track is, without reading it. Maintained by the registry on every
- * append and delete, in the same transaction, so it cannot drift from the
- * points.
+ * What a track is, without reading it: its accepted fixes, those no rule
+ * rejected. Maintained by the registry on every append and delete, in the
+ * same transaction, so it cannot drift from the points.
  */
 export type TrackSummary = {
   points: number;
@@ -81,6 +83,11 @@ export type TrackReadOptions = TrackRange & {
   limit?: number;
   /** Override the gap rule (ms). Default is derived from the points themselves. */
   gapMs?: number;
+  /**
+   * Read the fixes a rule rejected too (`rules.ts`), each marked `rejected`
+   * where the read keeps detail. Without it a read is of the accepted fixes.
+   */
+  rejected?: boolean;
   /**
    * Hide what a device draws while it lies still: drop GPS spikes, and collapse
    * each stay into two points on its centroid, at arrival and at departure.

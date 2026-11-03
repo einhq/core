@@ -427,6 +427,22 @@ export function toSegments(points: TrackPoint[], tolerance: number, still?: Trac
 }
 
 /**
+ * Cut points into runs, a new one starting at each point `starts` names, given
+ * the point before it: the fix a jump lands on (`rules.ts`). Nothing joins two
+ * runs, so each is despiked, thinned, collapsed and cut on its own.
+ */
+export function splitRuns<T>(points: T[], starts: (point: T, previous: T) => boolean): T[][] {
+  const runs: T[][] = [];
+
+  points.forEach((point, i) => {
+    if (i === 0 || starts(point, points[i - 1])) runs.push([]);
+    runs[runs.length - 1].push(point);
+  });
+
+  return runs;
+}
+
+/**
  * Thin segments down to `limit` vertices in total, each segment keeping its
  * share. Simplification is the good way to lose points; this is the backstop
  * that keeps one pathological track from stalling a map.

@@ -244,7 +244,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           await registry.appendPoints('t-gap', [
             { lat: 57.0, lng: 11.0, ts: new Date(day1).toISOString() },
             { lat: 58.0, lng: 12.0, ts: new Date(day3).toISOString() },
-            { lat: 58.1, lng: 12.1, ts: new Date(day3 + 60_000).toISOString() },
+            { lat: 58.001, lng: 12.001, ts: new Date(day3 + 60_000).toISOString() },
           ]);
 
           const result = await registry.readPoints('t-gap');
@@ -253,7 +253,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           assertEquals(result.truncated, false);
           // The lone fix keeps its own day rather than being joined across two days.
           assertEquals(result.segments.map((segment) => segment.day), ['2015-07-01', '2015-07-03']);
-          assertEquals(allPoints(result.segments).map((point) => point.lat), [57.0, 58.0, 58.1]);
+          assertEquals(allPoints(result.segments).map((point) => point.lat), [57.0, 58.0, 58.001]);
         });
 
         await t.step('a simplified read keeps a lone day too', async () => {
@@ -265,8 +265,9 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
         });
 
         await t.step('a still read collapses a stay and drops a spike', async () => {
-          // In from the south, 40 minutes drifting on the berth with one fix thrown 5 km off, and out
-          // to the north: a fix every 20 s, no speed recorded.
+          // In from the south, 40 minutes drifting on the berth with one fix thrown 800 m off, and out
+          // to the north: a fix every 20 s, no speed recorded. The spike is too short for the rules
+          // the track is stored by, so it is the read's to drop.
           const metre = 1 / 111_320;
           const at = (i: number, north: number, east = 0): TrackPoint => ({
             lat: 57.7 + north * metre,
@@ -275,7 +276,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           });
           const points = [
             ...Array.from({ length: 10 }, (_, i) => at(i, -500 + i * 50)),
-            ...Array.from({ length: 120 }, (_, i) => i === 60 ? at(10 + i, 5000) : at(10 + i, ((i % 5) - 2) * 6, ((i % 7) - 3) * 5)),
+            ...Array.from({ length: 120 }, (_, i) => i === 60 ? at(10 + i, 800) : at(10 + i, ((i % 5) - 2) * 6, ((i % 7) - 3) * 5)),
             ...Array.from({ length: 10 }, (_, i) => at(130 + i, (i + 1) * 50)),
           ];
           await registry.touch('t-still', {});
@@ -291,7 +292,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           assertEquals(onBerth(still).length, 2);
           assertEquals([arrival.lat, arrival.lng], [departure.lat, departure.lng]);
           assertEquals(Date.parse(departure.ts) - Date.parse(arrival.ts) >= 38 * 60_000, true);
-          assertEquals(allPoints(still.segments).some((point) => point.lat > 57.7 + 1000 * metre), false);
+          assertEquals(allPoints(still.segments).some((point) => point.lat > 57.7 + 600 * metre), false);
           // The approach and the departure stay as they were.
           const kept = allPoints(still.segments).map((point) => point.ts);
           for (const i of [0, 4, 8, 131, 135, 139]) assertEquals(kept.includes(points[i].ts), true);
@@ -299,13 +300,97 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           // Simplified finely enough to keep the drift, it collapses the same way.
           const fine = await registry.readPoints('t-still', { tolerance: 0.000001, still: {} });
           assertEquals(onBerth(fine).length, 2);
-          assertEquals(allPoints(fine.segments).some((point) => point.lat > 57.7 + 1000 * metre), false);
+          assertEquals(allPoints(fine.segments).some((point) => point.lat > 57.7 + 600 * metre), false);
 
           // Simplified past the drift, the spike is still gone.
           const coarse = await registry.readPoints('t-still', { tolerance: 0.001, still: {} });
-          assertEquals(allPoints(coarse.segments).some((point) => point.lat > 57.7 + 1000 * metre), false);
+          assertEquals(allPoints(coarse.segments).some((point) => point.lat > 57.7 + 600 * metre), false);
           const unfiltered = await registry.readPoints('t-still', { tolerance: 0.001 });
-          assertEquals(allPoints(unfiltered.segments).some((point) => point.lat > 57.7 + 1000 * metre), true);
+          assertEquals(allPoints(unfiltered.segments).some((point) => point.lat > 57.7 + 600 * metre), true);
+        });
+
+        // Steady going a fix a second, two degrees north for `away` fixes, and back on course.
+        const excursion = (offset: number, away: number): TrackPoint[] => [
+          ...run(10, offset),
+          ...run(away, offset + 10).map((point) => ({ ...point, lat: point.lat + 2 })),
+          ...run(10, offset + 10 + away),
+        ];
+
+        await t.step('an excursion is left out of reads and of the summary', async () => {
+          await registry.touch('t-out', {});
+          await registry.appendPoints('t-out', excursion(0, 5));
+
+          const read = await registry.readPoints('t-out');
+          assertEquals(read.points, 20);
+          assertEquals(allPoints(read.segments).some((point) => point.lat > 59), false);
+          assertEquals(read.segments.length, 1);
+
+          const summary = await registry.summary('t-out');
+          assertEquals(summary.points, 20);
+          assertEquals(summary.bbox!.north < 59, true);
+
+          const simplified = await registry.readPoints('t-out', { tolerance: 0.00001 });
+          assertEquals(allPoints(simplified.segments).some((point) => point.lat > 59), false);
+        });
+
+        await t.step('a read asking for rejected fixes gets them, marked', async () => {
+          const read = await registry.readPoints('t-out', { rejected: true });
+          const away = allPoints(read.segments).filter((point) => point.lat > 59);
+
+          assertEquals(read.points, 25);
+          assertEquals(away.length, 5);
+          assertEquals(away.every((point) => point.rejected === 'excursion'), true);
+          assertEquals(allPoints(read.segments).filter((point) => point.rejected).length, 5);
+        });
+
+        await t.step('the byte-stream view keeps rejected fixes, marked', async () => {
+          const handle = await registry.open('t-out', {}, 'r');
+          const lines: TrackPoint[] = [];
+
+          try {
+            for (let chunk = await handle.read(1); chunk.length > 0; chunk = await handle.read(1)) {
+              lines.push(JSON.parse(new TextDecoder().decode(chunk)) as TrackPoint);
+            }
+          } finally {
+            await handle.close();
+          }
+
+          assertEquals(lines.length, 25);
+          assertEquals(lines.filter((point) => point.rejected === 'excursion').length, 5);
+        });
+
+        await t.step('a backdated append that brings the track back makes an excursion of what it left', async () => {
+          // The way out and the run away first; nothing comes back yet, so the leap out is a jump.
+          const points = excursion(1000, 5);
+          await registry.touch('t-late', {});
+          await registry.appendPoints('t-late', points.slice(0, 15));
+          assertEquals((await registry.readPoints('t-late')).points, 15);
+          assertEquals((await registry.readPoints('t-late')).segments.length, 2);
+
+          // Later, the rest arrives: the track comes back, and what was away is rejected.
+          await registry.appendPoints('t-late', points.slice(15));
+          const read = await registry.readPoints('t-late');
+          assertEquals(read.points, 20);
+          assertEquals(read.segments.length, 1);
+          assertEquals((await registry.summary('t-late')).points, 20);
+
+          // Deleting the way back takes the excursion away again.
+          await registry.deletePoints('t-late', { from: points[15].ts });
+          assertEquals((await registry.readPoints('t-late')).points, 15);
+          assertEquals((await registry.summary('t-late')).points, 15);
+        });
+
+        await t.step('a jump that does not come back cuts the line and keeps its fixes', async () => {
+          // Fifteen kilometres in a second, then steady going there.
+          await registry.touch('t-jump', {});
+          await registry.appendPoints('t-jump', [...run(10), ...run(10, 10).map((point) => ({ ...point, lat: point.lat + 0.135 }))]);
+
+          const read = await registry.readPoints('t-jump');
+          assertEquals(read.points, 20);
+          assertEquals(read.segments.map((segment) => segment.points.length), [10, 10]);
+
+          const simplified = await registry.readPoints('t-jump', { tolerance: 0.00001, still: {} });
+          assertEquals(simplified.segments.length, 2);
         });
 
         await t.step('limit caps the vertices and says so', async () => {
@@ -445,8 +530,25 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           const ids: string[] = [];
           for await (const id of await registry.list()) ids.push(id);
 
-          assertEquals(ids.sort(), ['t-gap', 't-lone', 't-still', 't1', 't10', 't11', 't2', 't3', 't4', 't5', 't6', 't7', 't9']);
-          assertEquals(await registry.count(), 13);
+          assertEquals(ids.sort(), [
+            't-gap',
+            't-jump',
+            't-late',
+            't-lone',
+            't-out',
+            't-still',
+            't1',
+            't10',
+            't11',
+            't2',
+            't3',
+            't4',
+            't5',
+            't6',
+            't7',
+            't9',
+          ]);
+          assertEquals(await registry.count(), 16);
         });
       } finally {
         await teardown();
