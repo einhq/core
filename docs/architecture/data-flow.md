@@ -80,9 +80,10 @@ attrs** is a shape write: a writable handle on a `position` node touches the nod
 (`ContentWriteHandle`), the counterpart of a file handle's size report, since the shape is registry
 content no attr describes. Without it a point being written would be invisible, and a rule acting
 on `created` runs before the point exists — writers `ensure` the node first and write it after.
-A `track` node is touched the same way when points are appended through a writable handle
-(`TrackHandle.onAppended`): on the first append, then at most every five seconds while the handle
-stays open, and on close; points a routing key appends do not touch it. That touch on a device's
+A `track` node is touched the same way when its fixes change through a writable handle — appended,
+deleted, marked by hand, or moved in or out (`TrackHandle.onChanged`): on the first change, then at
+most every five seconds while the handle stays open, and on close; points a routing key appends do
+not touch it. That touch on a device's
 `track` child, a device's `kind` or `timezone` changing, and a link added to or removed from its
 `homes/` announce `track.changed` for the device, on which `track-trips` derives its trips again and
 `track-places` puts their stays at locations; each write of the device's `.trips` rewrites the

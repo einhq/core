@@ -4815,16 +4815,16 @@ export class LocalNodeVFS implements NodeVFS {
       }
 
       // A track's points are registry content too, and its handle stays itself
-      // (callers test `instanceof TrackHandle`), so it reports appends through
-      // its own hook rather than a wrapper.
+      // (callers test `instanceof TrackHandle`), so it reports a change of its
+      // fixes through its own hook rather than a wrapper.
       if (writable && handle instanceof TrackHandle) {
         const path = entry.vfsAbsPath;
-        handle.onAppended = async () => {
+        handle.onChanged = async () => {
           try {
             await this.update(access, path, { attrs: {} });
           } catch (error) {
-            if (error instanceof NodeNotFoundError) logger.debug('track append report skipped, node deleted', { path });
-            else logger.error('track append report failed', { error, path });
+            if (error instanceof NodeNotFoundError) logger.debug('track change report skipped, node deleted', { path });
+            else logger.error('track change report failed', { error, path });
           }
         };
       }

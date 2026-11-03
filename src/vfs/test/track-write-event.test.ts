@@ -1,6 +1,7 @@
 /**
- * Appending points to a track through the VFS emits `updated` with no attr
- * changed, so a subscriber can follow a track as it grows.
+ * A change to a track's fixes through the VFS — points appended, marked by hand,
+ * moved to another track — emits `updated` with no attr changed, so a subscriber
+ * can follow a track as it grows and derive again what it derived from it.
  */
 
 import { assertEquals, assertInstanceOf } from '@std/assert';
@@ -11,7 +12,7 @@ import type { NodeEvent } from '../mod.ts';
 
 const enc = new TextEncoder();
 
-Deno.test('track append emits updated', async (t) => {
+Deno.test("a change to a track's fixes emits updated", async (t) => {
   const ctx = await createTestVfs();
   const { vfs } = ctx;
 
@@ -21,7 +22,7 @@ Deno.test('track append emits updated', async (t) => {
   });
 
   const settle = () => new Promise((r) => setTimeout(r, 30));
-  const updates = (from: number) => events.slice(from).filter((e) => e.type === 'updated' && e.path === '/route');
+  const updates = (from: number, path = '/route') => events.slice(from).filter((e) => e.type === 'updated' && e.path === path);
   const fix = (minute: number) => ({ lat: 57.7 + minute / 1000, lng: 11.9, ts: new Date(Date.UTC(2026, 5, 1, 10, minute)).toISOString() });
 
   const appendOnce = async (points: ReturnType<typeof fix>[]) => {
@@ -85,6 +86,34 @@ Deno.test('track append emits updated', async (t) => {
       await settle();
 
       assertEquals(updates(before).length, 0);
+    });
+
+    await t.step('a verdict given by hand emits updated, and one that changes nothing emits nothing', async () => {
+      const h = await vfs.open(ADMIN_ACCESS, '/route', { mode: 'a' });
+      assertInstanceOf(h, TrackHandle);
+      const before = events.length;
+      assertEquals(await h.markPoints({ from: fix(10).ts, to: fix(11).ts }, 'reject'), 1);
+      assertEquals(await h.markPoints({ from: fix(10).ts, to: fix(11).ts }, 'reject'), 0);
+      await h.close();
+      await settle();
+
+      assertEquals(updates(before).length, 1);
+    });
+
+    await t.step('a move emits updated on both tracks', async () => {
+      await vfs.create(ADMIN_ACCESS, 'track', '/', 'other', {});
+      const from = await vfs.open(ADMIN_ACCESS, '/route', { mode: 'a' });
+      const to = await vfs.open(ADMIN_ACCESS, '/other', { mode: 'a' });
+      assertInstanceOf(from, TrackHandle);
+      assertInstanceOf(to, TrackHandle);
+      const before = events.length;
+      assertEquals(await from.movePoints({ from: fix(20).ts }, to), 2);
+      await from.close();
+      await to.close();
+      await settle();
+
+      assertEquals(updates(before).length, 1);
+      assertEquals(updates(before, '/other').length, 1);
     });
 
     await t.step('a read emits nothing', async () => {

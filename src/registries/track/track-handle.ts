@@ -1,11 +1,23 @@
 import { AbstractResourceHandle, RegistryIf, ResourceHandleIf, ResourceMode } from '../types.ts';
-import { TrackIO, TrackPoint, TrackPointInput, TrackRange, TrackReadOptions, TrackReadResult, TrackResourceOptions, TrackStat, TrackSummary, TrackVerdict } from './types.ts';
+import {
+  TrackIO,
+  TrackPoint,
+  TrackPointInput,
+  TrackRange,
+  TrackReadOptions,
+  TrackReadResult,
+  TrackResourceOptions,
+  TrackSelection,
+  TrackStat,
+  TrackSummary,
+  TrackVerdict,
+} from './types.ts';
 
 /** Points fetched per read of the byte-stream view. */
 const PAGE = 100;
 
-/** How often, at most, a handle that stays open reports that points were appended. */
-const APPEND_REPORT_MS = 5000;
+/** How often, at most, a handle that stays open reports that its fixes changed. */
+const CHANGE_REPORT_MS = 5000;
 
 /**
  * Byte-stream view of a track, so `cat` and `tail -f` work on one.
@@ -22,18 +34,19 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
   private decoder = new TextDecoder();
   /** Bytes of a line that arrived without its newline yet. */
   private pending = '';
-  /** Points were appended since the last report. */
+  /** The fixes changed since the last report. */
   private unreported = false;
-  /** When `onAppended` last ran, in ms since the epoch; 0 before the first. */
+  /** When `onChanged` last ran, in ms since the epoch; 0 before the first. */
   private reportedAt = 0;
 
   /**
-   * Called after points were appended, so the owner can tell subscribers. It runs
-   * on the first append, then at most once every few seconds while the handle
-   * stays open, and on close for any points not yet reported; never when an
-   * append wrote no row (every point a duplicate).
+   * Called after the track's fixes changed — appended, deleted, marked, or moved
+   * in or out — so the owner can tell subscribers. It runs on the first change,
+   * then at most once every few seconds while the handle stays open, and on close
+   * for any change not yet reported; never when a call changed nothing (every
+   * point a duplicate, every verdict already given).
    */
-  onAppended?: () => Promise<void>;
+  onChanged?: () => Promise<void>;
 
   constructor(
     id: string,
@@ -120,7 +133,7 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
 
     if (points.length === 0) return 0;
 
-    await this.appended(await this.io.append(points));
+    await this.changed(await this.io.append(points));
 
     return points.length;
   }
@@ -131,21 +144,22 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
     this.assertCanWrite();
 
     const written = await this.io.append(points);
-    await this.appended(written);
+    await this.changed(written);
     return written;
   }
 
-  private async appended(written: number): Promise<void> {
-    if (written === 0) return;
+  /** Note that `count` fixes changed, and report it unless one was reported a moment ago. */
+  private async changed(count: number): Promise<void> {
+    if (count === 0) return;
     this.unreported = true;
-    if (Date.now() - this.reportedAt >= APPEND_REPORT_MS) await this.report();
+    if (Date.now() - this.reportedAt >= CHANGE_REPORT_MS) await this.report();
   }
 
   private async report(): Promise<void> {
-    if (!this.unreported || !this.onAppended) return;
+    if (!this.unreported || !this.onChanged) return;
     this.unreported = false;
     this.reportedAt = Date.now();
-    await this.onAppended();
+    await this.onChanged();
   }
 
   /** Read the track as drawable segments. */
@@ -161,15 +175,37 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
     this.assertNotClosed();
     this.assertCanWrite();
 
-    return await this.io.remove(range);
+    const removed = await this.io.remove(range);
+    await this.changed(removed);
+    return removed;
   }
 
-  /** Set a person's verdict on a time range, or clear it with null. Returns the fixes whose verdict changed. */
-  async markPoints(range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
+  /** Set a person's verdict on a selection, or clear it with null. Returns the fixes whose verdict changed. */
+  async markPoints(selection: TrackSelection, verdict: TrackVerdict | null): Promise<number> {
     this.assertNotClosed();
     this.assertCanWrite();
 
-    return await this.io.mark(range, verdict);
+    const marked = await this.io.mark(selection, verdict);
+    await this.changed(marked);
+    return marked;
+  }
+
+  /**
+   * Move the fixes of a time range to the track `to` is open on, which has to be open for writing
+   * and kept by the same registry. A fix whose timestamp `to` already holds leaves this track all
+   * the same. Returns the fixes moved; both handles report the change.
+   */
+  async movePoints(range: TrackRange, to: TrackHandle): Promise<number> {
+    this.assertNotClosed();
+    this.assertCanWrite();
+    if (!(to instanceof TrackHandle) || to.registry !== this.registry) throw new Error('fixes move only to a track kept in the same store');
+    to.assertNotClosed();
+    to.assertCanWrite();
+
+    const moved = await this.io.move(range, to.id);
+    await this.changed(moved);
+    await to.changed(moved);
+    return moved;
   }
 
   /** Point count, time span and extent, without reading the points. */

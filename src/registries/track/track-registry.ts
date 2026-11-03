@@ -35,6 +35,7 @@ import {
   TrackReadResult,
   TrackRegistryIf,
   TrackResourceOptions,
+  TrackSelection,
   TrackStat,
   TrackSummary,
   TrackVerdict,
@@ -261,7 +262,8 @@ export class TrackRegistry implements TrackRegistryIf {
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
-      mark: (range, verdict) => this.markPoints(id, range, verdict),
+      mark: (selection, verdict) => this.markPoints(id, selection, verdict),
+      move: (range, to) => this.movePoints(id, to, range),
       summary: () => this.summary(id),
     };
 
@@ -622,17 +624,7 @@ export class TrackRegistry implements TrackRegistryIf {
     await this.ensureJudged(id);
 
     const values: unknown[] = [id];
-    const where: string[] = [`track_id = $1`];
-
-    if (range.from !== undefined) {
-      values.push(range.from);
-      where.push(`ts >= $${values.length}::timestamptz`);
-    }
-
-    if (range.to !== undefined) {
-      values.push(range.to);
-      where.push(`ts < $${values.length}::timestamptz`);
-    }
+    const where = [`track_id = $1`, ...selectionWhere(values, range)];
 
     return await this.transaction(async (q) => {
       // Take the track row before touching the points, for two reasons. The
@@ -657,25 +649,15 @@ export class TrackRegistry implements TrackRegistryIf {
   }
 
   /**
-   * Set a person's verdict on a time range, or clear it, judge again what that
+   * Set a person's verdict on a selection, or clear it, judge again what that
    * changes, and count the summary again. A fix a person rejects loses its rule,
    * since the rules judge the track without it.
    */
-  async markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
+  async markPoints(id: string, selection: TrackSelection, verdict: TrackVerdict | null): Promise<number> {
     await this.ensureJudged(id);
 
     const values: unknown[] = [id, verdict];
-    const where: string[] = [`track_id = $1`, `manual IS DISTINCT FROM $2::text`];
-
-    if (range.from !== undefined) {
-      values.push(range.from);
-      where.push(`ts >= $${values.length}::timestamptz`);
-    }
-
-    if (range.to !== undefined) {
-      values.push(range.to);
-      where.push(`ts < $${values.length}::timestamptz`);
-    }
+    const where = [`track_id = $1`, `manual IS DISTINCT FROM $2::text`, ...selectionWhere(values, selection)];
 
     return await this.transaction(async (q) => {
       // Locked first, as the other writers lock it.
@@ -710,6 +692,55 @@ export class TrackRegistry implements TrackRegistryIf {
       if (Number(changed) > 0) await this.recount(q, id);
 
       return Number(changed);
+    });
+  }
+
+  /**
+   * Move a time range to another track in one statement, the rows leaving one track and landing
+   * on the other with what a person said of them; then judge again what is within reach of the
+   * range's ends on `from` and of the fixes that landed on `to`, and count both summaries again.
+   */
+  async movePoints(from: string, to: string, range: TrackRange): Promise<number> {
+    if (from === to) throw new Error(`cannot move fixes from a track to itself: ${from}`);
+    await Promise.all([this.ensureJudged(from), this.ensureJudged(to)]);
+
+    const values: unknown[] = [from, to];
+    const where = [`track_id = $1`, ...selectionWhere(values, range)];
+
+    return await this.transaction(async (q) => {
+      // Both rows locked before any point, as the other writers lock theirs, and in id order, so
+      // two moves between the same tracks queue rather than deadlock.
+      const locked = await q<{ id: string }>(`SELECT id FROM ${this.tracksTable} WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE`, [[from, to]]);
+      const missing = [from, to].find((id) => !locked.rows.some((row) => row.id === id));
+      if (missing) throw new Error(`no track found: ${missing}`);
+
+      const result = await q<{ moved: string; first: Date | null; last: Date | null }>(
+        `
+        WITH gone AS (
+          DELETE FROM ${this.pointsTable} WHERE ${where.join(' AND ')}
+          RETURNING ts, geog, alt, speed, course, manual
+        ), landed AS (
+          INSERT INTO ${this.pointsTable} (track_id, ts, geog, alt, speed, course, manual)
+          SELECT $2, ts, geog, alt, speed, course, manual FROM gone
+          ON CONFLICT (track_id, ts) DO NOTHING
+        )
+        SELECT COUNT(*) AS moved, MIN(ts) AS first, MAX(ts) AS last FROM gone
+        `,
+        values,
+      );
+
+      const { moved, first, last } = result.rows[0];
+      if (Number(moved) === 0) return 0;
+
+      for (const end of [range.from, range.to]) {
+        if (end !== undefined) await this.judgeAround(q, from, Date.parse(end), Date.parse(end));
+      }
+      await this.judgeChunks(q, to, new Date(first!).getTime() - RULES_REACH_MS, new Date(last!).getTime() + RULES_REACH_MS);
+
+      await this.recount(q, from);
+      await this.recount(q, to);
+
+      return Number(moved);
     });
   }
 
@@ -1004,6 +1035,41 @@ export class TrackRegistry implements TrackRegistryIf {
     return `${this.tablePrefix}_points`;
   }
 }
+
+/** Metres in a degree of latitude, a little short, so a box widened by it holds the whole circle. */
+const METRES_PER_DEGREE = 111_000;
+
+/**
+ * The conditions that keep the fixes of a selection, its parameters pushed onto `values`. A `near`
+ * is tested on the sphere, after a box around it that the spatial index answers.
+ */
+const selectionWhere = (values: unknown[], selection: TrackSelection): string[] => {
+  const where: string[] = [];
+  const param = (value: unknown) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+
+  if (selection.from !== undefined) where.push(`ts >= ${param(selection.from)}::timestamptz`);
+  if (selection.to !== undefined) where.push(`ts < ${param(selection.to)}::timestamptz`);
+  if (selection.marked !== undefined) where.push(`manual = ${param(selection.marked)}::text`);
+
+  if (selection.near) {
+    const { lat, lng, radius } = selection.near;
+    const dLat = radius / METRES_PER_DEGREE;
+    const dLng = dLat / Math.max(Math.cos(lat * Math.PI / 180), 0.01);
+    where.push(
+      `geog::geometry && ST_MakeEnvelope(${param(lng - dLng)}::double precision, ${param(lat - dLat)}::double precision, ` +
+        `${param(lng + dLng)}::double precision, ${param(lat + dLat)}::double precision, 4326)`,
+    );
+    where.push(
+      `ST_DWithin(geog, ST_SetSRID(ST_MakePoint(${param(lng)}::double precision, ${param(lat)}::double precision), 4326)::geography, ` +
+        `${param(radius)}::double precision, false)`,
+    );
+  }
+
+  return where;
+};
 
 const fromRow = (row: PointRow): TrackPoint => {
   const point: TrackPoint = { lat: row.lat, lng: row.lng, ts: new Date(row.ts).toISOString() };

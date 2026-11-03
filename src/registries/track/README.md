@@ -74,14 +74,25 @@ judged by; a track judged by an older one is judged again, a chunk at a time, be
 its next read or write. Rejected fixes stay: `rejected` reads them too, marked, and
 the byte-stream view always carries them.
 
-A person can overrule the rules: `markPoints(id, range, verdict)` sets the fixes'
+A person can overrule the rules: `markPoints(id, selection, verdict)` sets the fixes'
 `manual` to `reject` or `accept`, or clears it with null, and judging never touches
-it. A fix is left out when a person rejected it, or a rule did and no person
+it. A selection is a time range, narrowed to the fixes within a radius of a point
+(`near`) or to those a person gave a verdict (`marked`). A fix is left out when a person rejected it, or a rule did and no person
 accepted it. The rules judge a track without the fixes a person rejected, so such a
 fix has no rule, and marking judges again, in chunks, the fixes within reach of
 every fix whose rejection it changed. `rejected: 'only'` reads the rejected fixes
 alone, a run of them cut wherever an accepted fix lies between, which is what a
 page offering to accept them draws.
+
+## Moves
+
+`movePoints(from, to, range)` moves a time range to another track, for a trip
+recorded on the wrong device. It is one statement: the rows deleted from one
+track are inserted into the other with their `manual`, a fix whose timestamp the
+other already holds being dropped. Both track rows are locked first, in id order,
+so moves the opposite way queue. Then the fixes within reach of the range's ends
+are judged again on the track they left, those within reach of the fixes that
+landed on the track they joined, and both summaries are counted again.
 
 ## Reads
 
@@ -130,13 +141,16 @@ with an `AbortSignal` blocks until points arrive — `tail -f` on a track — vi
 
 A handle opened for writing through the VFS also touches the track node, so
 VFS subscribers (a page following the track, a pipeline rule) see an `updated`
-event with no attr changed. `TrackHandle.onAppended` is called on the first
-append that writes a row, then at most every five seconds while the handle stays
-open, and on close for whatever is still unreported. Points appended from a
-routing key go straight into the registry and do not touch the node.
+event with no attr changed. `TrackHandle.onChanged` is called on the first
+call through the handle that changes a fix — an append that writes a row, a
+delete, a mark, a move in or out — then at most every five seconds while the
+handle stays open, and on close for whatever is still unreported. Points
+appended from a routing key go straight into the registry and do not touch the
+node.
 
 ## Byte-stream view
 
 `TrackHandle.read()` yields points as JSONL in timestamp order, so `cat` works
 on a track node; `write()` appends them. The typed methods (`appendPoints`,
-`readPoints`, `deletePoints`, `summary`) are what the map uses.
+`readPoints`, `deletePoints`, `markPoints`, `movePoints`, `summary`) are what
+the map and the commands use.

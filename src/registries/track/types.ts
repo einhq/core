@@ -69,6 +69,14 @@ export type TrackRange = {
   to?: string;
 };
 
+/** The fixes of a time range a person's verdict is given to, narrowed by where they are and what was said of them. */
+export type TrackSelection = TrackRange & {
+  /** Only the fixes within `radius` metres of this point. */
+  near?: { lat: number; lng: number; radius: number };
+  /** Only the fixes a person gave this verdict. */
+  marked?: TrackVerdict;
+};
+
 export type TrackReadOptions = TrackRange & {
   /** Only points inside this box (widened by `margin`). */
   bounds?: TrackBounds;
@@ -146,8 +154,10 @@ export interface TrackIO {
   read(opts: TrackReadOptions): Promise<TrackReadResult>;
   /** Drop a time range. Returns rows removed. */
   remove(range: TrackRange): Promise<number>;
-  /** Set or clear (null) a person's verdict on a time range. Returns the fixes whose verdict changed. */
-  mark(range: TrackRange, verdict: TrackVerdict | null): Promise<number>;
+  /** Set or clear (null) a person's verdict on a selection. Returns the fixes whose verdict changed. */
+  mark(selection: TrackSelection, verdict: TrackVerdict | null): Promise<number>;
+  /** Move a time range to the track `to`. Returns the fixes moved. */
+  move(range: TrackRange, to: string): Promise<number>;
   summary(): Promise<TrackSummary>;
 }
 
@@ -167,10 +177,17 @@ export interface TrackRegistryIf extends RegistryIf<TrackResourceOptions, TrackS
   /** Delete a time range from a track. Returns rows removed. */
   deletePoints(id: string, range: TrackRange): Promise<number>;
   /**
-   * Set a person's verdict on the fixes of a time range, or clear it with null, and judge
+   * Set a person's verdict on the fixes of a selection, or clear it with null, and judge
    * what that changes. Returns the fixes whose verdict changed.
    */
-  markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number>;
+  markPoints(id: string, selection: TrackSelection, verdict: TrackVerdict | null): Promise<number>;
+  /**
+   * Move the fixes of a time range from the track `from` to the track `to`, with what a person
+   * said of them, and judge both tracks where that changes them. A fix whose timestamp `to`
+   * already holds leaves `from` all the same, and `to` keeps its own. Returns the fixes that
+   * left `from`.
+   */
+  movePoints(from: string, to: string, range: TrackRange): Promise<number>;
   /** Point count, time span and extent, without reading the points. */
   summary(id: string): Promise<TrackSummary>;
   /** The summary of each of many tracks, in one read. Ids with no track are absent. */

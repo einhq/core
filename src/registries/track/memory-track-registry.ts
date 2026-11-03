@@ -5,6 +5,7 @@
  * every memory-mounted instance run against. Its tracks are small, so every
  * append, delete and mark judges the whole track again (`rules.ts`).
  */
+import { haversineMeters } from '../../lib/geo/distance.ts';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
 import { routingKeysMatch } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
@@ -20,6 +21,7 @@ import {
   TrackReadResult,
   TrackRegistryIf,
   TrackResourceOptions,
+  TrackSelection,
   TrackStat,
   TrackSummary,
   TrackVerdict,
@@ -111,7 +113,8 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
-      mark: (range, verdict) => this.markPoints(id, range, verdict),
+      mark: (selection, verdict) => this.markPoints(id, selection, verdict),
+      move: (range, to) => this.movePoints(id, to, range),
       summary: () => this.summary(id),
     };
 
@@ -297,15 +300,13 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     return removed;
   }
 
-  async markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
-    const stored = this.pointsOf(id);
+  async markPoints(id: string, selection: TrackSelection, verdict: TrackVerdict | null): Promise<number> {
     const manual = this.manualOf(id);
-    const from = normalizeTime(range.from, 'from');
-    const to = normalizeTime(range.to, 'to');
+    const selected = this.selected(id, selection);
     let changed = 0;
 
-    for (const { ts } of stored) {
-      if ((from !== undefined && ts < from) || (to !== undefined && ts >= to) || (manual.get(ts) ?? null) === verdict) continue;
+    for (const { ts } of this.pointsOf(id)) {
+      if (!selected(ts) || (manual.get(ts) ?? null) === verdict) continue;
       if (verdict) manual.set(ts, verdict);
       else manual.delete(ts);
       changed++;
@@ -314,6 +315,35 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     if (changed > 0) this.judge(id);
 
     return changed;
+  }
+
+  async movePoints(from: string, to: string, range: TrackRange): Promise<number> {
+    if (from === to) throw new Error(`cannot move fixes from a track to itself: ${from}`);
+    const source = this.pointsOf(from);
+    const target = this.pointsOf(to);
+    const selected = this.selected(from, range);
+    const leaving = source.filter((point) => selected(point.ts));
+    if (leaving.length === 0) return 0;
+
+    const sourceManual = this.manualOf(from);
+    const targetManual = this.manualOf(to);
+    const held = new Set(target.map((point) => point.ts));
+    for (const point of leaving) {
+      const verdict = sourceManual.get(point.ts);
+      sourceManual.delete(point.ts);
+      if (held.has(point.ts)) continue;
+      target.push(point);
+      if (verdict) targetManual.set(point.ts, verdict);
+    }
+    target.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+    const left = new Set(leaving);
+    this.points.set(from, source.filter((point) => !left.has(point)));
+
+    this.judge(from);
+    this.judge(to);
+    this.notifyWaiters(to);
+
+    return leaving.length;
   }
 
   async summary(id: string): Promise<TrackSummary> {
@@ -344,6 +374,25 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     let manual = this.manual.get(id);
     if (!manual) this.manual.set(id, manual = new Map());
     return manual;
+  }
+
+  /** Whether a fix of the track, by its timestamp, is one of a selection. */
+  private selected(id: string, selection: TrackSelection): (ts: string) => boolean {
+    const from = normalizeTime(selection.from, 'from');
+    const to = normalizeTime(selection.to, 'to');
+    const manual = this.manualOf(id);
+    const { near, marked } = selection;
+    const at = near && new Map(this.pointsOf(id).map((point) => [point.ts, point]));
+
+    return (ts) => {
+      if ((from !== undefined && ts < from) || (to !== undefined && ts >= to)) return false;
+      if (marked !== undefined && manual.get(ts) !== marked) return false;
+      if (near && at) {
+        const point = at.get(ts);
+        if (!point || haversineMeters(near.lat, near.lng, point.lat, point.lng) > near.radius) return false;
+      }
+      return true;
+    };
   }
 
   /** The fixes neither a rule nor a person rejected. */

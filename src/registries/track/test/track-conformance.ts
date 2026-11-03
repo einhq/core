@@ -6,6 +6,7 @@
 
 import { assertAlmostEquals, assertEquals, assertRejects } from '@std/assert';
 import type { RouterManagerIf } from '../../../managers/router/mod.ts';
+import type { TrackHandle } from '../track-handle.ts';
 import type { TrackPoint, TrackReadResult, TrackRegistryIf } from '../types.ts';
 import { waitFor } from '../../test/relay-wait.ts';
 
@@ -486,6 +487,81 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           await assertRejects(() => registry.markPoints('nope', {}, 'reject'), Error, 'no track found');
         });
 
+        await t.step('a verdict near a point reaches the fixes within its radius, and one on the marked fixes only those', async () => {
+          // Ten fixes on a berth a metre apart, then ten leaving it 100 m apart.
+          const metre = 1 / 111_320;
+          const points = Array.from({ length: 20 }, (_, i): TrackPoint => ({
+            lat: 57.7 + (i < 10 ? i : (i - 9) * 100) * metre,
+            lng: 11.97,
+            ts: new Date(BASE + 3_000_000 + i * 10_000).toISOString(),
+          }));
+          await registry.touch('t-near', {});
+          await registry.appendPoints('t-near', points);
+
+          const near = { lat: 57.7, lng: 11.97, radius: 40 };
+          assertEquals(await registry.markPoints('t-near', { near, to: points[5].ts }, 'reject'), 5);
+          assertEquals(await registry.markPoints('t-near', { near }, 'reject'), 5);
+          assertEquals((await registry.summary('t-near')).points, 10);
+
+          // The rejections handed back to the rules leave a fix accepted by hand as it is.
+          assertEquals(await registry.markPoints('t-near', at(points[15]), 'accept'), 1);
+          assertEquals(await registry.markPoints('t-near', { marked: 'reject' }, null), 10);
+          const read = allPoints((await registry.readPoints('t-near')).segments);
+          assertEquals(read.length, 20);
+          assertEquals(read.filter((point) => point.manual).map((point) => point.ts), [points[15].ts]);
+        });
+
+        await t.step('a time range moves to another track, with what a person said of it', async () => {
+          const points = run(30, 4000);
+          await registry.touch('t-move-a', {});
+          await registry.touch('t-move-b', {});
+          await registry.appendPoints('t-move-a', points);
+          // The other track holds a fix at one of the moved timestamps already, a little apart.
+          await registry.appendPoints('t-move-b', [{ ...points[12], lat: points[12].lat + 0.001 }]);
+          assertEquals(await registry.markPoints('t-move-a', at(points[11]), 'reject'), 1);
+
+          const range = { from: points[10].ts, to: points[20].ts };
+          assertEquals(await registry.movePoints('t-move-a', 't-move-b', range), 10);
+          assertEquals(await registry.movePoints('t-move-a', 't-move-b', range), 0);
+
+          const left = await registry.summary('t-move-a');
+          assertEquals(left.points, 20);
+          assertEquals((await registry.readPoints('t-move-a', range)).points, 0);
+
+          const landed = allPoints((await registry.readPoints('t-move-b', { rejected: true })).segments);
+          assertEquals(landed.map((point) => point.ts), points.slice(10, 20).map((point) => point.ts));
+          assertEquals(landed[1].manual, 'reject');
+          assertAlmostEquals(landed[2].lat, points[12].lat + 0.001, 1e-9);
+          assertEquals((await registry.summary('t-move-b')).points, 9);
+        });
+
+        await t.step('a move to the same track, or to one that does not exist, fails', async () => {
+          await assertRejects(() => registry.movePoints('t-move-a', 't-move-a', {}), Error, 'to itself');
+          await assertRejects(() => registry.movePoints('t-move-a', 'nope', {}), Error, 'no track found');
+          assertEquals((await registry.summary('t-move-a')).points, 20);
+        });
+
+        await t.step('a handle reports a mark and a move, the track moved to as well', async () => {
+          const from = await registry.open('t-move-a', {}, 'a') as TrackHandle;
+          const to = await registry.open('t-move-b', {}, 'a') as TrackHandle;
+          const reports: string[] = [];
+          from.onChanged = async () => void reports.push('from');
+          to.onChanged = async () => void reports.push('to');
+
+          try {
+            assertEquals(await from.markPoints({ marked: 'reject' }, null), 0);
+            assertEquals(reports, []);
+            assertEquals(await from.movePoints({}, to), 20);
+            assertEquals(reports, ['from', 'to']);
+          } finally {
+            await from.close();
+            await to.close();
+          }
+
+          assertEquals((await registry.summary('t-move-a')).points, 0);
+          assertEquals((await registry.summary('t-move-b')).points, 29);
+        });
+
         await t.step('limit caps the vertices and says so', async () => {
           const result = await registry.readPoints('t4', { limit: 20 });
 
@@ -629,6 +705,9 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't-jump',
             't-late',
             't-lone',
+            't-move-a',
+            't-move-b',
+            't-near',
             't-out',
             't-still',
             't-vouched',
@@ -643,7 +722,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't7',
             't9',
           ]);
-          assertEquals(await registry.count(), 18);
+          assertEquals(await registry.count(), 21);
         });
       } finally {
         await teardown();
