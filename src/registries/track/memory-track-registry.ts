@@ -3,7 +3,7 @@
  * (bbox filter, Douglas–Peucker simplification) reimplemented in TypeScript.
  * Mirrors {@link TrackRegistry} semantics; this is what the fast test tier and
  * every memory-mounted instance run against. Its tracks are small, so every
- * append and delete judges the whole track again (`rules.ts`).
+ * append, delete and mark judges the whole track again (`rules.ts`).
  */
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
 import { routingKeysMatch } from '../routing-key-match.ts';
@@ -22,6 +22,7 @@ import {
   TrackResourceOptions,
   TrackStat,
   TrackSummary,
+  TrackVerdict,
 } from './types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, normalizeTime, stripDetail, summarize } from './lib.ts';
 
@@ -40,6 +41,8 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
   private points = new Map<string, TrackPoint[]>();
   /** Each track's judged fixes by timestamp; a fix not in it is accepted. */
   private rules = new Map<string, Map<string, TrackRule>>();
+  /** Each track's fixes a person gave a verdict on, by timestamp. */
+  private manual = new Map<string, Map<string, TrackVerdict>>();
   private waiters = new Map<string, Set<() => void>>();
   private relayUnsubscribe: RelayEventUnsubscriber | undefined;
 
@@ -70,6 +73,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     this.tracks.clear();
     this.points.clear();
     this.rules.clear();
+    this.manual.clear();
     this.waiters.clear();
   }
 
@@ -89,6 +93,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     this.tracks.set(id, { routingKeys, createdAt: new Date() });
     this.points.set(id, []);
     this.rules.set(id, new Map());
+    this.manual.set(id, new Map());
     return true;
   }
 
@@ -98,6 +103,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     if (truncate) {
       this.points.set(id, []);
       this.rules.set(id, new Map());
+      this.manual.set(id, new Map());
     }
 
     const io: TrackIO = {
@@ -105,6 +111,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
+      mark: (range, verdict) => this.markPoints(id, range, verdict),
       summary: () => this.summary(id),
     };
 
@@ -142,6 +149,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     this.tracks.delete(id);
     this.points.delete(id);
     this.rules.delete(id);
+    this.manual.delete(id);
     this.notifyWaiters(id);
     this.waiters.delete(id);
 
@@ -197,21 +205,30 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     const to = normalizeTime(opts.to, 'to');
 
     const rules = this.rulesOf(id);
+    const manual = this.manualOf(id);
 
     const filtered = stored.filter((point) => {
       if (from !== undefined && point.ts < from) return false;
       if (to !== undefined && point.ts >= to) return false;
       if (bounds && !inBounds(bounds, point)) return false;
-      if (!opts.rejected && rules.get(point.ts) === 'excursion') return false;
       return true;
     });
 
+    // Runs no line joins: a jump starts one; read alone, the rejected fixes start one after each accepted fix.
+    const runOf = new Map<TrackPoint, number>();
+    let runs = 0;
+    for (const point of filtered) {
+      const rejected = leftOut(rules, manual, point.ts);
+      if (opts.rejected === 'only' ? !rejected : rules.get(point.ts) === 'jump') runs++;
+      if (opts.rejected === 'only' ? rejected : opts.rejected || !rejected) runOf.set(point, runs);
+    }
+
     const tolerance = opts.tolerance ?? 0;
-    const full = splitRuns(filtered, (point) => rules.get(point.ts) === 'jump').flatMap((run) => {
+    const full = splitRuns([...runOf.keys()], (point, previous) => runOf.get(point) !== runOf.get(previous)).flatMap((run) => {
       // A simplified read keeps position and time only, as the PostGIS path does:
       // there it is a vertex of a LINESTRINGM and the rest never comes back.
       const despiked = opts.still ? dropLoneSpikes(run, opts.still.maxSpeed) : run;
-      return toSegments(tolerance > 0 ? despiked.map(stripDetail) : despiked.map((point) => this.marked(rules, point)), tolerance, opts.still);
+      return toSegments(tolerance > 0 ? despiked.map(stripDetail) : despiked.map((point) => this.marked(id, point)), tolerance, opts.still);
     });
     const fullCount = countPoints(full);
 
@@ -224,7 +241,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
   async pagePoints(id: string, afterTs: string | undefined, limit: number, signal?: AbortSignal): Promise<TrackPoint[]> {
     const stored = this.pointsOf(id);
     const after = normalizeTime(afterTs, 'afterTs');
-    const page = () => stored.filter((point) => after === undefined || point.ts > after).slice(0, limit).map((point) => this.marked(this.rulesOf(id), point));
+    const page = () => stored.filter((point) => after === undefined || point.ts > after).slice(0, limit).map((point) => this.marked(id, point));
 
     const first = page();
     if (first.length > 0 || !signal) return first;
@@ -268,9 +285,33 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
 
     const removed = stored.length - kept.length;
     this.points.set(id, kept);
-    if (removed > 0) this.judge(id);
+    if (removed > 0) {
+      const manual = this.manualOf(id);
+      const left = new Set(kept.map((point) => point.ts));
+      for (const ts of manual.keys()) if (!left.has(ts)) manual.delete(ts);
+      this.judge(id);
+    }
 
     return removed;
+  }
+
+  async markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
+    const stored = this.pointsOf(id);
+    const manual = this.manualOf(id);
+    const from = normalizeTime(range.from, 'from');
+    const to = normalizeTime(range.to, 'to');
+    let changed = 0;
+
+    for (const { ts } of stored) {
+      if ((from !== undefined && ts < from) || (to !== undefined && ts >= to) || (manual.get(ts) ?? null) === verdict) continue;
+      if (verdict) manual.set(ts, verdict);
+      else manual.delete(ts);
+      changed++;
+    }
+
+    if (changed > 0) this.judge(id);
+
+    return changed;
   }
 
   async summary(id: string): Promise<TrackSummary> {
@@ -297,23 +338,33 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
     return rules;
   }
 
-  /** The fixes no rule rejected. */
+  private manualOf(id: string): Map<string, TrackVerdict> {
+    let manual = this.manual.get(id);
+    if (!manual) this.manual.set(id, manual = new Map());
+    return manual;
+  }
+
+  /** The fixes neither a rule nor a person rejected. */
   private accepted(id: string): TrackPoint[] {
     const rules = this.rulesOf(id);
-    return this.pointsOf(id).filter((point) => rules.get(point.ts) !== 'excursion');
+    const manual = this.manualOf(id);
+    return this.pointsOf(id).filter((point) => !leftOut(rules, manual, point.ts));
   }
 
-  /** A rejected fix as a read with its rejected ones shows it; any other as it is. */
-  private marked(rules: Map<string, TrackRule>, point: TrackPoint): TrackPoint {
-    return rules.get(point.ts) === 'excursion' ? { ...point, rejected: 'excursion' } : point;
+  /** A fix as a read that keeps detail shows it: why it is left out, and what a person said of it. */
+  private marked(id: string, point: TrackPoint): TrackPoint {
+    const manual = this.manualOf(id).get(point.ts);
+    const rejected = manual === 'reject' ? 'manual' : !manual && this.rulesOf(id).get(point.ts) === 'excursion' ? 'excursion' : undefined;
+    return manual || rejected ? { ...point, ...(rejected && { rejected }), ...(manual && { manual }) } : point;
   }
 
-  /** Judge every fix of a track again. */
+  /** Judge every fix of a track again, but those a person rejected: the rules judge the track without them. */
   private judge(id: string): void {
-    const stored = this.pointsOf(id);
-    const verdicts = judgeFixes(stored.map((point) => ({ ms: Date.parse(point.ts), lat: point.lat, lng: point.lng })));
+    const manual = this.manualOf(id);
+    const judged = this.pointsOf(id).filter((point) => manual.get(point.ts) !== 'reject');
+    const verdicts = judgeFixes(judged.map((point) => ({ ms: Date.parse(point.ts), lat: point.lat, lng: point.lng })));
     const rules = new Map<string, TrackRule>();
-    verdicts.forEach((rule, i) => rule && rules.set(stored[i].ts, rule));
+    verdicts.forEach((rule, i) => rule && rules.set(judged[i].ts, rule));
     this.rules.set(id, rules);
   }
 
@@ -347,6 +398,12 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
       for (const cb of set) cb();
     }
   }
+}
+
+/** Whether a fix is left out: a person rejected it, or a rule did and no person accepted it. */
+function leftOut(rules: Map<string, TrackRule>, manual: Map<string, TrackVerdict>, ts: string): boolean {
+  const verdict = manual.get(ts);
+  return verdict ? verdict === 'reject' : rules.get(ts) === 'excursion';
 }
 
 function arraysEqual(a: string[], b: string[]): boolean {

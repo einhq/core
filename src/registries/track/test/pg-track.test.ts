@@ -53,6 +53,8 @@ Deno.test({
       await stored.init();
       await stored.touch('old', {});
       await stored.appendPoints('old', points);
+      // A person's verdict, which judging again leaves as it is.
+      await stored.markPoints('old', { from: points[10].ts, to: points[11].ts }, 'accept');
       await stored.dispose();
 
       // As a track stored before the rules, or judged by an older version of them, is.
@@ -62,8 +64,8 @@ Deno.test({
       const registry = new TrackRegistry({ name: ctx.prefix, pool: ctx.pool, router });
       await registry.init();
       try {
-        assertEquals((await registry.readPoints('old')).points, 20);
-        assertEquals((await registry.summary('old')).points, 20);
+        assertEquals((await registry.readPoints('old')).points, 21);
+        assertEquals((await registry.summary('old')).points, 21);
       } finally {
         await registry.dispose();
       }

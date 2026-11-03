@@ -23,15 +23,15 @@ ignored rather than appended twice.
 
 ```
 <name>_tracks         id, routing_keys, routing_patterns, points, first_ts, last_ts, north/south/east/west, rules
-<name>_tracks_points  track_id, ts, geog GEOGRAPHY(POINT,4326), alt, speed, course, rule
+<name>_tracks_points  track_id, ts, geog GEOGRAPHY(POINT,4326), alt, speed, course, rule, manual
                       PRIMARY KEY (track_id, ts)
                       GIST ((geog::geometry))
 ```
 
 The summary lives on the track row and is folded forward on every append inside
 the same transaction, because listing the tracks asks every track how big it is and
-that must not touch the points table. It describes the accepted fixes, those no
-rule rejected (see Rules). A delete recomputes it instead — a
+that must not touch the points table. It describes the accepted fixes, those
+neither a rule nor a person rejected (see Rules). A delete recomputes it instead — a
 deletion can move any bound, and deletes are rare. `summaries(ids)` answers a
 listing in one query; the registry is the only place the summary is kept, so a
 point appended from a routing key is in the next listing like any other.
@@ -73,6 +73,15 @@ fixes around its ends. The track row's `rules` is the version of the rules it wa
 judged by; a track judged by an older one is judged again, a chunk at a time, before
 its next read or write. Rejected fixes stay: `rejected` reads them too, marked, and
 the byte-stream view always carries them.
+
+A person can overrule the rules: `markPoints(id, range, verdict)` sets the fixes'
+`manual` to `reject` or `accept`, or clears it with null, and judging never touches
+it. A fix is left out when a person rejected it, or a rule did and no person
+accepted it. The rules judge a track without the fixes a person rejected, so such a
+fix has no rule, and marking judges again, in chunks, the fixes within reach of
+every fix whose rejection it changed. `rejected: 'only'` reads the rejected fixes
+alone, a run of them cut wherever an accepted fix lies between, which is what a
+page offering to accept them draws.
 
 ## Reads
 

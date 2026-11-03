@@ -1,5 +1,5 @@
 import { AbstractResourceHandle, RegistryIf, ResourceHandleIf, ResourceMode } from '../types.ts';
-import { TrackIO, TrackPoint, TrackPointInput, TrackRange, TrackReadOptions, TrackReadResult, TrackResourceOptions, TrackStat, TrackSummary } from './types.ts';
+import { TrackIO, TrackPoint, TrackPointInput, TrackRange, TrackReadOptions, TrackReadResult, TrackResourceOptions, TrackStat, TrackSummary, TrackVerdict } from './types.ts';
 
 /** Points fetched per read of the byte-stream view. */
 const PAGE = 100;
@@ -162,6 +162,14 @@ export class TrackHandle extends AbstractResourceHandle<TrackResourceOptions, Tr
     this.assertCanWrite();
 
     return await this.io.remove(range);
+  }
+
+  /** Set a person's verdict on a time range, or clear it with null. Returns the fixes whose verdict changed. */
+  async markPoints(range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
+    this.assertNotClosed();
+    this.assertCanWrite();
+
+    return await this.io.mark(range, verdict);
   }
 
   /** Point count, time span and extent, without reading the points. */

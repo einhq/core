@@ -19,12 +19,23 @@ export type TrackPoint = {
   alt?: number;
   speed?: number;
   course?: number;
-  /** The rule that rejected the fix (`rules.ts`), on a fix read with its rejected ones. */
-  rejected?: 'excursion';
+  /**
+   * Why the fix is left out, on a fix read with its rejected ones: the rule that rejected it
+   * (`rules.ts`), or `manual` when a person did.
+   */
+  rejected?: 'excursion' | 'manual';
+  /** What a person said of the fix, which overrules the rules; on a read that keeps detail. */
+  manual?: TrackVerdict;
 };
 
+/**
+ * A person's verdict on a fix: `reject` leaves it out whatever the rules say, `accept` keeps it
+ * whatever they say.
+ */
+export type TrackVerdict = 'reject' | 'accept';
+
 /** A point on the way in, where the caller may not have a timestamp yet. */
-export type TrackPointInput = Omit<TrackPoint, 'ts' | 'rejected'> & { ts?: string };
+export type TrackPointInput = Omit<TrackPoint, 'ts' | 'rejected' | 'manual'> & { ts?: string };
 
 /** Geographic bounding box. Same shape as the position registry's GeoBounds. */
 export type TrackBounds = {
@@ -35,8 +46,8 @@ export type TrackBounds = {
 };
 
 /**
- * What a track is, without reading it: its accepted fixes, those no rule
- * rejected. Maintained by the registry on every append and delete, in the
+ * What a track is, without reading it: its accepted fixes, those neither a
+ * rule nor a person rejected. Maintained by the registry on every append and delete, in the
  * same transaction, so it cannot drift from the points.
  */
 export type TrackSummary = {
@@ -84,10 +95,11 @@ export type TrackReadOptions = TrackRange & {
   /** Override the gap rule (ms). Default is derived from the points themselves. */
   gapMs?: number;
   /**
-   * Read the fixes a rule rejected too (`rules.ts`), each marked `rejected`
-   * where the read keeps detail. Without it a read is of the accepted fixes.
+   * Read the rejected fixes too, each marked `rejected` where the read keeps
+   * detail; `only` reads them alone, a run of them cut wherever an accepted fix
+   * lies between. Without it a read is of the accepted fixes.
    */
-  rejected?: boolean;
+  rejected?: boolean | 'only';
   /**
    * Hide what a device draws while it lies still: drop GPS spikes, and collapse
    * each stay into two points on its centroid, at arrival and at departure.
@@ -133,6 +145,8 @@ export interface TrackIO {
   read(opts: TrackReadOptions): Promise<TrackReadResult>;
   /** Drop a time range. Returns rows removed. */
   remove(range: TrackRange): Promise<number>;
+  /** Set or clear (null) a person's verdict on a time range. Returns the fixes whose verdict changed. */
+  mark(range: TrackRange, verdict: TrackVerdict | null): Promise<number>;
   summary(): Promise<TrackSummary>;
 }
 
@@ -151,6 +165,11 @@ export interface TrackRegistryIf extends RegistryIf<TrackResourceOptions, TrackS
   pagePoints(id: string, afterTs: string | undefined, limit: number, signal?: AbortSignal): Promise<TrackPoint[]>;
   /** Delete a time range from a track. Returns rows removed. */
   deletePoints(id: string, range: TrackRange): Promise<number>;
+  /**
+   * Set a person's verdict on the fixes of a time range, or clear it with null, and judge
+   * what that changes. Returns the fixes whose verdict changed.
+   */
+  markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number>;
   /** Point count, time span and extent, without reading the points. */
   summary(id: string): Promise<TrackSummary>;
   /** The summary of each of many tracks, in one read. Ids with no track are absent. */

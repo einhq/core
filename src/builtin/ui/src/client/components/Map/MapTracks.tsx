@@ -9,6 +9,9 @@
  *
  * A line that only grew appends its new tail rather than being redrawn, so a
  * live track being followed does not rebuild its whole geometry per point.
+ *
+ * A faint line is what a track left out: thin, dashed and without a casing,
+ * with a dot on every point so that a single point shows too.
  */
 
 // @ts-types="@types/leaflet"
@@ -23,6 +26,8 @@ export type MapTrackSpec = {
   points: PositionPoint[];
   color?: string;
   label?: string;
+  /** Drawn faintly, with a dot on every point: what a track left out. */
+  faint?: boolean;
 };
 
 export type MapTracksProps = {
@@ -35,10 +40,12 @@ export type MapTracksProps = {
 
 type Drawn = {
   line: L.Polyline;
-  casing: L.Polyline;
+  /** The black halo under a line, or its dots when it is faint. */
+  under: L.Polyline | L.LayerGroup;
   /** How many points are on the map, so growth can be appended. */
   count: number;
   color: string;
+  faint: boolean;
 };
 
 const latLngs = (points: PositionPoint[]): [number, number][] => points.map((p) => [p.lat, p.lng]);
@@ -56,35 +63,45 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
     for (const spec of tracks) {
       seen.add(spec.id);
       const color = spec.color ?? MARKER_COLOR;
+      const faint = spec.faint === true;
       let drawn = layers.get(spec.id);
 
-      // A recolor cannot be appended to, so the line is rebuilt from scratch.
-      if (drawn && drawn.color !== color) {
+      // A recolor, or a line turning faint, cannot be appended to, so the line is rebuilt from scratch.
+      if (drawn && (drawn.color !== color || drawn.faint !== faint)) {
         drawn.line.remove();
-        drawn.casing.remove();
+        drawn.under.remove();
         layers.delete(spec.id);
         drawn = undefined;
       }
 
       if (!drawn) {
         drawn = {
-          casing: L.polyline([], { pane: 'casing', color: '#000', weight: 5, opacity: 0.85, interactive: false }).addTo(map),
-          line: L.polyline([], { color, weight: 3, opacity: 0.8 }).addTo(map),
+          under: faint ? L.layerGroup().addTo(map) : L.polyline([], { pane: 'casing', color: '#000', weight: 5, opacity: 0.85, interactive: false }).addTo(map),
+          line: L.polyline([], faint ? { color, weight: 2, opacity: 0.6, dashArray: '4 6' } : { color, weight: 3, opacity: 0.8 }).addTo(map),
           count: 0,
           color,
+          faint,
         };
         layers.set(spec.id, drawn);
       }
+
+      const under = drawn.under;
+      const dot = (point: [number, number]) => L.circleMarker(point, { radius: 3, color, weight: 1, opacity: 0.8, fillOpacity: 0.4, interactive: false });
 
       if (spec.points.length >= drawn.count) {
         for (let i = drawn.count; i < spec.points.length; i++) {
           const point: [number, number] = [spec.points[i].lat, spec.points[i].lng];
           drawn.line.addLatLng(point);
-          drawn.casing.addLatLng(point);
+          if (under instanceof L.Polyline) under.addLatLng(point);
+          else under.addLayer(dot(point));
         }
       } else {
         drawn.line.setLatLngs(latLngs(spec.points));
-        drawn.casing.setLatLngs(latLngs(spec.points));
+        if (under instanceof L.Polyline) under.setLatLngs(latLngs(spec.points));
+        else {
+          under.clearLayers();
+          for (const point of latLngs(spec.points)) under.addLayer(dot(point));
+        }
       }
       drawn.count = spec.points.length;
 
@@ -95,7 +112,7 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
     for (const [id, drawn] of layers) {
       if (seen.has(id)) continue;
       drawn.line.remove();
-      drawn.casing.remove();
+      drawn.under.remove();
       layers.delete(id);
     }
 
@@ -121,7 +138,7 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
     return () => {
       for (const drawn of layers.values()) {
         drawn.line.remove();
-        drawn.casing.remove();
+        drawn.under.remove();
       }
       layers.clear();
     };

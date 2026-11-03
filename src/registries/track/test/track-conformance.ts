@@ -393,6 +393,76 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           assertEquals(simplified.segments.length, 2);
         });
 
+        const at = (point: TrackPoint) => ({ from: point.ts, to: new Date(Date.parse(point.ts) + 1).toISOString() });
+
+        await t.step('a read of the rejected fixes alone gets each run of them on its own', async () => {
+          const read = await registry.readPoints('t-out', { rejected: 'only' });
+          assertEquals(read.points, 5);
+          assertEquals(read.segments.length, 1);
+          assertEquals(allPoints(read.segments).every((point) => point.rejected === 'excursion'), true);
+
+          // A fix rejected by hand on the way out is a run of its own.
+          const first = excursion(0, 5)[3];
+          assertEquals(await registry.markPoints('t-out', at(first), 'reject'), 1);
+          const runs = await registry.readPoints('t-out', { rejected: 'only' });
+          assertEquals(runs.segments.map((segment) => segment.points.length), [1, 5]);
+          assertEquals(runs.segments[0].points[0], { ...first, rejected: 'manual', manual: 'reject' });
+          assertEquals((await registry.summary('t-out')).points, 19);
+
+          assertEquals(await registry.markPoints('t-out', at(first), null), 1);
+          assertEquals((await registry.summary('t-out')).points, 20);
+        });
+
+        await t.step('an excursion a person accepts is read and summed, until the verdict is cleared', async () => {
+          const away = excursion(0, 5).slice(10, 15);
+          const range = { from: away[0].ts, to: at(away[4]).to };
+
+          assertEquals(await registry.markPoints('t-out', range, 'accept'), 5);
+          assertEquals(await registry.markPoints('t-out', range, 'accept'), 0);
+
+          const read = await registry.readPoints('t-out');
+          assertEquals(read.points, 25);
+          const back = allPoints(read.segments).filter((point) => point.lat > 59);
+          assertEquals(back.every((point) => point.manual === 'accept' && point.rejected === undefined), true);
+          assertEquals((await registry.summary('t-out')).points, 25);
+          assertEquals((await registry.summary('t-out')).bbox!.north > 59, true);
+          assertEquals((await registry.readPoints('t-out', { rejected: 'only' })).points, 0);
+
+          assertEquals(await registry.markPoints('t-out', {}, null), 5);
+          assertEquals((await registry.readPoints('t-out')).points, 20);
+          assertEquals((await registry.summary('t-out')).points, 20);
+        });
+
+        await t.step("a rejected excursion a person rejects too is the rules' again once cleared", async () => {
+          const away = excursion(0, 5).slice(10, 15);
+          const range = { from: away[0].ts, to: at(away[4]).to };
+
+          assertEquals(await registry.markPoints('t-out', range, 'reject'), 5);
+          const marked = allPoints((await registry.readPoints('t-out', { rejected: true })).segments).filter((point) => point.lat > 59);
+          assertEquals(marked.every((point) => point.rejected === 'manual'), true);
+
+          assertEquals(await registry.markPoints('t-out', range, null), 5);
+          const judged = allPoints((await registry.readPoints('t-out', { rejected: true })).segments).filter((point) => point.lat > 59);
+          assertEquals(judged.every((point) => point.rejected === 'excursion' && point.manual === undefined), true);
+          assertEquals((await registry.summary('t-out')).points, 20);
+        });
+
+        await t.step('the rules judge a track without the fixes a person rejected', async () => {
+          // The fix the jump lands on rejected by hand: the next one is where the line is cut now.
+          const points = [...run(10, 2000), ...run(10, 2010).map((point) => ({ ...point, lat: point.lat + 0.135 }))];
+          await registry.touch('t-hand', {});
+          await registry.appendPoints('t-hand', points);
+          assertEquals(await registry.markPoints('t-hand', at(points[10]), 'reject'), 1);
+
+          const read = await registry.readPoints('t-hand');
+          assertEquals(read.segments.map((segment) => segment.points.length), [10, 9]);
+          assertEquals((await registry.readPoints('t-hand', { tolerance: 0.00001 })).segments.length, 2);
+        });
+
+        await t.step('a verdict on a track that does not exist fails', async () => {
+          await assertRejects(() => registry.markPoints('nope', {}, 'reject'), Error, 'no track found');
+        });
+
         await t.step('limit caps the vertices and says so', async () => {
           const result = await registry.readPoints('t4', { limit: 20 });
 
@@ -532,6 +602,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
 
           assertEquals(ids.sort(), [
             't-gap',
+            't-hand',
             't-jump',
             't-late',
             't-lone',
@@ -548,7 +619,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't7',
             't9',
           ]);
-          assertEquals(await registry.count(), 16);
+          assertEquals(await registry.count(), 17);
         });
       } finally {
         await teardown();

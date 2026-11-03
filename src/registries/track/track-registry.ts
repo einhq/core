@@ -12,8 +12,9 @@
  * never sent.
  *
  * Every write is judged by the rules (`rules.ts`) in its own transaction: a
- * fix's `rule` says whether it was rejected or the line is cut before it, and
- * a read leaves out what was rejected.
+ * fix's `rule` says whether it was rejected or the line is cut before it, its
+ * `manual` what a person said of it, which overrules the rule, and a read
+ * leaves out what was rejected.
  */
 import type { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
@@ -36,6 +37,7 @@ import {
   TrackResourceOptions,
   TrackStat,
   TrackSummary,
+  TrackVerdict,
 } from './types.ts';
 
 type TrackRegistryConfig = {
@@ -76,10 +78,17 @@ type PointRow = {
   speed: number | null;
   course: number | null;
   rule: string | null;
+  manual: string | null;
 };
 
-/** The fixes a read leaves out unless it asks for the rejected ones. */
-const ACCEPTED = `rule IS DISTINCT FROM 'excursion'`;
+/**
+ * The fixes a read keeps unless it asks for the rejected ones: those a person accepted, and
+ * those no rule rejected that a person did not reject.
+ */
+const ACCEPTED = `(CASE manual WHEN 'accept' THEN true WHEN 'reject' THEN false ELSE rule IS DISTINCT FROM 'excursion' END)`;
+
+/** The fixes the rules judge: all but those a person rejected, so the track is judged without them. */
+const JUDGED = `manual IS DISTINCT FROM 'reject'`;
 
 export class TrackRegistry implements TrackRegistryIf {
   private initialized = false;
@@ -166,6 +175,10 @@ export class TrackRegistry implements TrackRegistryIf {
     // the line is cut before.
     await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS rule TEXT`);
 
+    // What a person said of the fix, which judging never touches: NULL for nothing, `reject` or
+    // `accept`. A fix a person rejected is not judged, and has no rule.
+    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS manual TEXT`);
+
     // Viewport reads run in planar lon/lat space — a geography envelope cannot
     // span 180+ degrees of longitude.
     await this.query(`
@@ -248,6 +261,7 @@ export class TrackRegistry implements TrackRegistryIf {
       page: (afterTs, limit, signal) => this.pagePoints(id, afterTs, limit, signal),
       read: (readOpts) => this.readPoints(id, readOpts),
       remove: (range) => this.deletePoints(id, range),
+      mark: (range, verdict) => this.markPoints(id, range, verdict),
       summary: () => this.summary(id),
     };
 
@@ -405,7 +419,8 @@ export class TrackRegistry implements TrackRegistryIf {
    *
    * Rejected fixes are left out unless asked for. The fix a jump lands on starts
    * a new run, numbered in SQL, and nothing joins two runs: each is despiked,
-   * simplified and cut on its own.
+   * simplified and cut on its own. Read alone, the rejected fixes start a run
+   * after each accepted fix instead.
    */
   async readPoints(id: string, opts: TrackReadOptions = {}): Promise<TrackReadResult> {
     await this.ensureJudged(id);
@@ -434,16 +449,26 @@ export class TrackRegistry implements TrackRegistryIf {
       );
     }
 
-    const tolerance = opts.tolerance ?? 0;
-    let runs: TrackPoint[][];
-
-    if (tolerance > 0) {
-      const numbered = `
-        SELECT ts, geog, COUNT(*) FILTER (WHERE rule = 'jump') OVER (ORDER BY ts)::int AS run
+    const columns = `ts, geog, alt, speed, course, rule, manual`;
+    const numbered = opts.rejected === 'only'
+      ? `
+        SELECT * FROM (
+          SELECT ${columns}, COUNT(*) FILTER (WHERE ${ACCEPTED}) OVER (ORDER BY ts)::int AS run, ${ACCEPTED} AS accepted
+          FROM ${this.pointsTable}
+          WHERE ${where.join(' AND ')}
+        ) marked
+        WHERE NOT accepted
+      `
+      : `
+        SELECT ${columns}, COUNT(*) FILTER (WHERE rule = 'jump') OVER (ORDER BY ts)::int AS run
         FROM ${this.pointsTable}
         WHERE ${where.join(' AND ')}
       `;
 
+    const tolerance = opts.tolerance ?? 0;
+    let runs: TrackPoint[][];
+
+    if (tolerance > 0) {
       // A still read drops lone spikes before simplifying, as `dropLoneSpikes` does: a fix reached
       // and left faster than the maximum speed, within its run.
       let source = numbered;
@@ -488,17 +513,16 @@ export class TrackRegistry implements TrackRegistryIf {
       runs = splitRuns(result.rows, (row, previous) => row.run !== previous.run)
         .map((run) => run.map((row) => ({ lat: row.lat, lng: row.lng, ts: new Date(row.m * 1000).toISOString() })));
     } else {
-      const result = await this.query<PointRow>(
+      const result = await this.query<PointRow & { run: number }>(
         `
-        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule
-        FROM ${this.pointsTable}
-        WHERE ${where.join(' AND ')}
+        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule, manual, run
+        FROM (${numbered}) numbered
         ORDER BY ts
         `,
         values,
       );
 
-      runs = splitRuns(result.rows, (row) => row.rule === 'jump').map((run) => {
+      runs = splitRuns(result.rows, (row, previous) => row.run !== previous.run).map((run) => {
         const points = run.map(fromRow);
         return opts.still ? dropLoneSpikes(points, opts.still.maxSpeed) : points;
       });
@@ -526,7 +550,7 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     const sql = `
-      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule
+      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule, manual
       FROM ${this.pointsTable}
       WHERE track_id = $1 ${cursor}
       ORDER BY ts
@@ -625,6 +649,63 @@ export class TrackRegistry implements TrackRegistryIf {
     });
   }
 
+  /**
+   * Set a person's verdict on a time range, or clear it, judge again what that
+   * changes, and count the summary again. A fix a person rejects loses its rule,
+   * since the rules judge the track without it.
+   */
+  async markPoints(id: string, range: TrackRange, verdict: TrackVerdict | null): Promise<number> {
+    await this.ensureJudged(id);
+
+    const values: unknown[] = [id, verdict];
+    const where: string[] = [`track_id = $1`, `manual IS DISTINCT FROM $2::text`];
+
+    if (range.from !== undefined) {
+      values.push(range.from);
+      where.push(`ts >= $${values.length}::timestamptz`);
+    }
+
+    if (range.to !== undefined) {
+      values.push(range.to);
+      where.push(`ts < $${values.length}::timestamptz`);
+    }
+
+    return await this.transaction(async (q) => {
+      // Locked first, as the other writers lock it.
+      const track = await q(`SELECT 1 FROM ${this.tracksTable} WHERE id = $1 FOR UPDATE`, [id]);
+      if ((track.rowCount ?? 0) === 0) throw new Error(`no track found: ${id}`);
+
+      // The span whose judging changes: the fixes a person rejects now or rejected before.
+      const result = await q<{ changed: string; first: Date | null; last: Date | null }>(
+        `
+        WITH target AS (
+          SELECT ts, manual FROM ${this.pointsTable} WHERE ${where.join(' AND ')}
+        ), marked AS (
+          UPDATE ${this.pointsTable} p SET
+            manual = $2::text,
+            rule = CASE WHEN $2::text = 'reject' THEN NULL ELSE p.rule END
+          FROM target
+          WHERE p.track_id = $1 AND p.ts = target.ts
+        )
+        SELECT
+          COUNT(*) AS changed,
+          MIN(ts) FILTER (WHERE manual = 'reject' OR $2::text = 'reject') AS first,
+          MAX(ts) FILTER (WHERE manual = 'reject' OR $2::text = 'reject') AS last
+        FROM target
+        `,
+        values,
+      );
+
+      const { changed, first, last } = result.rows[0];
+      if (first && last) {
+        await this.judgeChunks(q, id, new Date(first).getTime() - RULES_REACH_MS, new Date(last).getTime() + RULES_REACH_MS);
+      }
+      if (Number(changed) > 0) await this.recount(q, id);
+
+      return Number(changed);
+    });
+  }
+
   async summary(id: string): Promise<TrackSummary> {
     await this.ensureJudged(id);
     return toSummary(await this.summaryRow(id));
@@ -667,7 +748,7 @@ export class TrackRegistry implements TrackRegistryIf {
             EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) * 1000 AS gap,
             ST_Distance(LAG(geog) OVER w, geog, false) AS distance
           FROM ${this.pointsTable}
-          WHERE track_id = $1 AND ts >= $2 AND ts <= $3
+          WHERE track_id = $1 AND ts >= $2 AND ts <= $3 AND ${JUDGED}
           WINDOW w AS (ORDER BY ts)
         ) steps
         WHERE rule IS NOT NULL OR (gap <= $4 AND distance > $5)
@@ -683,14 +764,15 @@ export class TrackRegistry implements TrackRegistryIf {
   /**
    * Judge the fixes between `from` and `to` (epoch ms, inclusive), reading
    * `RULES_REACH_MS` more on each side for what they are judged against, and
-   * write the verdicts that changed. Returns how many did.
+   * write the verdicts that changed. Returns how many did. A fix a person
+   * rejected is neither judged nor judged against.
    */
   private async judgeWindow(q: QueryFn, id: string, from: number, to: number): Promise<number> {
     const result = await q<{ ts: Date; lat: number; lng: number; rule: string | null }>(
       `
       SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, rule
       FROM ${this.pointsTable}
-      WHERE track_id = $1 AND ts >= $2 AND ts <= $3
+      WHERE track_id = $1 AND ts >= $2 AND ts <= $3 AND ${JUDGED}
       ORDER BY ts
       `,
       [id, new Date(from - RULES_REACH_MS), new Date(to + RULES_REACH_MS)],
@@ -752,24 +834,28 @@ export class TrackRegistry implements TrackRegistryIf {
         `SELECT MIN(ts) AS first, MAX(ts) AS last FROM ${this.pointsTable} WHERE track_id = $1`,
         [id],
       )).rows[0];
-      let from = span?.first ? new Date(span.first).getTime() : undefined;
-      const last = span?.last ? new Date(span.last).getTime() : 0;
-
-      while (from !== undefined) {
-        // The first fix of the next chunk, if there is one.
-        const next = (await q<{ ts: Date }>(
-          `SELECT ts FROM ${this.pointsTable} WHERE track_id = $1 AND ts >= $2 ORDER BY ts OFFSET $3 LIMIT 1`,
-          [id, new Date(from), JUDGE_CHUNK],
-        )).rows[0]?.ts;
-        const end = next ? new Date(next).getTime() : undefined;
-
-        await this.judgeWindow(q, id, from, end !== undefined ? end - 1 : last);
-        from = end;
-      }
+      if (span?.first && span.last) await this.judgeChunks(q, id, new Date(span.first).getTime(), new Date(span.last).getTime());
 
       await this.recount(q, id);
       await q(`UPDATE ${this.tracksTable} SET rules = $2 WHERE id = $1`, [id, RULES_VERSION]);
     });
+  }
+
+  /** Judge the fixes between `from` and `to` (epoch ms, inclusive), `JUDGE_CHUNK` at a time. */
+  private async judgeChunks(q: QueryFn, id: string, from: number, to: number): Promise<void> {
+    let start: number | undefined = from;
+
+    while (start !== undefined) {
+      // The first fix of the next chunk, if there is one before `to`.
+      const next: Date | undefined = (await q<{ ts: Date }>(
+        `SELECT ts FROM ${this.pointsTable} WHERE track_id = $1 AND ts >= $2 AND ts <= $3 ORDER BY ts OFFSET $4 LIMIT 1`,
+        [id, new Date(start), new Date(to), JUDGE_CHUNK],
+      )).rows[0]?.ts;
+      const end: number | undefined = next ? new Date(next).getTime() : undefined;
+
+      await this.judgeWindow(q, id, start, end !== undefined ? end - 1 : to);
+      start = end;
+    }
   }
 
   async summaries(ids: string[]): Promise<Map<string, TrackSummary>> {
@@ -918,7 +1004,9 @@ const fromRow = (row: PointRow): TrackPoint => {
   if (row.alt !== null) point.alt = row.alt;
   if (row.speed !== null) point.speed = row.speed;
   if (row.course !== null) point.course = row.course;
-  if (row.rule === 'excursion') point.rejected = row.rule;
+  if (row.manual === 'reject') point.rejected = 'manual';
+  else if (row.manual === null && row.rule === 'excursion') point.rejected = row.rule;
+  if (row.manual === 'reject' || row.manual === 'accept') point.manual = row.manual;
 
   return point;
 };

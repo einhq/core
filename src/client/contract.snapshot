@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.9.4
+MODULE_API_VERSION 0.9.5
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -93,7 +93,7 @@ src/builtin/ui/src/client/components/mod.ts MapShape cf5647bc3b0b @signature=101
 src/builtin/ui/src/client/components/mod.ts MapShapeEditor 2c83c17f04cb @signature=070853945bad,mode=741eebeefdf8,onChange=9f54af0b3372,value=9c19b817e1d4
 src/builtin/ui/src/client/components/mod.ts MapShapeEditorProps 18bc078d0ca9 mode=ebbc426dc6fe,onChange=d64cf3fd6beb,value=007c60dfcd7a
 src/builtin/ui/src/client/components/mod.ts MapShapeProps 0b04d1848ad3 color=1238f431f506,fit=811db48a83a6,shape=2d561cc53eeb
-src/builtin/ui/src/client/components/mod.ts MapTrackSpec 676792fd54e2 color=1238f431f506,id=752fa5797ebe,label=995d88c00ff2,points=a1e39655b8c4
+src/builtin/ui/src/client/components/mod.ts MapTrackSpec abc94fe8bce0 color=1238f431f506,faint=fa0a58c891f6,id=752fa5797ebe,label=995d88c00ff2,points=a1e39655b8c4
 src/builtin/ui/src/client/components/mod.ts MapTracks 37d7c3f2edf9 @signature=1fcae32afe9d,fit=c52cca61a230,follow=53f80b5d83de,tracks=66a87d6cbb55
 src/builtin/ui/src/client/components/mod.ts MapTracksProps d0be718fcecf fit=811db48a83a6,follow=0e2746401d99,tracks=4d615d33e78a
 src/builtin/ui/src/client/components/mod.ts MapView 921fbe650a4a @signature=63947a3f1a59,baseLayer=56c1e849fcdc,bounds=d75a319bb661,center=8d95320f9e92,children=f8549eefbbf8,layerSwitcher=178ea4687612,onBaseLayerChange=8acfa9947a7b,onClick=cba05844a02b,onMoveEnd=dca04917469d,style=5dcc17338766,zoom=02225d9982f8
