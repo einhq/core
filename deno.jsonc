@@ -147,6 +147,7 @@
     "@ein/ui/lib": "./src/builtin/ui/src/client/lib/mod.ts",
     "@ein/ui/signals": "./src/builtin/ui/src/client/signals/mod.ts",
     "@ein/ui/theme": "./src/builtin/ui/src/client/theme/mod.ts",
+    "@ui/licences": "./src/builtin/ui/lib/licences.ts",
     "@ui/module-build": "./src/builtin/ui/lib/module-build.ts",
     "@ui/nav": "./src/builtin/ui/lib/nav.ts",
     "@ui/shared": "./src/builtin/ui/lib/shared.ts",

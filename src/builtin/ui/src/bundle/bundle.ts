@@ -11,7 +11,7 @@
  *   components (`TablerIcon` reads them). They come from the node_modules directory the bundler
  *   materialises, so they are copied after it, keeping their timestamps so a deploy's rsync skips
  *   the unchanged ones.
- * - `public/licences.txt`, the third-party notices (`licences.ts`), written after the bundle for
+ * - `public/licences.txt`, the image's third-party notices (`lib/licences.ts`), written after the bundle for
  *   the same reason.
  *
  * In `--dev` only the bundle is rebuilt on a change; the rest is copied once.
@@ -19,7 +19,7 @@
 import { format } from '@std/fmt/bytes';
 import { copy, emptyDir, exists } from '@std/fs';
 import { dirname, fromFileUrl, join } from '@std/path';
-import { writeLicences } from './licences.ts';
+import { writeLicences } from '../../lib/licences.ts';
 
 const dev = Deno.args.includes('--dev');
 const uiDir = join(dirname(fromFileUrl(import.meta.url)), '..', '..');

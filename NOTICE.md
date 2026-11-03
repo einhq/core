@@ -5,10 +5,12 @@ others, each under its own licence.
 
 ## The packages core is built from, and the fonts
 
-Every npm, JSR and deno.land package core's deno.lock pins, and the fonts of the Web UI, are listed
-with their licences and notices in /app/src/builtin/ui/ui/public/licences.txt, which EiN serves at
-/public/licences.txt and About EiN links to as "third-party notices". All of them are under
-permissive licences.
+Every npm and JSR package core's deno.lock pins for core itself, and the fonts of the Web UI, are
+listed with their licences and notices in /app/src/builtin/ui/ui/public/licences.txt, which EiN
+serves at /public/licences.txt. All of them are under permissive licences. The modules an
+installation adds are not in the image; once they are installed, EiN writes the installation's
+notices, these followed by the packages of the modules' own, to /var/cache/ui/licences.txt, and
+About EiN links to them as "third-party notices".
 
 ## Deno
 

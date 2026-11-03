@@ -6,6 +6,8 @@
 /** Built module bundles, one directory per module, beside the manifest. */
 export const UI_CACHE_PATH = '/var/cache/ui';
 export const UI_MANIFEST_PATH = `${UI_CACHE_PATH}/manifest.json`;
+/** The installation's third-party notices: the image's, and the installed modules' own packages. */
+export const UI_LICENCES_PATH = `${UI_CACHE_PATH}/licences.txt`;
 
 /**
  * A module's route, as the shell patches it into its router before loading the module: its
@@ -40,6 +42,8 @@ export type UiManifest = {
   /** The id of the shell runtime the bundles were built against. */
   runtime: string;
   modules: Record<string, ModuleUi>;
+  /** The URL of the installation's third-party notices, when `ui-build` has written them. */
+  licences?: string;
 };
 
 /** `/var/cache/ui/<module>/build.json`: one module's last build, and what it was built from. */

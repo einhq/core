@@ -202,6 +202,17 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
       await client.exec(`rm -rf ${modules}/uifix2`);
     });
 
+    await t.step("writes the installation's third-party notices where the shell is served, and the manifest names them", async () => {
+      const www = `${(await client.exec('echo $WWW_PATH')).data}`.trim();
+      await put(`${www}/ui/public/licences.txt`, 'EiN: third-party notices\n');
+      await build('uifix');
+      const text = await read('/var/cache/ui/licences.txt');
+      assert(text.startsWith('EiN: third-party notices\n'), text);
+      assertStringIncludes(text, "The modules' own packages (");
+      assertEquals((JSON.parse(await read('/var/cache/ui/manifest.json')) as UiManifest).licences, '/file/var/cache/ui/licences.txt');
+      await client.exec(`rm -rf ${www}/ui`);
+    });
+
     await t.step('--all forgets a module that is gone', async () => {
       await client.exec(`rm -rf ${root}`);
       // Other installed modules may have pages of their own; the fixture is what has to be gone.

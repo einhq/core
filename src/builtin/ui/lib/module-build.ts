@@ -30,7 +30,7 @@ import { moduleGroupGids, NodeNotFoundError } from '@ein/client';
 import { dirname, join, normalize } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { SHARED_GLOBAL, sharedSpecifiers, uiRuntime } from './shared.ts';
-import { type ModuleBuild, type ModuleRoute, type ModuleUi, type SearchableKind, UI_CACHE_PATH, UI_MANIFEST_PATH, type UiManifest } from './ui-cache.ts';
+import { type ModuleBuild, type ModuleRoute, type ModuleUi, type SearchableKind, UI_CACHE_PATH, UI_LICENCES_PATH, UI_MANIFEST_PATH, type UiManifest } from './ui-cache.ts';
 import type { NodeTypeDoc } from '@ein/api';
 
 /** Bumped when what a build produces changes for the same sources. */
@@ -398,9 +398,27 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
   }
 };
 
+/** What the stored third-party notices of the installation were made from (`writeLicencesFile`), if any are stored. */
+export const storedLicencesKey = async (cmd: Command): Promise<string | undefined> => {
+  try {
+    const key = (await cmd.sys.vfs.get(cmd.access, UI_LICENCES_PATH)).attrs?.key;
+    return typeof key === 'string' ? key : undefined;
+  } catch (error) {
+    if (error instanceof NodeNotFoundError) return undefined;
+    throw error;
+  }
+};
+
+/** Store the installation's third-party notices, made from `key` (`storedLicencesKey`). */
+export const writeLicencesFile = async (cmd: Command, text: string, key: string): Promise<void> => {
+  await ensureCacheDir(cmd);
+  await writeVfsFile(cmd, UI_CACHE_PATH, UI_LICENCES_PATH.slice(UI_CACHE_PATH.length + 1), new TextEncoder().encode(text), { mimetype: 'text/plain', key });
+};
+
 /**
  * Rewrite the manifest from every built module's `build.json`, keeping only `modules`
- * (those with `ui.routes`, installed now), and remove the directories of the rest.
+ * (those with `ui.routes`, installed now), and remove the directories of the rest. The manifest
+ * names the installation's third-party notices when they are stored.
  *
  * A path is one module's: a module giving a path an earlier one (by name) already has is left
  * out of the manifest, and returned in `conflicts` with why.
@@ -440,7 +458,8 @@ export const writeUiManifest = async (cmd: Command, modules: string[]): Promise<
       ...(gids ? { gids } : {}),
     };
   }
-  const manifest: UiManifest = { runtime: uiRuntime().id, modules: entries };
+  const licences = await cmd.sys.vfs.exists(cmd.access, UI_LICENCES_PATH);
+  const manifest: UiManifest = { runtime: uiRuntime().id, modules: entries, ...(licences ? { licences: fileUrl(UI_LICENCES_PATH) } : {}) };
   await writeVfsFile(cmd, UI_CACHE_PATH, UI_MANIFEST_PATH.slice(UI_CACHE_PATH.length + 1), new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`), {
     mimetype: 'application/json',
   });

@@ -143,6 +143,13 @@ manifest is written, for the module later by name. They are bundled inside the r
   Cache-Control), the routes to `/var/cache/ui/manifest.json`, and the key it was built from to
   `build.json`, so an unchanged module is not rebuilt.
 
+`ui-build` also writes the installation's third-party notices to `/var/cache/ui/licences.txt`, which
+the manifest names and About EiN links to: the image's (`public/licences.txt`, core's packages and
+fonts), followed by the packages the installed modules' `mod.json` imports reach and core's do not,
+each with the modules that use it. `deno info` resolves them against core's `deno.jsonc` and lock,
+as the modules' code is resolved when it runs; they are written again only when the image's notices
+or the modules' imports change ([licences.ts](../../src/builtin/ui/lib/licences.ts)).
+
 The shell's router knows a module's routes from the manifest before any of its code is loaded
 (`patchRoutesOnNavigation`, [module-ui.ts](../../src/builtin/ui/src/client/signals/module-ui.ts)),
 and loads the module's stylesheet, then its bundle, the first time one of its routes is

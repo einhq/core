@@ -5,10 +5,12 @@ import { DialogActions, RoutePanel, StatTile } from '@ein/ui/components';
 import { useModuleReference, usePolledCommand, useSurface } from '@ein/ui/hooks';
 import { formatUptime } from '@ein/ui/lib';
 import { panelRoute, panelsOf } from '@ein/ui/signals';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HatField } from '../components/EntityDetail/HatField.tsx';
 import { HatIdenticon } from '../components/Identity/HatIdenticon.tsx';
 import { EinMark, MARK_COLORS } from '../components/Layout/EinMark.tsx';
+import { loadUiManifest } from '../signals/module-ui.ts';
 
 /** As wide as the dialog is, or the page: room for the modules beside the rest (`.mrx-about-body`). */
 export const ABOUT_WIDTH = 1040;
@@ -90,6 +92,9 @@ export default function AboutPage() {
   const { data: info } = usePolledCommand<SystemInfo>('system-info');
   const { data: modules } = useModuleReference({ fresh: true });
   const panels = panelsOf('about.services');
+  // The installation's notices, with the modules' own packages, once ui-build has written them; the image's until then.
+  const [licences, setLicences] = useState('/public/licences.txt');
+  useEffect(() => void loadUiManifest().then((manifest) => manifest?.licences && setLicences(manifest.licences)), []);
 
   const added = modules?.length;
 
@@ -113,7 +118,7 @@ export default function AboutPage() {
         </Text>
         <Text size='xs' c='dimmed'>
           EiN is under the Elastic License 2.0, which also lets you host it free of charge for your family and friends or your association's members, and is built on
-          open-source packages and fonts, each under its own: <Anchor href='/public/licences.txt' target='_blank' size='xs'>third-party notices</Anchor>.
+          open-source packages and fonts, each under its own: <Anchor href={licences} target='_blank' size='xs'>third-party notices</Anchor>.
         </Text>
       </Stack>
 
