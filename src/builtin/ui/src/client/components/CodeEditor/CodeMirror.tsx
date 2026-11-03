@@ -6,8 +6,8 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { xml } from '@codemirror/lang-xml';
 import { yaml } from '@codemirror/lang-yaml';
-import { defaultHighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
-import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { languageFor } from '@ein/highlight';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, keymap } from '@codemirror/view';
@@ -59,7 +59,7 @@ const languageExtension = (language: CodeLanguage): Extension => {
     case 'xml':
       return xml();
     case 'shell':
-      return StreamLanguage.define(shell);
+      return languageFor('bash')!;
     case 'text':
       return [];
   }

@@ -53,7 +53,6 @@
     /* NPM */
     "pg": "npm:pg@^8.16.3",
     "@types/pg": "npm:@types/pg@^8.16",
-    "lowlight": "npm:lowlight@^3.1.0",
     // Pinned exactly, not caret: this is the content-sniffing path for every upload, and 0.x
     // minors here change detection behaviour (the order of magic signatures decides whether
     // ftypheic beats the generic 4-byte ftyp/mp4 match). See src/lib/media/mime.ts.
@@ -127,6 +126,8 @@
     // @ein/client because browser code and #!ts bins both need it and that
     // entry point drags in the whole of core; src/lib/paths.ts imports nothing.
     "@ein/paths": "./src/lib/paths.ts",
+    // The syntax highlighter the Web UI and the terminal share.
+    "@ein/highlight": "./src/lib/highlight/mod.ts",
     "@ein/ssh": "./src/lib/ssh/mod.ts",
     // What core's commands answer with, as types: the `JSON_OUTPUT=1` side of the command API.
     // A leaf like @ein/paths — src/lib/api/ imports only other import-free files — so the

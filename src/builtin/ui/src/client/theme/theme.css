@@ -2737,6 +2737,25 @@ html.mrx-floating .mrx-scrubber {
 .mrx-tok-meta {
   color: var(--mrx-tok-comment);
 }
+.mrx-tok-strong {
+  font-weight: 600;
+}
+.mrx-tok-emphasis {
+  font-style: italic;
+}
+.mrx-tok-link {
+  color: var(--mrx-tok-command);
+  text-decoration: underline;
+}
+.mrx-tok-code {
+  color: var(--mrx-tok-string);
+}
+.mrx-tok-inserted {
+  color: var(--mrx-tok-definition);
+}
+.mrx-tok-deleted {
+  color: var(--mrx-tok-keyword);
+}
 
 /* Anything a docs link can point at stops below the app's fixed header and the page header's
  * stuck row, not under them. */

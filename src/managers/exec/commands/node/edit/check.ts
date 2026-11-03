@@ -6,7 +6,6 @@
 import { BashSyntaxError, parse as parseBash } from '@ein/bash-executor';
 import { parse as parseJsonc } from '@std/jsonc';
 import { parseAll as parseYaml } from '@std/yaml';
-import { fencedBlocks } from '../../../../shell/terminal/syntax.ts';
 
 /** A syntax error at a 1-based line, and a 1-based column when the parser says one. */
 export type Problem = { line: number; col?: number; message: string };
@@ -107,6 +106,40 @@ function checkBash(text: string): Problem[] {
     const start = error.location?.start;
     return [{ line: start?.row ?? lastLine(text), col: start?.row !== undefined ? start.col : undefined, message }];
   }
+}
+
+/** Fence names that mean one of the languages checked here (`sh`, `yml`), as `check` names them. */
+const FENCE_ALIASES: Record<string, string> = { sh: 'bash', shell: 'bash', zsh: 'bash', yml: 'yaml', json5: 'jsonc', md: 'markdown' };
+
+/** A fence's language name, lowercased and in `check`'s terms. */
+const fenceLanguage = (name: string): string => FENCE_ALIASES[name.toLowerCase()] ?? name.toLowerCase();
+
+/** A fenced code block in Markdown, by line index: the fence, the first body line, and the line after the body. */
+type FencedBlock = {
+  /** The language the fence names, in `fenceLanguage` terms; `''` when it names none. */
+  lang: string;
+  fence: number;
+  body: number;
+  /** The closing fence's line, or the number of lines when the block runs to the end. */
+  end: number;
+};
+
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})\s*([^\s`{]*)/;
+
+/** The fenced code blocks of a Markdown text, given as its lines. An unclosed fence runs to the end. */
+function fencedBlocks(lines: string[]): FencedBlock[] {
+  const blocks: FencedBlock[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const open = FENCE_OPEN.exec(lines[i]);
+    if (!open) continue;
+    const marker = open[1];
+    const close = new RegExp(`^ {0,3}${marker[0] === '`' ? '`' : '~'}{${marker.length},}\\s*$`);
+    let end = i + 1;
+    while (end < lines.length && !close.test(lines[end])) end++;
+    blocks.push({ lang: open[2] ? fenceLanguage(open[2]) : '', fence: i, body: i + 1, end });
+    i = end;
+  }
+  return blocks;
 }
 
 async function checkMarkdown(text: string): Promise<Problem[]> {

@@ -60,4 +60,10 @@ Deno.test('check', async (t) => {
       { line: 8, col: undefined, message: 'unexpected end of file' },
     ]);
   });
+
+  await t.step('a ~~~ fence is a fence, and one of four backticks holds a block of three', async () => {
+    const text = ['~~~yml', 'a: [', '~~~', '````md', '```json', '{"a": }', '```', '````'].join('\n');
+    // YAML says where the open `[` ran out: the end of its block, the line of the closing fence.
+    assertEquals((await check('markdown', text)).map((problem) => problem.line), [3]);
+  });
 });

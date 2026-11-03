@@ -1,5 +1,5 @@
 import { assertEquals } from '@std/assert';
-import { fencedBlocks, highlightLines, languageFor, type StyledLine, toAnsi } from '../syntax.ts';
+import { highlightLines, languageFor, type StyledLine, toAnsi } from '../syntax.ts';
 
 /** The style of the run holding `text` on a line. */
 const styleOf = (line: StyledLine, text: string) => line.find((run) => run.text.includes(text))?.style;
@@ -36,6 +36,14 @@ Deno.test('highlightLines', async (t) => {
     assertEquals(styleOf(line, 'true'), '33');
   });
 
+  await t.step('languages without a lezer grammar: Python, a diff, JSON with comments', () => {
+    assertEquals(styleOf(highlightLines('def f():\n    return 1', 'python')[0], 'def'), '35');
+    const diff = highlightLines('- old\n+ new', 'diff');
+    assertEquals([styleOf(diff[0], 'old'), styleOf(diff[1], 'new')], ['31', '32']);
+    const jsonc = highlightLines('{\n  // why\n  "a": 1\n}', 'jsonc');
+    assertEquals([styleOf(jsonc[1], 'why'), styleOf(jsonc[2], '"a"')], ['90', '34']);
+  });
+
   await t.step('plain text and unknown languages are unstyled, line for line', () => {
     assertEquals(highlightLines('a\n\nb'), [[{ text: 'a', style: '' }], [], [{ text: 'b', style: '' }]]);
     assertEquals(highlightLines('a', 'klingon'), [[{ text: 'a', style: '' }]]);
@@ -47,7 +55,7 @@ Deno.test('highlightLines', async (t) => {
     assertEquals(styleOf(lines[0], 'Title'), '1;34');
     assertEquals(styleOf(lines[2], 'bold'), '1');
     assertEquals(styleOf(lines[3], '```yaml'), '90');
-    assertEquals(styleOf(lines[4], 'key:'), '34');
+    assertEquals(styleOf(lines[4], 'key'), '34');
     assertEquals(styleOf(lines[5], '```'), '90');
   });
 
@@ -73,12 +81,4 @@ Deno.test('highlightLines', async (t) => {
     assertEquals(toAnsi(highlightLines('a: 1\nb: 2', 'yaml')).split('\n').length, 2);
     assertEquals(toAnsi([[{ text: 'x', style: '32' }, { text: 'y', style: '' }]]), '\x1b[32mx\x1b[0my');
   });
-});
-
-Deno.test('fencedBlocks', () => {
-  const lines = ['~~~sh', 'echo', '~~~', 'text', '````md', '```', 'inner', '````'];
-  assertEquals(fencedBlocks(lines), [
-    { lang: 'bash', fence: 0, body: 1, end: 2 },
-    { lang: 'markdown', fence: 4, body: 5, end: 7 },
-  ]);
 });
