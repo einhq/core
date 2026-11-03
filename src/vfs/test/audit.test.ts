@@ -167,6 +167,19 @@ Deno.test('VFS audit trail', async (t) => {
       assertEquals([derived.path, derived.sid, derived.cause], ['/shared/upload/thumbnail', 'pipeline:derive/n1', upload.id]);
       assertEquals((await vfs.audit(ADMIN_ACCESS, { id: upload.id })).map((r) => r.path), ['/shared/upload']);
     });
+
+    await t.step('a purge takes the records written before its time, of pipeline runs only if asked', async () => {
+      await assertRejects(() => vfs.auditPurge(ANNA, { before: Date.now() + 1000 }));
+      const upload = (await vfs.audit(ADMIN_ACCESS, { pathPrefix: '/shared/upload', op: 'create' })).find((r) => r.path === '/shared/upload')!;
+
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: Date.now() - 60_000 }), 0);
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: Date.now() + 1000, pipeline: true }), 1);
+      assertEquals(await vfs.audit(ADMIN_ACCESS, { cause: upload.id }), []);
+      assertEquals((await vfs.audit(ADMIN_ACCESS, { id: upload.id })).length, 1);
+
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: Date.now() + 1000 }) > 0, true);
+      assertEquals(await vfs.audit(ADMIN_ACCESS, {}), []);
+    });
   } finally {
     await ctx.dispose();
   }

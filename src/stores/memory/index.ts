@@ -9,6 +9,8 @@ import { GroupId, Ownership, UserId } from '../../lib/mode/mod.ts';
 import {
   type AggregateBucket,
   auditMatches,
+  type AuditPurge,
+  auditPurgeMatches,
   type AuditQuery,
   type AuditRecord,
   type ChildLinkFilter,
@@ -159,6 +161,12 @@ export class InMemoryStore implements NodeStore {
       if (auditMatches(this.audit[i], query)) result.push(structuredClone(this.audit[i]));
     }
     return result;
+  }
+
+  async purgeAudit(purge: AuditPurge): Promise<number> {
+    const before = this.audit.length;
+    this.audit = this.audit.filter((record) => !auditPurgeMatches(record, purge));
+    return before - this.audit.length;
   }
 
   // ===== Core Operations =====

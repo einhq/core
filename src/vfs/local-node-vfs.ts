@@ -39,7 +39,7 @@ import { ResourceHandleIf, ResourceMode, ResourceStat } from '../registries/type
 import { VfsEventEmitter } from '../vfs/event-emitter.ts';
 import { SizeTrackingHandle } from '../vfs/size-tracking-handle.ts';
 import { ContentWriteHandle } from './content-write-handle.ts';
-import { type AuditInput, type AuditOp, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
+import { type AuditInput, type AuditOp, type AuditPurge, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
@@ -1765,6 +1765,14 @@ export class LocalNodeVFS implements NodeVFS {
 
     const order = query.after !== undefined ? -1 : 1;
     return records.sort((a, b) => (a.id < b.id ? order : a.id > b.id ? -order : 0)).slice(0, limit);
+  }
+
+  async auditPurge(access: Access, purge: AuditPurge): Promise<number> {
+    if (!isAdmin(access)) throw new NodeAccessDeniedError(this.store.rootId, 'auditPurge');
+
+    let purged = this.store.auditing ? await this.store.purgeAudit!(purge) : 0;
+    for (const mount of this.mountpoints) purged += await mount.vfs.auditPurge(access, purge);
+    return purged;
   }
 
   /**

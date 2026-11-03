@@ -284,8 +284,17 @@ Whether a store keeps a trail is its own `auditing` flag: `PgStore` always (tabl
 unread trail in memory. Records are written with the storing VFS's own paths; `vfs.audit()`
 (administrators only) walks the mounts, rebases their paths onto the mount point and merges in id
 order, which is how the router-only root reads the pg trail mounted at `/`. The `audit` command
-(`audit [path] --user --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it. Nothing prunes
-the table: what is left grows with content writes, a crawl's or a re-embedding's included.
+(`audit [path] --user --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it.
+
+**Retention.** The trail grows with every content write, a crawl's or a re-embedding's included, and
+the writes of pipeline runs (`sid` starting `pipeline:`) are nearly all of it: on a photo archive
+about ninety records per indexed file (ein/core#691). `vfs.auditPurge()` deletes the records written
+before a time, optionally only the pipeline runs', through every mount like `vfs.audit()`;
+`PgStore.purgeAudit` takes them in batches of 5000 by ascending id, each its own statement, bounded
+by the smallest ULID of that millisecond, so a purge is a range of the primary key. The
+`audit-purger` service runs `audit-purge` twice a day: pipeline runs' records after
+`CFG_AUDIT_PIPELINE_RETENTION_DAYS` (14), every other record after `CFG_AUDIT_RETENTION_DAYS` (0,
+kept). The space a purge frees is reused by new records; the table does not shrink.
 
 **Reading forward.** A query reads newest first; with `after: <id>` (`audit --after`) it reads the
 records after that id, oldest first, so a reader follows the trail by passing the last id it read,

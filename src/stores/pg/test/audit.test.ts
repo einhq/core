@@ -1,10 +1,12 @@
 /**
- * PG tier: the audit trail lives in the write's own transaction, and reads back filtered; a
- * forward read (`after`) is a range of the primary key however many records the trail holds.
+ * PG tier: the audit trail lives in the write's own transaction, reads back filtered, and is purged
+ * by age, all of it or the pipeline runs' records; a forward read (`after`) is a range of the
+ * primary key however many records the trail holds.
  * Gated by EIN_TEST_PG.
  */
 
 import { assertEquals } from '@std/assert';
+import { ulid } from '@std/ulid';
 import { type Access, ADMIN_ACCESS } from '../../../lib/access/mod.ts';
 import { RouterManager } from '../../../managers/router/mod.ts';
 import { MemoryFileRegistry } from '../../../registries/file/mod.ts';
@@ -79,6 +81,39 @@ pgTest('PgStore audit trail', async (t) => {
       await tx.rollback();
 
       assertEquals((await vfs.audit(ADMIN_ACCESS, { limit: 1000 })).length, before.length);
+    });
+
+    await t.step('a purge takes the records written before its time, of pipeline runs only if asked', async () => {
+      const node = await vfs.get(ADMIN_ACCESS, '/myXalbum/other');
+      const day = 86_400_000;
+      const record = (access: Access, at: number, path: string) => ({ ...auditRecord(access, { op: 'create', node, path })!, id: ulid(at), timestamp: at });
+      const run: Access = { ...ADMIN_ACCESS, sid: 'pipeline:derive/n1' };
+      const now = Date.now();
+
+      const tx = await store.beginTransaction();
+      await store.appendAudit([
+        record(run, now - 30 * day, '/old/derived'),
+        record(ANNA, now - 30 * day, '/old/anna'),
+        record(run, now - day, '/recent/derived'),
+      ], tx);
+      await tx.commit();
+      const paths = async () => (await vfs.audit(ADMIN_ACCESS, { limit: 1000 })).map((r) => r.path).filter((p) => /^\/(old|recent)\//.test(p)).sort();
+
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: now - 14 * day, pipeline: true }), 1);
+      assertEquals(await paths(), ['/old/anna', '/recent/derived']);
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: now - 14 * day }), 1);
+      assertEquals(await paths(), ['/recent/derived']);
+    });
+
+    await t.step('a purge takes more records than one batch deletes', async () => {
+      const prefix = ulid(Date.now() - 30 * 86_400_000).slice(0, 10);
+      await ctx.pool.query(
+        `INSERT INTO ${ctx.prefix}_nodes_audit (id, at, uid, sid, op, node_id, node_type, path)
+         SELECT $1 || lpad(g::text, 16, '0'), now() - interval '30 days', 0, 'pipeline:derive/n' || g, 'create', 'n' || g, 'file', '/bulk/f' || g
+         FROM generate_series(1, 12345) AS g`,
+        [prefix],
+      );
+      assertEquals(await vfs.auditPurge(ADMIN_ACCESS, { before: Date.now() - 14 * 86_400_000, pipeline: true }), 12345);
     });
   } finally {
     await vfs.dispose();

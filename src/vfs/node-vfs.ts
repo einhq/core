@@ -43,7 +43,7 @@ import {
   UpdateManyOptions,
 } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
-import type { AuditQuery, AuditRecord } from './audit.ts';
+import type { AuditPurge, AuditQuery, AuditRecord } from './audit.ts';
 import type { OwnerRelease, ReleasedOwner } from './node-store.ts';
 
 /**
@@ -663,6 +663,12 @@ export interface NodeVFS {
    * this VFS's own store and what is mounted into it, merged in id order.
    */
   audit(access: Access, query: AuditQuery): Promise<AuditRecord[]>;
+
+  /**
+   * Delete the audit records `purge` names, in this VFS's own store and what is mounted into it,
+   * and say how many went. Administrators only.
+   */
+  auditPurge(access: Access, purge: AuditPurge): Promise<number>;
 
   // ===== Mount Operations =====
   /**

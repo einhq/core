@@ -10,6 +10,7 @@ import { type Access, ADMIN_GID, ADMIN_UID, type ReachFormula, reachNamed } from
 import { GroupId, Mode, ModeACL, Ownership, UserId } from '../../lib/mode/mod.ts';
 import {
   type AggregateBucket,
+  type AuditPurge,
   type AuditQuery,
   type AuditRecord,
   type ChildLinkFilter,
@@ -38,6 +39,7 @@ import {
   passesChanged,
   type PathEntry,
   type PathNode,
+  PIPELINE_SID_PREFIX,
   prefixUpperBound,
   ReachClasses,
   type ReachGraph,
@@ -91,6 +93,9 @@ const UNIQUE_VIOLATION = '23505';
 
 /** The parent went away between resolving it and writing under it. */
 const FOREIGN_KEY_VIOLATION = '23503';
+
+/** Audit records deleted per statement by `purgeAudit`. */
+const AUDIT_PURGE_BATCH = 5000;
 
 /** A node row as the bulk reads give it, without the link-count join; `n` is the nodes table, `a` its attrs. */
 const LINK_COLUMNS = `
@@ -2610,6 +2615,44 @@ export class PgStore implements NodeStore {
       ...(row.attrs ? { attrs: row.attrs as AuditRecord['attrs'] } : {}),
       ...(row.props ? { props: row.props as AuditRecord['props'] } : {}),
     }));
+  }
+
+  /**
+   * Deletes in batches of {@link AUDIT_PURGE_BATCH} by ascending id, each its own statement, so a
+   * purge of millions of records never holds one transaction open. A record's id is a ULID minted
+   * with its timestamp, so "written before" is a range of the primary key: the bound is the
+   * smallest id of the millisecond `before`.
+   */
+  async purgeAudit(purge: AuditPurge): Promise<number> {
+    const bound = ulid(purge.before).slice(0, 10) + '0'.repeat(16);
+    const sidPrefix = purge.pipeline ? PIPELINE_SID_PREFIX : null;
+
+    let total = 0;
+    let after = '';
+    for (;;) {
+      const [row] = await this.runParameterized({
+        text: `
+          WITH del AS (
+            DELETE FROM ${this.auditTable}
+             WHERE id IN (
+               SELECT id FROM ${this.auditTable}
+                WHERE id > $1 AND id < $2
+                  AND ($3::text IS NULL OR starts_with(sid, $3))
+                ORDER BY id
+                LIMIT $4
+             )
+            RETURNING id
+          )
+          SELECT COUNT(*)::int AS n, MAX(id) AS last FROM del
+        `,
+        values: [after, bound, sidPrefix, AUDIT_PURGE_BATCH],
+      });
+
+      const n = row.n as number;
+      total += n;
+      if (n < AUDIT_PURGE_BATCH || row.last === null) return total;
+      after = row.last as string;
+    }
   }
 
   // ===== Storage Deletes =====

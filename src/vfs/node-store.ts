@@ -9,7 +9,7 @@ import type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeType } from './n
 import type { AggregateBucket, NodeAggregateQuery, NodeQuery, NodeQueryRow, ParentLink, ResolvedPath } from './query.ts';
 import { NodeAttrsUpdate, NodeChildEntry, NodePropsCreate, NodePropsUpdate } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
-import type { AuditQuery, AuditRecord } from '../lib/api/audit.ts';
+import type { AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
 
 /**
  * Narrows a child-edge lookup: by name or by child. `getChildren` also takes a page of the
@@ -518,7 +518,7 @@ export interface NodeStore {
 
   // ===== Audit Trail (Optional) =====
 
-  /** Whether this store keeps an audit trail; when true, `appendAudit` and `queryAudit` exist. */
+  /** Whether this store keeps an audit trail; when true, `appendAudit`, `queryAudit` and `purgeAudit` exist. */
   readonly auditing?: boolean;
 
   /**
@@ -529,6 +529,9 @@ export interface NodeStore {
 
   /** Read the trail back, newest first. */
   queryAudit?(query: AuditQuery): Promise<AuditRecord[]>;
+
+  /** Delete the records `purge` names, and say how many went. */
+  purgeAudit?(purge: AuditPurge): Promise<number>;
 
   // ===== Storage Deletes (Optional) =====
 

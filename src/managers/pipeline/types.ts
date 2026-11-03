@@ -4,6 +4,7 @@ import type { Attribution } from '../../lib/access/types.ts';
 import type { UserId } from '../../lib/mode/mod.ts';
 import type { AuditedWrite } from '../../lib/api/audit.ts';
 import type { NodeAttrs } from '../../vfs/node.ts';
+import { PIPELINE_SID_PREFIX } from '../../vfs/audit.ts';
 
 /**
  * Where matched triggers wait to become instances.
@@ -348,7 +349,7 @@ export type PipelineInstanceAttrs = NodeAttrs & {
  * person's node reads as theirs rather than the administrator's.
  */
 export const stepAttribution = (instanceId: string, instance: PipelineInstanceAttrs): Attribution => ({
-  sid: `pipeline:${instance.pipelineName}/${instanceId}`,
+  sid: `${PIPELINE_SID_PREFIX}${instance.pipelineName}/${instanceId}`,
   ...(instance.triggerWrite ? { cause: instance.triggerWrite.auditId } : {}),
   ...(instance.triggerCreator !== undefined ? { creator: instance.triggerCreator } : {}),
 });

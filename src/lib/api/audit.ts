@@ -23,7 +23,7 @@ export type AuditRecord = {
   /** Milliseconds since the epoch. */
   timestamp: number;
   uid: UserId;
-  /** The session or pipeline run the write came from (`pipeline:<instance id>`), when it came from one. */
+  /** The session or pipeline run the write came from (`pipeline:<pipeline>/<instance id>`), when it came from one. */
   sid?: string;
   /** Id of the record of the write that set this one off: the write that started its pipeline run. */
   cause?: string;
@@ -72,6 +72,12 @@ export type AuditQuery = {
   /** Defaults to 100. */
   limit?: number;
 };
+
+/**
+ * Which records `auditPurge` removes: those written before `before` (milliseconds since the epoch),
+ * and with `pipeline` only the writes of pipeline runs, whose `sid` starts with `pipeline:`.
+ */
+export type AuditPurge = { before: number; pipeline?: boolean };
 
 /** `audit`: one record, with the account name resolved when the account still exists. */
 export type AuditEntry = AuditRecord & { username?: string };

@@ -1,0 +1,5 @@
+{
+  "description": "Removes audit records once they are older than the retention",
+  "restartPolicy": "on-failure",
+  "workClass": "background"
+}
