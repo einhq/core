@@ -553,7 +553,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
       await fail(`${module.name}: its setup failed (mod list --long says why)`);
       continue;
     }
-    if (run.pagesOnly.has(module.name)) await say(run, `  Only the pages of ${module.name} changed: its services keep running`);
+    if (run.pagesOnly.has(module.name)) await say(run, `  Nothing but the pages of ${module.name} changed: its services keep running`);
     else await restartServices(cmd, await servicesOf(cmd, module.name));
   }
 

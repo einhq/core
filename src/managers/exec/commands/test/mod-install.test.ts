@@ -332,10 +332,10 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assert((await install('beacon')).success);
 
       await forge.publish('acme', 'module-beacon', beacon('1.0.1', 'beacon 1', 'second'));
-      assertStringIncludes(await run('mod install beacon'), 'Only the pages of beacon changed: its services keep running');
+      assertStringIncludes(await run('mod install beacon'), 'Nothing but the pages of beacon changed: its services keep running');
 
       await forge.publish('acme', 'module-beacon', beacon('1.0.2', 'beacon 2', 'second'));
-      assertEquals((await run('mod install beacon')).includes('Only the pages'), false);
+      assertEquals((await run('mod install beacon')).includes('Nothing but the pages'), false);
       assertEquals(await run('$MOD_PATH/beacon/bin/beacon'), 'beacon 2');
       await client.execString('mod-remove --force beacon');
     });
