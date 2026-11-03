@@ -122,7 +122,7 @@ const advertise = (repository: FakeRepository): string => {
 };
 
 /** The tree under one top directory named after the repository, as Forgejo archives it. */
-const tarball = (name: string, files: Files): ReadableStream<Uint8Array> => {
+export const tarball = (name: string, files: Files): ReadableStream<Uint8Array> => {
   const entries: TarStreamInput[] = [{ type: 'directory', path: `${name}/` }];
   for (const [path, file] of Object.entries(files)) {
     const bytes = new TextEncoder().encode(typeof file === 'string' ? file : file.text);

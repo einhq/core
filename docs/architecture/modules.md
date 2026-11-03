@@ -258,7 +258,8 @@ branch when there is none — is resolved from git's own ref advertisement
 advertisement holds, from the forge's API, and the tree at that commit is the forge's
 `/archive/<commit>.tar.gz`. It is unpacked through the VFS into `.staging-<id>` beside the
 installed modules ([install.ts](../../src/modules/install.ts)), with each file's mode, so a bin
-stays executable, then checked, renamed into place and linked as `/usr/modules/<name>` →
+stays executable, 16 files at a time, since each waits on an event loop the rest of EiN keeps busy;
+then checked, renamed into place and linked as `/usr/modules/<name>` →
 `/var/lib/modules/<name>`. A module replaced is renamed aside first and removed after, so the name
 always holds one whole tree. `.install.json` in the module records the repository, the ref, the
 commit and when; `mod list` answers it as `installed`, and `system-info` takes its commit.

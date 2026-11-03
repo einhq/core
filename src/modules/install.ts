@@ -8,7 +8,7 @@
 
 import { basename, dirname, join } from '@std/path';
 import { toText } from '@std/streams/to-text';
-import { UntarStream } from '@std/tar/untar-stream';
+import { type TarStreamEntry, UntarStream } from '@std/tar/untar-stream';
 import type { ModuleInstall } from '../lib/api/mod.ts';
 import type { Access } from '../lib/access/mod.ts';
 import { getMimeFromExt } from '../lib/media/mod.ts';
@@ -130,10 +130,18 @@ const paxPath = (bytes: Uint8Array): string | undefined => {
 type Unpacked = { files: number; skipped: string[] };
 
 /**
+ * How many files `unpackArchive` writes at once. A file is a handful of VFS calls, each waiting its
+ * turn on an event loop the rest of EiN keeps busy: one file at a time is 20–35 a second on a busy
+ * instance, and several at once share the waiting (ein/core#923).
+ */
+const UNPACK_CONCURRENCY = 16;
+
+/**
  * Unpack a gzipped tar of a repository into `dest`, which must exist: the entries under its one top
  * directory, which a forge names after the repository. Directories and files are written with
  * their modes, so a command stays executable; symlinks and anything else are left out, and said.
- * A path that would leave `dest` is refused. `unpacked` is told the number of files in place after each.
+ * A path that would leave `dest` is refused. Up to `UNPACK_CONCURRENCY` files are written at once;
+ * `unpacked` is told the number of files in place after each.
  */
 export const unpackArchive = async (
   vfs: NodeVFS,
@@ -143,25 +151,59 @@ export const unpackArchive = async (
   unpacked?: (files: number) => Promise<void>,
 ): Promise<Unpacked> => {
   const parentOf = (relative: string): string => dirname(relative) === '.' ? '' : dirname(relative);
-  const made = new Set<string>(['']);
-  const ensureDir = async (relative: string): Promise<void> => {
-    if (made.has(relative)) return;
-    await ensureDir(parentOf(relative));
-    await vfs.ensure(access, NODE_TYPE_DIRECTORY, join(dest, parentOf(relative)), basename(relative), { props: { mode: 0o755 } });
-    made.add(relative);
+  // Each directory is made once, by whichever file reaches it first; the others wait on that.
+  const made = new Map<string, Promise<void>>([['', Promise.resolve()]]);
+  const ensureDir = (relative: string): Promise<void> => {
+    let making = made.get(relative);
+    if (!making) {
+      making = ensureDir(parentOf(relative)).then(async () => {
+        await vfs.ensure(access, NODE_TYPE_DIRECTORY, join(dest, parentOf(relative)), basename(relative), { props: { mode: 0o755 } });
+      });
+      made.set(relative, making);
+    }
+    return making;
   };
 
   let files = 0;
+  const writing = new Set<Promise<void>>();
+  let failed: { error: unknown } | undefined;
+  const write = (relative: string, bytes: Uint8Array, mode: number): void => {
+    const done = (async () => {
+      await ensureDir(parentOf(relative));
+      await writeFile(vfs, access, join(dest, relative), bytes, mode);
+      files++;
+      await unpacked?.(files);
+    })().catch((error) => {
+      failed ??= { error };
+    }).finally(() => writing.delete(done));
+    writing.add(done);
+  };
+
   const skipped: string[] = [];
   let nextPath: string | undefined;
   // The runtime types the stream's writable side as BufferSource, which a stream of bytes is.
   const gunzip = new DecompressionStream('gzip') as unknown as TransformStream<Uint8Array, Uint8Array>;
-  for await (const entry of archive.pipeThrough(gunzip).pipeThrough(new UntarStream())) {
+  try {
+    for await (const entry of archive.pipeThrough(gunzip).pipeThrough(new UntarStream())) {
+      if (failed) {
+        await entry.readable?.cancel();
+        break;
+      }
+      await unpackEntry(entry);
+      while (writing.size >= UNPACK_CONCURRENCY) await Promise.race(writing);
+    }
+  } finally {
+    await Promise.all(writing);
+  }
+  if (failed) throw failed.error;
+  return { files, skipped };
+
+  async function unpackEntry(entry: TarStreamEntry): Promise<void> {
     const type = entry.header.typeflag;
     if (type === 'g' || type === 'x') {
       const bytes = entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();
       if (type === 'x') nextPath = paxPath(bytes);
-      continue;
+      return;
     }
     const path = nextPath ?? entry.path;
     nextPath = undefined;
@@ -170,7 +212,7 @@ export const unpackArchive = async (
     const relative = path.split('/').filter((part) => part && part !== '.').slice(1).join('/');
     if (!relative) {
       await entry.readable?.cancel();
-      continue;
+      return;
     }
     if (relative.split('/').includes('..') || path.startsWith('/')) {
       await entry.readable?.cancel();
@@ -180,15 +222,11 @@ export const unpackArchive = async (
     if (type === '5') {
       await ensureDir(relative);
     } else if (type === '0' || type === '7') {
-      await ensureDir(parentOf(relative));
       const bytes = entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();
-      await writeFile(vfs, access, join(dest, relative), bytes, entry.header.mode & 0o777 || 0o644);
-      files++;
-      await unpacked?.(files);
+      write(relative, bytes, entry.header.mode & 0o777 || 0o644);
     } else {
       await entry.readable?.cancel();
       skipped.push(`${relative}: ${type === '2' ? 'a symlink' : `an entry of type '${type}'`}, not installed`);
     }
   }
-  return { files, skipped };
 };
