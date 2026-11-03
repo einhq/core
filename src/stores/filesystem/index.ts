@@ -83,7 +83,7 @@ export class FilesystemStore implements NodeStore {
     // Verify root path exists and is a directory
     const stat = await Deno.lstat(this.rootPath);
     if (!stat.isDirectory) {
-      throw new Error(`Root path is not a directory: ${this.rootPath}`);
+      throw new Error(`root path is not a directory: ${this.rootPath}`);
     }
 
     // Root has empty relative path
@@ -215,7 +215,7 @@ export class FilesystemStore implements NodeStore {
     const normalizedRoot = normalize(this.rootPath);
 
     if (!normalizedPath.startsWith(normalizedRoot)) {
-      throw new Error('Path traversal detected');
+      throw new Error('path traversal detected');
     }
   }
 
@@ -411,7 +411,7 @@ export class FilesystemStore implements NodeStore {
     const parent = await this.findPathById(parentId);
 
     if (!parent.stat.isDirectory) {
-      throw new Error('Parent is not a directory');
+      throw new Error('parent is not a directory');
     }
 
     const newPath = join(parent.absolutePath, name);
@@ -440,14 +440,14 @@ export class FilesystemStore implements NodeStore {
       case 'softlink': {
         const target = props.softlink;
         if (!target) {
-          throw new Error('Softlink requires a target path in props.softlink');
+          throw new Error('softlink requires a target path in props.softlink');
         }
         await Deno.symlink(target, newPath);
         break;
       }
 
       default:
-        throw new Error(`Unsupported node type for filesystem: ${type}`);
+        throw new Error(`unsupported node type for filesystem: ${type}`);
     }
 
     // Set permissions if specified (already done via mode in mkdir/writeFile, but chmod ensures)
@@ -560,7 +560,7 @@ export class FilesystemStore implements NodeStore {
 
     // Don't allow deleting the root
     if (entry.absolutePath === this.rootPath) {
-      throw new Error('Cannot delete root directory');
+      throw new Error('cannot delete the root directory');
     }
 
     try {
@@ -572,6 +572,15 @@ export class FilesystemStore implements NodeStore {
       }
       throw error;
     }
+  }
+
+  /** One recursive `Deno.remove`, rather than an `lstat` and a removal per entry. */
+  async deleteTree(_uid: UserId, id: NodeId): Promise<void> {
+    const entry = await this.findPathById(id);
+    if (entry.absolutePath === this.rootPath) {
+      throw new Error('cannot delete the root directory');
+    }
+    await Deno.remove(entry.absolutePath, { recursive: true });
   }
 }
 

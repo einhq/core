@@ -161,6 +161,10 @@ an SFTP server. They declare `pathAddressed`: a node's id is the base64 of its p
 mount (`src/stores/path-id.ts`), so it changes when the node moves (`rename` re-reads the moved
 node by its new name), and their file registry is handed that path rather than the id. They hold
 directories, files and links only; attrs are derived from what the other side reports, not stored.
+`FilesystemStore` also has `deleteTree`, which a recursive `unlink` of a directory by the
+administrator uses instead of emptying it node by node: one recursive remove on the host, announced
+and audited as that directory's deletion alone. `mod install` removes the module tree it replaced
+this way, tens of thousands of files under `/var/lib/modules` in a second rather than minutes.
 
 `mount <path> sftp "host=…,user=…,path=…"` builds an `SftpStore` and an `SftpFileRegistry` over one
 shared `SftpConnection` (`src/lib/ssh/sftp-connection.ts`): opened lazily, reopened after a drop

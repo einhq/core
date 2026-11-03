@@ -42,6 +42,7 @@ import { ContentWriteHandle } from './content-write-handle.ts';
 import { type AuditInput, type AuditOp, type AuditPurge, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
+import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
 import { NODE_TYPE_FILE } from './types/file.ts';
 import { NODE_TYPE_POOL } from './types/pool.ts';
@@ -4062,13 +4063,19 @@ export class LocalNodeVFS implements NodeVFS {
       // children, we are just dropping one edge.
       //
       // Children can arrive between the subtree emptying and the edge going — a pipeline reacting
-      // to the members just removed — so it is emptied again, a few times before giving up.
+      // to the members just removed — so it is emptied again, a few times before giving up. A
+      // store that can remove a whole directory at once does, for an access no check refuses.
       const detach = () =>
         this.withTransaction(
           [parentEntry.id, entry.id],
           (mut) => this.detachEdge(access, mut, parentEntry, entry.id, entry.vfsAbsPath),
         );
-      if (!opts?.recursive || (await this.store.getNode(entry.id)).props.count > 1) return await detach();
+      if (!opts?.recursive) return await detach();
+      const node = await this.store.getNode(entry.id);
+      if (node.props.count > 1) return await detach();
+      if (this.store.deleteTree && node.type === NODE_TYPE_DIRECTORY && bypassesAccess(access)) {
+        return await this.withTransaction([parentEntry.id, entry.id], (mut) => this.deleteTree(access, mut, parentEntry, entry));
+      }
       for (let pass = 1;; pass++) {
         await this.reapSubtrees(access, [entry]);
         try {
@@ -4342,6 +4349,26 @@ export class LocalNodeVFS implements NodeVFS {
       }
     }
     return counts;
+  }
+
+  /**
+   * Remove a directory and everything under it with the store's `deleteTree`, for an access that
+   * passes every check. Must be called with locks held on the directory and its parent. It is
+   * announced and audited as the directory's own deletion, and nothing within it is: a tree of
+   * tens of thousands of files goes in one store call rather than several per name.
+   */
+  private async deleteTree(access: Access, mut: Mutation, parentEntry: NodeEntry, entry: NodeEntry): Promise<boolean> {
+    const parent = await this.store.getNode(parentEntry.id, mut.tx);
+    const node = await this.store.getNode(entry.id, mut.tx);
+    if (this.mountpoints.some((m) => m.point.id === node.id)) throw new NodeBusyError(entry.vfsAbsPath);
+
+    this.declareWrite(mut, node.type);
+    await this.store.deleteTree!(access.uid, node.id, mut.tx);
+
+    mut.emit('child-detached', parentEntry.vfsAbsPath, parent, undefined, access.uid);
+    mut.emit('deleted', entry.vfsAbsPath, node, undefined, access.uid);
+    mut.audit(access, { op: 'delete', node, path: entry.vfsAbsPath });
+    return true;
   }
 
   /**

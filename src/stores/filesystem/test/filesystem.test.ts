@@ -261,3 +261,65 @@ Deno.test('FilesystemStore resolveChain walks a path with one lstat per level', 
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+Deno.test('FilesystemStore removes a directory recursively in one call for an access no check refuses', async (t) => {
+  const dir = await Deno.makeTempDir({ prefix: 'filesystem-store-tree-' });
+  const tree = async (name: string) => {
+    for (const sub of ['a', 'b']) {
+      await Deno.mkdir(join(dir, name, sub, 'c'), { recursive: true });
+      await Deno.writeTextFile(join(dir, name, sub, 'c', 'chart.png'), 'x');
+      await Deno.symlink('c/chart.png', join(dir, name, sub, 'link'));
+    }
+  };
+
+  const routerManager = new RouterManager();
+  await routerManager.init();
+  routerManager.release();
+  const store = new FilesystemStore({ rootPath: dir });
+  const vfs = new LocalNodeVFS(store, routerManager, { file: new DiskFileRegistry({ rootPath: dir }) });
+  const deleteTree = store.deleteTree.bind(store);
+  let trees = 0;
+  store.deleteTree = (...args) => {
+    trees++;
+    return deleteTree(...args);
+  };
+  const deleted: string[] = [];
+
+  try {
+    await vfs.initialize();
+    const sub = await vfs.subscribe(() => ADMIN_ACCESS, (event) => {
+      deleted.push(event.path);
+    }, { eventTypes: ['deleted'] });
+
+    await t.step('the administrator: one deleteTree, announced as the directory going', async () => {
+      await tree('replaced');
+      assertEquals(await vfs.unlink(ADMIN_ACCESS, '/replaced', '/', { recursive: true }), true);
+      await assertRejects(() => Deno.lstat(join(dir, 'replaced')), Deno.errors.NotFound);
+      assertEquals(trees, 1);
+      assertEquals(deleted, ['/replaced']);
+    });
+
+    await t.step('anyone else: node by node, each directory checked and each name announced', async () => {
+      await tree('mine');
+      deleted.length = 0;
+      const owner = { uid: Deno.uid() ?? 0, gid: Deno.gid() ?? 0, gids: [Deno.gid() ?? 0] };
+      await vfs.unlink(owner, '/mine', '/', { recursive: true });
+      await assertRejects(() => Deno.lstat(join(dir, 'mine')), Deno.errors.NotFound);
+      assertEquals(trees, 1);
+      assertEquals(deleted.length, 9);
+    });
+
+    await t.step('a file is not a tree', async () => {
+      await Deno.writeTextFile(join(dir, 'single.txt'), 'x');
+      await vfs.unlink(ADMIN_ACCESS, '/single.txt', '/', { recursive: true });
+      await assertRejects(() => Deno.lstat(join(dir, 'single.txt')), Deno.errors.NotFound);
+      assertEquals(trees, 1);
+    });
+
+    await sub.unsubscribe();
+  } finally {
+    await vfs.dispose();
+    await routerManager.dispose();
+    await Deno.remove(dir, { recursive: true });
+  }
+});

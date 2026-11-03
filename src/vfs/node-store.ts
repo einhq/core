@@ -427,6 +427,15 @@ export interface NodeStore {
    */
   deleteNodes?(uid: UserId, ids: NodeId[], tx?: Transaction): Promise<void>;
 
+  /**
+   * Delete a directory and everything under it in one operation, for a store whose hierarchy is
+   * a host directory: what lies within is removed as the host's `rm -r` would, hard links and all.
+   *
+   * Optional; the VFS otherwise empties the subtree node by node. It uses this only for an access
+   * that passes every check, as a node-by-node removal would check each directory within.
+   */
+  deleteTree?(uid: UserId, id: NodeId, tx?: Transaction): Promise<void>;
+
   // ===== Hierarchy Writes (Optional) =====
   //
   // Each write names the edges it changes; none touches their siblings.
