@@ -780,6 +780,18 @@ html.mrx-page-covered {
   text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
 }
 
+/* A band-high bar (`band`): the height and title of the band a listing page opens with, the title
+ * and controls at its foot. */
+.mrx-page-bar[data-band] .mrx-page-bar-content {
+  align-items: flex-end;
+  min-height: clamp(128px, 13vw, 184px);
+  padding: clamp(16px, 3cqw, 32px) var(--mrx-header-inset) var(--mrx-header-inset);
+}
+
+.mrx-page-bar[data-band] .mrx-page-bar-title {
+  font-size: var(--mantine-h1-font-size);
+}
+
 .mrx-page-bar-controls {
   display: flex;
   flex: 1 1 auto;
@@ -1443,7 +1455,8 @@ html.mrx-page-covered {
     width: 100%;
   }
 
-  .mrx-entity-header-copy h1 {
+  .mrx-entity-header-copy h1,
+  .mrx-page-bar[data-band] .mrx-page-bar-title {
     font-size: var(--mantine-font-size-xl);
   }
 

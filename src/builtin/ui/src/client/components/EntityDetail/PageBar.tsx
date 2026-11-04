@@ -16,6 +16,12 @@ type PageBarProps = {
    * stand over its panes.
    */
   flushTabs?: boolean;
+  /**
+   * As tall as the band a listing page opens with (`EntityDetailHeader` with `flowContent`, as
+   * Home's), the title and controls at its foot: for a page whose body is a list beside what is
+   * open, which matches Home rather than giving the tool every pixel.
+   */
+  band?: boolean;
 };
 
 /**
@@ -24,12 +30,13 @@ type PageBarProps = {
  * the map. The title sits at the left and the page's controls at the right, on
  * the band's dark ground rather than over the tool.
  */
-export function PageBar({ title, controls, pattern, tabs, flushTabs }: PageBarProps) {
+export function PageBar({ title, controls, pattern, tabs, flushTabs, band }: PageBarProps) {
   return (
     <Box
       component='header'
       className={pattern ? 'mrx-page-bar mrx-pattern' : 'mrx-page-bar'}
       data-pattern={pattern}
+      data-band={band || undefined}
     >
       {pattern && <HatField pattern={pattern} />}
       <Box className='mrx-page-bar-content'>
