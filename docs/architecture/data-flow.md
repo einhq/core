@@ -906,10 +906,9 @@ queue without touching the others.
 UI: POST /file/albums/2024/?name=photo.jpg  (bytes)
   → handlePostFile
     → VFS.create photo.jpg, or photo (2).jpg, … when the name is taken
-    → stream through sha256 hash transform
     → detect MIME from first bytes
-    → write to file registry (disk)
-    → VFS.update node attrs (size, mimetype, sha256, frozen when /etc/frozen-uploads lists the type)
+    → write to file registry (disk); the write handle records size and sha256 at close
+    → VFS.update node attrs (mimetype, frozen when /etc/frozen-uploads lists the type)
       → file registry touch: a frozen file's bytes lose their write bits (0444)
   → 201 + { path, renamed, …attrs }
 ```

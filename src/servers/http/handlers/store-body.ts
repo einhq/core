@@ -7,8 +7,8 @@ import { HttpServerConfig } from '../types.ts';
 
 /**
  * Stream an uploaded body into the existing file node at `vfsPath`, replacing its bytes, and
- * record the size, sha256 and mimetype read on the way through. A type `/etc/frozen-uploads`
- * lists is frozen once it is stored.
+ * record the mimetype read on the way through; the write itself records size and sha256. A type
+ * `/etc/frozen-uploads` lists is frozen once it is stored.
  * @returns the node's attrs after the write
  */
 export async function storeBody(

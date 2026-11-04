@@ -7,8 +7,9 @@
  * to refuse the archive before anything is written (an entry that would land outside the
  * directory, or more bytes than the disk has room for) and once to write.
  *
- * An entry's file is created, its bytes written, and then given the size, sha256 and mimetype read
- * on the way through and the entry's modification time as `writtenAt`, as an upload records them.
+ * An entry's file is created and its bytes written, which records their size and sha256, and then
+ * given the mimetype read on the way through and the entry's modification time as `writtenAt`, as an
+ * upload records them.
  * With `--as-upload` the entries are taken for the upload they came in, and one of a type
  * `/etc/frozen-uploads` lists is frozen as an upload of it would be (ein/core#844).
  */
