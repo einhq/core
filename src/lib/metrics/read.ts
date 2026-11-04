@@ -10,7 +10,7 @@
 import { ResourceSeekMode } from '../../registries/types.ts';
 import type { LogHandle } from '../../registries/log/log-handle.ts';
 import type { Access } from '../access/mod.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { Sample } from './sample.ts';
 
 /**
@@ -21,7 +21,7 @@ import type { Sample } from './sample.ts';
  * has not run at all.
  */
 export const readTail = async <T>(
-  vfs: NodeVFS,
+  vfs: ModuleVFS,
   access: Access,
   path: string,
   limit: number,

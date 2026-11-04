@@ -14,14 +14,14 @@
 import type { CmdSpec } from '../../managers/exec/spec.ts';
 import type { Access } from '../access/types.ts';
 import { verifyAccess } from '../access/verify-access.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { Node } from '../../vfs/node.ts';
 import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import type { ListedCommand } from '../api/docs.ts';
 
 /** What the catalogue uses of a command: core's own and a module's (`@ein/client`) both are one. */
 type Command = {
-  readonly sys: { readonly vfs: NodeVFS };
+  readonly sys: { readonly vfs: ModuleVFS };
   readonly env: Record<string, string>;
   readonly access: Access;
   execute(script: string): Promise<{ code: number; stdout: string; stderr: string }>;

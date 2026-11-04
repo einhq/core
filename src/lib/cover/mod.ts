@@ -5,20 +5,10 @@
  */
 
 import type { Access } from '../access/types.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import { COVER_LINK_NAME } from '../paths.ts';
 
 export { COVER_LINK_NAME };
-
-/** Where a node's cover link points, or undefined when it has none. The target may no longer exist. */
-export const readCoverTarget = async (vfs: NodeVFS, access: Access, ownerPath: string): Promise<string | undefined> => {
-  try {
-    const link = await vfs.get(access, `${ownerPath}/${COVER_LINK_NAME}`, { readlink: true });
-    return typeof link.props.softlink === 'string' ? link.props.softlink : undefined;
-  } catch {
-    return undefined;
-  }
-};
 
 export type SetCoverOptions = {
   /**
@@ -32,7 +22,7 @@ export type SetCoverOptions = {
 };
 
 /** Point a node's cover at `target`, replacing any cover it had. */
-export const setCover = async (vfs: NodeVFS, access: Access, ownerPath: string, target: string, opts: SetCoverOptions = {}): Promise<void> => {
+export const setCover = async (vfs: ModuleVFS, access: Access, ownerPath: string, target: string, opts: SetCoverOptions = {}): Promise<void> => {
   const linkPath = `${ownerPath}/${COVER_LINK_NAME}`;
   if (await vfs.exists(access, linkPath, { follow: false })) {
     await vfs.unlink(access, linkPath, ownerPath, { follow: false });

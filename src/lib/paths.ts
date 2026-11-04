@@ -263,8 +263,8 @@ export const pathExports = (): string =>
 
 /**
  * A node's cover picture: a softlink child by this name, on an album, a person, a location or a device,
- * pointing at the media that stands for it. Not a member of anything it sits in. Read and set it
- * with `readCoverTarget`/`setCover` from `@ein/client`.
+ * pointing at the media that stands for it. Not a member of anything it sits in. Set it with
+ * `setCover` from `@ein/client`.
  */
 export const COVER_LINK_NAME = 'coverPhoto';
 

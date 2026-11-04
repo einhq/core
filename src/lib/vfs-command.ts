@@ -1,5 +1,5 @@
 import type { Access } from './access/types.ts';
-import type { NodeVFS } from '../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../vfs/node-vfs.ts';
 
 /**
  * The minimum a helper needs in order to touch the VFS on a command's behalf.
@@ -10,7 +10,7 @@ import type { NodeVFS } from '../vfs/node-vfs.ts';
  * and terminal-control surface into the module contract for no reason.
  */
 export type VfsCommand = {
-  readonly sys: { readonly vfs: NodeVFS };
+  readonly sys: { readonly vfs: ModuleVFS };
   readonly access: Access;
   readonly env: Record<string, string>;
 };

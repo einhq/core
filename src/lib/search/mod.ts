@@ -30,8 +30,8 @@ import { matchesCondition } from '../../vfs/query-eval.ts';
 import type { Node, NodeId, NodeType } from '../../vfs/node.ts';
 import type { UserId } from '../mode/mod.ts';
 import type { UserAttrs } from '../../vfs/types/user.ts';
-import type { Command } from '../../client/mod.ts';
-import type { CmdReturn } from '../../client/mod.ts';
+import type { Command } from '../../managers/exec/command.ts';
+import type { CmdReturn } from '../../managers/exec/types.ts';
 import {
   classify,
   exclusiveUpperBound,

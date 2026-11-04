@@ -26,9 +26,10 @@
  */
 
 import type { Command } from '@ein/client';
-import { moduleGroupGids, NodeNotFoundError } from '@ein/client';
+import { NodeNotFoundError } from '@ein/client';
 import { dirname, join, normalize } from '@std/path';
 import { toText } from '@std/streams/to-text';
+import { moduleGroupGids } from '../../../modules/audience.ts';
 import { SHARED_GLOBAL, sharedSpecifiers, uiRuntime } from './shared.ts';
 import { type ModuleBuild, type ModuleRoute, type ModuleUi, type SearchableKind, UI_CACHE_PATH, UI_LICENCES_PATH, UI_MANIFEST_PATH, type UiManifest } from './ui-cache.ts';
 import type { NodeTypeDoc } from '@ein/api';

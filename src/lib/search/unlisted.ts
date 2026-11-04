@@ -14,7 +14,7 @@
 
 import { ADMIN_ACCESS } from '../access/constants.ts';
 import type { NodeId } from '../../vfs/node.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { NodeQueryCursor } from '../../vfs/query.ts';
 import type { NodeEvent } from '../../vfs/types.ts';
 import { UNLISTED_ATTR } from '../../vfs/types/directory.ts';
@@ -34,7 +34,7 @@ type Cache = {
   at: number;
 };
 
-const caches = new WeakMap<NodeVFS, Cache>();
+const caches = new WeakMap<ModuleVFS, Cache>();
 
 /** Whether `path` is one of `roots` or lies under one. */
 export const isUnlistedPath = (roots: readonly string[], path: string): boolean => roots.some((root) => path === root || path.startsWith(`${root}/`));
@@ -43,7 +43,7 @@ export const isUnlistedPath = (roots: readonly string[], path: string): boolean 
  * The absolute paths of the unlisted directories, sorted, leaving out one that lies under
  * another. Read once and kept (see the file's comment).
  */
-export const unlistedRoots = async (vfs: NodeVFS): Promise<readonly string[]> => {
+export const unlistedRoots = async (vfs: ModuleVFS): Promise<readonly string[]> => {
   let cache = caches.get(vfs);
   if (!cache) {
     const entry: Cache = {
@@ -85,7 +85,7 @@ export const unlistedWithin = (roots: readonly string[], within?: string): strin
  * to that many), their members' ids, one aggregate per tree; otherwise the ids' parents, in one
  * read, and the paths of the distinct parents, which a batch of pictures shares few of.
  */
-export const unlistedIds = async (vfs: NodeVFS, ids: NodeId[]): Promise<Set<NodeId>> => {
+export const unlistedIds = async (vfs: ModuleVFS, ids: NodeId[]): Promise<Set<NodeId>> => {
   const asked = new Set(ids);
   const roots = await unlistedRoots(vfs);
   if (roots.length === 0 || asked.size === 0) return new Set();
@@ -113,7 +113,7 @@ export const unlistedIds = async (vfs: NodeVFS, ids: NodeId[]): Promise<Set<Node
 };
 
 /** Every unlisted directory's path, a page at a time, without those under another. */
-const readRoots = async (vfs: NodeVFS): Promise<string[]> => {
+const readRoots = async (vfs: ModuleVFS): Promise<string[]> => {
   const found: string[] = [];
   let after: NodeQueryCursor | undefined;
   for (;;) {
@@ -139,7 +139,7 @@ const changesRoots = (event: NodeEvent): boolean => {
 };
 
 /** Call `changed` after a directory event that `changesRoots`, when the VFS announces its changes. */
-const watch = async (vfs: NodeVFS, changed: () => void): Promise<void> => {
+const watch = async (vfs: ModuleVFS, changed: () => void): Promise<void> => {
   if (!vfs.subscribe) return;
   await vfs.subscribe(() => ADMIN_ACCESS, (event) => {
     if (changesRoots(event)) changed();

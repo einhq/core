@@ -5,7 +5,7 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { GUEST_ACCESS } from '@ein/client';
+import { GUEST_ACCESS } from '../../../lib/access/constants.ts';
 import { UI_GROUPS_PATH, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
 import { createTestContext, type ShellClient } from '@ein/testing';
 import type { UiNav } from '@ui/nav';

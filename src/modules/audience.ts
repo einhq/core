@@ -14,7 +14,7 @@ import { isAdmin } from '../lib/access/verify-access.ts';
 import { groupGid } from '../lib/auth/member-gids.ts';
 import { MODULE_GROUPS_PATH } from '../lib/paths.ts';
 import { NodeNotFoundError } from '../vfs/errors.ts';
-import type { NodeVFS } from '../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../vfs/node-vfs.ts';
 import { NODE_TYPE_DIRECTORY } from '../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../vfs/types/file.ts';
 
@@ -22,7 +22,7 @@ import { type FileAttrs, NODE_TYPE_FILE } from '../vfs/types/file.ts';
 const moduleGroupsFile = (name: string): string => join(MODULE_GROUPS_PATH, `${name}.groups`);
 
 /** The names of the groups `name` is kept to, in the order written; none when it is everyone's. */
-export const readModuleGroups = async (vfs: NodeVFS, name: string): Promise<string[]> => {
+export const readModuleGroups = async (vfs: ModuleVFS, name: string): Promise<string[]> => {
   try {
     const handle = await vfs.open(ADMIN_ACCESS, moduleGroupsFile(name), { mode: 'r' });
     try {
@@ -37,7 +37,7 @@ export const readModuleGroups = async (vfs: NodeVFS, name: string): Promise<stri
 };
 
 /** Keep `name` to `groups`, or make it everyone's again with none. The administrator's file, readable by all. */
-export const writeModuleGroups = async (vfs: NodeVFS, name: string, groups: string[]): Promise<void> => {
+export const writeModuleGroups = async (vfs: ModuleVFS, name: string, groups: string[]): Promise<void> => {
   clearModuleAudienceCache();
   const path = moduleGroupsFile(name);
   if (groups.length === 0) {
@@ -74,7 +74,7 @@ const cache = new Map<string, { audience: Audience; at: number }>();
 /** Forget every module's audience. */
 export const clearModuleAudienceCache = (): void => cache.clear();
 
-const audienceOf = async (vfs: NodeVFS, name: string): Promise<Audience> => {
+const audienceOf = async (vfs: ModuleVFS, name: string): Promise<Audience> => {
   const hit = cache.get(name);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.audience;
   const names = await readModuleGroups(vfs, name);
@@ -95,11 +95,11 @@ const audienceOf = async (vfs: NodeVFS, name: string): Promise<Audience> => {
  * `access` is in one of its groups. A module kept to groups none of which exists is the
  * administrator's alone.
  */
-export const mayUseModule = async (vfs: NodeVFS, access: Access, name: string): Promise<boolean> => {
+export const mayUseModule = async (vfs: ModuleVFS, access: Access, name: string): Promise<boolean> => {
   if (isAdmin(access)) return true;
   const audience = await audienceOf(vfs, name);
   return !audience || audience.some((gid) => access.gids.includes(gid));
 };
 
 /** The gids of the groups `name` is kept to, `undefined` when it is everyone's: what the browser sorts its pages by. */
-export const moduleGroupGids = (vfs: NodeVFS, name: string): Promise<number[] | undefined> => audienceOf(vfs, name);
+export const moduleGroupGids = (vfs: ModuleVFS, name: string): Promise<number[] | undefined> => audienceOf(vfs, name);

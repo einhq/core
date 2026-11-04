@@ -18,7 +18,7 @@
 import type { Access } from '../lib/access/types.ts';
 import type { ResourceHandleIf } from '../registries/types.ts';
 import type { EchoMode } from '../managers/shell/readline/mod.ts';
-import type { NodeVFS } from '../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../vfs/node-vfs.ts';
 import type { CmdSpec } from '../managers/exec/spec.ts';
 import type { Input } from '../managers/exec/command-input.ts';
 
@@ -27,10 +27,12 @@ import type { Input } from '../managers/exec/command-input.ts';
  *
  * Only `vfs` is exposed because only `vfs` is used. A module reaching for the buffer or router
  * managers is a design smell that should surface as a type error rather than as a working
- * import — the shell is the intended route to anything else.
+ * import — the shell is the intended route to anything else. The VFS is core's `ModuleVFS`,
+ * exported here as `NodeVFS`: without the store's lifecycle, mounting, the pool worker's side and
+ * the storage administration core's own `NodeVFS` adds, which change with core's storage work.
  */
 export type ModuleSystemCore = {
-  vfs: NodeVFS;
+  vfs: ModuleVFS;
 };
 
 /**
@@ -110,19 +112,15 @@ export { commandsIn, judgeLine, type Judgement, type SpecLookup } from '../manag
  * commands to a model, and generating that offer from each command's own spec is what keeps
  * the two from drifting. See `src/managers/exec/tool-schema.ts`.
  */
-export { toolCallToCommandLine, toolDescription, toolSchema } from '../managers/exec/tool-schema.ts';
+export { toolCallToCommandLine, toolSchema } from '../managers/exec/tool-schema.ts';
 export type { ToolParameterSchema, ToolSchema } from '../managers/exec/tool-schema.ts';
 
 /* Access and permissions */
 export type { Access, AccessLevel } from '../lib/access/types.ts';
-export { ADMIN_ACCESS, GUEST_ACCESS } from '../lib/access/constants.ts';
+export { ADMIN_ACCESS } from '../lib/access/constants.ts';
 export { isAdmin, isVisitor, nodeOwnership, verifyAccess } from '../lib/access/verify-access.ts';
 /** The access an account signs in with, for work done on its behalf: `accessOfUser(vfs, access, username)`. */
 export { accessOfUser } from '../lib/auth/member-gids.ts';
-/** The entries of a directory of per-group files named after a group the caller is in: `groupEntriesFor(vfs, access, dir)`. */
-export { groupEntriesFor } from '../lib/auth/member-gids.ts';
-/** Who a module is for: whether `access` may use it, and the gids of the groups it is kept to. */
-export { mayUseModule, moduleGroupGids } from '../modules/audience.ts';
 export { type DefaultOwnership, resolveDefaultOwnership } from '../lib/access/default-ownership.ts';
 export { applySharePreference, type SharePreference } from '../lib/access/share-preference.ts';
 
@@ -131,7 +129,7 @@ export { guestMayBrowse, readSettings, serviceKey, type SettingsContext } from '
 export type { GroupId, Mode, UserId } from '../lib/mode/mod.ts';
 
 /* VFS — the surface behind `cmd.sys.vfs` */
-export type { NodeVFS } from '../vfs/node-vfs.ts';
+export type { ModuleVFS as NodeVFS } from '../vfs/node-vfs.ts';
 export type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeProps, NodeType } from '../vfs/node.ts';
 export type {
   ChildrenOptions,
@@ -173,18 +171,14 @@ export type { Gauge, HealthCheck } from '../lib/api/system.ts';
 export { withHostPath, withHostPaths } from '../lib/host-path/mod.ts';
 
 /* Domain events */
-export { type DomainEvent, EVENTS_NODE_PATH, EVENTS_ROUTING_KEY, isDomainEvent, serializeEvent } from '../lib/events/mod.ts';
+export { type DomainEvent, EVENTS_NODE_PATH, EVENTS_ROUTING_KEY } from '../lib/events/mod.ts';
 
 /* Capture times: the one string a file's date is, and the instant it names */
 export {
   type CaptureTimeParts,
-  formatOffset,
   isCaptureTime,
   lowerBound,
-  offsetOf,
   parseCaptureTime,
-  periodBoundsUtc,
-  precisionOf,
   type TimePrecision,
   toUtc,
   upperBoundExclusive,
@@ -197,12 +191,12 @@ export { SYSTEM_TIME_ZONE } from '../lib/datetime/mod.ts';
 export { isRawExtension, isRawMimetype, RAW_IMAGE_MIMETYPES, refineMimeByName } from '../lib/media/raw.ts';
 export { isOriginalMedia } from '../lib/media/original.ts';
 
-// Content kinds, and the two store conditions that need no module's schema.
-export { FILE_KINDS, type FileKind, isFileKind, isKind, type Kind, kindConditions, MEDIA_KIND_PREFIX, MEDIA_KINDS, NOT_DERIVED } from '../lib/kinds/mod.ts';
+// The store condition for a file that is no other file's derivative.
+export { NOT_DERIVED } from '../lib/kinds/mod.ts';
 
 /* A node's cover picture, and distance on the map */
-export { COVER_LINK_NAME, readCoverTarget, setCover, type SetCoverOptions } from '../lib/cover/mod.ts';
-export { EARTH_RADIUS_M, haversineMeters } from '../lib/geo/distance.ts';
+export { COVER_LINK_NAME, setCover, type SetCoverOptions } from '../lib/cover/mod.ts';
+export { haversineMeters } from '../lib/geo/distance.ts';
 
 /* Node comments, read by aggregate commands like media-details */
 export { type CommentEntry, readComments } from '../lib/comments/mod.ts';
@@ -214,7 +208,7 @@ export type { ContainerListing, ContainerMember } from '../lib/containers/types.
 export type { SubjectEntry, SubjectListing, SubjectMatch, SubjectsOf } from '../lib/subjects/types.ts';
 
 // Plane geometry over the position registry's shapes.
-export { boundsContain, pointInPolygon } from '../registries/position/geo.ts';
+export { pointInPolygon } from '../registries/position/geo.ts';
 export type { GeoBounds, PositionData, PositionFilter, PositionPoint, WithinMatch } from '../registries/position/types.ts';
 
 // What the track registry knows about a track without reading its points (`NodeVFS.trackSummaries`).
@@ -235,4 +229,4 @@ export { taggedPaths } from '../lib/search/sources.ts';
 export { isUnlistedPath, UNLISTED_ATTR, unlistedIds, unlistedRoots } from '../lib/search/unlisted.ts';
 
 // The command catalogue: every command on the caller's PATH with its spec.
-export { type CatalogueEntry, commandCatalogue, forgetCommandCatalogues, listCommands, moduleOf } from '../lib/commands/catalogue.ts';
+export { type CatalogueEntry, commandCatalogue, forgetCommandCatalogues } from '../lib/commands/catalogue.ts';

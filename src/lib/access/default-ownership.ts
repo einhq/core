@@ -1,7 +1,7 @@
 import { GROUPS_PATH, USERS_PATH } from '../paths.ts';
 import { join } from '@std/path';
 import type { GroupId, Mode, UserId } from '../mode/types.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { GroupAttrs } from '../../vfs/types/group.ts';
 import type { UserAttrs } from '../../vfs/types/user.ts';
 import { CORE_OPTIONS } from '../config/options.ts';
@@ -36,7 +36,7 @@ export type DefaultOwnership = {
 
 /** Enough of a command to resolve against — core's `Command` and a module's both satisfy it. */
 type OwnershipContext = {
-  readonly sys: { readonly vfs: NodeVFS };
+  readonly sys: { readonly vfs: ModuleVFS };
   readonly env: Record<string, string>;
 };
 

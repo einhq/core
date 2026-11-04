@@ -5,7 +5,7 @@ import { isAdmin } from '../access/verify-access.ts';
 import type { GroupId } from '../mode/types.ts';
 import { GROUPS_PATH, USERS_PATH } from '../paths.ts';
 import { NodeNotFoundError } from '../../vfs/errors.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { Node } from '../../vfs/node.ts';
 import type { NodeChildEntry } from '../../vfs/types.ts';
 import { type GroupAttrs, isGroupNode } from '../../vfs/types/group.ts';
@@ -31,7 +31,7 @@ export const memberNames = (membersPath: string, listing: NodeChildEntry[]): str
  * now, by the rule sign-in counts memberships by: it is the account's primary group, or the
  * group's membership directory makes it a member. A group `access` may not read is not one of its.
  */
-export const isMemberOf = async (vfs: NodeVFS, access: Access, groupname: string, username: string, userNode: Node<UserAttrs>): Promise<boolean> => {
+export const isMemberOf = async (vfs: ModuleVFS, access: Access, groupname: string, username: string, userNode: Node<UserAttrs>): Promise<boolean> => {
   const groupPath = join(GROUPS_PATH, groupname);
   try {
     const group = await vfs.get<GroupAttrs>(access, groupPath);
@@ -48,7 +48,7 @@ export const isMemberOf = async (vfs: NodeVFS, access: Access, groupname: string
  * The gids of every group under `GROUPS_PATH` whose membership directory makes `username` a
  * member. Groups `access` may not list, and nodes there that are not groups, are skipped.
  */
-const resolveMemberGids = async (vfs: NodeVFS, access: Access, username: string): Promise<GroupId[]> => {
+const resolveMemberGids = async (vfs: ModuleVFS, access: Access, username: string): Promise<GroupId[]> => {
   const gids: GroupId[] = [];
 
   let groups;
@@ -87,7 +87,7 @@ const resolveMemberGids = async (vfs: NodeVFS, access: Access, username: string)
  * account. See ein/core#270.
  */
 export const userAccess = async (
-  vfs: NodeVFS,
+  vfs: ModuleVFS,
   access: Access,
   username: string,
   userNode: Node<UserAttrs>,
@@ -105,7 +105,7 @@ export const userAccess = async (
  * `<USERS_PATH>/<username>` with `access`. For work done on someone's behalf — a service sorting
  * their inbox — that must see only what they could see.
  */
-export const accessOfUser = async (vfs: NodeVFS, access: Access, username: string): Promise<Access> => {
+export const accessOfUser = async (vfs: ModuleVFS, access: Access, username: string): Promise<Access> => {
   const userNode = await vfs.get(access, join(USERS_PATH, username));
   if (!isUserNode(userNode)) throw new Error(`not a user: ${username}`);
   return await userAccess(vfs, access, username, userNode);
@@ -115,7 +115,7 @@ export const accessOfUser = async (vfs: NodeVFS, access: Access, username: strin
  * The gid of the group `name`, undefined when there is no such group. Looked up as the
  * administrator: a group's members need not be able to read `/etc/groups`.
  */
-export const groupGid = async (vfs: NodeVFS, name: string): Promise<number | undefined> => {
+export const groupGid = async (vfs: ModuleVFS, name: string): Promise<number | undefined> => {
   try {
     const node = await vfs.get(ADMIN_ACCESS, join(GROUPS_PATH, name));
     return isGroupNode(node) ? node.attrs.gid : undefined;
@@ -133,7 +133,7 @@ const inGroup = (access: Access, name: string, gid: number): boolean => access.g
  * files (`/etc/ui/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed with
  * `access`. An entry naming no group is in `unknown`, for the caller to warn of.
  */
-export const groupEntriesFor = async (vfs: NodeVFS, access: Access, dir: string): Promise<{ groups: string[]; unknown: string[] }> => {
+export const groupEntriesFor = async (vfs: ModuleVFS, access: Access, dir: string): Promise<{ groups: string[]; unknown: string[] }> => {
   let names: string[];
   try {
     names = (await vfs.children(access, dir)).map((child) => child.name).sort();
@@ -156,7 +156,7 @@ export const groupEntriesFor = async (vfs: NodeVFS, access: Access, dir: string)
  * account has it. For work done as a node's owner without their session: a tracker posting to their
  * track.
  */
-export const accessOfUid = async (vfs: NodeVFS, uid: number): Promise<Access | undefined> => {
+export const accessOfUid = async (vfs: ModuleVFS, uid: number): Promise<Access | undefined> => {
   if (uid === ADMIN_ACCESS.uid) return { ...ADMIN_ACCESS, gids: [...ADMIN_ACCESS.gids] };
   const users = await vfs.children<UserAttrs>(ADMIN_ACCESS, USERS_PATH).catch(() => []);
   const entry = users.find((candidate) => isUserNode(candidate.node) && candidate.node.attrs.uid === uid);

@@ -8,7 +8,7 @@
  */
 
 export const FILE_KINDS = ['photo', 'video', 'audio', 'document'] as const;
-export type FileKind = typeof FILE_KINDS[number];
+type FileKind = typeof FILE_KINDS[number];
 
 /** A file kind, or a node type. */
 export type Kind = string;

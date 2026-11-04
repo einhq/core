@@ -72,7 +72,7 @@ const withoutAliases = (flags: CmdFlagDef[]): CmdFlagDef[] => {
 };
 
 /** The description a model reads: what it does, what comes back, and what a call looks like. */
-export const toolDescription = (spec: CmdSpec): string =>
+const toolDescription = (spec: CmdSpec): string =>
   [
     spec.description ?? spec.name,
     spec.returns ? `Returns: ${spec.returns}` : undefined,

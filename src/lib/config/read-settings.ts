@@ -1,14 +1,14 @@
 import { toText } from '@std/streams/to-text';
 import type { Access } from '../access/types.ts';
 import { ADMIN_ACCESS, USERS_GROUPNAME } from '../access/constants.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import { ETC_PATH, MOD_PATH } from '../paths.ts';
 import { parseRc } from './rc-file.ts';
 import { environmentPath, moduleConfigDir, secretsPath, systemConfigPath, userConfigPath } from './paths.ts';
 
 /** Enough of a command to read against — core's `Command` and a module's both satisfy it. */
 export type SettingsContext = {
-  readonly sys: { readonly vfs: NodeVFS };
+  readonly sys: { readonly vfs: ModuleVFS };
   readonly env: Record<string, string>;
 };
 
@@ -50,7 +50,7 @@ export const readSettings = async (ctx: SettingsContext, access: Access, opts?: 
  * where every file read here and every module's `etc/config` live: the guest asks this on each
  * request it makes.
  */
-const readSystemSettings = async (vfs: NodeVFS): Promise<Readonly<Record<string, string>>> => {
+const readSystemSettings = async (vfs: ModuleVFS): Promise<Readonly<Record<string, string>>> => {
   let cache = systemSettings.get(vfs);
   if (!cache) {
     const entry: SettingsCache = { watched: watchSettings(vfs, () => entry.settings = undefined) };
@@ -66,16 +66,16 @@ type SettingsCache = {
   settings?: Promise<Record<string, string>>;
 };
 
-const systemSettings = new WeakMap<NodeVFS, SettingsCache>();
+const systemSettings = new WeakMap<ModuleVFS, SettingsCache>();
 
 /** Call `changed` after every write under `/etc` or the modules' tree, or tell that it cannot. */
-const watchSettings = async (vfs: NodeVFS, changed: () => void): Promise<boolean> => {
+const watchSettings = async (vfs: ModuleVFS, changed: () => void): Promise<boolean> => {
   if (!vfs.subscribe) return false;
   for (const pathPrefix of [ETC_PATH, MOD_PATH]) await vfs.subscribe(() => ADMIN_ACCESS, changed, { pathPrefix });
   return true;
 };
 
-const readSystemSettingsFiles = async (vfs: NodeVFS): Promise<Record<string, string>> => {
+const readSystemSettingsFiles = async (vfs: ModuleVFS): Promise<Record<string, string>> => {
   const settings = Object.fromEntries(await readLayer(vfs, ADMIN_ACCESS, environmentPath()));
   for (const [key, { value }] of await readModuleSettings(vfs, ADMIN_ACCESS)) settings[key] = value;
   return Object.assign(settings, Object.fromEntries(await readLayer(vfs, ADMIN_ACCESS, systemConfigPath())));
@@ -85,7 +85,7 @@ const readSystemSettingsFiles = async (vfs: NodeVFS): Promise<Record<string, str
  * Whether the administrator opens the archive to the guest, whoever reaches the server without
  * signing in: `CFG_GUEST_BROWSING`, set to `true` for a public demo and off unless it is.
  */
-export const guestMayBrowse = async (vfs: NodeVFS): Promise<boolean> => (await readSystemSettings(vfs)).CFG_GUEST_BROWSING === 'true';
+export const guestMayBrowse = async (vfs: ModuleVFS): Promise<boolean> => (await readSystemSettings(vfs)).CFG_GUEST_BROWSING === 'true';
 
 /**
  * The groups a new account joins besides its own when `user-create` is given none, as a comma
@@ -93,7 +93,7 @@ export const guestMayBrowse = async (vfs: NodeVFS): Promise<boolean> => (await r
  * unset, and empty, for none, when it is set empty. A shell's environment holds the value from when
  * it opened, so it does not enter.
  */
-export const defaultUserGroups = async (vfs: NodeVFS): Promise<string> => (await readSystemSettings(vfs)).CFG_DEFAULT_USER_GROUPS ?? USERS_GROUPNAME;
+export const defaultUserGroups = async (vfs: ModuleVFS): Promise<string> => (await readSystemSettings(vfs)).CFG_DEFAULT_USER_GROUPS ?? USERS_GROUPNAME;
 
 /**
  * Whether a setting is a secret: a key EiN sends to a service it calls, which no shell may see.
@@ -110,7 +110,7 @@ export const isSecretKey = (key: string): boolean => /^CFG_[A-Z0-9_]+_KEY$/.test
  * A secret's value and where it comes from — the administrator's `/etc/keys`, over the
  * deployment's environment — or nothing when neither set it.
  */
-export const readSecret = async (vfs: NodeVFS, key: string, etcPath?: string): Promise<{ value: string; source: 'system' | 'environment' } | undefined> => {
+export const readSecret = async (vfs: ModuleVFS, key: string, etcPath?: string): Promise<{ value: string; source: 'system' | 'environment' } | undefined> => {
   if (!isSecretKey(key)) return undefined;
   const set = (await readLayer(vfs, ADMIN_ACCESS, secretsPath(etcPath))).get(key);
   if (set) return { value: set, source: 'system' };
@@ -135,7 +135,7 @@ export const serviceKey = async (ctx: SettingsContext, key: string, urlKey: stri
 };
 
 /** A settings file's keys and values. */
-const readLayer = async (vfs: NodeVFS, access: Access, path: string): Promise<Map<string, string>> => {
+const readLayer = async (vfs: ModuleVFS, access: Access, path: string): Promise<Map<string, string>> => {
   try {
     const handle = await vfs.open(access, path, { mode: 'r' });
     try {
@@ -155,7 +155,7 @@ const readLayer = async (vfs: NodeVFS, access: Access, path: string): Promise<Ma
  * them, so a later module's value for a key wins over an earlier one's. Each value carries the
  * module that set it.
  */
-export const readModuleSettings = async (vfs: NodeVFS, access: Access, etcPath?: string): Promise<Map<string, { value: string; module: string }>> => {
+export const readModuleSettings = async (vfs: ModuleVFS, access: Access, etcPath?: string): Promise<Map<string, { value: string; module: string }>> => {
   const settings = new Map<string, { value: string; module: string }>();
   const dir = moduleConfigDir(etcPath);
   let names: string[];

@@ -14,7 +14,7 @@
 
 import { join } from '@std/path';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
-import type { NodePath, NodeVFS } from '../../vfs/mod.ts';
+import type { ModuleVFS, NodePath } from '../../vfs/mod.ts';
 
 /** How long a resolution stays good. Short enough that a stale answer self-heals unnoticed. */
 const DEFAULT_TTL_MS = 5000;
@@ -49,7 +49,7 @@ export const clearCommandLookupCache = (): void => {
  * gets back.
  */
 export const lookupCommandPath = async (
-  vfs: NodeVFS,
+  vfs: ModuleVFS,
   path: string,
   name: string,
 ): Promise<NodePath | undefined> => {
@@ -86,7 +86,7 @@ const prefixCache = new Map<string, { names: string[]; at: number }>();
  * by their name — `search-*` for `search`'s text providers — rather than a list a module declares.
  * Memoised and dropped like `lookupCommandPath`'s answers.
  */
-export const commandsNamed = async (vfs: NodeVFS, path: string, prefix: string): Promise<string[]> => {
+export const commandsNamed = async (vfs: ModuleVFS, path: string, prefix: string): Promise<string[]> => {
   const key = keyOf(path, `${prefix}*`);
   const cached = prefixCache.get(key);
   if (cached && Date.now() - cached.at < ttlMs()) return cached.names;

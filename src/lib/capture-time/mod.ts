@@ -98,18 +98,6 @@ export const parseCaptureTime = (value: string, opts: { allowFuture?: boolean } 
 /** Whether a string is a capture time this system will store. */
 export const isCaptureTime = (value: string): boolean => parseCaptureTime(value) !== undefined;
 
-/** How much of a capture time is real, or undefined when it is not one. */
-export const precisionOf = (value: string): TimePrecision | undefined => parseCaptureTime(value)?.precision;
-
-/** The offset in seconds a capture time carries, or undefined when it names no clock. */
-export const offsetOf = (value: string): number | undefined => {
-  const offset = parseCaptureTime(value)?.offset;
-  if (offset === undefined) return undefined;
-  const sign = offset.startsWith('-') ? -1 : 1;
-  const [hours, minutes] = offset.slice(1).split(':').map(Number);
-  return sign * (hours * 3600 + minutes * 60);
-};
-
 /** A capture time with any offset removed — the bare wall clock. */
 export const wallClockOf = (value: string): string => {
   const parts = parseCaptureTime(value);

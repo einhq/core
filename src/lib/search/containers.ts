@@ -21,7 +21,7 @@
  */
 
 import type { NodeId } from '../../vfs/node.ts';
-import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { NodeEvent } from '../../vfs/types.ts';
 import type { Command } from '../../client/mod.ts';
 import { ADMIN_ACCESS } from '../access/constants.ts';
@@ -208,7 +208,7 @@ type Cache = {
   kept: Map<string, Kept>;
 };
 
-const caches = new WeakMap<NodeVFS, Cache>();
+const caches = new WeakMap<ModuleVFS, Cache>();
 
 /** Whether `path` is `root` or lies under it. */
 const within = (path: string, root: string): boolean => path === root || path.startsWith(root === '/' ? '/' : `${root}/`);
@@ -230,7 +230,7 @@ const touches = (event: NodeEvent, kept: Kept): boolean => {
   return event.type === 'updated' && (!before || before.mode !== after.mode || before.uid !== after.uid || before.gid !== after.gid);
 };
 
-const cacheFor = (vfs: NodeVFS): Cache => {
+const cacheFor = (vfs: ModuleVFS): Cache => {
   let cache = caches.get(vfs);
   if (cache) return cache;
   const kept = new Map<string, Kept>();

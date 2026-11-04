@@ -7,30 +7,18 @@
  */
 
 import { assertEquals } from '@std/assert';
-import {
-  formatOffset,
-  isCaptureTime,
-  lowerBound,
-  offsetOf,
-  parseCaptureTime,
-  periodBoundsUtc,
-  precisionOf,
-  toUtc,
-  upperBoundExclusive,
-  wallClockOf,
-  withOffset,
-} from '../mod.ts';
+import { formatOffset, isCaptureTime, lowerBound, parseCaptureTime, periodBoundsUtc, toUtc, upperBoundExclusive, wallClockOf, withOffset } from '../mod.ts';
 
 const STOCKHOLM = 'Europe/Stockholm';
 
 Deno.test('precision comes from the value itself', () => {
-  assertEquals(precisionOf('1975'), 'year');
-  assertEquals(precisionOf('2004-03'), 'month');
-  assertEquals(precisionOf('2003-04-30'), 'day');
-  assertEquals(precisionOf('2003-04-30T14:03'), 'minute');
-  assertEquals(precisionOf('2003-04-30T14:03:11'), 'second');
-  assertEquals(precisionOf('2003-04-30T14:03:11+02:00'), 'second');
-  assertEquals(precisionOf('2003-04-30T14:03:11Z'), 'second');
+  assertEquals(parseCaptureTime('1975')?.precision, 'year');
+  assertEquals(parseCaptureTime('2004-03')?.precision, 'month');
+  assertEquals(parseCaptureTime('2003-04-30')?.precision, 'day');
+  assertEquals(parseCaptureTime('2003-04-30T14:03')?.precision, 'minute');
+  assertEquals(parseCaptureTime('2003-04-30T14:03:11')?.precision, 'second');
+  assertEquals(parseCaptureTime('2003-04-30T14:03:11+02:00')?.precision, 'second');
+  assertEquals(parseCaptureTime('2003-04-30T14:03:11Z')?.precision, 'second');
 });
 
 Deno.test('what is not a capture time', async (t) => {
@@ -77,12 +65,6 @@ Deno.test('what is not a capture time', async (t) => {
 });
 
 Deno.test('offsets', () => {
-  assertEquals(offsetOf('2003-04-30T14:03:11+02:00'), 7200);
-  assertEquals(offsetOf('2003-04-30T14:03:11-05:30'), -19800);
-  assertEquals(offsetOf('2003-04-30T14:03:11Z'), 0);
-  assertEquals(offsetOf('2003-04-30T14:03:11'), undefined);
-  assertEquals(offsetOf('1975'), undefined);
-
   assertEquals(formatOffset(7200), '+02:00');
   assertEquals(formatOffset(-19800), '-05:30');
   assertEquals(formatOffset(0), '+00:00');

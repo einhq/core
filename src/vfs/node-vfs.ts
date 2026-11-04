@@ -47,27 +47,13 @@ import type { AuditPurge, AuditQuery, AuditRecord } from './audit.ts';
 import type { OwnerRelease, ReleasedOwner } from './node-store.ts';
 
 /**
- * The virtual filesystem as callers see it: every operation takes the caller's `Access` first and
- * a node by id, path or entry, and reaches whatever is mounted below.
+ * The virtual filesystem as a module is given it (`cmd.sys.vfs`): every operation takes the
+ * caller's `Access` first and a node by id, path or entry, and reaches whatever is mounted below.
+ * It reads and writes nodes, one or many at a time, opens their content, queries and searches them,
+ * and adds jobs to a pool. It is part of the module contract (`@ein/client`), so a member is added
+ * here only when a module needs it; what only core runs belongs to `NodeVFS`.
  */
-export interface NodeVFS {
-  /** The store's name, for debugging and logging */
-  readonly name: string;
-
-  /** The store's type */
-  readonly type: 'persistent' | 'dynamic' | 'readonly';
-
-  /** Where the content comes from, when it is somewhere else (`user@host:path`) */
-  readonly source?: string;
-
-  readonly rootId: NodeId;
-
-  initialize(): Promise<void>;
-
-  dispose(): Promise<void>;
-
-  isHealthy(): Promise<boolean>;
-
+export interface ModuleVFS {
   // ===== Read Operations =====
   /**
    * Get a node by ID, path, or entry
@@ -431,49 +417,6 @@ export interface NodeVFS {
    */
   poolAdd(access: Access, ref: NodeReference, job: PoolJobInput): Promise<PoolJob>;
 
-  /**
-   * Claim the best job the offer can run, under a lease. Blocking when `signal`
-   * is given, in which case it resolves null only on a genuine abort.
-   */
-  poolClaim(access: Access, ref: NodeReference, req: PoolClaimRequest, signal?: AbortSignal): Promise<PoolJob | null>;
-
-  /** Extend a lease. False when the job is no longer claimed by `owner`. */
-  poolHeartbeat(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, leaseMs?: number): Promise<boolean>;
-
-  poolComplete(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, result?: unknown): Promise<PoolJob | null>;
-
-  /** Retry with backoff until the attempts run out, then fail terminally. */
-  poolFail(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, error: string, opts?: PoolFailOptions): Promise<PoolJob | null>;
-
-  /** Hand a claimed job back unrun, giving back the attempt its claim counted. */
-  poolRelease(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, delayMs?: number): Promise<PoolJob | null>;
-
-  poolCancel(access: Access, ref: NodeReference, sel: PoolJobSelector): Promise<number>;
-
-  /** Return terminal jobs to `ready` with a clean attempt count. */
-  poolRetry(access: Access, ref: NodeReference, sel: PoolJobSelector): Promise<number>;
-
-  /** Delete terminal jobs, so a pool does not grow without bound. */
-  poolPurge(access: Access, ref: NodeReference, opts?: PoolPurgeOptions): Promise<number>;
-
-  poolJobs(access: Access, ref: NodeReference, filter?: PoolJobFilter): Promise<PoolJob[]>;
-
-  poolCounts(access: Access, ref: NodeReference): Promise<PoolCounts>;
-
-  /** Reclaim expired leases, fail exhausted jobs, promote aging. Idempotent. */
-  poolSweep(access: Access, ref: NodeReference): Promise<PoolSweepResult>;
-
-  // ===== Queue Operations =====
-
-  /** The first `limit` live entries of a queue in delivery order, claiming none; reading a queue would consume them. */
-  queuePeek(access: Access, ref: NodeReference, limit: number): Promise<QueuePeekEntry[]>;
-
-  /** The first `limit` entries a queue set aside after they ran out of delivery attempts. */
-  queueDead(access: Access, ref: NodeReference, limit: number): Promise<QueueDeadEntry[]>;
-
-  /** Retry or drop a queue's dead-lettered entries, all or those of `ids`; returns how many. Needs write access. */
-  queueSettleDead(access: Access, ref: NodeReference, action: QueueDeadAction, ids?: QueueEntryId[]): Promise<number>;
-
   // ===== Similarity Search =====
   /**
    * Find embeddings similar to the given vector across this VFS and all
@@ -639,6 +582,99 @@ export interface NodeVFS {
   aggregate(access: Access, query: NodeAggregateQuery): Promise<AggregateBucket[]>;
 
   /**
+   * Read the audit trail, newest first, or with `query.after` oldest first from there: who
+   * created, changed, moved, linked or removed which node, and when. Administrators only. Covers
+   * this VFS's own store and what is mounted into it, merged in id order.
+   */
+  audit(access: Access, query: AuditQuery): Promise<AuditRecord[]>;
+
+  /**
+   * Get all mount points
+   */
+  mounts(access: Access): Mount[];
+
+  // ===== Event Notifications (Optional) =====
+  /**
+   * Subscribe to node changes.
+   *
+   * Handlers run after the mutation that produced the event has committed and
+   * released its locks, so one may read or write the VFS freely. They are still
+   * awaited, so the mutation does not return until they are done.
+   */
+  subscribe?<T extends NodeAttrs = NodeAttrs>(
+    getAccess: () => Promise<Access> | Access,
+    handler: EventSubscriptionHandler<T>,
+    filter?: EventSubscriptionFilter,
+  ): Promise<EventSubscription>;
+}
+
+/**
+ * The virtual filesystem as core sees it: `ModuleVFS`, and the store's identity and lifecycle,
+ * mounting, the worker's side of a pool, a queue's dead letters and the store's administration.
+ */
+export interface NodeVFS extends ModuleVFS {
+  /** The store's name, for debugging and logging */
+  readonly name: string;
+
+  /** The store's type */
+  readonly type: 'persistent' | 'dynamic' | 'readonly';
+
+  /** Where the content comes from, when it is somewhere else (`user@host:path`) */
+  readonly source?: string;
+
+  readonly rootId: NodeId;
+
+  initialize(): Promise<void>;
+
+  dispose(): Promise<void>;
+
+  isHealthy(): Promise<boolean>;
+
+  // ===== Work Pools: the worker's side =====
+  /**
+   * Claim the best job the offer can run, under a lease. Blocking when `signal`
+   * is given, in which case it resolves null only on a genuine abort.
+   */
+  poolClaim(access: Access, ref: NodeReference, req: PoolClaimRequest, signal?: AbortSignal): Promise<PoolJob | null>;
+
+  /** Extend a lease. False when the job is no longer claimed by `owner`. */
+  poolHeartbeat(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, leaseMs?: number): Promise<boolean>;
+
+  poolComplete(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, result?: unknown): Promise<PoolJob | null>;
+
+  /** Retry with backoff until the attempts run out, then fail terminally. */
+  poolFail(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, error: string, opts?: PoolFailOptions): Promise<PoolJob | null>;
+
+  /** Hand a claimed job back unrun, giving back the attempt its claim counted. */
+  poolRelease(access: Access, ref: NodeReference, jobId: PoolJobId, owner: string, delayMs?: number): Promise<PoolJob | null>;
+
+  poolCancel(access: Access, ref: NodeReference, sel: PoolJobSelector): Promise<number>;
+
+  /** Return terminal jobs to `ready` with a clean attempt count. */
+  poolRetry(access: Access, ref: NodeReference, sel: PoolJobSelector): Promise<number>;
+
+  /** Delete terminal jobs, so a pool does not grow without bound. */
+  poolPurge(access: Access, ref: NodeReference, opts?: PoolPurgeOptions): Promise<number>;
+
+  poolJobs(access: Access, ref: NodeReference, filter?: PoolJobFilter): Promise<PoolJob[]>;
+
+  poolCounts(access: Access, ref: NodeReference): Promise<PoolCounts>;
+
+  /** Reclaim expired leases, fail exhausted jobs, promote aging. Idempotent. */
+  poolSweep(access: Access, ref: NodeReference): Promise<PoolSweepResult>;
+
+  // ===== Queue Operations =====
+
+  /** The first `limit` live entries of a queue in delivery order, claiming none; reading a queue would consume them. */
+  queuePeek(access: Access, ref: NodeReference, limit: number): Promise<QueuePeekEntry[]>;
+
+  /** The first `limit` entries a queue set aside after they ran out of delivery attempts. */
+  queueDead(access: Access, ref: NodeReference, limit: number): Promise<QueueDeadEntry[]>;
+
+  /** Retry or drop a queue's dead-lettered entries, all or those of `ids`; returns how many. Needs write access. */
+  queueSettleDead(access: Access, ref: NodeReference, action: QueueDeadAction, ids?: QueueEntryId[]): Promise<number>;
+
+  /**
    * Create the attr indexes a module declared (`mod.json` `indexes`) in this VFS's store, if they
    * are missing. Administrators only: it is DDL, and on a large table it takes a while.
    */
@@ -656,13 +692,6 @@ export interface NodeVFS {
    * only.
    */
   reachNamed(access: Access): Promise<{ uids: UserId[]; gids: GroupId[] }>;
-
-  /**
-   * Read the audit trail, newest first, or with `query.after` oldest first from there: who
-   * created, changed, moved, linked or removed which node, and when. Administrators only. Covers
-   * this VFS's own store and what is mounted into it, merged in id order.
-   */
-  audit(access: Access, query: AuditQuery): Promise<AuditRecord[]>;
 
   /**
    * Delete the audit records `purge` names, in this VFS's own store and what is mounted into it,
@@ -689,25 +718,6 @@ export interface NodeVFS {
     path: NodePath,
     opts?: NodeResolveOptions,
   ): Promise<void>;
-
-  /**
-   * Get all mount points
-   */
-  mounts(access: Access): Mount[];
-
-  // ===== Event Notifications (Optional) =====
-  /**
-   * Subscribe to node changes.
-   *
-   * Handlers run after the mutation that produced the event has committed and
-   * released its locks, so one may read or write the VFS freely. They are still
-   * awaited, so the mutation does not return until they are done.
-   */
-  subscribe?<T extends NodeAttrs = NodeAttrs>(
-    getAccess: () => Promise<Access> | Access,
-    handler: EventSubscriptionHandler<T>,
-    filter?: EventSubscriptionFilter,
-  ): Promise<EventSubscription>;
 
   /**
    * Told by the VFS it is mounted into (true) or detached from (false).

@@ -1,7 +1,8 @@
 import type { CmdReturn, Command } from '@ein/client';
-import { collectUnknownFlags, groupEntriesFor, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
+import { collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
 import { UI_GROUP_NAV_D, UI_GROUPS_PATH, UI_NAV_D_PATH, UI_NAV_PATH, USER_UI_NAV_FILE } from '@ein/paths';
 import { toText } from '@std/streams/to-text';
+import { groupEntriesFor } from '../../../lib/auth/member-gids.ts';
 import { type NamedLayer, type NavLayer, resolveNav, type UiNav } from '@ui/nav';
 
 /** A file's JSON, `undefined` when it is not there, a warning when it is not JSON. */
