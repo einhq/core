@@ -168,6 +168,35 @@ Deno.test("ui-nav: a key belongs to the first entry to name it; a malformed one,
   assertEquals(keys(freed).slice(0, 2), [['m.random', undefined], ['m.again', 'R+Alt']]);
 });
 
+Deno.test('ui-nav: a sidebar page takes a key before the top bar, under the same rules', () => {
+  const layer: NamedLayer = {
+    source: 'm',
+    layer: {
+      sections,
+      sidebar: [
+        { id: 'm.people', section: 'browse', label: 'People', icon: 'users', to: '/people', shortcut: 'alt+P', order: 10 },
+        { id: 'm.places', section: 'browse', label: 'Places', icon: 'map-pin', to: '/places', shortcut: 'alt+p', order: 20 },
+        { id: 'm.shell', section: 'browse', label: 'Shell', icon: 'x', to: '/shell', shortcut: 'mod+K', order: 30 },
+        { id: 'm.home', section: 'main', label: 'Home', icon: 'home', to: '/' },
+      ],
+      topbar: [{ id: 'm.pick', title: 'Pick', icon: 'x', action: { navigate: '/' }, shortcut: 'P+alt' }],
+    },
+  };
+  const nav = resolveNav([layer], [], user);
+  assertEquals(nav.sections.flatMap((section) => section.items).map((link) => [link.id, link.shortcut]), [
+    ['m.home', undefined],
+    ['m.people', 'alt+P'],
+    ['m.places', undefined],
+    ['m.shell', undefined],
+  ]);
+  assertEquals(nav.topbar.map((entry) => entry.shortcut), [undefined]);
+  assertEquals(nav.warnings, [
+    "m.places: shortcut alt+p is already m.people's",
+    "m.shell: shortcut mod+K is already the shell's",
+    "m.pick: shortcut P+alt is already m.people's",
+  ]);
+});
+
 Deno.test('ui-nav: a file that is not a navigation object is a warning', () => {
   const nav = resolveNav([ui, { source: 'odd', layer: [] as never }, { source: 'odd2', layer: { sidebar: 'x' as never } }], [], user);
   assertEquals(nav.warnings, ['odd: not a navigation object', 'odd2: sidebar is not a list']);

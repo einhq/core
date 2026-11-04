@@ -1,8 +1,10 @@
-import { Box, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Box, Group, Kbd, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
+import { keyCaps } from '../../signals/shortcuts.ts';
 import { COMMAND_PREFIX, type Finder } from './useFinder.tsx';
 
 /**
- * The finder's rows under their group headings, the active one lit. A press on a row does not
+ * The finder's rows under their group headings, the active one lit, each with its key where it has
+ * one (not on a phone, which has no keyboard to press it on). A press on a row does not
  * take focus from the box it was typed in, so a list that closes on blur stays open for the click.
  */
 export function FinderRows({ finder }: { finder: Finder }) {
@@ -38,6 +40,11 @@ export function FinderRows({ finder }: { finder: Finder }) {
                 <Box c='dimmed' style={{ display: 'flex', flex: 'none' }}>{item.icon}</Box>
                 <Text size='sm' truncate style={{ flex: 1 }}>{item.label}</Text>
                 {item.detail && <Text size='xs' c='dimmed' truncate maw='45%'>{item.detail}</Text>}
+                {item.keys && (
+                  <Group gap={2} wrap='nowrap' visibleFrom='sm'>
+                    {keyCaps(item.keys).map((cap, i) => <Kbd key={i} size='xs'>{cap}</Kbd>)}
+                  </Group>
+                )}
               </Group>
             </UnstyledButton>
           </Box>

@@ -3,15 +3,16 @@ import { useHotkeys } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import { Fragment } from 'react';
 import { useShortcutHelp } from '../../hooks/useShortcutHelp.ts';
-import { keyCaps, shortcutGroups, shortcutHelpOpen, topbarShortcuts } from '../../signals/shortcuts.ts';
+import { keyCaps, shortcutGroups, shortcutHelpOpen, sidebarShortcuts, topbarShortcuts } from '../../signals/shortcuts.ts';
 import { Dialog } from '../Surface/Dialog.tsx';
 
 const ANYWHERE = 'Anywhere';
+const GO_TO = 'Go to';
 
 /**
  * `?` from anywhere outside a text field: the keys of what is on screen, grouped by the part of the
  * app that binds them (`useShortcutHelp`). The app's own keys are always listed, and with them the
- * top bar's, which modules give.
+ * top bar's and, under Go to, the sidebar's pages', which modules give.
  */
 export function ShortcutHelp() {
   useSignals();
@@ -25,9 +26,14 @@ export function ShortcutHelp() {
 
   // The same group mounted twice (two grids) is listed once.
   const topbar = topbarShortcuts().map(({ entry, label }) => ({ keys: entry.shortcut, label }));
+  const pages = sidebarShortcuts().map((link) => ({ keys: link.shortcut, label: link.label }));
   const groups = shortcutGroups.value
     .filter((entry, index, all) => all.findIndex((other) => other.group === entry.group) === index)
-    .map((entry) => (entry.group === ANYWHERE ? { ...entry, entries: [...entry.entries, ...topbar] } : entry));
+    .flatMap((entry) =>
+      entry.group !== ANYWHERE
+        ? [entry]
+        : [{ ...entry, entries: [...entry.entries, ...topbar] }, ...(pages.length > 0 ? [{ id: -entry.id, group: GO_TO, entries: pages }] : [])]
+    );
 
   return (
     <Dialog opened={shortcutHelpOpen.value} onClose={() => (shortcutHelpOpen.value = false)} title='Keyboard shortcuts' icon='keyboard' size='xl'>

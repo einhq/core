@@ -1,4 +1,5 @@
 import { ActionIcon, AppShell, Box, Collapse, Divider, NavLink, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { useHotkeys } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import { IconChevronDown, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import { type NavLink as NavEntry, type ResolvedSection, uiNav } from '@ein/ui/signals';
@@ -7,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { usePersistedState } from '../../hooks/usePersistedState.ts';
 import { HatField } from '../EntityDetail/HatField.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
+import { matchedPhysically, shortcutText, sidebarShortcuts } from '../../signals/shortcuts.ts';
 
 type AppNavbarProps = {
   /** Icons only: the rail beside the page. */
@@ -18,7 +20,7 @@ type AppNavbarProps = {
 
 type NavItemProps = NavEntry & { rail: boolean; isActive: boolean; onNavigate: () => void };
 
-function NavItem({ icon, label, to, rail, isActive, onNavigate }: NavItemProps) {
+function NavItem({ icon, label, to, shortcut, rail, isActive, onNavigate }: NavItemProps) {
   const navigate = useNavigate();
   const handleClick = () => {
     navigate(to);
@@ -31,13 +33,14 @@ function NavItem({ icon, label, to, rail, isActive, onNavigate }: NavItemProps) 
     // brighten, the active glyph takes the accent colour while the rest stay
     // muted, on the same raised surface and accent bar as the labelled list.
     return (
-      <Tooltip label={label} position='right' withArrow>
+      <Tooltip label={shortcut ? `${label} (${shortcutText(shortcut)})` : label} position='right' withArrow>
         <ActionIcon
           variant='subtle'
           color='gray'
           size={44}
           radius='md'
           aria-label={label}
+          aria-keyshortcuts={shortcut}
           aria-current={isActive ? 'page' : undefined}
           onClick={handleClick}
           style={{
@@ -58,6 +61,7 @@ function NavItem({ icon, label, to, rail, isActive, onNavigate }: NavItemProps) 
       label={label}
       leftSection={<TablerIcon name={icon} size={20} />}
       active={isActive}
+      aria-keyshortcuts={shortcut}
       aria-current={isActive ? 'page' : undefined}
       onClick={handleClick}
       variant='subtle'
@@ -126,6 +130,7 @@ function SectionHeading({ label, open, first, onToggle }: { label: string; open:
 export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
   useSignals();
   const location = useLocation();
+  const navigate = useNavigate();
   const navSections = uiNav.value.sections;
   const active = activeEntry(navSections, location.pathname);
   // The folded groups, by section id. A string because that is what the persisted
@@ -138,6 +143,19 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
     else next.add(label);
     setFoldedList([...next].join(','));
   };
+
+  // A page's key opens it from anywhere outside a text field, whether or not its entry is drawn (a
+  // folded group, a phone's hidden rail), but not while something modal is open — a dialog, the
+  // lightbox — whose own Alt keys may listen on the window, which hears a key after these.
+  useHotkeys(
+    sidebarShortcuts().map((link) => [
+      link.shortcut,
+      () => {
+        if (!document.querySelector('[aria-modal="true"]') && location.pathname !== link.to) navigate(link.to);
+      },
+      { preventDefault: true, usePhysicalKeys: matchedPhysically(link.shortcut) },
+    ]),
+  );
 
   return (
     <>

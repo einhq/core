@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals-react';
 import { linkVisitor } from './user.ts';
-import { type ResolvedTopbarEntry, uiNav } from './nav.ts';
+import { type NavLink, type ResolvedTopbarEntry, uiNav } from './nav.ts';
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -44,6 +44,12 @@ export const topbarShortcuts = (): KeyedEntry[] =>
     .filter((keyed): keyed is KeyedEntry => keyed.entry.shortcut !== undefined && keyed.entry.action !== undefined);
 
 type KeyedEntry = { entry: ResolvedTopbarEntry & { shortcut: string }; label: string };
+
+/** The sidebar's pages with a key (`shortcut` in a module's `ui/nav.json`). None for a visitor held to their share link, who has no sidebar. */
+export const sidebarShortcuts = (): KeyedLink[] =>
+  linkVisitor.value ? [] : uiNav.value.sections.flatMap((section) => section.items).filter((link): link is KeyedLink => link.shortcut !== undefined);
+
+type KeyedLink = NavLink & { shortcut: string };
 
 /** One key and what it does, as the help overlay lists it: `keys` as typed, `mod` for Ctrl or Cmd. */
 export type ShortcutHelp = { keys: string; label: string };

@@ -52,6 +52,8 @@ export type NavLink = {
   admin?: boolean;
   /** Shown to someone signed in only, never to the guest: a page of their own, or one that writes. */
   signedIn?: boolean;
+  /** A key that opens the page from anywhere outside a text field, in the top bar's form (`alt+P`). */
+  shortcut?: string;
 };
 
 /**
@@ -79,7 +81,8 @@ type TopbarEntry = {
   /**
    * A key that does what choosing the entry does, from anywhere outside a text field: Mantine's
    * hotkey form, modifiers and one key joined by `+` (`alt+R`, `mod+shift+K`; `mod` is Ctrl, or
-   * Cmd on a Mac). The first entry to name a key, in top-bar order, keeps it.
+   * Cmd on a Mac). The first entry to name a key keeps it: the sidebar's in order, then the top
+   * bar's.
    */
   shortcut?: string;
 };
@@ -305,7 +308,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
    * entry. `null`, an overlay's way to take a module's key away, goes quietly.
    */
   const claimed = new Map(SHELL_KEYS.map((key) => [hotkey(key)!, 'the shell']));
-  const keyed = <T extends ResolvedTopbarEntry>(entry: T): T => {
+  const keyed = <T extends { id: string; shortcut?: string; menu?: unknown[] }>(entry: T): T => {
     if (entry.shortcut === undefined) return entry;
     const { shortcut, ...rest } = entry;
     if (shortcut === null) return rest as T;
@@ -320,10 +323,12 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
     return rest as T;
   };
 
+  const resolvedSections = sections
+    .map((section) => ({ id: section.id, label: section.label, items: links.filter((link) => link.section === section.id).map(keyed) }))
+    .filter((section) => section.items.length > 0);
+
   return {
-    sections: sections
-      .map((section) => ({ id: section.id, label: section.label, items: links.filter((link) => link.section === section.id) }))
-      .filter((section) => section.items.length > 0),
+    sections: resolvedSections,
     topbar: topbar.map((entry) => keyed(entry.menu ? { ...entry, menu: entry.menu.map(keyed) } : entry)),
     panels: byOrder(visible('panels') as unknown as PanelEntry[]),
     layers: byOrder(visible('layers') as unknown as MapLayerEntry[]),

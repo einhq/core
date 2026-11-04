@@ -173,12 +173,16 @@ dropdown takes its rows with it), and an entry missing a field, naming an unknow
 section or an action of no known kind is left out with a warning (`ui-nav` prints them; the browser
 logs them). A top-bar entry is a button, or a dropdown when other entries name it as their `parent`;
 `phone: false` leaves it out below `sm`, and `place: "search"` stands it beside the search box rather
-than with the others on the right. A button or row may name a `shortcut` (`alt+R`, Mantine's hotkey
-form): `ui-nav` keeps it for the first entry in top-bar order to name that key, and drops it with a
-warning from a dropdown, a later entry, a key it cannot read or one of the shell's own (`SHELL_KEYS`); an overlay's `null` takes it away.
-The header binds every entry's key with `useHotkeys` (outside text fields; an Alt+letter by the
-key's place, since a Mac types another character for it), runs it as a click would, and shows it in
-the tooltip and beside a row; the `?` overlay lists them with the app's own keys
+than with the others on the right. A sidebar entry, a button or a row may name a `shortcut` (`alt+R`,
+Mantine's hotkey form): `ui-nav` keeps it for the first entry to name that key, the sidebar's in
+order and then the top bar's, and drops it with a warning from a dropdown, a later entry, a key it
+cannot read or one of the shell's own (`SHELL_KEYS`); an overlay's `null` takes it away.
+The header binds every top-bar entry's key with `useHotkeys` (outside text fields; an Alt+letter by
+the key's place, since a Mac types another character for it), runs it as a click would, and shows it
+in the tooltip and beside a row. The sidebar binds its pages' keys the same way, except while
+anything modal is open (`[aria-modal]`: a dialog, a full-screen route), and shows them in the
+rail's tooltips. The finder shows both beside their rows, and the `?` overlay lists them with the
+app's own keys, the pages' under Go to
 ([signals/shortcuts.ts](../../src/builtin/ui/src/client/signals/shortcuts.ts)).
 
 What a module gives the UI is navigation entries and routes, nothing else (besides the map layers
@@ -453,7 +457,8 @@ commands. A chosen row empties the box and lets go of it; Escape closes the list
 `?` outside a text field opens the keyboard shortcuts (`ShortcutHelp`). A component says what its
 keys do with `useShortcutHelp(group, entries)` for as long as it is mounted — the media grid, the
 lightbox, the memories story, the nodes explorer — so the list is what is on screen; the app's own
-keys (the finder, the help, the terminal's) are always there, with the top bar's `shortcut` keys. It
+keys (the finder, the help, the terminal's) are always there, with the top bar's and the sidebar's
+`shortcut` keys. It
 is only the help: each component binds its keys itself. A page that names its keys rather than
 listing them opens it with `openShortcutHelp()` from `@ein/ui/signals`.
 

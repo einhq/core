@@ -27,7 +27,8 @@
       "label": "Home",
       "icon": "home",
       "to": "/",
-      "order": 10
+      "order": 10,
+      "shortcut": "alt+H"
     },
     {
       "id": "ui.nodes",
@@ -78,7 +79,8 @@
       "label": "Search",
       "icon": "search",
       "to": "/search",
-      "order": 10
+      "order": 10,
+      "shortcut": "alt+S"
     }
   ],
   "topbar": [

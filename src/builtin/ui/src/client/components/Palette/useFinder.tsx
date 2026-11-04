@@ -12,8 +12,8 @@ import { execCommand } from '../../signals/shell-client.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { EntityThumb } from './EntityThumb.tsx';
 
-/** One row of the finder: a search, a page, an entry's action, an entity, or a command's reference. */
-type FinderItem = { id: string; group: string; label: string; detail?: string; icon: ReactNode; run: () => void };
+/** One row of the finder: a search, a page, an entry's action, an entity, or a command's reference; `keys` is the shortcut that does the same. */
+type FinderItem = { id: string; group: string; label: string; detail?: string; icon: ReactNode; run: () => void; keys?: string };
 
 /** What starts a query for commands rather than for the archive. */
 export const COMMAND_PREFIX = '>';
@@ -116,6 +116,7 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
         detail: section.label,
         icon: <TablerIcon name={link.icon} size={18} />,
         run: after(() => navigate(link.to)),
+        keys: link.shortcut,
       }))
     );
     const actions: FinderItem[] = nav.topbar.flatMap((entry) => {
@@ -128,6 +129,7 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
             label: row.title,
             icon: <TablerIcon name={row.icon} size={18} />,
             run: after(() => void runNavAction(row.action!, { navigate })),
+            keys: row.shortcut,
           }]
           : []
       );
