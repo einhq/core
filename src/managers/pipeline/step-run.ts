@@ -14,7 +14,7 @@ const STEP_KILL_GRACE_MS = 30_000;
 /** Exit code reported for a step abandoned after a hang-up; SIGTERM's convention. */
 export const STEP_HUNG_UP_CODE = 143;
 
-/** How often a running step's `outputAt` is brought up to date while it writes. */
+/** How often a running step's `outputAt` and `progress` are brought up to date while it runs. */
 const OUTPUT_MARK_MS = 60_000;
 
 type StepRunResult = { code: number; stdout: string; stderr: string };
@@ -25,6 +25,7 @@ type StepRunResult = { code: number; stdout: string; stderr: string };
  * No clock stops a step: a long one is working, and its result is what the pipeline is for
  * (ein/core#358). How long a step has gone without writing anything is reported instead,
  * through `onOutput`, and the pipeline overview flags a step that has been quiet for long.
+ * `onProgress` is given what the command says of how much it has done (`Command.progress`).
  *
  * `signal` is the caller hanging up — a worker stopping, or losing the job's lease. The command
  * is sent SIGTERM through `runAndCapture`, which stops every command that capture started and
@@ -36,9 +37,9 @@ type StepRunResult = { code: number; stdout: string; stderr: string };
 export async function runStep(
   tty: TtyIf,
   command: string,
-  opts: { signal?: AbortSignal; graceMs?: number; onOutput?: () => void; attribution?: Attribution } = {},
+  opts: { signal?: AbortSignal; graceMs?: number; onOutput?: () => void; onProgress?: (fraction: number) => void; attribution?: Attribution } = {},
 ): Promise<StepRunResult> {
-  const { signal, graceMs = STEP_KILL_GRACE_MS, onOutput, attribution } = opts;
+  const { signal, graceMs = STEP_KILL_GRACE_MS, onOutput, onProgress, attribution } = opts;
   let timer: number | undefined;
   let onHangUp: (() => void) | undefined;
 
@@ -56,7 +57,7 @@ export async function runStep(
   });
 
   try {
-    const result = await Promise.race([tty.runAndCapture(command, undefined, { signal, onOutput, attribution }), abandon]);
+    const result = await Promise.race([tty.runAndCapture(command, undefined, { signal, onOutput, onProgress, attribution }), abandon]);
     return { code: result.code, stdout: result.stdout, stderr: result.stderr };
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -65,21 +66,34 @@ export async function runStep(
 }
 
 /**
- * Keep a running step's `outputAt` within `everyMs` of the last byte it wrote, so the overview
- * can tell a slow step that is still reporting from one that has gone quiet. Write failures are
- * dropped: the mark is a report, and the next tick tries again.
+ * Keep a running step's `outputAt` within `everyMs` of the last byte it wrote, and its `progress`
+ * within `everyMs` of the last fraction it reported, so the overview can tell a slow step that is
+ * still working from one that has gone quiet, and say how far it has come. Write failures are
+ * dropped: the marks are a report, and the next tick tries again.
  *
- * Returns `onOutput` for `runStep` and `stop`, which ends the ticks.
+ * Returns `onOutput` and `onProgress` for `runStep`, and `stop`, which ends the ticks.
  */
-export function markOutput(vfs: NodeVFS, stepPath: string, everyMs = OUTPUT_MARK_MS): { onOutput: () => void; stop: () => void } {
+export function markOutput(
+  vfs: NodeVFS,
+  stepPath: string,
+  everyMs = OUTPUT_MARK_MS,
+): { onOutput: () => void; onProgress: (fraction: number) => void; stop: () => void } {
   let last = 0;
   let marked = 0;
+  let progress: { fraction: number; at: number } | undefined;
+  let progressMarked = 0;
   const timer = setInterval(async () => {
-    if (last <= marked) return;
-    const at = last;
-    marked = at;
+    const attrs: Partial<PipelineStepAttrs> = {};
+    if (last > marked) {
+      attrs.outputAt = marked = last;
+    }
+    if (progress && progress.at > progressMarked) {
+      attrs.progress = progress.fraction;
+      attrs.progressAt = progressMarked = progress.at;
+    }
+    if (Object.keys(attrs).length === 0) return;
     try {
-      await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, { attrs: { outputAt: at } });
+      await vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, { attrs });
     } catch {
       // A report, not state: the next tick writes a newer mark.
     }
@@ -87,6 +101,10 @@ export function markOutput(vfs: NodeVFS, stepPath: string, everyMs = OUTPUT_MARK
   return {
     onOutput: () => {
       last = Date.now();
+    },
+    onProgress: (fraction) => {
+      if (progress?.fraction === fraction) return;
+      progress = { fraction, at: Date.now() };
     },
     stop: () => clearInterval(timer),
   };

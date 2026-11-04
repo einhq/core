@@ -54,10 +54,12 @@ export type PipelineOverview = {
      * value renders as NaN.
      */
     executingSince: number;
+    /** How much of its work the executing step says is done, 0 to 1; absent when it says nothing. */
+    progress?: number;
   }[];
   /**
-   * Running steps that have written nothing for `quietMs` or longer, oldest first. They keep
-   * running; the list is for a person to look at.
+   * Running steps that have written nothing and reported no progress for `quietMs` or longer,
+   * oldest first. They keep running; the list is for a person to look at.
    */
   quiet: {
     pipeline: string;
@@ -68,7 +70,7 @@ export type PipelineOverview = {
     /** When the step last wrote output; absent when it has written nothing yet. */
     outputAt?: number;
   }[];
-  /** How long a running step goes without output before it is listed in `quiet`. */
+  /** How long a running step goes without output or progress before it is listed in `quiet`. */
   quietMs: number;
   /**
    * Instances completed over the last day, in ~16.7-minute buckets (`at` is the bucket's start),
@@ -180,6 +182,10 @@ export type PipelineStepStatus = {
   startedAt?: number;
   /** When the current run last wrote output, to within a minute; absent until it writes. */
   outputAt?: number;
+  /** How much of its work the current run says is done, 0 to 1 (`Command.progress`); absent until it says. */
+  progress?: number;
+  /** When `progress` last moved, to within a minute. */
+  progressAt?: number;
   /** When a pooled step last went into its pool's queue: first pooled, or handed back to retry. */
   waitingSince?: number;
   completedAt?: number;

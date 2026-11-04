@@ -500,9 +500,15 @@ so a stopping worker still stops.
 
 What takes the deadline's place is a report. `runAndCapture`'s `onOutput` hears every
 chunk a step writes, and `markOutput` keeps the step node's `outputAt` within a minute of
-the last one. `pipeline-overview` lists as `quiet` every running step that has written
-nothing for `CFG_PIPELINE_STEP_QUIET_MS` (30 minutes), and the system page shows them as a
-warning; a person decides whether one is stuck. Bins that run as steps narrate their
+the last one. A command can also say how much of its work is done, from 0 to 1
+(`cmd.progress`): `runAndCapture` puts its `onProgress` in the exec context's host data with
+the attribution (`ScriptRun`), so it reaches every command the script runs, and `markOutput`
+keeps the step's `progress` and `progressAt` within a minute of the last fraction. What the
+fraction counts is the command's own business; the EMS client hands on the `fraction` of
+EMS's progress events. `pipeline-overview` gives each instance in `active` its running step's
+`progress`, and lists as `quiet` every running step that has written nothing and reported no
+progress for `CFG_PIPELINE_STEP_QUIET_MS` (30 minutes); the system page shows them as a
+warning, and a person decides whether one is stuck. Bins that run as steps narrate their
 phases through `stepPhase` (`@ein/client`), which writes `<bin>: +<ms> <label>` to stderr
 only when captured or `-v`: those lines keep a slow step off the quiet list, and are a
 failed step's account of how far it got. A step that never settles holds its semaphore

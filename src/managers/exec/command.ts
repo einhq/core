@@ -70,6 +70,13 @@ export interface Command {
   writeError(data: string): Promise<void>;
   clearScreen(): Promise<void>;
 
+  /**
+   * Say how much of its work the command has done, from 0 to 1. A pipeline step shows the last
+   * value beside the step while it runs; elsewhere it goes nowhere. For work that takes minutes:
+   * what the fraction counts is the command's own business.
+   */
+  progress(fraction: number): void;
+
   /** Run a script and capture its output; past `timeoutMs` it is stopped, with `timedOut` set. */
   execute(script: string, opts?: { timeoutMs?: number }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
   executeInline(script: string): Promise<number>;

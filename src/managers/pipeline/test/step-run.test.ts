@@ -114,3 +114,44 @@ Deno.test('markOutput writes the time of the latest output once per tick, and no
     mark.stop();
   }
 });
+
+Deno.test("the step's progress reaches onProgress", async () => {
+  const reported: number[] = [];
+  const { tty } = fakeTty((_script, opts) => {
+    opts.onProgress?.(0.25);
+    opts.onProgress?.(0.5);
+    return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+  });
+
+  await runStep(tty, 'step-command', { onProgress: (fraction) => reported.push(fraction) });
+
+  assertEquals(reported, [0.25, 0.5]);
+});
+
+Deno.test('markOutput writes the latest progress once per tick, and nothing while it stands still', async () => {
+  const writes: Record<string, number>[] = [];
+  const vfs = {
+    update: (_access: unknown, _path: string, change: { attrs: Record<string, number> }) => {
+      writes.push(change.attrs);
+      return Promise.resolve();
+    },
+  } as unknown as NodeVFS;
+
+  const mark = markOutput(vfs, '/pipelines/instances/p/1/steps/s', 30);
+  try {
+    const before = Date.now();
+    mark.onProgress(0.1);
+    mark.onProgress(0.4);
+    await sleep(70);
+    assertEquals(writes.length, 1, 'one mark for the progress since the last tick');
+    assertEquals(writes[0].progress, 0.4);
+    assert(writes[0].progressAt >= before);
+    assertEquals(writes[0].outputAt, undefined, 'progress is not output');
+
+    mark.onProgress(0.4);
+    await sleep(70);
+    assertEquals(writes.length, 1, 'the same fraction again is no news');
+  } finally {
+    mark.stop();
+  }
+});

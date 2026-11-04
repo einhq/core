@@ -63,6 +63,8 @@ export const pipelineStepRestart = async (cmd: Command): CmdReturn => {
       attempts: 0,
       startedAt: undefined,
       outputAt: undefined,
+      progress: undefined,
+      progressAt: undefined,
       completedAt: undefined,
       exitCode: undefined,
       error: undefined,

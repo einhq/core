@@ -12,7 +12,7 @@ import { ExecutionManager } from './execution-manager.ts';
 import type { Input } from './command-input.ts';
 import { stdinInput } from './input.ts';
 import { isTerminatingSignal, Signal } from './signal.ts';
-import { CmdOpts, CmdSpec, type TtyAccessInput } from './types.ts';
+import { CmdOpts, CmdSpec, scriptRunOf, type TtyAccessInput } from './types.ts';
 
 const logger = createLogger('cmd');
 
@@ -338,6 +338,11 @@ export class Cmd implements Command {
 
   async clearScreen() {
     await this.write('\x1b[2J\x1b[0;0H');
+  }
+
+  progress(fraction: number) {
+    if (!Number.isFinite(fraction)) return;
+    scriptRunOf(this._opts.ctx).onProgress?.(Math.min(1, Math.max(0, fraction)));
   }
 
   async execute(script: string, opts: { timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {

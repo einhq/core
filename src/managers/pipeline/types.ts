@@ -409,6 +409,10 @@ export type PipelineStepAttrs = NodeAttrs & {
   startedAt?: number;
   /** When the current run last wrote output, to within a minute; absent until it writes. */
   outputAt?: number;
+  /** How much of its work the current run says is done, 0 to 1 (`Command.progress`); absent until it says. */
+  progress?: number;
+  /** When `progress` last moved, to within a minute. */
+  progressAt?: number;
   /** When a pooled step last went into its pool's queue: first pooled, or handed back to retry. */
   waitingSince?: number;
   /** A step the engine runs itself, handed back because it could not run yet: not dispatched before this. */

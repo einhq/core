@@ -148,6 +148,17 @@ Deno.test({
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { outputAt: Date.now() - 60 * 1000 } });
       assertEquals(await quiet(), []);
 
+      // Progress a minute ago and no output: slow, but moving. Its instance's row carries it.
+      await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { outputAt: undefined, progress: 0.4, progressAt: Date.now() - 60 * 1000 } });
+      assertEquals(await quiet(), []);
+      const instancePath = `${PIPELINES_PATH}/instances/ovw/${instanceId}`;
+      const { status } = (await vfs.get<{ status: string }>(ADMIN_ACCESS, instancePath)).attrs;
+      await vfs.update(ADMIN_ACCESS, instancePath, { attrs: { status: 'running' } });
+      const row = (await overview()).active.find((instance) => instance.id === instanceId);
+      await vfs.update(ADMIN_ACCESS, instancePath, { attrs: { status } });
+      assertEquals(row?.progress, 0.4);
+      await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { progress: undefined, progressAt: undefined } });
+
       // A step started a minute ago has not been quiet for long, whatever it has written.
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { startedAt: Date.now() - 60 * 1000, outputAt: undefined } });
       assertEquals(await quiet(), []);

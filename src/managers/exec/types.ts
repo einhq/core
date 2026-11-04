@@ -39,12 +39,26 @@ export type RunAndCaptureOptions = {
   /** Called as the script's output is drained, stdout or stderr: it is still saying something. */
   onOutput?: () => void;
   /**
+   * Called with how much of its work a command the script runs says is done, from 0 to 1
+   * (`Command.progress`), however deep in the script that command is.
+   */
+  onProgress?: (fraction: number) => void;
+  /**
    * What the script's writes are recorded as coming from besides the shell's account: every
    * command it runs, however deep, acts with this `sid` and `cause`. A pipeline step names its run
    * and the write that started it this way.
    */
   attribution?: Attribution;
 };
+
+/**
+ * What a `runAndCapture` hands every command its script runs, through the exec context's host data,
+ * which sub-contexts inherit.
+ */
+export type ScriptRun = Pick<RunAndCaptureOptions, 'attribution' | 'onProgress'>;
+
+/** The `ScriptRun` a command or redirection in `ctx` belongs to; empty outside one. */
+export const scriptRunOf = (ctx: { getHostData(): unknown } | undefined): ScriptRun => (ctx?.getHostData() as ScriptRun | undefined) ?? {};
 
 export type RunAndCaptureResult = {
   code: number;

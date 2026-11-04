@@ -38,12 +38,14 @@ import {
   type ExecutionManager,
   type RunAndCaptureOptions,
   type RunAndCaptureResult,
+  type ScriptRun,
   type ShellJobInfo,
   type TtyAccessInput,
   TtyIf,
   TtyIO,
 } from '../exec/mod.ts';
 import { isTerminatingSignal, type Signal, signalExitCode } from '../exec/signal.ts';
+import { scriptRunOf } from '../exec/types.ts';
 import { deferred } from '../../lib/async/mod.ts';
 import {
   Access,
@@ -499,7 +501,7 @@ export class Shell implements TtyIf {
    * script was attributed to when `runAndCapture` was given one.
    */
   private accessIn(ctx: ExecContextIf): Access {
-    const attribution = ctx.getHostData() as RunAndCaptureOptions['attribution'];
+    const { attribution } = scriptRunOf(ctx);
     return attribution ? { ...this.access!, ...attribution } : this.access!;
   }
 
@@ -988,12 +990,17 @@ export class Shell implements TtyIf {
       this.activeAt = Date.now();
       await this.refreshSettings();
     }
-    if (opts.env || opts.attribution) {
-      // A subshell of the caller's context, so the variables and the attribution reach the
-      // script and nothing else.
+    if (opts.env || opts.attribution || opts.onProgress) {
+      // A subshell of the caller's context, so the variables, the attribution and the progress
+      // callback reach the script and nothing else. What the caller's own run set is kept.
       ctx = ctx.subContext();
       if (opts.env) ctx.setLocalEnv(opts.env);
-      if (opts.attribution) ctx.setHostData(opts.attribution);
+      if (opts.attribution || opts.onProgress) {
+        const run: ScriptRun = { ...scriptRunOf(ctx) };
+        if (opts.attribution) run.attribution = opts.attribution;
+        if (opts.onProgress) run.onProgress = opts.onProgress;
+        ctx.setHostData(run);
+      }
     }
     const controller = new AbortController();
     let capturedBytes = 0;

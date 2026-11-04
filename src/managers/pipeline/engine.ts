@@ -783,7 +783,7 @@ export class PipelineEngine {
 
     if (job === 'ready') {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'waiting', startedAt: undefined, outputAt: undefined },
+        attrs: { status: 'waiting', startedAt: undefined, outputAt: undefined, progress: undefined, progressAt: undefined },
       });
       logger.info('pooled step lost its worker, waiting on its requeued job', { step: stepName, instance: instancePath });
       return 'waiting';
@@ -2409,7 +2409,7 @@ export class PipelineEngine {
       // before the command runs rather than after, so a step that never returns is still
       // visible as running rather than as forever parked.
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, join(instancePath, 'steps', stepName), {
-        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined },
+        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, progress: undefined, progressAt: undefined },
       });
       this.schedule(instancePath, () => this.advanceDAG(instancePath));
       this.runningInline.set(ticket.stepId, hangUp);
@@ -2480,7 +2480,7 @@ export class PipelineEngine {
     // shared cwd/env — safe to run concurrently. `runStep` is shared with the pool worker.
     const output = markOutput(this.vfs, stepPath);
     try {
-      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, attribution });
+      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, onProgress: output.onProgress, attribution });
     } finally {
       output.stop();
     }

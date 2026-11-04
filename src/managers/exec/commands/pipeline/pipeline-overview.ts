@@ -270,13 +270,14 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
     });
   }
 
-  // ---- Running steps that have gone quiet --------------------------------
-  // No step is stopped for taking long (ein/core#358). One that has written nothing
-  // for a long while is listed instead, for a person to look at; a slow step that still
-  // reports, such as a long encode writing its progress, is not.
+  // ---- Running steps: how far they have come, and which have gone quiet ----
+  // No step is stopped for taking long (ein/core#358). One that has written nothing and
+  // reported no progress for a long while is listed instead, for a person to look at; a slow
+  // step that still reports, such as a long encode writing its progress, is not.
   const quietMs = Number(cmd.env.CFG_PIPELINE_STEP_QUIET_MS) || DEFAULT_QUIET_MS;
   const now = Date.now();
   const quiet: PipelineOverview['quiet'] = [];
+  const progressOf = new Map<string, number>();
   const runningSteps = await vfs.query(cmd.access, {
     where: [
       { ref: 'stepName', op: 'exists' },
@@ -291,7 +292,8 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
     if (parts.length !== 4 || parts[2] !== 'steps') continue;
     const attrs = row.node.attrs as PipelineStepAttrs;
     if (attrs.startedAt === undefined) continue;
-    const lastSign = Math.max(attrs.startedAt, attrs.outputAt ?? 0);
+    if (attrs.progress !== undefined) progressOf.set(`${parts[0]}/${parts[1]}`, attrs.progress);
+    const lastSign = Math.max(attrs.startedAt, attrs.outputAt ?? 0, attrs.progressAt ?? 0);
     if (now - lastSign < quietMs) continue;
     quiet.push({
       pipeline: parts[0],
@@ -301,6 +303,11 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
       startedAt: attrs.startedAt,
       ...(attrs.outputAt !== undefined ? { outputAt: attrs.outputAt } : {}),
     });
+  }
+
+  for (const instance of active) {
+    const progress = progressOf.get(`${instance.pipeline}/${instance.id}`);
+    if (progress !== undefined) instance.progress = progress;
   }
 
   const coverage = await readCoverage(cmd);

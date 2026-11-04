@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Card, Group, Skeleton, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Card, Group, Progress, Skeleton, Stack, Table, Text, Title } from '@mantine/core';
 import { IconActivity, IconAlertTriangle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -32,7 +32,8 @@ export function elapsed(since: number, now = Date.now()): string {
  * happening rather than a listing of everything that ever happened. The
  * elapsed column ticks locally — it is derived from a timestamp we already
  * have, so keeping it live costs nothing and a stalled instance becomes
- * obvious without waiting for the next event.
+ * obvious without waiting for the next event. The progress column shows how
+ * much of its work the executing step says it has done, for the steps that say.
  *
  * Steps that have gone quiet are listed above it as a warning: nothing stops
  * them, so a person decides whether one is stuck.
@@ -96,6 +97,7 @@ export function ActiveInstances({ active, quiet, quietMs }: Props) {
               <Table.Tr>
                 <Table.Th>Pipeline</Table.Th>
                 <Table.Th>Target</Table.Th>
+                <Table.Th>Progress</Table.Th>
                 <Table.Th ta='right'>Elapsed</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -109,6 +111,15 @@ export function ActiveInstances({ active, quiet, quietMs }: Props) {
                   <Table.Td fw={500}>{instance.pipeline}</Table.Td>
                   <Table.Td>
                     <Text size='sm' truncate maw={420} title={instance.triggerPath}>{basename(instance.triggerPath)}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {instance.progress !== undefined && (
+                      <Group gap='xs' wrap='nowrap'>
+                        <Progress value={instance.progress * 100} size='sm' w={80} />
+                        {/* Rounded down: 100 % only once the step says it is done. */}
+                        <Text size='sm' c='dimmed'>{Math.floor(instance.progress * 100)} %</Text>
+                      </Group>
+                    )}
                   </Table.Td>
                   <Table.Td ta='right'>
                     {

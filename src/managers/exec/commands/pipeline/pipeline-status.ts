@@ -39,6 +39,8 @@ export const pipelineStatus = async (cmd: Command): CmdReturn => {
         maxAttempts: s.node.attrs.maxAttempts,
         startedAt: s.node.attrs.startedAt,
         outputAt: s.node.attrs.outputAt,
+        progress: s.node.attrs.progress,
+        progressAt: s.node.attrs.progressAt,
         waitingSince: s.node.attrs.waitingSince,
         completedAt: s.node.attrs.completedAt,
         exitCode: s.node.attrs.exitCode,

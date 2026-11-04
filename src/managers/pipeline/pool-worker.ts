@@ -837,7 +837,7 @@ export class PoolWorker {
 
     try {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, attempts: job.attempts },
+        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, progress: undefined, progressAt: undefined, attempts: job.attempts },
       });
 
       const { code, stdout, stderr } = await this.runStep(msg.command, stepPath, jobAbort.signal, msg.attribution);
@@ -1101,7 +1101,7 @@ export class PoolWorker {
   ): Promise<{ code: number; stdout: string; stderr: string }> {
     const output = markOutput(this.vfs, stepPath);
     try {
-      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, attribution });
+      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, onProgress: output.onProgress, attribution });
     } finally {
       output.stop();
     }
