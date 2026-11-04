@@ -261,7 +261,8 @@ export const listSource = (name: string, items: Candidate[], start = 0): Candida
  * only name the subject into the picture queries' top 10 (nDCG@10 −0.02); at 0.9 that costs 0.007. A name —
  * exact or a whole-word prefix — is the best answer when there is one: at 1.6 it leads alone what
  * two similarity channels agree on, a picture's and its text's at rank 1 (1.3), and a picture with
- * the name written in it (`CONFIDENT_HIT_WEIGHT`), and costs the picture queries nothing against 1.
+ * the name written in it (`CONFIDENT_HIT_WEIGHT`), which it leads too once a picture rank adds to
+ * that (`fuseChannels`), and costs the picture queries nothing against 1.
  * An album's pictures (`members`) count for less than a name: an album found by its pictures alone
  * should not tie with a person called what was asked, and at 1 albums fill the picture queries'
  * top 10 (nDCG@10 0.66 → 0.36); an album is found by what it shows under `--kind album`.
@@ -292,7 +293,8 @@ const PARTIAL_NAME_WEIGHT = 0.3;
  * A hit its provider marks `confident` counts almost as a name does, whatever its channel: a
  * transcript that says what was asked is the recording meant (ein/core#524), and a picture with the
  * word written in it is the one asked for, ahead of those the similarities found (ein/core#664).
- * Just under a name, so a person called what was asked leads the pictures with their name on them.
+ * Just under a name: a person called what was asked leads the pictures with their name on them,
+ * whatever else found those pictures (`fuseChannels`).
  */
 const CONFIDENT_HIT_WEIGHT = 1.5;
 
@@ -343,6 +345,11 @@ export type SubjectHits = { ranks: Map<string, number>; media: Map<string, strin
  *
  * A subject in `subjects` scores just above the best of its media: the query named it, and a
  * medium another channel also found would otherwise lead it on the `subject` weight it owes to it.
+ *
+ * A confident name leads every file whose weight comes from a confident hit on another channel —
+ * the name written in a picture, said in a recording — whatever else found that file: the names
+ * are all raised by the one amount that puts the lowest of them just above the best of those
+ * files, which keeps the order within each.
  */
 export const fuseChannels = (
   byPath: Map<string, Candidate>,
@@ -369,6 +376,13 @@ export const fuseChannels = (
     const best = Math.max(0, ...media.flatMap((medium) => medium === path ? [] : byPath.get(medium)?.score ?? []));
     if (best >= subject.score) subject.score = best * (1 + 1e-9);
   }
+  const named = [...byPath.values()].filter((candidate) => (hits.get('name')?.get(candidate.path)?.score ?? 0) >= CONFIDENT_NAME);
+  const written = [...byPath.values()].filter((candidate) =>
+    !named.includes(candidate) &&
+    Object.keys(candidate.channels!).some((channel) => channel !== 'name' && hits.get(channel as SearchChannel)?.get(candidate.path)?.confident)
+  );
+  const lift = Math.max(0, ...written.map((candidate) => candidate.score)) * (1 + 1e-9) - Math.min(...named.map((candidate) => candidate.score));
+  if (lift > 0) { for (const candidate of named) candidate.score += lift; }
   const best = Math.max(0, ...[...byPath.values()].map((candidate) => candidate.score));
   if (best > 0) { for (const candidate of byPath.values()) candidate.score /= best; }
   return [...byPath.values()].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));

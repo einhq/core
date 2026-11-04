@@ -128,3 +128,27 @@ Deno.test('a person named alone leads their own media that a second channel also
   // Without the subjects, the media lead her.
   assertEquals(fuseChannels(candidates(...paths), ranks, said)[0].path, '/albums/anna andersson.jpg');
 });
+
+Deno.test('a person named alone leads a picture with their name written in it that a picture rank also finds', () => {
+  // By the weights alone the picture leads: 1.5 / (60 + 14) + 1 / (60 + 11) against 1.6 / 61.
+  const ranks = new Map<SearchRankChannel, Map<string, number>>([
+    ['name', new Map([['/people/anna andersson', 1], ['/people/anna berg', 2]])],
+    ['content', new Map([['/albums/sign.jpg', 14], ['/albums/note.jpg', 15]])],
+    ['picture', new Map([['/albums/beach.jpg', 1], ['/albums/sign.jpg', 11], ['/albums/note.jpg', 12]])],
+  ]);
+  const said = new Map<'name' | 'content', ChannelHits>([
+    ['name', hits([['/people/anna andersson', 1], ['/people/anna berg', 0.8]])],
+    ['content', new Map([['/albums/sign.jpg', { score: 1.2, confident: true }], ['/albums/note.jpg', { score: 1.2, confident: true }]])],
+  ]);
+  const paths = ['/albums/beach.jpg', '/albums/note.jpg', '/albums/sign.jpg', '/people/anna andersson', '/people/anna berg'];
+  assertEquals(fuseChannels(candidates(...paths), ranks, said).map((candidate) => candidate.path), [
+    '/people/anna andersson',
+    '/people/anna berg',
+    '/albums/sign.jpg',
+    '/albums/note.jpg',
+    '/albums/beach.jpg',
+  ]);
+  // Without a name confident enough to be the answer, the pictures keep their lead.
+  const partial = new Map<'name' | 'content', ChannelHits>([['name', hits([['/people/anna andersson', 0.5], ['/people/anna berg', 0.5]])], ['content', said.get('content')!]]);
+  assertEquals(fuseChannels(candidates(...paths), ranks, partial)[0].path, '/albums/sign.jpg');
+});
