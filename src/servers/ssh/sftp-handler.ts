@@ -491,7 +491,7 @@ export class SFTPHandler {
     offset: number | bigint,
     data: Uint8Array,
   ): void {
-    const writeData = new Uint8Array(data);
+    // ssh2 never reuses a WRITE's data, so it waits in the queue uncopied.
     this.enqueueHandleRequest(handleBuf, async (handle) => {
       try {
         await this.doHandleWrite(
@@ -499,7 +499,7 @@ export class SFTPHandler {
           reqid,
           handle,
           offset,
-          writeData,
+          data,
         );
       } catch (err) {
         logger.error('SFTP WRITE error', { error: (err as Error).message });
