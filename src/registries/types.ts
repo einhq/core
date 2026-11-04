@@ -27,6 +27,27 @@ export type ResourceMode = 'r' | 'w' | 'a' | 'r+' | 'w+' | 'a+';
 export type ResourceStat = Record<string, unknown>;
 
 /**
+ * How a handle may treat what write() is given, for a caller that passes it as
+ * a second argument (`WritesWithOptions`). A handle that takes none ignores it.
+ */
+export type WriteOptions = {
+  /**
+   * The data's ArrayBuffer is handed over with it: the caller neither reads
+   * nor reuses that buffer once it called write(), so a handle that keeps the
+   * bytes past the write may transfer the buffer rather than copy them.
+   */
+  transfer?: boolean;
+};
+
+/**
+ * A handle whose write() may be given WriteOptions, as the VFS's writable file
+ * handles take them (`SizeTrackingHandle`). Every ResourceHandleIf is one.
+ */
+export type WritesWithOptions = Omit<ResourceHandleIf, 'write'> & {
+  write(data: Uint8Array, options?: WriteOptions): Promise<number>;
+};
+
+/**
  * Handle to an open resource. Provides read/write/seek operations
  * and Web Streams integration.
  */

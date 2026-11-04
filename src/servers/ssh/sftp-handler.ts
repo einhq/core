@@ -17,7 +17,7 @@ import { OPEN_MODE, type SFTP, STATUS_CODE } from 'ssh2';
 import type { Access } from '../../lib/access/mod.ts';
 import { getMimeFromBuffer, MIME_SAMPLE_BYTES, refineMimeByName } from '../../lib/media/mime.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
-import type { ResourceHandleIf } from '../../registries/types.ts';
+import type { WritesWithOptions } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
 import type { Node, NodeVFS } from '../../vfs/mod.ts';
 import { isLoggedDownload, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError, recordAccess } from '../../vfs/mod.ts';
@@ -57,7 +57,8 @@ export type SFTPHandlerConfig = {
 };
 
 type HandleEntry = {
-  handle: ResourceHandleIf;
+  /** A WRITE's data that comes with its buffer is written with `transfer` (WriteOptions). */
+  handle: WritesWithOptions;
   path: string;
   position?: number;
   append?: boolean;
@@ -528,14 +529,18 @@ export class SFTPHandler {
     if (entry.append || entry.position !== writeOffset) {
       entry.position = await entry.handle.seek(writeOffset, ResourceSeekMode.Start);
     }
-    const bytesWritten = await entry.handle.write(data);
+    // Data that fills its buffer comes with the buffer (ssh2-ts), which the
+    // file's hash can then take without a copy; `data` is not read after this.
+    const length = data.length;
+    const transfer = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength;
+    const bytesWritten = await entry.handle.write(data, { transfer });
     if (!entry.append) entry.position = writeOffset + bytesWritten;
     entry.dirty = true;
 
-    if (bytesWritten !== data.length) {
+    if (bytesWritten !== length) {
       logger.warn('partial write', {
         path: entry.path,
-        expected: data.length,
+        expected: length,
         actual: bytesWritten,
         offset: Number(offset),
       });
@@ -543,7 +548,7 @@ export class SFTPHandler {
         sftp.status(
           reqid,
           STATUS_CODE.FAILURE,
-          `partial write: ${bytesWritten}/${data.length} bytes`,
+          `partial write: ${bytesWritten}/${length} bytes`,
         )
       );
       return;

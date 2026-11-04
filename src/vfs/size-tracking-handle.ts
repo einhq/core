@@ -1,4 +1,4 @@
-import { modeFlags, type ResourceHandleIf, type ResourceMode, type ResourceOptions, ResourceSeekMode, type ResourceStat } from '../registries/types.ts';
+import { modeFlags, type ResourceHandleIf, type ResourceMode, type ResourceOptions, ResourceSeekMode, type ResourceStat, type WriteOptions } from '../registries/types.ts';
 import { createSha256Stream, type Sha256Stream } from '../lib/hash/mod.ts';
 import { MIME_SAMPLE_BYTES } from '../lib/media/mime.ts';
 
@@ -106,15 +106,17 @@ export class SizeTrackingHandle implements ResourceHandleIf {
     this.#head = undefined;
   }
 
-  #feed(chunk: Uint8Array): void {
+  /** Takes the bytes that went past; `transfer` hands their buffer to the hash (WriteOptions). */
+  #feed(chunk: Uint8Array, transfer?: boolean): void {
     if (chunk.length === 0) return;
-    this.#hasher?.update(chunk);
     this.#hashedBytes += chunk.length;
+    // Before the hash, which may take the buffer away.
     if (this.#head && this.#headLength < MIME_SAMPLE_BYTES) {
       const take = Math.min(MIME_SAMPLE_BYTES - this.#headLength, chunk.length);
       this.#head.set(chunk.subarray(0, take), this.#headLength);
       this.#headLength += take;
     }
+    this.#hasher?.update(chunk, transfer);
     this.#dirty = true;
     this.#everWrote = true;
   }
@@ -234,9 +236,9 @@ export class SizeTrackingHandle implements ResourceHandleIf {
   read(size: number, signal?: AbortSignal): Promise<Uint8Array> {
     return this.inner.read(size, signal);
   }
-  async write(data: Uint8Array): Promise<number> {
+  async write(data: Uint8Array, options?: WriteOptions): Promise<number> {
     const written = await this.inner.write(data);
-    this.#feed(data);
+    this.#feed(data, options?.transfer);
     return written;
   }
 

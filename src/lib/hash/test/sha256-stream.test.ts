@@ -1,6 +1,6 @@
 /**
  * `createSha256Stream`: the digest of the bytes fed, whether they stay in the
- * first batch or go to the hashing thread in several.
+ * first batch or go to the hashing thread in several, copied or handed over.
  */
 
 import { assertEquals, assertRejects } from '@std/assert';
@@ -69,6 +69,59 @@ Deno.test('sha256 stream', async (t) => {
       chunk.fill(0);
     }
     assertEquals(await stream.peekHex(), sha256Hex(data));
+    stream.free();
+  });
+
+  /**
+   * Feeds data in chunks of chunkSize, handing over each buffer `given` says
+   * to, in a buffer of its own; the others are copied from a reused one.
+   */
+  const feedMixed = (
+    stream: ReturnType<typeof createSha256Stream>,
+    data: Uint8Array,
+    chunkSize: number,
+    given: (index: number) => boolean,
+  ) => {
+    const reused = new Uint8Array(chunkSize);
+    for (let offset = 0, index = 0; offset < data.length; offset += chunkSize, index++) {
+      const piece = data.subarray(offset, offset + chunkSize);
+      if (given(index)) {
+        const own = piece.slice();
+        stream.update(own, true);
+        // Handed over before the batch holding it went: taken away or still whole.
+        assertEquals(own.byteLength === 0 || own.byteLength === piece.length, true);
+      } else {
+        reused.set(piece);
+        stream.update(reused.subarray(0, piece.length));
+        reused.fill(0);
+      }
+    }
+  };
+
+  for (
+    const [name, length, given] of [
+      ['all handed over, under a batch', 500_000, () => true],
+      ['all handed over, several batches', 3 * 1024 * 1024 + 17, () => true],
+      ['handed over and copied in turn', 3 * 1024 * 1024 + 17, (i: number) => i % 2 === 0],
+      ['mostly handed over, a copy now and then', 3 * 1024 * 1024 + 17, (i: number) => i % 7 !== 3],
+      ['copied, then handed over while the first batch grows', 200_000, (i: number) => i >= 3],
+    ] as const
+  ) {
+    await t.step(`chunks ${name} digest in order`, async () => {
+      const data = bytes(length);
+      const stream = createSha256Stream();
+      feedMixed(stream, data, 32_739, given);
+      assertEquals(await stream.peekHex(), sha256Hex(data));
+      stream.free();
+    });
+  }
+
+  await t.step('a handed-over buffer goes to the hashing thread as it is', async () => {
+    const stream = createSha256Stream();
+    const chunks = Array.from({ length: 40 }, (_, i) => bytes(32_768 + i));
+    for (const chunk of chunks) stream.update(chunk, true);
+    // Over a batch's worth went, taking the buffers with it.
+    assertEquals(chunks[0].byteLength, 0);
     stream.free();
   });
 

@@ -36,8 +36,13 @@ export const createSha256 = (): Sha256Hasher => {
  * a large upload as it is written does not take the main thread's time.
  */
 export type Sha256Stream = {
-  /** Takes the next bytes. They are copied: the caller may reuse `chunk`. */
-  update(chunk: Uint8Array): void;
+  /**
+   * Takes the next bytes. They are copied, so the caller may reuse `chunk`,
+   * unless `transfer` hands its ArrayBuffer over with it: the caller neither
+   * reads nor reuses that buffer again, and the stream sends it to the hashing
+   * thread as it is.
+   */
+  update(chunk: Uint8Array, transfer?: boolean): void;
   /** Digest of everything fed so far, leaving the stream usable. */
   peekHex(): Promise<string>;
   /** Drops the stream's state. A digest asked for after this is refused. */
@@ -46,9 +51,10 @@ export type Sha256Stream = {
 
 /**
  * Bytes collect in batches of this size, each handed to the worker whole: one
- * message per batch instead of one per write. A stream that never fills one
- * is hashed where it is, and never starts the worker, which costs more main
- * thread time than hashing a batch.
+ * message per batch instead of one per write. Bytes handed over (`transfer`)
+ * go in the same message as they are, without being copied into a batch. A
+ * stream that never collects this much is hashed where it is, and never
+ * starts the worker, which costs more main thread time than hashing a batch.
  */
 const STREAM_BATCH = 1024 * 1024;
 
@@ -106,7 +112,7 @@ const sha256Thread = (): Sha256Thread => {
   const started: Sha256Thread = { worker, replies: new Map(), nextSeq: 1, streams: 0 };
   worker.onmessage = ({ data }: MessageEvent<Sha256WorkerReply>) => {
     if ('buffer' in data) {
-      if (spareBatches.length < MAX_SPARE_BATCHES) spareBatches.push(data.buffer);
+      if (data.buffer.byteLength === STREAM_BATCH && spareBatches.length < MAX_SPARE_BATCHES) spareBatches.push(data.buffer);
       return;
     }
     const reply = started.replies.get(data.seq);
@@ -128,8 +134,17 @@ const unfreed = new FinalizationRegistry<() => void>((release) => release());
 
 export const createSha256Stream = (): Sha256Stream => {
   const id = nextStreamId++;
+  /** The bytes not yet sent, in order: views of copy batches and the chunks handed over. */
+  let parts: Uint8Array[] = [];
+  let partsLength = 0;
+  /** The buffers handed over (`transfer`) that `parts` hold. */
+  let given: ArrayBuffer[] = [];
+  /** Earlier copy batches that `parts` still view, replaced by a larger one. */
+  let outgrown: ArrayBuffer[] = [];
+  /** The batch copies go into; its bytes from `cut` to `batched` are not in `parts` yet. */
   let batch: Uint8Array | undefined;
   let batched = 0;
+  let cut = 0;
   /** The thread holding this stream's state, once a batch went to it. */
   let owner: Sha256Thread | undefined;
   let freed = false;
@@ -144,40 +159,75 @@ export const createSha256Stream = (): Sha256Stream => {
     releaseThread(held);
   };
 
+  /** Moves the batch's bytes not yet in `parts` there. */
+  const cutBatch = () => {
+    if (!batch || batched === cut) return;
+    parts.push(batch.subarray(cut, batched));
+    partsLength += batched - cut;
+    cut = batched;
+  };
+
   const flush = () => {
-    if (!batch || batched === 0) return;
+    cutBatch();
+    if (parts.length === 0) return;
     if (!owner) {
       owner = sha256Thread();
       owner.streams++;
       unfreed.register(stream, release, token);
     }
-    owner.worker.postMessage({ op: 'update', id, data: batch.subarray(0, batched) } satisfies Sha256WorkerRequest, [batch.buffer as ArrayBuffer]);
+    const batches = batch ? [...outgrown, batch.buffer as ArrayBuffer] : outgrown;
+    owner.worker.postMessage({ op: 'update', id, data: parts, batches } satisfies Sha256WorkerRequest, [...batches, ...given]);
+    parts = [];
+    partsLength = 0;
+    given = [];
+    outgrown = [];
     batch = undefined;
     batched = 0;
+    cut = 0;
+  };
+
+  const copy = (chunk: Uint8Array) => {
+    for (let offset = 0; offset < chunk.length;) {
+      // The first batch grows to what it holds, so a small file costs a small copy.
+      const want = batched + chunk.length - offset;
+      if (!batch || (batch.length < want && batch.length < STREAM_BATCH)) {
+        const size = owner ? STREAM_BATCH : Math.min(STREAM_BATCH, Math.max(want - cut, 2 * (batch?.length ?? 0), 16 * 1024));
+        const spare = size === STREAM_BATCH ? spareBatches.pop() : undefined;
+        const grown = spare ? new Uint8Array(spare) : new Uint8Array(size);
+        if (batch) {
+          grown.set(batch.subarray(cut, batched));
+          if (cut > 0) outgrown.push(batch.buffer as ArrayBuffer);
+          batched -= cut;
+          cut = 0;
+        }
+        batch = grown;
+      }
+      const take = Math.min(batch.length - batched, chunk.length - offset);
+      batch.set(chunk.subarray(offset, offset + take), batched);
+      batched += take;
+      offset += take;
+      if (batched === STREAM_BATCH || partsLength + batched - cut >= STREAM_BATCH) flush();
+    }
   };
 
   const stream: Sha256Stream = {
-    update(chunk) {
-      for (let offset = 0; offset < chunk.length;) {
-        // The first batch grows to what it holds, so a small file costs a small copy.
-        const want = batched + chunk.length - offset;
-        if (!batch || (batch.length < want && batch.length < STREAM_BATCH)) {
-          const size = owner ? STREAM_BATCH : Math.min(STREAM_BATCH, Math.max(want, 2 * (batch?.length ?? 0), 16 * 1024));
-          const spare = size === STREAM_BATCH ? spareBatches.pop() : undefined;
-          const grown = spare ? new Uint8Array(spare) : new Uint8Array(size);
-          if (batch) grown.set(batch.subarray(0, batched));
-          batch = grown;
-        }
-        const take = Math.min(batch.length - batched, chunk.length - offset);
-        batch.set(chunk.subarray(offset, offset + take), batched);
-        batched += take;
-        offset += take;
-        if (batched === STREAM_BATCH) flush();
-      }
+    update(chunk, transfer) {
+      if (!transfer || !(chunk.buffer instanceof ArrayBuffer)) return copy(chunk);
+      if (chunk.length === 0) return;
+      cutBatch();
+      parts.push(chunk);
+      partsLength += chunk.length;
+      if (!given.includes(chunk.buffer)) given.push(chunk.buffer);
+      if (partsLength >= STREAM_BATCH) flush();
     },
     peekHex() {
       if (freed) return Promise.reject(new Error('the sha256 stream was freed'));
-      if (!owner) return Promise.resolve(createHash('sha256').update(batch?.subarray(0, batched) ?? new Uint8Array()).digest('hex'));
+      if (!owner) {
+        const hash = createHash('sha256');
+        for (const part of parts) hash.update(part);
+        if (batch) hash.update(batch.subarray(cut, batched));
+        return Promise.resolve(hash.digest('hex'));
+      }
       flush();
       const current = owner;
       if (current !== thread) return Promise.reject(new Error('the sha256 thread that held this stream is gone'));
@@ -190,8 +240,13 @@ export const createSha256Stream = (): Sha256Stream => {
     free() {
       if (freed) return;
       freed = true;
+      parts = [];
+      partsLength = 0;
+      given = [];
+      outgrown = [];
       batch = undefined;
       batched = 0;
+      cut = 0;
       unfreed.unregister(token);
       release();
     },

@@ -9,7 +9,7 @@
 import { assertEquals, assertNotEquals } from '@std/assert';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { createHash } from 'node:crypto';
-import { ResourceSeekMode } from '../../registries/types.ts';
+import { ResourceSeekMode, type WritesWithOptions } from '../../registries/types.ts';
 import { createTestVfs } from '../../testing/test-vfs.ts';
 
 const sha256Hex = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
@@ -59,6 +59,26 @@ Deno.test('write-time sha256', async (t) => {
     const node = await vfs.get(ADMIN_ACCESS, '/large.bin');
     assertEquals(node.attrs.size, body.length);
     assertEquals(node.attrs.sha256, sha256Hex(body));
+  });
+
+  await t.step('writes that hand their buffers over record the digest and the head of all of it', async () => {
+    await mkfile(vfs, 'given.bin');
+    const body = new Uint8Array(3 * 1024 * 1024 + 7);
+    for (let i = 0; i < body.length; i++) body[i] = (i * 11 + (i >> 9)) & 0xff;
+    body.set(enc.encode('%PDF-1.7\n'));
+
+    const h: WritesWithOptions = await vfs.open(ADMIN_ACCESS, '/given.bin', { mode: 'w' });
+    // Every third chunk is copied, the way an SFTP WRITE that arrived whole is.
+    for (let offset = 0, i = 0; offset < body.length; offset += 32_768, i++) {
+      const own = body.slice(offset, offset + 32_768);
+      await h.write(own, { transfer: i % 3 !== 2 });
+    }
+    await h.close();
+
+    const node = await vfs.get(ADMIN_ACCESS, '/given.bin');
+    assertEquals(node.attrs.size, body.length);
+    assertEquals(node.attrs.sha256, sha256Hex(body));
+    assertEquals(node.attrs.mimetype, 'application/pdf');
   });
 
   await t.step('the writable stream hashes too — most callers pipe rather than write()', async () => {

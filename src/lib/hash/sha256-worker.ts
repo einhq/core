@@ -1,13 +1,17 @@
 /**
  * The thread `createSha256Stream` hashes on: one SHA-256 state per stream id,
- * fed the batches the streams post, in order. Each batch's buffer goes back
- * once hashed, to be filled again.
+ * fed the bytes the streams post, in order. The buffers of the batches they
+ * were copied into go back once hashed, to be filled again. Buffers a stream
+ * was handed are freed at once: left to this thread's garbage collector, which
+ * seldom runs here, their memory would not be there for the main thread to
+ * allocate again, and fresh pages cost it more.
  */
 
 import { createHash, type Hash } from 'node:crypto';
 
 export type Sha256WorkerRequest =
-  | { op: 'update'; id: number; data: Uint8Array }
+  /** `data` in order; `batches` are the copy batches among their buffers, to be given back. */
+  | { op: 'update'; id: number; data: Uint8Array[]; batches: ArrayBuffer[] }
   | { op: 'peek'; id: number; seq: number }
   | { op: 'free'; id: number };
 
@@ -31,10 +35,15 @@ const scope = self as unknown as {
 
 scope.onmessage = ({ data: request }) => {
   switch (request.op) {
-    case 'update':
-      hashOf(request.id).update(request.data);
-      scope.postMessage({ buffer: request.data.buffer as ArrayBuffer }, [request.data.buffer as ArrayBuffer]);
+    case 'update': {
+      const hash = hashOf(request.id);
+      for (const part of request.data) hash.update(part);
+      for (const buffer of request.batches) scope.postMessage({ buffer }, [buffer]);
+      for (const part of request.data) {
+        if (part.buffer.byteLength > 0) (part.buffer as ArrayBuffer).transfer(0);
+      }
       break;
+    }
     case 'peek':
       scope.postMessage({ seq: request.seq, hex: hashOf(request.id).copy().digest('hex') });
       break;
