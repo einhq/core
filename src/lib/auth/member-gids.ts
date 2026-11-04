@@ -130,7 +130,7 @@ const inGroup = (access: Access, name: string, gid: number): boolean => access.g
 
 /**
  * The entries of `dir` named after a group `access` is in, by name: what a directory of per-group
- * files (`/etc/ui/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed with
+ * entries (`/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed with
  * `access`. An entry naming no group is in `unknown`, for the caller to warn of.
  */
 export const groupEntriesFor = async (vfs: ModuleVFS, access: Access, dir: string): Promise<{ groups: string[]; unknown: string[] }> => {

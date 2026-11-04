@@ -7,7 +7,7 @@
 import { Box, type MantineStyleProp, MultiSelect, type MultiSelectProps, SegmentedControl, Select, type SelectProps, Stack, Text } from '@mantine/core';
 import { IconEye, IconLock, IconPencil } from '@tabler/icons-react';
 import { Fragment, useMemo } from 'react';
-import type { ConfigEntry, ShareLevel } from '@ein/api';
+import type { ConfigEntry, GroupEntry, ShareLevel } from '@ein/api';
 import { useIdentities } from '../../hooks/useIdentities.ts';
 import { accountOption, formatGroupList, parseGroupList, sortGroups, sortUsers } from '../../lib/accounts.ts';
 import { levelAt, withLevelAt } from '../../lib/share.ts';
@@ -25,6 +25,8 @@ type MultiPickerProps = Omit<MultiSelectProps, 'data' | 'value' | 'onChange'> & 
   /** A comma list of group names. */
   value: string;
   onChange: (next: string) => void;
+  /** Offer only the groups that can have a home (`group-home`): neither built in, `users` aside, nor a user's own. */
+  homeable?: boolean;
 };
 
 /**
@@ -47,13 +49,15 @@ function useUserOptions(saved: string): Option[] {
   }, [users, saved]);
 }
 
-function useGroupOptions(saved: string): Option[] {
-  const { groups } = useIdentities();
+function useGroupOptions(saved: string, homeable = false): Option[] {
+  const { users, groups } = useIdentities();
   return useMemo(() => {
     const every = sortGroups(groups).map(accountOption);
-    const offered = sortGroups(groups.filter((group) => group.role !== 'guests')).map(accountOption);
+    const own = (group: GroupEntry) => users.some((user) => user.username === group.groupname && user.uid === group.gid);
+    const fits = (group: GroupEntry) => homeable ? (group.role === undefined || group.role === 'everyone') && !own(group) : group.role !== 'guests';
+    const offered = sortGroups(groups.filter(fits)).map(accountOption);
     return withSaved(offered, every, parseGroupList(saved), groups.length > 0);
-  }, [groups, saved]);
+  }, [users, groups, saved, homeable]);
 }
 
 /** One account by username, from every account but the guest. */
@@ -95,8 +99,8 @@ export function GroupSelect({ value, onChange, emptyLabel, ...rest }: PickerProp
 }
 
 /** Several groups, as the comma list a setting holds them in. */
-export function GroupsMultiSelect({ value, onChange, ...rest }: MultiPickerProps) {
-  const data = useGroupOptions(value);
+export function GroupsMultiSelect({ value, onChange, homeable, ...rest }: MultiPickerProps) {
+  const data = useGroupOptions(value, homeable);
   return (
     <MultiSelect
       searchable

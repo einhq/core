@@ -2,7 +2,7 @@
  * Who a module is for: everyone, or the groups it is kept to, as `/etc/modules/<name>.groups`
  * holds them (`mod groups`, `mod install --groups`). A module kept to groups is on the PATH of
  * their members alone (`/etc/bashrc.d/<group>`), in their navigation alone
- * (`/etc/ui/groups/<group>/nav.d`), its pages are routed for them alone, and the shell refuses
+ * (`/groups/<group>/.ui/nav.d`), its pages are routed for them alone, and the shell refuses
  * its commands to anyone else. An administrator is given every module.
  */
 

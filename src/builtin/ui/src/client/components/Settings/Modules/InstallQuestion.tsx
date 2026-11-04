@@ -42,7 +42,7 @@ export function InstallQuestion({ name, busy, onInstall, onCancel }: InstallQues
           />
         </Stack>
       </Radio.Group>
-      {who === 'groups' && <GroupsMultiSelect value={groups} onChange={setGroups} placeholder='Choose groups' aria-label={`Groups ${what} is for`} disabled={busy} />}
+      {who === 'groups' && <GroupsMultiSelect homeable value={groups} onChange={setGroups} placeholder='Choose groups' aria-label={`Groups ${what} is for`} disabled={busy} />}
       <Text size='xs' c='dimmed'>The modules it needs come with it, for everyone. Its panel changes who it is for later.</Text>
       <Group gap='xs'>
         <Button size='xs' leftSection={<IconDownload size={16} />} loading={busy} disabled={who === 'groups' && chosen.length === 0} onClick={() => onInstall(chosen)}>

@@ -114,17 +114,16 @@ export const UI_NAV_D_PATH = `${UI_ETC_PATH}/nav.d`;
 /** The administrator's changes to the navigation, laid over every module's. */
 export const UI_NAV_PATH = `${UI_ETC_PATH}/nav.json`;
 /**
- * A group's changes to the navigation, as `<group>/nav.json` here: laid over the administrator's
- * for the group's members, under each member's own.
+ * Changes to the navigation, relative to a home: a user's `~/.ui/nav.json`, laid over the
+ * administrator's and their groups', and a group's `/groups/<group>/.ui/nav.json`, laid over the
+ * administrator's for the group's members, under each member's own.
  */
-export const UI_GROUPS_PATH = `${UI_ETC_PATH}/groups`;
+export const HOME_UI_NAV_FILE = '.ui/nav.json';
 /**
- * In a group's directory under `UI_GROUPS_PATH`: the navigation entries of the modules kept to the
- * group, each linked in by `mod setup` as `<name>.json` the way `UI_NAV_D_PATH` holds everyone's.
+ * In a group's home: the navigation entries of the modules kept to the group, each linked in by
+ * `mod setup` as `<name>.json` the way `UI_NAV_D_PATH` holds everyone's.
  */
-export const UI_GROUP_NAV_D = 'nav.d';
-/** A user's own changes to the navigation, relative to their home directory; laid over the administrator's and their groups'. */
-export const USER_UI_NAV_FILE = '.ui/nav.json';
+export const HOME_UI_NAV_D = '.ui/nav.d';
 
 /* -------------------------------------------------------------------- /var */
 

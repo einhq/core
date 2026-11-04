@@ -181,7 +181,7 @@ for it.
 **Navigation.** A module's sidebar and top-bar entries are its `ui/nav.json`, which `mod setup`
 links as `/etc/ui/nav.d/<module>.json` (owned by link target, like its services; `mod remove` and
 the prune undo it). The administrator's `/etc/ui/nav.json`, each group's
-`/etc/ui/groups/<group>/nav.json` and each user's `~/.ui/nav.json` are laid over them; `ui-nav` resolves the layers for the reader ([nav.ts](../../src/builtin/ui/lib/nav.ts),
+`/groups/<group>/.ui/nav.json` in its home and each user's `~/.ui/nav.json` are laid over them; `ui-nav` resolves the layers for the reader ([nav.ts](../../src/builtin/ui/lib/nav.ts),
 [UI layer](ui.md#navigation)). `mod setup` links a module's `ui/` into `/var/www` only when it is a
 built site (`ui/index.html`), and retires a link of its own that points at anything else, so page
 sources are never served under the module's host name.
@@ -193,8 +193,11 @@ reachable for those groups and `admin` instead of for everyone, moving it when t
 
 - its PATH line goes in `/etc/bashrc.d/<group>`, which the shells of the group's members source
   after `/etc/bashrc` ([path-line.ts](../../src/managers/exec/commands/mod/path-line.ts));
-- its `ui/nav.json` is linked as `/etc/ui/groups/<group>/nav.d/<name>.json`, which `ui-nav` reads
-  as a fragment for the group's members ([module-links.ts](../../src/managers/exec/commands/mod/module-links.ts)).
+- its `ui/nav.json` is linked as `/groups/<group>/.ui/nav.d/<name>.json` in the group's home, which
+  `ui-nav` reads as a fragment for the group's members and for an administrator, who reads every
+  group's ([module-links.ts](../../src/managers/exec/commands/mod/module-links.ts)). A group without
+  a home is given one (`group-home`), and `mod groups` refuses a group that cannot have one: a
+  built-in group other than `users`, or a user's own.
 
 Hiding is not the boundary. `Shell.execExternal` refuses a command named by a path under
 `/usr/modules/<name>/` to an access `mayUseModule` turns down, `#!ts` and bash alike. It is the

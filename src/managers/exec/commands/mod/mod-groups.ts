@@ -3,6 +3,7 @@ import type { ModuleGroups } from '../../../../lib/api/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { groupGid } from '../../../../lib/auth/member-gids.ts';
 import { readModuleGroups, writeModuleGroups } from '../../../../modules/audience.ts';
+import { groupHomeProblem } from '../auth/group-home.ts';
 import { readManifests, readModJson } from '../../../../modules/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -14,8 +15,9 @@ const USAGE = 'usage: mod groups <name> [<group>...] [--everyone]\n';
 /**
  * Say which groups a module is kept to, or keep it to others, or make it everyone's again. A
  * module kept to groups is on its members' PATH, in their navigation and pages, and its commands
- * are refused to anyone else; an administrator is given every module. Setting it up again moves
- * its PATH line and navigation to where they now belong.
+ * are refused to anyone else; an administrator is given every module. Its navigation is kept in
+ * each group's home, so a group that cannot have one is refused. Setting it up again moves its PATH
+ * line and navigation to where they now belong, giving a group without a home one.
  */
 export const modGroups = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { boolean: ['everyone'] });
@@ -41,8 +43,14 @@ export const modGroups = async (cmd: Command): CmdReturn => {
   }
 
   for (const group of groups) {
-    if (await groupGid(cmd.sys.vfs, group) === undefined) {
+    const gid = await groupGid(cmd.sys.vfs, group);
+    if (gid === undefined) {
       await cmd.writeError(`mod groups: no group ${group}\n`);
+      return 1;
+    }
+    const problem = await groupHomeProblem(cmd, group, gid);
+    if (problem) {
+      await cmd.writeError(`mod groups: a module is kept to groups that can have a home, for its navigation, and ${problem}\n`);
       return 1;
     }
   }

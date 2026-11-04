@@ -306,7 +306,7 @@ function AvailableTo({ module, usedBy, admin, onChanged }: AvailableToProps) {
     <PanelSection title='Available to' lead={lead} error={problem} onDismiss={() => setProblem(null)}>
       {admin && (
         <Stack gap='xs'>
-          <GroupsMultiSelect value={value} onChange={setValue} placeholder='Everyone' aria-label='Groups it is kept to' disabled={busy} />
+          <GroupsMultiSelect homeable value={value} onChange={setValue} placeholder='Everyone' aria-label='Groups it is kept to' disabled={busy} />
           {exposed.length > 0 && (
             <Note warn>
               {exposed.map((entry) => entry.name).join(', ')} {exposed.length > 1 ? 'need' : 'needs'} {module.name} and {exposed.length > 1 ? 'are' : 'is'} everyone's: what

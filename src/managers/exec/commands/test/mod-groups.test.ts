@@ -1,7 +1,7 @@
 /**
  * A module kept to groups (`mod groups`): its PATH line moves from /etc/bashrc to
- * /etc/bashrc.d/<group> and its navigation from /etc/ui/nav.d to /etc/ui/groups/<group>/nav.d, for
- * each of its groups and the administrators; a member's shell has its commands and navigation, and
+ * /etc/bashrc.d/<group>, for each of its groups and the administrators, and its navigation from
+ * /etc/ui/nav.d to /groups/<group>/.ui/nav.d in each group's home, made if the group had none; a member's shell has its commands and navigation, and
  * anyone else's has neither and is refused its commands by path. Making it everyone's again, and
  * removing it, move them back and forget the groups.
  */
@@ -10,7 +10,7 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import type { UiNav } from '@ui/nav';
 import type { ModuleEntry, ModuleGroups } from '../../../../lib/api/mod.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
-import { BASHRC_GROUPS_PATH, MODULE_GROUPS_PATH, UI_GROUPS_PATH, UI_NAV_D_PATH } from '../../../../lib/paths.ts';
+import { BASHRC_GROUPS_PATH, groupHomePath, HOME_UI_NAV_D, MODULE_GROUPS_PATH, UI_NAV_D_PATH } from '../../../../lib/paths.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
 const testCtx = createTestContext();
@@ -31,8 +31,9 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
   const navIds = (answer: UiNav) => answer.sections.flatMap((section) => section.items.map((item) => item.id));
 
   try {
-    // The administrators' group, as boot makes it; gids clear of the ones boot reserves.
+    // The administrators' group and the groups' homes, as boot makes them; gids clear of the ones boot reserves.
     await admin.exec(`group-exists admin || group-create admin --gid 0`);
+    await admin.exec('mkdir -p /groups');
     await admin.exec(`group-create sailors-${id} --gid 7200 && group-create gardeners-${id} --gid 7201`);
     await admin.exec(`user-create anna-${id} && user-passwd anna-${id} --new-password secret1 && group-add-member sailors-${id} anna-${id}`);
     await admin.exec(`user-create bert-${id} && user-passwd bert-${id} --new-password secret1 && group-add-member gardeners-${id} bert-${id}`);
@@ -48,13 +49,15 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
       assertEquals(await admin.execJson<ModuleGroups>(`mod-groups ${name}`), { name, groups: [] });
     });
 
-    await t.step('a group that is not there is refused', async () => {
-      const res = await admin.exec(`mod-groups ${name} nobody-${id}`);
-      assertEquals(res.success, false);
+    await t.step('a group that is not there, or cannot have a home, is refused', async () => {
+      assertEquals((await admin.exec(`mod-groups ${name} nobody-${id}`)).success, false);
+      const own = await admin.exec(`mod-groups ${name} anna-${id}`);
+      assertEquals(own.success, false);
+      assertStringIncludes(`${own.error ?? ''}`, 'can have a home');
       assertEquals(await exists(`${MODULE_GROUPS_PATH}/${name}.groups`), false);
     });
 
-    await t.step('kept to a group: its lines and links move to the group and the administrators', async () => {
+    await t.step('kept to a group: its lines move to the group and the administrators, its navigation into the home the group is given', async () => {
       // A shell open since it was everyone's has it on its PATH, until its next command.
       const early = await testCtx.server.createShellClient({ username: `bert-${id}`, password: 'secret1' });
       try {
@@ -69,8 +72,7 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
       assertStringIncludes((await read(`${BASHRC_GROUPS_PATH}/sailors-${id}`)) ?? '', bin);
       assertStringIncludes((await read(`${BASHRC_GROUPS_PATH}/admin`)) ?? '', bin);
       assertEquals(await exists(`${UI_NAV_D_PATH}/${name}.json`), false);
-      assert(await exists(`${UI_GROUPS_PATH}/sailors-${id}/nav.d/${name}.json`));
-      assert(await exists(`${UI_GROUPS_PATH}/admin/nav.d/${name}.json`));
+      assert(await exists(`${groupHomePath(`sailors-${id}`)}/${HOME_UI_NAV_D}/${name}.json`));
     });
 
     await t.step('a member has its commands, navigation and listing; someone else none of them, and its commands are refused', async () => {
@@ -107,7 +109,7 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
       assertEquals(await exists(`${MODULE_GROUPS_PATH}/${name}.groups`), false);
       assertStringIncludes((await read('/etc/bashrc')) ?? '', bin);
       assertEquals(await exists(`${BASHRC_GROUPS_PATH}/sailors-${id}`), false);
-      assertEquals(await exists(`${UI_GROUPS_PATH}/sailors-${id}/nav.d/${name}.json`), false);
+      assertEquals(await exists(`${groupHomePath(`sailors-${id}`)}/${HOME_UI_NAV_D}/${name}.json`), false);
       assert(await exists(`${UI_NAV_D_PATH}/${name}.json`));
       const bert = await testCtx.server.createShellClient({ username: `bert-${id}`, password: 'secret1' });
       try {
@@ -139,7 +141,7 @@ Deno.test({ name: 'mod groups', sanitizeResources: false, sanitizeOps: false }, 
       assertEquals(await exists(`${MODULE_GROUPS_PATH}/${name}.groups`), false);
       assertEquals((await read(`${BASHRC_GROUPS_PATH}/gardeners-${id}`))?.includes(bin) ?? false, false);
       assertEquals((await read(`${BASHRC_GROUPS_PATH}/admin`))?.includes(bin) ?? false, false);
-      assertEquals(await exists(`${UI_GROUPS_PATH}/gardeners-${id}/nav.d/${name}.json`), false);
+      assertEquals(await exists(`${groupHomePath(`gardeners-${id}`)}/${HOME_UI_NAV_D}/${name}.json`), false);
     });
   } finally {
     await testCtx.teardown();

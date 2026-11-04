@@ -383,7 +383,7 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
     }
   }
 
-  // 6. Link its navigation entries into /etc/ui/nav.d (or its groups'), its settings into /etc/config.d and its drop-ins into /etc/<x>.d
+  // 6. Link its navigation entries into /etc/ui/nav.d (or its groups' homes), its settings into /etc/config.d and its drop-ins into /etc/<x>.d
   for (const problem of await linkModuleFiles(cmd, manifest.name, modulePath, groups)) await fail(problem);
 
   // The `{ ok: true }` JSON belongs to the caller, not here — `--all` sets up many modules and

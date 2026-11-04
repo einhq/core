@@ -69,6 +69,7 @@ import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_SOFTLINK } from '../../../../vfs/types/softlink.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { groupHomeProblem } from '../auth/group-home.ts';
 import { accountNames } from '../system/accounts.ts';
 import { setupOne } from './mod-setup.ts';
 import { followInstall } from './mod-status.ts';
@@ -497,8 +498,14 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
   const targets = flags._.map(String);
   const groups = typeof flags.groups === 'string' ? flags.groups.split(',').map((group) => group.trim()).filter(Boolean) : [];
   for (const group of groups) {
-    if (await groupGid(cmd.sys.vfs, group) === undefined) {
+    const gid = await groupGid(cmd.sys.vfs, group);
+    if (gid === undefined) {
       await cmd.writeError(`mod install: no group ${group}\n`);
+      return 1;
+    }
+    const problem = await groupHomeProblem(cmd, group, gid);
+    if (problem) {
+      await cmd.writeError(`mod install: a module is kept to groups that can have a home, for its navigation, and ${problem}\n`);
       return 1;
     }
   }

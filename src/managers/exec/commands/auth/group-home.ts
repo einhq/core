@@ -16,7 +16,7 @@ import type { CmdReturn } from '../../types.ts';
  * for the system's own use have none, `users` aside; nor has a user's own group, whose member
  * already has a home of their own.
  */
-const homeProblem = async (cmd: Command, groupname: string, gid: number): Promise<string | undefined> => {
+export const groupHomeProblem = async (cmd: Command, groupname: string, gid: number): Promise<string | undefined> => {
   const role = groupRole(groupname, gid);
   if (role && role !== 'everyone') return `'${groupname}' is a built-in group`;
   try {
@@ -55,7 +55,7 @@ export const groupHome = async (cmd: Command): CmdReturn => {
         if (trashed.code !== 0) return await fail(`cannot move '${home}' to the trash: ${trashed.stderr.trim()}`);
       }
     } else if (!exists) {
-      const problem = await homeProblem(cmd, groupname, gid);
+      const problem = await groupHomeProblem(cmd, groupname, gid);
       if (problem) return await fail(problem);
       // The administrator's, so it belongs to no one member, who may leave the group; the group's to fill.
       await cmd.sys.vfs.create(cmd.access, NODE_TYPE_DIRECTORY, GROUP_HOMES_PATH, groupname, {

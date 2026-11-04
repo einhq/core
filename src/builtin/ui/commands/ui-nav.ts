@@ -1,6 +1,6 @@
 import type { CmdReturn, Command } from '@ein/client';
 import { collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
-import { UI_GROUP_NAV_D, UI_GROUPS_PATH, UI_NAV_D_PATH, UI_NAV_PATH, USER_UI_NAV_FILE } from '@ein/paths';
+import { GROUP_HOMES_PATH, groupHomePath, HOME_UI_NAV_D, HOME_UI_NAV_FILE, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
 import { toText } from '@std/streams/to-text';
 import { groupEntriesFor } from '../../../lib/auth/member-gids.ts';
 import { type NamedLayer, type NavLayer, resolveNav, type UiNav } from '@ui/nav';
@@ -37,18 +37,19 @@ export const uiNav = async (cmd: Command): CmdReturn => {
   if (await reportUnknownFlags(cmd, unknown)) return 1;
   if (flags.help) {
     await cmd.writeLn(
-      "usage: ui-nav\nThe sidebar and top bar for the caller: every module's /etc/ui/nav.d fragment and those of the modules kept to the caller's groups in /etc/ui/groups/<group>/nav.d, then /etc/ui/nav.json, then /etc/ui/groups/<group>/nav.json for each of the caller's groups, then ~/.ui/nav.json.",
+      "usage: ui-nav\nThe sidebar and top bar for the caller: every module's /etc/ui/nav.d fragment and those of the modules kept to the caller's groups in /groups/<group>/.ui/nav.d (an administrator's: every group's), then /etc/ui/nav.json, then /groups/<group>/.ui/nav.json for each of the caller's groups, then ~/.ui/nav.json.",
     );
     return 0;
   }
 
   const warnings: string[] = [];
-  const { groups, unknown: notGroups } = await groupEntriesFor(cmd.sys.vfs, cmd.access, UI_GROUPS_PATH);
-  for (const name of notGroups) warnings.push(`${UI_GROUPS_PATH}/${name}: no group ${name}`);
+  const { groups } = await groupEntriesFor(cmd.sys.vfs, cmd.access, GROUP_HOMES_PATH);
+  // An administrator is given every module, so the fragments in every group's home.
+  const fragmentGroups = isAdmin(cmd.access) ? await childNames(cmd, GROUP_HOMES_PATH) : groups;
 
   // Everyone's modules, then those kept to the caller's groups; one in several of them once.
   const fragments: NamedLayer[] = [];
-  for (const dir of [UI_NAV_D_PATH, ...groups.map((group) => `${UI_GROUPS_PATH}/${group}/${UI_GROUP_NAV_D}`)]) {
+  for (const dir of [UI_NAV_D_PATH, ...fragmentGroups.map((group) => `${groupHomePath(group)}/${HOME_UI_NAV_D}`)]) {
     for (const name of (await childNames(cmd, dir)).filter((n) => n.endsWith('.json'))) {
       const source = name.slice(0, -'.json'.length);
       if (fragments.some((fragment) => fragment.source === source)) continue;
@@ -59,8 +60,8 @@ export const uiNav = async (cmd: Command): CmdReturn => {
 
   const overlays: NamedLayer[] = [];
   const home = cmd.env.HOME;
-  const groupOverlays = groups.map((name) => `${UI_GROUPS_PATH}/${name}/nav.json`);
-  for (const path of [UI_NAV_PATH, ...groupOverlays, ...(home ? [`${home}/${USER_UI_NAV_FILE}`] : [])]) {
+  const groupOverlays = groups.map((name) => `${groupHomePath(name)}/${HOME_UI_NAV_FILE}`);
+  for (const path of [UI_NAV_PATH, ...groupOverlays, ...(home ? [`${home}/${HOME_UI_NAV_FILE}`] : [])]) {
     const layer = await readLayer(cmd, path, warnings);
     if (layer) overlays.push({ source: path, layer });
   }
