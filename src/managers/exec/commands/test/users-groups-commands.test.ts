@@ -103,14 +103,15 @@ Deno.test({
       await cmd.shouldSucceed('group-add-member family bo');
     });
 
-    await t.step('group-list reports group nodes only, with description and role', async () => {
+    await t.step('group-list reports group nodes only, with description, role and home', async () => {
       await cmd.shouldSucceed('mknode -t directory /etc/groups/stray');
       const groups = await admin.execJson<GroupEntry[]>('group-list');
       assertEquals(groups.some((entry) => entry.groupname === 'stray'), false);
       assertEquals(groups.some((entry) => 'members' in entry), false);
 
       const family = groupNamed(groups, 'family');
-      assertEquals(family, { groupname: 'family', gid: family.gid, title: 'Family', description: 'The household' });
+      assertEquals(family, { groupname: 'family', gid: family.gid, title: 'Family', description: 'The household', home: false });
+      assertEquals(groupNamed(groups, 'users').home, true);
       assertEquals(
         ['admin', 'guest', 'users', 'ssh', 'anna'].map((name) => groupNamed(groups, name).role),
         ['administrators', 'guests', 'everyone', 'ssh', undefined],

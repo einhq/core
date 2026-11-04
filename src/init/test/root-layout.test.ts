@@ -15,10 +15,10 @@
 
 import { assertEquals } from '@std/assert';
 import { createTestContext } from '../../testing/mod.ts';
-import { GROUPS_PATH, SESSIONS_PATH, TAGS_ROOT, VAR_DIRS } from '../../lib/paths.ts';
+import { GROUP_HOMES_PATH, GROUPS_PATH, SESSIONS_PATH, TAGS_ROOT, VAR_DIRS } from '../../lib/paths.ts';
 
 /** Exactly what `ls /` shows once boot has finished. */
-const ROOT_ENTRIES = ['archive', 'dev', 'etc', 'home', 'tmp', 'usr', 'var'];
+const ROOT_ENTRIES = ['archive', 'dev', 'etc', 'groups', 'home', 'tmp', 'usr', 'var'];
 
 const testCtx = createTestContext({ boot: true });
 
@@ -33,7 +33,7 @@ Deno.test({
   const admin = await testCtx.server.createShellClient();
 
   try {
-    await t.step('the root holds exactly the seven regions', async () => {
+    await t.step('the root holds exactly the eight regions', async () => {
       assertEquals(await admin.execJson<string[]>('ls /'), [...ROOT_ENTRIES]);
     });
 
@@ -72,7 +72,7 @@ Deno.test({
     // As on Linux: the administrator's group may read the system tree but not write it, so adding
     // someone to `admin` does not let them change what every shell sources.
     await t.step('the system directories are 0755', async () => {
-      for (const path of ['/etc', '/var', '/usr', '/home', GROUPS_PATH, SESSIONS_PATH, ...VAR_DIRS]) {
+      for (const path of ['/etc', '/var', '/usr', '/home', GROUP_HOMES_PATH, GROUPS_PATH, SESSIONS_PATH, ...VAR_DIRS]) {
         const { mode } = await admin.execJson<{ mode: number }>(`props ${path}`);
         assertEquals(mode.toString(8), '755', path);
       }

@@ -961,6 +961,18 @@ ordinary directory the account owns (its own group, `0755`): `user-create` makes
 writes the home freely and none of the account. `user-update` lets an account change its own
 `name` and `description`, written as the administrator, as `user-passwd` lets it change its own
 password; everything else on it is the administrator's to change.
+
+A group may have a home too: `/groups/<group>`, which `group-home` makes (or `group-create
+--home`), the administrator's, in the group's gid and `0770` (`GROUP_HOME_MODE`). It is where
+the members keep what they have in common, and modules put a group's data there, such as its todo
+lists. `modeUnder` keeps everything made in it group-writable and closed to others however deep
+it goes, and reach hides it from everyone else, so `ls /groups` lists exactly the homes of the
+caller's groups. The groups boot makes for the system's own use have none, nor does an account's
+own group; `users`, everyone's, gets one at the first boot (`01_auth.sh`, which records that on
+`/groups` so that a home taken away stays away). `group-home --off` moves a home to the
+administrator's trash, and `group-delete` refuses while the group has one unless given
+`--remove-home`, which does the same, so what a group kept is never left without its group. As
+with anything a person may write, a member may change who else it is shared with.
 Sign-in — the shell's `login`, SSH and SFTP — takes a username or an account's e-mail address
 (`accountByLoginName`, `src/lib/auth/email.ts`): a name with `@` is the one account whose `email`
 attr it is, any other name is lower-cased, as usernames are (`accountNameProblem` in `@ein/api`
@@ -1224,6 +1236,7 @@ which is its own leaf so it can be imported without dragging core's graph behind
 ```
 /archive   albums/  people/  locations/  devices/  tracks/  tags/
 /home      <user>/ — staging, .chats/, .config, .bash_history, .password
+/groups    <group>/ — what a group's members share, for groups given a home
 /etc       bashrc  bashrc.d/  layout  environment  config  groups/  modules/  files/  init/  services/
 /var       logs/{system,metrics,services/}  sessions/  queues/  pools/  pipelines/  www/  lib/modules/
 /usr       bin/  lib/{core,ui}/  modules/  docs/

@@ -1,4 +1,5 @@
 mkdir -p "$HOMES_PATH"
+mkdir -p "$GROUP_HOMES_PATH"
 mkdir -p "$USERS_PATH"
 mkdir -p "$GROUPS_PATH"
 mkdir -p "$SESSIONS_PATH"
@@ -12,6 +13,14 @@ user-exists "$ADMIN_USERNAME" || user-create "$ADMIN_USERNAME" --uid "$ADMIN_UID
 user-exists "$GUEST_USERNAME" || user-create "$GUEST_USERNAME" --uid "$GUEST_UID" --title "Guest"
 
 group-is-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || group-add-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || true
+
+# Everyone signed in shares the home of `users`, the household's. Made once, as the attr on the
+# homes' directory records: an administrator who takes it away (group-home --off) does not get it
+# back at the next boot.
+if [ -z "$(JSON_OUTPUT=1 attrs "$GROUP_HOMES_PATH" | jq -r '.usersHomeMade // empty')" ]; then
+  [ -e "$GROUP_HOMES_PATH/$USERS_GROUPNAME" ] || group-home "$USERS_GROUPNAME"
+  attrs -s usersHomeMade=true "$GROUP_HOMES_PATH" >/dev/null
+fi
 
 # A new instance's admin password is set once boot is through
 # (src/init/admin-password.ts).

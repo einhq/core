@@ -6,6 +6,7 @@ import { groupAddMember } from './auth/group-add-member.ts';
 import { groupCreate } from './auth/group-create.ts';
 import { groupDelete } from './auth/group-delete.ts';
 import { groupExists } from './auth/group-exists.ts';
+import { groupHome } from './auth/group-home.ts';
 import { groupInfo } from './auth/group-info.ts';
 import { groupIsMember } from './auth/group-is-member.ts';
 import { groupList } from './auth/group-list.ts';
@@ -226,6 +227,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   groupCreate,
   groupDelete,
   groupExists,
+  groupHome,
   groupInfo,
   groupIsMember,
   groupList,

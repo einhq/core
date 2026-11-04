@@ -1,7 +1,8 @@
-import { Anchor, Avatar, Badge, Box, Button, Divider, Group, Stack, Textarea, TextInput } from '@mantine/core';
+import { Anchor, Avatar, Badge, Box, Button, Code, Divider, Group, Stack, Switch, Textarea, TextInput } from '@mantine/core';
 import { IconDeviceFloppy, IconTrash, IconUser } from '@tabler/icons-react';
 import { type FormEvent, Fragment, type ReactNode, useEffect, useState } from 'react';
-import type { GroupDeleted, GroupEntry, GroupRole, GroupUpdated, MembershipChanged, UserEntry } from '@ein/api';
+import type { GroupDeleted, GroupEntry, GroupHome, GroupRole, GroupUpdated, MembershipChanged, UserEntry } from '@ein/api';
+import { groupHomePath } from '@ein/paths';
 import { accountOption, displayName, isPersonalGroup, membershipOf } from '../../../lib/accounts.ts';
 import { describeNodeError } from '../../../lib/access.ts';
 import { countOf } from '../../../lib/count-of.ts';
@@ -47,9 +48,10 @@ const listOf = (items: ReactNode[]): ReactNode =>
   ));
 
 /**
- * One group, edited in place: its title and description, who is in it, and deleting it. Built-in
- * groups say what they are for and cannot be deleted; `everyone` lists nobody to add or remove,
- * since every account that signs in is in it.
+ * One group, edited in place: its title and description, who is in it, its shared home, and
+ * deleting it. Built-in groups say what they are for and cannot be deleted; `everyone` lists nobody
+ * to add or remove, since every account that signs in is in it. Only `everyone` of the built-in
+ * groups, and no account's own group, may have a home.
  */
 export function GroupPanel({ group, users, groups, run, onDeleted, onOpenUser }: GroupPanelProps) {
   const name = group.groupname;
@@ -75,6 +77,12 @@ export function GroupPanel({ group, users, groups, run, onDeleted, onOpenUser }:
       <Divider />
       <MembersSection group={group} users={users} run={run} onOpenUser={onOpenUser} />
       <Divider />
+      {(!group.role || group.role === 'everyone') && !owner && (
+        <>
+          <HomeSection group={group} run={run} />
+          <Divider />
+        </>
+      )}
       <DeleteSection group={group} users={users} groups={groups} run={run} onDeleted={onDeleted} />
     </Stack>
   );
@@ -223,6 +231,47 @@ function MembersSection({ group, users, run, onOpenUser }: SectionProps & { user
   );
 }
 
+function HomeSection({ group, run }: SectionProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const home = group.home ?? false;
+
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await run<GroupHome>(`group-home ${shq(group.groupname)}${on ? '' : ' --off'}`);
+    } catch (err) {
+      setError(describeNodeError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PanelSection
+      title='Shared home'
+      lead='A folder the members share and nobody else sees, where modules keep what the group has in common.'
+      error={error}
+      onDismiss={() => setError(null)}
+    >
+      <Switch
+        checked={home}
+        disabled={busy}
+        onChange={(event) => toggle(event.currentTarget.checked)}
+        label={home
+          ? (
+            <>
+              At <Code>{groupHomePath(group.groupname)}</Code>
+            </>
+          )
+          : 'No shared home'}
+        description={home ? 'Turning it off moves the folder to your trash.' : undefined}
+      />
+    </PanelSection>
+  );
+}
+
 function DeleteSection({ group, users, groups, run, onDeleted }: SectionProps & { users: UserEntry[]; groups: GroupEntry[]; onDeleted: () => void }) {
   const confirm = useInlineConfirm();
   const [busy, setBusy] = useState(false);
@@ -240,7 +289,9 @@ function DeleteSection({ group, users, groups, run, onDeleted }: SectionProps & 
     setBusy(true);
     setError(null);
     try {
-      const deleted = await run<GroupDeleted>(`group-delete ${shq(group.groupname)} --to=${shq(heir)}${primaryOf.length > 0 ? ' --force' : ''}`);
+      const deleted = await run<GroupDeleted>(
+        `group-delete ${shq(group.groupname)} --to=${shq(heir)}${primaryOf.length > 0 ? ' --force' : ''}${group.home ? ' --remove-home' : ''}`,
+      );
       notify({ message: `Deleted ${deleted.deleted}. ${countOf(deleted.owned, 'item', 'items')} passed to ${deleted.to}.`, color: 'green' });
       onDeleted();
     } catch (err) {
@@ -264,6 +315,7 @@ function DeleteSection({ group, users, groups, run, onDeleted }: SectionProps & 
           >
             Deleting {group.groupname} removes the group.{' '}
             {primaryOf.length > 0 && <>It is the primary group of {listOf(primaryOf.map(displayName))}; they go back to their own groups.{' '}</>}
+            {group.home && <>Its shared home goes to your trash.{' '}</>}
             What it owns passes to the group:
           </DeleteConfirm>
         )

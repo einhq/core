@@ -10,6 +10,7 @@
  *
  *   /archive  content — what the archive is *for*. Survives a reinstall.
  *   /home     one directory per user, theirs: staging, config, shell history.
+ *   /groups   one directory per group that has a home, its members': what they share.
  *   /etc      declared configuration and the accounts. Edited by a person or by `config publish`.
  *   /var      machine-owned mutable state. Rebuildable; nothing here is authored.
  *   /usr      code and read-only payload: core's commands and files, modules, the shipped guide.
@@ -67,6 +68,21 @@ export const isTrashPath = (path: string): boolean => {
   const inside = rest.slice(slash + 1);
   return inside === USER_TRASH_DIR || inside.startsWith(`${USER_TRASH_DIR}/`);
 };
+
+/**
+ * One directory per group given a home (`group-home`): `<GROUP_HOMES_PATH>/<groupname>`, where
+ * the group's members keep what they have in common.
+ */
+export const GROUP_HOMES_PATH = '/groups';
+
+/**
+ * A group home's mode: the group's members read and write it, nobody else sees it. What is made in
+ * it keeps the group's write (`modeUnder`), so it stays the whole group's however deep it goes.
+ */
+export const GROUP_HOME_MODE = 0o770;
+
+/** The home of the group `groupname`. */
+export const groupHomePath = (groupname: string): string => `${GROUP_HOMES_PATH}/${groupname}`;
 
 export const ETC_PATH = '/etc';
 /**
@@ -209,6 +225,7 @@ export const pathEnv = (): Record<string, string> => ({
   TAGS_PATH: TAGS_ROOT,
 
   HOMES_PATH,
+  GROUP_HOMES_PATH,
   ETC_PATH,
   USERS_PATH,
   GROUPS_PATH,

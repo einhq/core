@@ -1,6 +1,7 @@
 import { isLinkUid, LINK_UID_BASE } from '../../../../lib/access/mod.ts';
 import { accountNameProblem, type GroupCreated } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { GroupAttrs, NODE_TYPE_GROUP } from '../../../../vfs/types/group.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -8,6 +9,7 @@ import type { CmdReturn } from '../../types.ts';
 export const groupCreate = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
     string: ['gid', 'title', 'description'],
+    boolean: ['home'],
   });
   const name = flags._[0] as string | undefined;
   const title = flags.title;
@@ -93,6 +95,14 @@ export const groupCreate = async (cmd: Command): CmdReturn => {
 
     const groupPath = `${cmd.env.GROUPS_PATH}/${name}`;
 
+    if (flags.home) {
+      const home = await cmd.execute(`group-home ${shq(name)}`);
+      if (home.code !== 0) {
+        await cmd.writeError(home.stderr);
+        return 1;
+      }
+    }
+
     if (cmd.json) {
       await cmd.writeJSON({ groupname: name, gid, path: groupPath } satisfies GroupCreated);
     } else {
@@ -134,6 +144,11 @@ groupCreate.spec = {
       name: 'description',
       type: 'string' as const,
       description: 'description of the group',
+    },
+    {
+      name: 'home',
+      type: 'bool' as const,
+      description: 'give it a home its members share, as group-home does',
     },
   ],
 };

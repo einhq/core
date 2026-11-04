@@ -2,6 +2,8 @@ import { ADMIN_GID, ADMIN_GROUPNAME } from '../../../../lib/access/mod.ts';
 import type { GroupDeleted } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { groupRole } from '../../../../lib/auth/roles.ts';
+import { groupHomePath } from '../../../../lib/paths.ts';
+import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { GroupAttrs } from '../../../../vfs/types/group.ts';
 import { isUserNode, UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
@@ -9,7 +11,7 @@ import type { CmdReturn } from '../../types.ts';
 
 export const groupDelete = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    boolean: ['force'],
+    boolean: ['force', 'remove-home'],
     string: ['to'],
     alias: { f: 'force' },
   });
@@ -34,6 +36,14 @@ export const groupDelete = async (cmd: Command): CmdReturn => {
     const groupGid = group.attrs.gid;
     if (groupRole(groupname, groupGid)) {
       await cmd.writeError(`group delete: cannot delete the built-in group '${groupname}'\n`);
+      return 1;
+    }
+
+    // What the group kept in its home is never left behind unowned: it goes only when asked to.
+    const home = groupHomePath(groupname);
+    const hasHome = await cmd.sys.vfs.exists(cmd.access, home, { follow: false });
+    if (hasHome && !flags['remove-home']) {
+      await cmd.writeError(`group delete: '${groupname}' has a home at ${home}; take it away first (group-home --off) or pass --remove-home\n`);
       return 1;
     }
 
@@ -88,6 +98,14 @@ export const groupDelete = async (cmd: Command): CmdReturn => {
       }
     }
 
+    if (hasHome) {
+      const trashed = await cmd.execute(`group-home --off ${shq(groupname)}`);
+      if (trashed.code !== 0) {
+        await cmd.writeError(trashed.stderr);
+        return 1;
+      }
+    }
+
     // Before the group goes: a gid nothing names any more can be handed out again.
     const released = await cmd.sys.vfs.releaseOwner(cmd.access, { kind: 'gid', id: groupGid, to: heir.gid });
 
@@ -126,6 +144,11 @@ groupDelete.spec = {
       name: 'force',
       type: 'bool' as const,
       description: 'delete it even if it is a primary group; those users go back to their own group',
+    },
+    {
+      name: 'remove-home',
+      type: 'bool' as const,
+      description: "delete it even if it has a home, which goes to the administrator's trash",
     },
   ],
 };

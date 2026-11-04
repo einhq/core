@@ -1,6 +1,7 @@
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { memberNames } from '../../../../lib/auth/member-gids.ts';
 import { groupRole } from '../../../../lib/auth/roles.ts';
+import { groupHomePath } from '../../../../lib/paths.ts';
 import { GroupAttrs, isGroupNode } from '../../../../vfs/types/group.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -26,6 +27,7 @@ export const groupList = async (cmd: Command): CmdReturn => {
     };
 
     if (cmd.json) {
+      const homes = await Promise.all(groups.map((g) => cmd.sys.vfs.exists(cmd.access, groupHomePath(g.name), { follow: false })));
       const result = groups.map((g, index) => {
         const role = groupRole(g.name, g.node.attrs.gid);
         const members = membersAt(index);
@@ -36,6 +38,7 @@ export const groupList = async (cmd: Command): CmdReturn => {
           description: g.node.attrs.description,
           ...(role ? { role } : {}),
           ...(members ? { members } : {}),
+          home: homes[index],
         } satisfies GroupEntry;
       });
       await cmd.writeJSON(result);
@@ -57,7 +60,7 @@ export const groupList = async (cmd: Command): CmdReturn => {
 groupList.spec = {
   name: 'group-list',
   effect: 'read' as const,
-  description: "List the groups; as JSON with each one's description and built-in role",
+  description: "List the groups; as JSON with each one's description, built-in role and whether it has a home",
   args: [],
   flags: [
     {

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.10.4
+MODULE_API_VERSION 0.10.5
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -243,7 +243,7 @@ src/builtin/ui/src/client/hooks/mod.ts EntityCompleteHit 24f2e0f3bf7d
 src/builtin/ui/src/client/hooks/mod.ts EntityCompleteKind 7de7195b38df
 src/builtin/ui/src/client/hooks/mod.ts EnvReference 9b737204ba9f
 src/builtin/ui/src/client/hooks/mod.ts FILE_KINDS e59c52657c7b
-src/builtin/ui/src/client/hooks/mod.ts GroupEntry 5f0ce5411288 description=644be3c4d4da,gid=99f9950dc824,groupname=bb31fa69b640,members=36e62fba0671,role=46333138eed1,title=22df3e6ba489
+src/builtin/ui/src/client/hooks/mod.ts GroupEntry 14a43b127037 description=644be3c4d4da,gid=99f9950dc824,groupname=bb31fa69b640,home=63cf02f72c98,members=36e62fba0671,role=46333138eed1,title=22df3e6ba489
 src/builtin/ui/src/client/hooks/mod.ts HEADER_HEIGHT aa4a4a7de2a2
 src/builtin/ui/src/client/hooks/mod.ts INSTANCES_PATH 629098147f14
 src/builtin/ui/src/client/hooks/mod.ts Identities b67874916df5 groups=1d252e9371cd,users=c245b07bda3b
@@ -998,7 +998,8 @@ src/lib/api/mod.ts FlagCompleteType 7722fe07d737
 src/lib/api/mod.ts Gauge 3b4205244c4d label=af04505f402e,percent=805070862c71,service=8f8407357b77,value=5647ee15e4bf
 src/lib/api/mod.ts GroupCreated e6b0a3229d6b gid=99f9950dc824,groupname=bb31fa69b640,path=3fd20668ef6e
 src/lib/api/mod.ts GroupDeleted 7031666b3e22 acl=c7ffee0503ce,deleted=5b710ceef869,gid=99f9950dc824,owned=20065c00487e,to=bd9c65f3bbc6
-src/lib/api/mod.ts GroupEntry 5f0ce5411288 description=644be3c4d4da,gid=99f9950dc824,groupname=bb31fa69b640,members=36e62fba0671,role=46333138eed1,title=22df3e6ba489
+src/lib/api/mod.ts GroupEntry 14a43b127037 description=644be3c4d4da,gid=99f9950dc824,groupname=bb31fa69b640,home=63cf02f72c98,members=36e62fba0671,role=46333138eed1,title=22df3e6ba489
+src/lib/api/mod.ts GroupHome d2251c4192b7 gid=99f9950dc824,groupname=bb31fa69b640,home=199d9747b377,path=3fd20668ef6e
 src/lib/api/mod.ts GroupId 701cc16d35f7
 src/lib/api/mod.ts GroupMember 2ca6fbae3161 personPath=5ad26cc58ba7,title=22df3e6ba489,uid=af4adc33e4ac,username=02356e67b2c7
 src/lib/api/mod.ts GroupMemberPage 92d58fa88d12 members=e2496f975dfb,total=08c7a0b849b7
@@ -1148,6 +1149,8 @@ src/lib/paths.ts DOCS_PATH 629098147f14
 src/lib/paths.ts ETC_PATH 31d575916b24
 src/lib/paths.ts EVENTS_NODE_PATH 629098147f14
 src/lib/paths.ts GROUPS_PATH 629098147f14
+src/lib/paths.ts GROUP_HOMES_PATH bdf8d5d7e916
+src/lib/paths.ts GROUP_HOME_MODE e61089d43ed1
 src/lib/paths.ts HOMES_PATH 746b4931ff9f
 src/lib/paths.ts HOME_MODE e0be3aa873ed
 src/lib/paths.ts INIT_FILES_PATH 629098147f14
@@ -1186,6 +1189,7 @@ src/lib/paths.ts USR_PATH 390524eb5ec3
 src/lib/paths.ts VAR_DIRS a8af9cd57253
 src/lib/paths.ts VAR_PATH 34b2018592a4
 src/lib/paths.ts WWW_PATH 629098147f14
+src/lib/paths.ts groupHomePath 3228b2f06905 0|336e2b46aff6=336e2b46aff6,@signature=29bce71ca6f8
 src/lib/paths.ts homePath 35a498e165e2 0|336e2b46aff6=336e2b46aff6,@signature=a647865336fe
 src/lib/paths.ts isTrashPath 42ce360356f0 0|336e2b46aff6=336e2b46aff6,@signature=b2f51633f916
 src/lib/paths.ts pathEnv 71d19ae92ac9

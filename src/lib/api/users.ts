@@ -47,6 +47,8 @@ export type GroupEntry = {
    * list them. A user whose primary group it is belongs without a link and is not listed.
    */
   members?: string[];
+  /** `group-list`: whether it has a home at `/groups/<groupname>` (`group-home`) the caller can see. */
+  home?: boolean;
 };
 
 /**
@@ -73,6 +75,9 @@ export type UserCreated = {
 
 /** `group-create`: the new group. */
 export type GroupCreated = { groupname: string; gid: GroupId; path: string };
+
+/** `group-home`: the group's home, and whether the group has one now. */
+export type GroupHome = { groupname: string; gid: GroupId; path: string; home: boolean };
 
 /** `user-update`: the attrs it wrote. */
 export type UserUpdated = { username: string; updated: { name?: string; email?: string; description?: string } };

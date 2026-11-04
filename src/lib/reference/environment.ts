@@ -237,6 +237,7 @@ export const PATH_DESCRIPTIONS: Record<string, string> = {
   ARCHIVE_PATH: 'The archive: everything people put in and look at.',
   TAGS_PATH: 'Labels, one directory per label holding links to what carries it.',
   HOMES_PATH: 'One home directory per user, owned by the user.',
+  GROUP_HOMES_PATH: 'One shared home per group given one, which only its members see.',
   USERS_PATH: "The accounts: one user node per account, the administrator's.",
   ETC_PATH: 'System configuration: settings, groups, services, boot scripts.',
   GROUPS_PATH: 'Groups.',
