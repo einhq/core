@@ -9,7 +9,7 @@
  * Supported node types: directory, file, softlink
  */
 
-import { basename, join, normalize, relative } from '@std/path';
+import { basename, dirname, join, normalize, relative } from '@std/path';
 import { getMimeFromBuffer, getMimeFromExt, MIME_DEFAULT_TYPE, MIME_SAMPLE_BYTES } from '../../lib/media/mod.ts';
 import { Ownership, UserId } from '../../lib/mode/mod.ts';
 import { decodePathId as decodeId, encodePathId as encodeId } from '../path-id.ts';
@@ -33,6 +33,7 @@ import {
   type PathNode,
   type ResolvedNodeChain,
   Transaction,
+  type TreeEntry,
 } from '../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
 import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
@@ -581,6 +582,58 @@ export class FilesystemStore implements NodeStore {
       throw new Error('cannot delete the root directory');
     }
     await Deno.remove(entry.absolutePath, { recursive: true });
+  }
+
+  /**
+   * Synchronous host calls, one entry at a time: an awaited call waits for a turn of an event loop
+   * the rest of EiN keeps busy, many times what the write itself takes. A directory an entry
+   * needs is made with mode 0755; `chmod` gives each entry its mode whatever the umask.
+   */
+  async writeTree(
+    _uid: UserId,
+    id: NodeId,
+    entries: AsyncIterable<TreeEntry>,
+    written?: (files: number) => void | Promise<void>,
+  ): Promise<{ files: number; created: string[] }> {
+    const root = await this.findPathById(id);
+    if (!root.stat.isDirectory) {
+      throw new Error('parent is not a directory');
+    }
+
+    const created = new Set<string>();
+    const made = new Set<string>(['']);
+    const mkdirs = (relativePath: string): void => {
+      if (made.has(relativePath)) return;
+      const parent = dirname(relativePath);
+      mkdirs(parent === '.' ? '' : parent);
+      try {
+        Deno.mkdirSync(join(root.absolutePath, relativePath), { mode: 0o755 });
+        if (!relativePath.includes('/')) created.add(relativePath);
+      } catch (error) {
+        if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
+      }
+      made.add(relativePath);
+    };
+
+    let files = 0;
+    for await (const entry of entries) {
+      if (!entry.path.split('/').every(isEntryName)) {
+        throw new Error(`not a path within the directory: ${entry.path}`);
+      }
+      const path = join(root.absolutePath, entry.path);
+      if (entry.type === 'directory') {
+        mkdirs(entry.path);
+      } else {
+        const parent = dirname(entry.path);
+        mkdirs(parent === '.' ? '' : parent);
+        Deno.writeFileSync(path, entry.bytes, { createNew: true, mode: entry.mode });
+        if (!entry.path.includes('/')) created.add(entry.path);
+        files++;
+      }
+      Deno.chmodSync(path, entry.mode);
+      if (entry.type === 'file') await written?.(files);
+    }
+    return { files, created: [...created] };
   }
 }
 

@@ -1,6 +1,7 @@
 /**
  * FilesystemStore through LocalNodeVFS against a temp directory: listing, reads, writes,
- * softlinks, and ids derived from the path.
+ * softlinks, and ids derived from the path; a tree removed or written in one store call for an
+ * administrator, node by node for anyone else.
  */
 
 import { assertEquals, assertExists, assertRejects } from '@std/assert';
@@ -9,7 +10,7 @@ import { toText } from '@std/streams';
 import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
 import { RouterManager } from '../../../managers/router/mod.ts';
 import { DiskFileRegistry } from '../../../registries/file/mod.ts';
-import { LocalNodeVFS, NodeNotFoundError } from '../../../vfs/mod.ts';
+import { LocalNodeVFS, NodeNotFoundError, type TreeEntry } from '../../../vfs/mod.ts';
 import { FilesystemStore } from '../index.ts';
 
 async function setupTestDir(): Promise<string> {
@@ -314,6 +315,74 @@ Deno.test('FilesystemStore removes a directory recursively in one call for an ac
       await vfs.unlink(ADMIN_ACCESS, '/single.txt', '/', { recursive: true });
       await assertRejects(() => Deno.lstat(join(dir, 'single.txt')), Deno.errors.NotFound);
       assertEquals(trees, 1);
+    });
+
+    await sub.unsubscribe();
+  } finally {
+    await vfs.dispose();
+    await routerManager.dispose();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test('FilesystemStore writes a tree in one call for an access no check refuses', async (t) => {
+  const dir = await Deno.makeTempDir({ prefix: 'filesystem-store-write-' });
+  const routerManager = new RouterManager();
+  await routerManager.init();
+  routerManager.release();
+  const store = new FilesystemStore({ rootPath: dir });
+  const vfs = new LocalNodeVFS(store, routerManager, { file: new DiskFileRegistry({ rootPath: dir }) });
+  const writeTree = store.writeTree.bind(store);
+  let trees = 0;
+  store.writeTree = (...args) => {
+    trees++;
+    return writeTree(...args);
+  };
+  const created: string[] = [];
+  const bytes = (text: string) => new TextEncoder().encode(text);
+  const tree: TreeEntry[] = [
+    { type: 'file', path: 'bin/run', mode: 0o755, bytes: bytes('#!bash\necho run\n') },
+    { type: 'file', path: 'lib/a/b.ts', mode: 0o644, bytes: bytes('export const b = 1;\n') },
+    { type: 'directory', path: 'private', mode: 0o700 },
+    { type: 'file', path: 'top.txt', mode: 0o600, bytes: bytes('top') },
+  ];
+  const entries = async function* (list: TreeEntry[]) {
+    yield* list;
+  };
+  const modeOf = async (path: string) => (await Deno.stat(join(dir, path))).mode! & 0o777;
+
+  try {
+    await vfs.initialize();
+    const sub = await vfs.subscribe(() => ADMIN_ACCESS, (event) => {
+      created.push(event.path);
+    }, { eventTypes: ['created'] });
+
+    await t.step('the administrator: one writeTree, the nodes made in the directory announced', async () => {
+      await Deno.mkdir(join(dir, 'staged'));
+      const written: number[] = [];
+      assertEquals(await vfs.writeTree(ADMIN_ACCESS, '/staged', entries(tree), { written: (files) => void written.push(files) }), 3);
+      assertEquals(trees, 1);
+      assertEquals(written, [1, 2, 3]);
+      assertEquals(await Deno.readTextFile(join(dir, 'staged/lib/a/b.ts')), 'export const b = 1;\n');
+      assertEquals([await modeOf('staged/bin/run'), await modeOf('staged/private'), await modeOf('staged/top.txt')], [0o755, 0o700, 0o600]);
+      assertEquals(created.sort(), ['/staged/bin', '/staged/lib', '/staged/private', '/staged/top.txt']);
+    });
+
+    await t.step('a file there already, or a path out of the directory, fails it', async () => {
+      await assertRejects(() => vfs.writeTree(ADMIN_ACCESS, '/staged', entries([tree[3]])), Deno.errors.AlreadyExists);
+      await assertRejects(() => vfs.writeTree(ADMIN_ACCESS, '/staged', entries([{ type: 'directory', path: '../out', mode: 0o755 }])));
+      await assertRejects(() => Deno.lstat(join(dir, 'out')), Deno.errors.NotFound);
+    });
+
+    await t.step('anyone else: node by node, each node announced', async () => {
+      await Deno.mkdir(join(dir, 'mine'));
+      created.length = 0;
+      const owner = { uid: Deno.uid() ?? 0, gid: Deno.gid() ?? 0, gids: [Deno.gid() ?? 0] };
+      assertEquals(await vfs.writeTree(owner, '/mine', entries(tree)), 3);
+      assertEquals(trees, 3);
+      assertEquals(await Deno.readTextFile(join(dir, 'mine/bin/run')), '#!bash\necho run\n');
+      assertEquals([await modeOf('mine/bin/run'), await modeOf('mine/private'), await modeOf('mine/top.txt')], [0o755, 0o700, 0o600]);
+      assertEquals(created.length, 7);
     });
 
     await sub.unsubscribe();

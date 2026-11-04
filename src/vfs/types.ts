@@ -165,6 +165,14 @@ export type NodeTreeSpec<T extends NodeAttrs = NodeAttrs> = {
   children?: NodeTreeSpec[];
 };
 
+/**
+ * One entry of a `writeTree`: a file with its content or a directory, at a path relative to the
+ * directory written into (names joined by `/`), created with `mode`.
+ */
+export type TreeEntry =
+  | { type: 'file'; path: string; mode: number; bytes: Uint8Array }
+  | { type: 'directory'; path: string; mode: number };
+
 export type NodeResolveOptions = {
   /**
    * Don't follow any softlinks, treat softlink as ordinary nodes,

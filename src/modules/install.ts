@@ -12,7 +12,7 @@ import { type TarStreamEntry, UntarStream } from '@std/tar/untar-stream';
 import type { ModuleInstall } from '../lib/api/mod.ts';
 import type { Access } from '../lib/access/mod.ts';
 import { getMimeFromExt } from '../lib/media/mod.ts';
-import type { NodeVFS } from '../vfs/mod.ts';
+import type { NodeVFS, TreeEntry } from '../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../vfs/types/file.ts';
 import { MOD_JSON_NAME } from './types.ts';
@@ -130,18 +130,11 @@ const paxPath = (bytes: Uint8Array): string | undefined => {
 type Unpacked = { files: number; skipped: string[] };
 
 /**
- * How many files `unpackArchive` writes at once. A file is a handful of VFS calls, each waiting its
- * turn on an event loop the rest of EiN keeps busy: one file at a time is 20–35 a second on a busy
- * instance, and several at once share the waiting (ein/core#923).
- */
-const UNPACK_CONCURRENCY = 16;
-
-/**
  * Unpack a gzipped tar of a repository into `dest`, which must exist: the entries under its one top
- * directory, which a forge names after the repository. Directories and files are written with
- * their modes, so a command stays executable; symlinks and anything else are left out, and said.
- * A path that would leave `dest` is refused. Up to `UNPACK_CONCURRENCY` files are written at once;
- * `unpacked` is told the number of files in place after each.
+ * directory, which a forge names after the repository. Files are written with their modes, so a
+ * command stays executable, and directories with 0755; symlinks and anything else are left out,
+ * and said. A path that would leave `dest` is refused. The archive is written as it is read, with
+ * `vfs.writeTree`; `unpacked` is told the number of files in place after each.
  */
 export const unpackArchive = async (
   vfs: NodeVFS,
@@ -150,60 +143,22 @@ export const unpackArchive = async (
   dest: string,
   unpacked?: (files: number) => Promise<void>,
 ): Promise<Unpacked> => {
-  const parentOf = (relative: string): string => dirname(relative) === '.' ? '' : dirname(relative);
-  // Each directory is made once, by whichever file reaches it first; the others wait on that.
-  const made = new Map<string, Promise<void>>([['', Promise.resolve()]]);
-  const ensureDir = (relative: string): Promise<void> => {
-    let making = made.get(relative);
-    if (!making) {
-      making = ensureDir(parentOf(relative)).then(async () => {
-        await vfs.ensure(access, NODE_TYPE_DIRECTORY, join(dest, parentOf(relative)), basename(relative), { props: { mode: 0o755 } });
-      });
-      made.set(relative, making);
-    }
-    return making;
-  };
-
-  let files = 0;
-  const writing = new Set<Promise<void>>();
-  let failed: { error: unknown } | undefined;
-  const write = (relative: string, bytes: Uint8Array, mode: number): void => {
-    const done = (async () => {
-      await ensureDir(parentOf(relative));
-      await writeFile(vfs, access, join(dest, relative), bytes, mode);
-      files++;
-      await unpacked?.(files);
-    })().catch((error) => {
-      failed ??= { error };
-    }).finally(() => writing.delete(done));
-    writing.add(done);
-  };
-
   const skipped: string[] = [];
+  const files = await vfs.writeTree(access, dest, entriesOf(archive, skipped), { written: unpacked });
+  return { files, skipped };
+};
+
+/** The files and directories of a gzipped tar under its one top directory; what else it holds goes to `skipped`. */
+async function* entriesOf(archive: ReadableStream<Uint8Array>, skipped: string[]): AsyncGenerator<TreeEntry> {
   let nextPath: string | undefined;
   // The runtime types the stream's writable side as BufferSource, which a stream of bytes is.
   const gunzip = new DecompressionStream('gzip') as unknown as TransformStream<Uint8Array, Uint8Array>;
-  try {
-    for await (const entry of archive.pipeThrough(gunzip).pipeThrough(new UntarStream())) {
-      if (failed) {
-        await entry.readable?.cancel();
-        break;
-      }
-      await unpackEntry(entry);
-      while (writing.size >= UNPACK_CONCURRENCY) await Promise.race(writing);
-    }
-  } finally {
-    await Promise.all(writing);
-  }
-  if (failed) throw failed.error;
-  return { files, skipped };
-
-  async function unpackEntry(entry: TarStreamEntry): Promise<void> {
+  for await (const entry of archive.pipeThrough(gunzip).pipeThrough(new UntarStream())) {
     const type = entry.header.typeflag;
     if (type === 'g' || type === 'x') {
-      const bytes = entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();
+      const bytes = await bytesOf(entry);
       if (type === 'x') nextPath = paxPath(bytes);
-      return;
+      continue;
     }
     const path = nextPath ?? entry.path;
     nextPath = undefined;
@@ -212,7 +167,7 @@ export const unpackArchive = async (
     const relative = path.split('/').filter((part) => part && part !== '.').slice(1).join('/');
     if (!relative) {
       await entry.readable?.cancel();
-      return;
+      continue;
     }
     if (relative.split('/').includes('..') || path.startsWith('/')) {
       await entry.readable?.cancel();
@@ -220,13 +175,14 @@ export const unpackArchive = async (
     }
 
     if (type === '5') {
-      await ensureDir(relative);
+      yield { type: 'directory', path: relative, mode: 0o755 };
     } else if (type === '0' || type === '7') {
-      const bytes = entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();
-      write(relative, bytes, entry.header.mode & 0o777 || 0o644);
+      yield { type: 'file', path: relative, mode: entry.header.mode & 0o777 || 0o644, bytes: await bytesOf(entry) };
     } else {
       await entry.readable?.cancel();
       skipped.push(`${relative}: ${type === '2' ? 'a symlink' : `an entry of type '${type}'`}, not installed`);
     }
   }
-};
+}
+
+const bytesOf = async (entry: TarStreamEntry): Promise<Uint8Array> => entry.readable ? new Uint8Array(await new Response(entry.readable).arrayBuffer()) : new Uint8Array();

@@ -39,6 +39,7 @@ import {
   RenamedNode,
   RenameManyOptions,
   RenameMove,
+  TreeEntry,
   UnlinkTarget,
   UpdateManyOptions,
 } from './types.ts';
@@ -629,6 +630,27 @@ export interface NodeVFS extends ModuleVFS {
   dispose(): Promise<void>;
 
   isHealthy(): Promise<boolean>;
+
+  // ===== Bulk writes =====
+
+  /**
+   * Write files and directories into the directory `ref` from entries that may arrive as they are
+   * read, an archive unpacking. A file must not exist yet; a directory may, and is given the
+   * entry's mode. What was written before a failure stays. `written` is told the number of files
+   * in place after each.
+   *
+   * On a store whose hierarchy is a host directory, and for an access no check refuses, each entry
+   * is one host call and only the nodes made directly in `ref` are announced and audited, as
+   * created; otherwise node by node, each checked and announced.
+   *
+   * @returns the number of files written
+   */
+  writeTree(
+    access: Access,
+    ref: NodeReference,
+    entries: AsyncIterable<TreeEntry>,
+    opts?: NodeResolveOptions & { written?: (files: number) => void | Promise<void> },
+  ): Promise<number>;
 
   // ===== Work Pools: the worker's side =====
   /**

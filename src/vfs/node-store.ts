@@ -7,7 +7,7 @@ import { GroupId, Mode, Ownership, UserId } from '../lib/mode/mod.ts';
 import type { Access } from '../lib/access/types.ts';
 import type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeType } from './node.ts';
 import type { AggregateBucket, NodeAggregateQuery, NodeQuery, NodeQueryRow, ParentLink, ResolvedPath } from './query.ts';
-import { NodeAttrsUpdate, NodeChildEntry, NodePropsCreate, NodePropsUpdate } from './types.ts';
+import { NodeAttrsUpdate, NodeChildEntry, NodePropsCreate, NodePropsUpdate, TreeEntry } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
 import type { AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
 
@@ -435,6 +435,24 @@ export interface NodeStore {
    * that passes every check, as a node-by-node removal would check each directory within.
    */
   deleteTree?(uid: UserId, id: NodeId, tx?: Transaction): Promise<void>;
+
+  /**
+   * Write files and directories into a directory in one operation, for a store whose hierarchy is
+   * a host directory: each entry is a host call made as it arrives, none waiting its turn on the
+   * event loop. A file must not exist yet; a directory may, and is given the entry's mode. What was
+   * written before a failure stays.
+   *
+   * Optional; the VFS otherwise creates and writes node by node. It uses this only for an access
+   * that passes every check, as node-by-node creation would check each directory within.
+   *
+   * @returns the number of files written, and the names made directly in the directory
+   */
+  writeTree?(
+    uid: UserId,
+    id: NodeId,
+    entries: AsyncIterable<TreeEntry>,
+    written?: (files: number) => void | Promise<void>,
+  ): Promise<{ files: number; created: string[] }>;
 
   // ===== Hierarchy Writes (Optional) =====
   //

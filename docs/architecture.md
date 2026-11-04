@@ -108,7 +108,7 @@ graph LR
     LOCAL -->|"on top of NodeStore"| FEAT["+ mount management\n+ path resolution (softlinks)\n+ access control\n+ event emission\n+ ID-level locking"]
 ```
 
-**NodeVFS key methods:** `get`, `children`, `exists`, `resolvePath`, `create`, `createTree`, `ensure`, `update`, `updateMany`, `updateEach`, `rename`, `renameMany`, `link`, `unlink`, `unlinkMany`, `copy`, `open`, `stat`, `statX`, `query`, `aggregate`, `countWithin`, `findLinks`, `findLinksUnder`, `mount`, `unmount`, `subscribe`
+**NodeVFS key methods:** `get`, `children`, `exists`, `resolvePath`, `create`, `createTree`, `writeTree`, `ensure`, `update`, `updateMany`, `updateEach`, `rename`, `renameMany`, `link`, `unlink`, `unlinkMany`, `copy`, `open`, `stat`, `statX`, `query`, `aggregate`, `countWithin`, `findLinks`, `findLinksUnder`, `mount`, `unmount`, `subscribe`
 
 ### Event delivery
 
@@ -165,6 +165,12 @@ directories, files and links only; attrs are derived from what the other side re
 administrator uses instead of emptying it node by node: one recursive remove on the host, announced
 and audited as that directory's deletion alone. `mod install` removes the module tree it replaced
 this way, tens of thousands of files under `/var/lib/modules` in a second rather than minutes.
+Its `writeTree` is the other way: an administrator's `NodeVFS.writeTree` writes files and
+directories into a directory as they arrive, each with a synchronous host call, so none waits its
+turn on a busy event loop the way the handful of awaited calls behind a node-by-node create and
+write each do; only the nodes made directly in the directory are announced and audited. Anyone
+else's, or one into another store, goes node by node, 16 files at a time. `mod install` unpacks a
+module's archive this way, at the speed the archive is read.
 
 `mount <path> sftp "host=…,user=…,path=…"` builds an `SftpStore` and an `SftpFileRegistry` over one
 shared `SftpConnection` (`src/lib/ssh/sftp-connection.ts`): opened lazily, reopened after a drop

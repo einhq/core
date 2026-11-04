@@ -13,7 +13,7 @@ import type { RelationAttrs } from '../lib/api/relation.ts';
 import { isAdmin, verifyAccess } from '../lib/access/verify-access.ts';
 import { IdLockManager } from '../lib/async/mod.ts';
 import { globToRegex } from '../lib/glob/mod.ts';
-import { getMimeFromBuffer, isUntypedMimetype } from '../lib/media/mime.ts';
+import { getMimeFromBuffer, getMimeFromExt, isUntypedMimetype } from '../lib/media/mime.ts';
 import { GroupId, Ownership, UserId } from '../lib/mode/mod.ts';
 import { createLogger } from '../managers/logger/mod.ts';
 import { RouterManagerIf } from '../managers/router/mod.ts';
@@ -44,7 +44,7 @@ import { NODE_TYPE_POSITION } from './types/position.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
-import { NODE_TYPE_FILE } from './types/file.ts';
+import { type FileAttrs, NODE_TYPE_FILE } from './types/file.ts';
 import { NODE_TYPE_POOL } from './types/pool.ts';
 import { NODE_TYPE_QUEUE } from './types/queue.ts';
 import {
@@ -96,6 +96,7 @@ import {
   RenamedNode,
   RenameManyOptions,
   RenameMove,
+  TreeEntry,
   UnlinkTarget,
   UpdateManyOptions,
   VfsRegistries,
@@ -105,6 +106,13 @@ import type { IndexDecl } from '../lib/contributions/types.ts';
 
 /** Admin passes every check `verifyAccess` makes, so reachability need not be computed for it. */
 const bypassesAccess = isAdmin;
+
+/**
+ * How many files a `writeTree` node by node writes at once. A file is a handful of VFS calls, each
+ * waiting its turn on an event loop the rest of EiN keeps busy, and several at once share the
+ * waiting (ein/core#923).
+ */
+const WRITE_TREE_CONCURRENCY = 16;
 
 /** Whom a store counts an aggregate for: nobody in particular for an administrator. */
 const readerOf = (access: Access): { reader?: Access } => bypassesAccess(access) ? {} : { reader: access };
@@ -2752,6 +2760,112 @@ export class LocalNodeVFS implements NodeVFS {
     }
 
     return nodes;
+  }
+
+  async writeTree(
+    access: Access,
+    ref: NodeReference,
+    entries: AsyncIterable<TreeEntry>,
+    opts?: NodeResolveOptions & { written?: (files: number) => void | Promise<void> },
+  ): Promise<number> {
+    const entry = await this.resolveEntry(access, ref, opts);
+
+    this.assertMountWritable(entry);
+
+    if (entry.vfs !== this) {
+      return await entry.vfs.writeTree(access, entry, entries, opts);
+    }
+
+    const dir = await this.store.getNode(entry.id);
+    if (dir.type !== NODE_TYPE_DIRECTORY) throw new NodeInvalidOperationError(`'${entry.absPath || entry.vfsAbsPath}' is not a directory`);
+
+    const mounted = this.mountpoints.some((m) => isPathWithin(m.point.vfsAbsPath, entry.vfsAbsPath));
+    if (!this.store.writeTree || !bypassesAccess(access) || mounted) {
+      return await this.writeTreeByNode(access, entry.vfsAbsPath, entries, opts?.written);
+    }
+
+    const { files, created } = await this.store.writeTree(access.uid, entry.id, entries, opts?.written);
+    if (created.length > 0) {
+      await this.withTransaction([entry.id], async (mut) => {
+        const children = new Map((await this.store.getChildren(entry.id, undefined, mut.tx)).map((child) => [child.name, child.node]));
+        for (const name of created) {
+          const node = children.get(name);
+          if (!node) continue;
+          const path = join(entry.vfsAbsPath, name);
+          this.declareWrite(mut, node.type);
+          mut.emit('created', path, node, undefined, access.uid);
+          mut.audit(access, { op: 'create', node, path });
+        }
+        mut.emit('child-attached', entry.vfsAbsPath, dir, undefined, access.uid);
+      });
+    }
+    return files;
+  }
+
+  /**
+   * `writeTree` through this VFS's own calls, each checked and announced. Up to
+   * `WRITE_TREE_CONCURRENCY` files are written at once, and a directory is made once, by whichever
+   * entry reaches it first. A failed write fails the whole once the others under way have ended.
+   */
+  private async writeTreeByNode(
+    access: Access,
+    dir: NodePath,
+    entries: AsyncIterable<TreeEntry>,
+    written?: (files: number) => void | Promise<void>,
+  ): Promise<number> {
+    const parentOf = (path: string): string => dirname(path) === '.' ? '' : dirname(path);
+    const made = new Map<string, Promise<unknown>>([['', Promise.resolve()]]);
+    const ensureDir = (path: string): Promise<unknown> => {
+      let making = made.get(path);
+      if (!making) {
+        making = ensureDir(parentOf(path)).then(() => this.ensure(access, NODE_TYPE_DIRECTORY, join(dir, parentOf(path)), basename(path), { props: { mode: 0o755 } }));
+        made.set(path, making);
+      }
+      return making;
+    };
+    const writeFile = async (path: string, bytes: Uint8Array, mode: number): Promise<void> => {
+      const parent = join(dir, parentOf(path));
+      const name = basename(path);
+      const attrs: FileAttrs = { name, mimetype: await getMimeFromExt(name), size: bytes.length };
+      await this.create<FileAttrs>(access, NODE_TYPE_FILE, parent, name, { props: { mode }, attrs });
+      const handle = await this.open(access, join(parent, name), { mode: 'w' });
+      try {
+        await handle.write(bytes);
+      } finally {
+        await handle.close();
+      }
+    };
+
+    let files = 0;
+    const writing = new Set<Promise<void>>();
+    let failed: { error: unknown } | undefined;
+    try {
+      for await (const entry of entries) {
+        if (failed) break;
+        if (entry.path.split('/').some((name) => name === '' || name === '.' || name === '..')) {
+          throw new NodeInvalidOperationError(`not a path within the directory: ${entry.path}`);
+        }
+        if (entry.type === 'directory') {
+          await ensureDir(entry.path);
+          await this.update(access, join(dir, entry.path), { props: { mode: entry.mode } });
+          continue;
+        }
+        const done = (async () => {
+          await ensureDir(parentOf(entry.path));
+          await writeFile(entry.path, entry.bytes, entry.mode);
+          files++;
+          await written?.(files);
+        })().catch((error) => {
+          failed ??= { error };
+        }).finally(() => writing.delete(done));
+        writing.add(done);
+        while (writing.size >= WRITE_TREE_CONCURRENCY) await Promise.race(writing);
+      }
+    } finally {
+      await Promise.all(writing);
+    }
+    if (failed) throw failed.error;
+    return files;
   }
 
   /** `get`, but a missing node is `undefined` rather than a throw. */
