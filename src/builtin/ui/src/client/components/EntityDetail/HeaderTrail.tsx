@@ -2,7 +2,7 @@ import { Anchor, Breadcrumbs, Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 
 /** One step of a `HeaderTrail`: its label and the route it opens. */
-export type TrailStep = { label: string; to: string };
+type TrailStep = { label: string; to: string };
 
 /**
  * Where a page stands under the pages that lead to it, each a link, for a header's `eyebrow`: above
