@@ -5,6 +5,7 @@
  */
 
 import { assertEquals, assertMatch } from '@std/assert';
+import { waitFor } from '../../../../registries/test/relay-wait.ts';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
 
 const testCtx = createTestContext();
@@ -145,8 +146,10 @@ Deno.test({
       await cmd.shouldSucceed(`mount ${base}/plain memory && mount ${base}/quiet memory nopublish`);
       try {
         await cmd.shouldSucceed(`echo a > ${base}/quiet/note.txt && echo b > ${base}/plain/note.txt`);
-        const queued = await client.execJson<{ items: { data: { path: string } }[] }>(`queue-peek ${base}/q`);
-        assertEquals(queued.items.map((item) => item.data.path), [`${base}/plain/note.txt`]);
+        const queued = async () => (await client.execJson<{ items: { data: { path: string } }[] }>(`queue-peek ${base}/q`)).items.map((item) => item.data.path);
+        // The events reach the queue after the writes return; quiet's, written first, would be there by plain's
+        await waitFor(async () => (await queued()).length > 0);
+        assertEquals(await queued(), [`${base}/plain/note.txt`]);
       } finally {
         await client.exec(`unmount ${base}/plain; unmount ${base}/quiet`);
       }

@@ -22,6 +22,25 @@ async function setupTestDir(): Promise<string> {
   return dir;
 }
 
+/** An ordinary signed-in user, neither the administrator nor the guest. */
+const OWNER = { uid: 2000, gid: 2000, gids: [2000] };
+
+/**
+ * Runs `fn` with the host's files reading as `OWNER`'s. The store gives a node its host owner, and
+ * whoever runs the tests may be an account EiN treats apart: root is the administrator, and uid
+ * 1001, GitHub's runner, is the guest, who never writes.
+ */
+async function asOwner<T>(fn: () => Promise<T>): Promise<T> {
+  const deno = Deno as { lstat: typeof Deno.lstat };
+  const lstat = deno.lstat;
+  deno.lstat = async (path) => ({ ...(await lstat(path)), uid: OWNER.uid, gid: OWNER.gid });
+  try {
+    return await fn();
+  } finally {
+    deno.lstat = lstat;
+  }
+}
+
 Deno.test('FilesystemStore', async (t) => {
   const testDir = await setupTestDir();
 
@@ -303,8 +322,7 @@ Deno.test('FilesystemStore removes a directory recursively in one call for an ac
     await t.step('anyone else: node by node, each directory checked and each name announced', async () => {
       await tree('mine');
       deleted.length = 0;
-      const owner = { uid: Deno.uid() ?? 0, gid: Deno.gid() ?? 0, gids: [Deno.gid() ?? 0] };
-      await vfs.unlink(owner, '/mine', '/', { recursive: true });
+      await asOwner(() => vfs.unlink(OWNER, '/mine', '/', { recursive: true }));
       await assertRejects(() => Deno.lstat(join(dir, 'mine')), Deno.errors.NotFound);
       assertEquals(trees, 1);
       assertEquals(deleted.length, 9);
@@ -377,8 +395,7 @@ Deno.test('FilesystemStore writes a tree in one call for an access no check refu
     await t.step('anyone else: node by node, each node announced', async () => {
       await Deno.mkdir(join(dir, 'mine'));
       created.length = 0;
-      const owner = { uid: Deno.uid() ?? 0, gid: Deno.gid() ?? 0, gids: [Deno.gid() ?? 0] };
-      assertEquals(await vfs.writeTree(owner, '/mine', entries(tree)), 3);
+      assertEquals(await asOwner(() => vfs.writeTree(OWNER, '/mine', entries(tree))), 3);
       assertEquals(trees, 3);
       assertEquals(await Deno.readTextFile(join(dir, 'mine/bin/run')), '#!bash\necho run\n');
       assertEquals([await modeOf('mine/bin/run'), await modeOf('mine/private'), await modeOf('mine/top.txt')], [0o755, 0o700, 0o600]);

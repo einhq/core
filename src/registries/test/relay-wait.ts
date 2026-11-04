@@ -1,5 +1,5 @@
 /**
- * Waiting for a relayed event, for the registry conformance suites.
+ * Waiting for a relayed event, for the registry conformance suites and the command tests.
  *
  * Relay delivery is fire-and-forget, and in the PostgreSQL registries a pooled query per event, so
  * a fixed sleep sized for one message is not a sound wait for several arriving over a contended
