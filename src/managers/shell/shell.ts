@@ -2469,7 +2469,11 @@ export class Shell implements TtyIf {
       });
       const dest = this.pipeToHandle(pipe);
 
-      await src.readable.pipeTo(dest.writable);
+      try {
+        await src.readable.pipeTo(dest.writable);
+      } finally {
+        await src.close();
+      }
     } catch (err) {
       // The command reading the file has ended: there is nobody left to copy it to.
       if (err instanceof BrokenPipeError) {
@@ -2527,16 +2531,13 @@ export class Shell implements TtyIf {
         mode: append ? 'a+' : 'w+',
       });
 
-      await src.readable.pipeTo(dest.writable);
-
-      // Sync the size attr and emit an updated event: consumers react to node
-      // events, not to raw registry writes. Only file nodes carry a size attr.
-      const node = await this.config.vfs.get(access, abspath);
-      if (node.type === NODE_TYPE_FILE) {
-        const stat = await this.config.vfs.stat(access, abspath);
-        await this.config.vfs.update<FileAttrs>(access, abspath, {
-          attrs: { size: Number(stat.size ?? 0) },
-        });
+      // Closing the handle is what records the write on the node — size,
+      // sha256, writtenAt — and emits its updated event. Closing the writable
+      // stream does not close the handle.
+      try {
+        await src.readable.pipeTo(dest.writable);
+      } finally {
+        await dest.close();
       }
     } catch (err) {
       // The entry guard above only covers the state on entry. vfs.ensure and

@@ -374,13 +374,17 @@ is kept **only for a write that starts from an empty file and stays sequential**
 or any open of a file that was empty (an SFTP client creating with `EXCL` sends no `TRUNC`). A seek
 landing exactly where the digest already ends does not count as movement — that is the SFTP write
 path, which addresses every packet by offset and so seeks before each one, and treating those as
-movement would make every upload blind on its first packet. Real movement (a rewind, an append to or
-a read-write open of a non-empty file) falls back to reading the finished bytes back at close (`statX`, which streams and hashes) — one extra
-read on the uncommon path, so that `attrs.sha256` is present after _every_ write rather than only
-after sequential ones. Intermediate flushes on that path report `null`, clearing the attr until the
-read-back replaces it; clearing rather than keeping the old value is deliberate, since a stale hash
-would make `duplicates` group unrelated files and make the ETag serve the wrong bytes, and a process
-that dies mid-write should leave no hash rather than a wrong one.
+movement would make every upload blind on its first packet. Real movement (a rewind, or a
+read-write open of a non-empty file) falls back to reading the finished bytes back at close (`statX`,
+which streams and hashes) — one extra read on the uncommon path. **An append to a non-empty file is
+not read back** and ends with no hash: it is the one blind write that is routine (`echo line >> log`,
+a file grown a line at a time), and a read-back would read the whole file for every line added. A
+file that only grows is not what `duplicates` or an ETag are for, `exif-extract` measures a missing
+hash when a media file is indexed (below), and the next truncating write hashes it again. Flushes on a
+blind write report `null`, clearing the attr until a read-back replaces it, if one comes; clearing
+rather than keeping the old value is deliberate, since a stale hash would make `duplicates` group
+unrelated files and make the ETag serve the wrong bytes, and a process that dies mid-write should
+leave no hash rather than a wrong one.
 
 Bytes that never pass through the VFS at all cannot be hashed as they go: the legacy import symlinks
 them into the file store and takes `size` off the dump, and an external tool writes a host path

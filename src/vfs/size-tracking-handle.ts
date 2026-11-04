@@ -23,16 +23,20 @@ import { MIME_SAMPLE_BYTES } from '../lib/media/mime.ts';
  * A streaming hash is only correct when the handle sees the whole file in
  * order, so it is kept **only for a write that starts from an empty file and
  * never seeks**: a truncating open, or any open of a file that was empty (an
- * SFTP client that creates with `EXCL` sends no `TRUNC`). An append to, or a
- * read-write open of, a non-empty file, or a seek, means the bytes on disk are
- * not the bytes that went past. Rather than leave the file with no hash, the
- * digest is then read back from the finished bytes at close (`statX`, which
- * streams and hashes) — one extra read, on the uncommon path, in exchange for
- * `attrs.sha256` being present after *every* write rather than only after
- * sequential ones.
+ * SFTP client that creates with `EXCL` sends no `TRUNC`). A read-write open of
+ * a non-empty file, or a seek, means the bytes on disk are not the bytes that
+ * went past. Rather than leave the file with no hash, the digest is then read
+ * back from the finished bytes at close (`statX`, which streams and hashes) —
+ * one extra read, on the uncommon path.
  *
- * Intermediate flushes on that path report `null`, clearing the attr until the
- * read-back replaces it. Clearing rather than leaving the old value is
+ * **An append to a non-empty file is not read back**, and ends with no hash.
+ * It is the one blind write that is routine — a shell's `echo line >> log`, a
+ * log written a line at a time — and a read-back would read the whole file to
+ * add each line to it. A file that only ever grows is not what `duplicates` or
+ * an ETag are for; the next truncating write hashes it again.
+ *
+ * Flushes on a blind write report `null`, clearing the attr until a read-back
+ * replaces it, if one comes. Clearing rather than leaving the old value is
  * deliberate: a stale hash makes `duplicates` group unrelated files and makes
  * the ETag serve the wrong bytes, so if the process dies mid-write, no hash is
  * the safe thing to be left with.
@@ -71,6 +75,8 @@ export class SizeTrackingHandle implements ResourceHandleIf {
    */
   #head: Uint8Array | undefined;
   #headLength: number;
+  /** Opened to append to a non-empty file: a blind write that is never read back. */
+  #appending: boolean;
 
   constructor(
     private inner: ResourceHandleIf,
@@ -90,6 +96,7 @@ export class SizeTrackingHandle implements ResourceHandleIf {
     this.#everWrote = false;
     this.#head = fromEmpty ? new Uint8Array(MIME_SAMPLE_BYTES) : undefined;
     this.#headLength = 0;
+    this.#appending = modeFlags(inner.mode).append && !fromEmpty;
   }
 
   /** The bytes on disk are no longer the bytes that went past — stop claiming a hash. */
@@ -137,12 +144,13 @@ export class SizeTrackingHandle implements ResourceHandleIf {
    * as it went reads the finished bytes back instead of giving up on the attr.
    *
    * Skipped entirely when the streaming digest is still good, which is the
-   * common case and costs nothing. It deliberately does not go through
+   * common case and costs nothing, and for an append (see the class comment),
+   * which reports `null` instead. It deliberately does not go through
    * `report`'s "nothing changed since the last flush" check: on this path an
    * earlier flush cleared the attr, and only the read-back can put a value back.
    */
   private async reportFinal(size: number): Promise<void> {
-    if (this.#hasher || !this.#everWrote) return await this.report(size);
+    if (this.#hasher || !this.#everWrote || this.#appending) return await this.report(size);
 
     let digest: string | null = null;
     try {

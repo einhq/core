@@ -151,10 +151,10 @@ Deno.test('write-time sha256', async (t) => {
     assertEquals((await vfs.get(ADMIN_ACCESS, '/back.bin')).attrs.sha256, sha256Hex(enc.encode('abZZef')));
   });
 
-  await t.step('an append ends with the digest of the whole file, not of the appended part', async () => {
+  await t.step('an append to a non-empty file ends with no digest rather than reading the file back', async () => {
     // Only the appended bytes go past the handle, so the streaming digest would
-    // be the digest of a file that does not exist. Close reads the finished
-    // bytes back instead — the file still ends up hashed.
+    // be the digest of a file that does not exist, and reading the file back
+    // would cost the whole file per append. The old digest is cleared, not kept.
     await mkfile(vfs, 'f.bin');
     const w = await vfs.open(ADMIN_ACCESS, '/f.bin', { mode: 'w' });
     await w.write(enc.encode('base'));
@@ -167,8 +167,16 @@ Deno.test('write-time sha256', async (t) => {
 
     const node = await vfs.get(ADMIN_ACCESS, '/f.bin');
     assertEquals(node.attrs.size, 9);
-    assertEquals(node.attrs.sha256, sha256Hex(enc.encode('base-more')));
-    assertNotEquals(node.attrs.sha256, sha256Hex(enc.encode('-more')), 'not the digest of just the appended bytes');
+    assertEquals(node.attrs.sha256 ?? null, null);
+  });
+
+  await t.step('an append to an empty file hashes as it goes', async () => {
+    await mkfile(vfs, 'fe.bin');
+    const a = await vfs.open(ADMIN_ACCESS, '/fe.bin', { mode: 'a' });
+    await a.write(enc.encode('first'));
+    await a.close();
+
+    assertEquals((await vfs.get(ADMIN_ACCESS, '/fe.bin')).attrs.sha256, sha256Hex(enc.encode('first')));
   });
 
   await t.step('a seek during a write ends with the digest of what is on disk', async () => {
@@ -182,7 +190,7 @@ Deno.test('write-time sha256', async (t) => {
     assertEquals((await vfs.get(ADMIN_ACCESS, '/g.bin')).attrs.sha256, sha256Hex(enc.encode('Zbcdef')));
   });
 
-  await t.step('an append that syncs before closing still gets its read-back', async () => {
+  await t.step('a read-write write that syncs before closing still gets its read-back', async () => {
     // The sync clears the attr and resets the dirty flag, so "nothing changed
     // since the last flush" is true at close — but the attr is null and only the
     // read-back can put a value back. Decided on whether the handle ever wrote,
@@ -192,13 +200,13 @@ Deno.test('write-time sha256', async (t) => {
     await w.write(enc.encode('start'));
     await w.close();
 
-    const a = await vfs.open(ADMIN_ACCESS, '/j.bin', { mode: 'a' });
-    await a.write(enc.encode('-end'));
-    await a.sync();
+    const rw = await vfs.open(ADMIN_ACCESS, '/j.bin', { mode: 'r+' });
+    await rw.write(enc.encode('S'));
+    await rw.sync();
     assertEquals((await vfs.get(ADMIN_ACCESS, '/j.bin')).attrs.sha256 ?? null, null, 'cleared mid-write');
-    await a.close();
+    await rw.close();
 
-    assertEquals((await vfs.get(ADMIN_ACCESS, '/j.bin')).attrs.sha256, sha256Hex(enc.encode('start-end')));
+    assertEquals((await vfs.get(ADMIN_ACCESS, '/j.bin')).attrs.sha256, sha256Hex(enc.encode('Start')));
   });
 
   await t.step('a read-write open that writes nothing leaves the hash alone', async () => {
