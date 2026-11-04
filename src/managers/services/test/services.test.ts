@@ -61,6 +61,12 @@ Deno.test({
       assertStringIncludes(list, 'fixture-svc');
     });
 
+    await t.step('service-list says core ships its own services and nobody this hand-added one', async () => {
+      const services = await client.execJson<ServiceEntry[]>('service-list');
+      assertEquals(services.find((service) => service.name === 'tmp-sweeper')?.module, 'core');
+      assertEquals(services.find((service) => service.name === 'fixture-svc')?.module, undefined);
+    });
+
     await t.step('service add is idempotent and can re-point the service', async () => {
       await cmd.shouldSucceed('service add fixture-svc /opt/fixture-svc');
 

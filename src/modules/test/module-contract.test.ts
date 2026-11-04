@@ -10,6 +10,7 @@ import { MOD_PATH, PIPELINE_DEFINITIONS_PATH, SERVICES_PATH, WWW_PATH } from '..
 import { assertEquals, assertStringIncludes } from '@std/assert';
 import { join } from '@std/path';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
+import type { ServiceEntry } from '../../lib/api/system.ts';
 import { ADMIN_UID, USERS_GID } from '../../lib/access/constants.ts';
 import { SystemTestHarness, testCommands } from '../../testing/mod.ts';
 
@@ -145,6 +146,9 @@ Deno.test({
 
       const status = await client.execJson<{ enabled: boolean }>('service status fixture-svc');
       assertEquals(status.enabled, true);
+
+      const services = await client.execJson<ServiceEntry[]>('service-list');
+      assertEquals(services.find((service) => service.name === 'fixture-svc')?.module, 'mod-fixture');
 
       await cmd.shouldSucceed('service start fixture-svc');
       const running = await client.execString('service status fixture-svc');

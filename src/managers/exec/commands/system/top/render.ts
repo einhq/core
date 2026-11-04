@@ -484,11 +484,13 @@ const servicePanel = (data: TopData, now: number): Panel => {
       if (services.length === 0) {
         content = [dimRow('no services')];
       } else if (services.length <= height - 2) {
-        // A line each: how long it has run, and what it says about itself.
+        // A line each: who ships it, how long it has run, and what it says about itself.
         const nameWidth = Math.min(24, Math.max(...services.map((service) => textWidth(service.name))));
+        const moduleWidth = Math.min(14, Math.max(...services.map((service) => textWidth(service.module ?? ''))));
         content = services.map((service) => [
           ...serviceMark(service),
           span(padEnd(cut(service.name, nameWidth), nameWidth + 2), service.status === 'running' ? '' : STYLE.dim),
+          ...(moduleWidth > 0 ? [span(padEnd(cut(service.module ?? '', moduleWidth), moduleWidth + 1), STYLE.dim)] : []),
           span(padStart(service.startedAt ? fmtAge(now - service.startedAt) : '', 6), STYLE.dim),
           ...restarts(service),
           ...(service.detail ? [span('  ' + service.detail, STYLE.dim)] : []),

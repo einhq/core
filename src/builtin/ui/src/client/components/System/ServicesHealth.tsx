@@ -45,6 +45,9 @@ export const SERVICE_STATUS_COLOR: Record<string, string> = {
  * the CPU at a fifth of its rate — is the only thing on this row worth reading,
  * and a static description is the least.
  *
+ * The module column says who ships each service, so a name like `media-worker` leads to the module
+ * whose documentation explains it; a dash is a service an administrator added by hand.
+ *
  * Starting and stopping a service is the administrator's, so only they get the controls.
  */
 export function ServicesHealth({ services, onChanged }: Props) {
@@ -100,6 +103,15 @@ export function ServicesHealth({ services, onChanged }: Props) {
         ? <Text c='dimmed'>No services</Text>
         : (
           <Table striped highlightOnHover verticalSpacing='xs'>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Service</Table.Th>
+                <Table.Th>Module</Table.Th>
+                <Table.Th />
+                <Table.Th ta='right'>Status</Table.Th>
+                {admin && <Table.Th />}
+              </Table.Tr>
+            </Table.Thead>
             <Table.Tbody>
               {rows.map((service) => (
                 <Table.Tr key={service.name}>
@@ -114,6 +126,10 @@ export function ServicesHealth({ services, onChanged }: Props) {
                         )
                         : service.description && <Text size='xs' c='dimmed'>{service.description}</Text>}
                     </Stack>
+                  </Table.Td>
+
+                  <Table.Td style={{ width: 120, whiteSpace: 'nowrap' }}>
+                    <Text size='sm' c='dimmed'>{service.module ?? '—'}</Text>
                   </Table.Td>
 
                   <Table.Td ta='right' style={{ width: 110, whiteSpace: 'nowrap' }}>

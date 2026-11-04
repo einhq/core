@@ -1,5 +1,8 @@
+import { join } from '@std/path';
+import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import type { ServiceEntry } from '../../../../lib/api/system.ts';
+import { ETC_PATH, LIB_PATH, MOD_PATH, SERVICES_PATH } from '../../../../lib/paths.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -66,10 +69,54 @@ const serviceDetails = async (cmd: Command, services: { name: string; statusComm
   return details;
 };
 
-/** Every registered service; with `detail`, each running one's own status line too. */
+/**
+ * Who ships each service, by where its registration links: `core` for core's own `services/`, the
+ * module's name for `<MOD_PATH>/<module>/services/`, directly or through the wrapper `mod setup`
+ * makes for a single-script service, whose `start.sh` is then the link. It is the ownership
+ * `mod setup` retires services by. A service linked from anywhere else has no owner.
+ *
+ * Read with the access the manager lists services with: whoever may see a service may see where
+ * it comes from.
+ */
+const serviceModules = async (cmd: Command, names: string[]): Promise<Map<string, string>> => {
+  const available = join(cmd.env.SERVICES_PATH || SERVICES_PATH, 'available');
+  const wrapperRoot = join(cmd.env.ETC_PATH || ETC_PATH, 'service-scripts');
+  const coreServices = `${join(cmd.env.LIB_PATH || LIB_PATH, 'core', 'services')}/`;
+  const modulesRoot = `${cmd.env.MOD_PATH || MOD_PATH}/`;
+
+  const linkAt = async (path: string): Promise<string | undefined> => {
+    try {
+      const node = await cmd.sys.vfs.get(ADMIN_ACCESS, path, { follow: false });
+      return typeof node.props.softlink === 'string' ? node.props.softlink : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const owners = new Map<string, string>();
+  await Promise.all(names.map(async (name) => {
+    let target = await linkAt(join(available, name));
+    if (target === join(wrapperRoot, name)) target = await linkAt(join(target, 'start.sh'));
+    if (!target) return;
+
+    if (target.startsWith(coreServices)) {
+      owners.set(name, 'core');
+    } else if (target.startsWith(modulesRoot)) {
+      const [module, directory] = target.slice(modulesRoot.length).split('/');
+      if (directory === 'services') owners.set(name, module);
+    }
+  }));
+
+  return owners;
+};
+
+/** Every registered service and who ships it; with `detail`, each running one's own status line too. */
 export const listServices = async (cmd: Command, detail: boolean): Promise<ServiceEntry[]> => {
   const services = await cmd.sys.serviceManager?.list() ?? [];
-  const details = detail ? await serviceDetails(cmd, services) : new Map<string, string>();
+  const [details, modules] = await Promise.all([
+    detail ? serviceDetails(cmd, services) : new Map<string, string>(),
+    serviceModules(cmd, services.map((svc) => svc.name)),
+  ]);
 
   return services.map((svc) => ({
     name: svc.name,
@@ -77,6 +124,7 @@ export const listServices = async (cmd: Command, detail: boolean): Promise<Servi
     enabled: svc.enabled,
     description: svc.description ?? '',
     restartCount: svc.restartCount ?? 0,
+    module: modules.get(svc.name),
     // "running" alone carries no sense of whether that means days or seconds ago.
     startedAt: svc.startedAt,
     detail: details.get(svc.name),
@@ -102,18 +150,19 @@ export const serviceList = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
-  await cmd.write('NAME                 STATUS      ENABLED  RESTARTS DESCRIPTION\n');
-  await cmd.write('-------------------- ----------- -------- -------- -----------\n');
+  await cmd.write('NAME                 MODULE         STATUS      ENABLED  RESTARTS DESCRIPTION\n');
+  await cmd.write('-------------------- -------------- ----------- -------- -------- -----------\n');
 
   for (const svc of services) {
     const name = svc.name.padEnd(20);
+    const module = (svc.module ?? '-').padEnd(14);
     const status = svc.status.padEnd(11);
     const enabled = (svc.enabled ? 'yes' : 'no').padEnd(8);
     const restarts = String(svc.restartCount).padEnd(8);
-    await cmd.write(`${name} ${status} ${enabled} ${restarts} ${svc.description}\n`);
+    await cmd.write(`${name} ${module} ${status} ${enabled} ${restarts} ${svc.description}\n`);
     // Below the row rather than in a column: these are the lines that say a service is up and
     // still not well, and they are too long to share a line with anything.
-    if (svc.detail) await cmd.write(`${''.padEnd(21)}${svc.detail}\n`);
+    if (svc.detail) await cmd.write(`${''.padEnd(36)}${svc.detail}\n`);
   }
 
   return 0;
@@ -122,7 +171,7 @@ export const serviceList = async (cmd: Command): CmdReturn => {
 serviceList.spec = {
   name: 'service-list',
   effect: 'read' as const,
-  description: 'List services, with how often each has restarted',
+  description: 'List services, with the module that ships each and how often it has restarted',
   args: [],
   flags: [
     { name: 'detail', type: 'bool' as const, description: 'Also ask each running service for its own status line (its declared statusCommand)' },

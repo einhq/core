@@ -96,6 +96,11 @@ export type ServiceEntry = {
   enabled: boolean;
   description: string;
   restartCount: number;
+  /**
+   * Who ships it: `core`, or the module whose `services/` it is registered from. Absent for one an
+   * administrator added with `service add` from anywhere else.
+   */
+  module?: string;
   /** When the running instance started, epoch ms. Absent when not running. */
   startedAt?: number;
   /**

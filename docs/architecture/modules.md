@@ -88,7 +88,10 @@ room on the card for every transcription, which is invisible from outside and lo
 slow crawl; `ems-link`'s line says so.
 First line of stdout wins regardless of exit code — a service reporting that it cannot reach its own
 socket has said something worth showing — and a failure or a timeout (2.5 s) is silent. Stopped
-services are not probed. `pipeline-engine` also has a 16-minute graceful-stop timeout: its shutdown waits for
+services are not probed. `service-list` also names each service's `module`, from where its
+registration in `/etc/services/available` links — core's `services/`, or a module's directly or
+through the wrapper of a single-script service — which is the same ownership `mod setup` retires
+services by; a service added by hand from elsewhere has none. `pipeline-engine` also has a 16-minute graceful-stop timeout: its shutdown waits for
 inline steps, which have no timeout of their own, before closing queue and event handles.
 
 Two more such commands answer in JSON (they are run with `JSON_OUTPUT=1`; the types are `HealthCheck`
