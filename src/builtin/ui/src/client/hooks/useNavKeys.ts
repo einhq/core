@@ -2,7 +2,7 @@ import { useHotkeys } from '@mantine/hooks';
 import { matchedPhysically, typedInFields } from '../signals/shortcuts.ts';
 
 /** A navigation entry's key (`alt+P`, Mantine's hotkey form) and what pressing it does. */
-export type NavKey = [keys: string, run: () => void];
+type NavKey = [keys: string, run: () => void];
 
 const TEXT_FIELDS = ['INPUT', 'TEXTAREA', 'SELECT'];
 
