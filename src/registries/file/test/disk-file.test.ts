@@ -56,3 +56,39 @@ Deno.test('DiskFileRegistry: touch keeps a frozen file read-only and gives the o
     await Deno.remove(root, { recursive: true });
   }
 });
+
+Deno.test('DiskFileRegistry: a truncating open empties a file with content and writes into an empty one', async () => {
+  const root = await Deno.makeTempDir({ prefix: 'mrx-disk-truncate-' });
+  const registry = new DiskFileRegistry({ rootPath: root });
+  await registry.init();
+  const enc = new TextEncoder();
+  const read = async (id: string) => {
+    const handle = await registry.open(id, {}, 'r');
+    try {
+      return new TextDecoder().decode(await handle.read(1024));
+    } finally {
+      await handle.close();
+    }
+  };
+  const write = async (id: string, mode: 'w' | 'w+', text: string) => {
+    const handle = await registry.open(id, {}, mode);
+    await handle.write(enc.encode(text));
+    await handle.close();
+  };
+
+  try {
+    const id = '01JFX7Q2M8K4T6V9B3N5R0WD2C';
+    await registry.touch(id, {});
+    await write(id, 'w', 'a lighthouse on the point');
+    assertEquals(await read(id), 'a lighthouse on the point');
+
+    await write(id, 'w+', 'a sailboat');
+    assertEquals(await read(id), 'a sailboat');
+
+    await write(id, 'w', 'oar');
+    assertEquals(await read(id), 'oar');
+  } finally {
+    await registry.dispose();
+    await Deno.remove(root, { recursive: true });
+  }
+});

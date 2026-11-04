@@ -3,6 +3,10 @@ import { FileStat, FileStatX } from './types.ts';
 
 export class DiskFileHandle extends AbstractResourceHandle<ResourceOptions, FileStat, FileStatX> implements ResourceHandleIf<ResourceOptions, FileStat, FileStatX> {
   private file: Deno.FsFile | undefined;
+  /** This handle emptied a file that had content. */
+  private truncated = false;
+  /** ...and has written to it since. */
+  private rewrote = false;
 
   constructor(
     id: string,
@@ -14,9 +18,22 @@ export class DiskFileHandle extends AbstractResourceHandle<ResourceOptions, File
     super(id, options, mode, registry);
   }
 
-  /** Opens the underlying Deno file with the appropriate mode flags. */
+  /**
+   * Opens the underlying Deno file with the appropriate mode flags.
+   *
+   * A truncating mode truncates only a file that has content. On ext4, a file
+   * truncated to zero, even one that was empty already, has all of its new
+   * data written out when it is closed, and Deno's close is synchronous: the
+   * event loop would stop for seconds after a large upload into a file that
+   * was created empty.
+   */
   override async init(): Promise<void> {
-    this.file = await Deno.open(this.abspath, this.modeToDenoOptions(this.mode));
+    const { truncate, ...options } = this.modeToDenoOptions(this.mode);
+    this.file = await Deno.open(this.abspath, options);
+    if (truncate && (await this.file.stat()).size > 0) {
+      await this.file.truncate(0);
+      this.truncated = true;
+    }
   }
 
   /** Returns the current file size in bytes by stat-ing the file on disk. */
@@ -66,7 +83,9 @@ export class DiskFileHandle extends AbstractResourceHandle<ResourceOptions, File
     this.assertNotClosed();
     this.assertCanWrite();
 
-    return await this.file!.write(data);
+    const written = await this.file!.write(data);
+    if (this.truncated) this.rewrote = true;
+    return written;
   }
 
   /** Flushes pending writes to the underlying storage device. */
@@ -77,8 +96,17 @@ export class DiskFileHandle extends AbstractResourceHandle<ResourceOptions, File
     await this.file!.sync();
   }
 
-  /** Closes the file handle and releases the underlying file descriptor. */
+  /**
+   * Closes the file handle and releases the underlying file descriptor.
+   *
+   * A file this handle emptied and wrote again is synced first, off the event
+   * loop, so that the close does not do that writing (see {@link init}).
+   */
   override async close(): Promise<void> {
+    if (this.file && this.rewrote && !this.closed) {
+      this.rewrote = false;
+      await this.file.syncData().catch(() => {});
+    }
     await super.close();
 
     if (this.file) {
