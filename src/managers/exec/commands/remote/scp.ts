@@ -282,6 +282,8 @@ class Scp {
     } finally {
       await this.sftp.close(handle).catch(() => {});
     }
+    // Closing the handle is what records the size and sha256 of what was written.
+    await fh.close();
     await progress.finish();
 
     // As an upload does: recording what the bytes are is what starts the pipelines.
