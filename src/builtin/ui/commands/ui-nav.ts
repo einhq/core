@@ -73,12 +73,12 @@ export const uiNav = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
+  const keys = (entry: { shortcut?: string }) => (entry.shortcut ? ` (${entry.shortcut})` : '');
   for (const section of answer.sections) {
     await cmd.writeLn(section.label ?? `(${section.id})`);
-    for (const item of section.items) await cmd.writeLn(`  ${item.label.padEnd(16)} ${item.to.padEnd(16)} ${item.id}`);
+    for (const item of section.items) await cmd.writeLn(`  ${item.label.padEnd(16)} ${item.to.padEnd(16)} ${item.id}${keys(item)}`);
   }
   await cmd.writeLn('top bar');
-  const keys = (entry: { shortcut?: string }) => (entry.shortcut ? ` (${entry.shortcut})` : '');
   for (const entry of answer.topbar) {
     await cmd.writeLn(`  ${entry.title.padEnd(16)} ${entry.id}${keys(entry)}`);
     for (const row of entry.menu ?? []) await cmd.writeLn(`    ${row.title.padEnd(14)} ${row.id}${keys(row)}`);

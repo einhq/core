@@ -1,5 +1,4 @@
 import { ActionIcon, AppShell, Box, Collapse, Divider, NavLink, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
-import { useHotkeys } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import { IconChevronDown, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import { type NavLink as NavEntry, type ResolvedSection, uiNav } from '@ein/ui/signals';
@@ -8,7 +7,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { usePersistedState } from '../../hooks/usePersistedState.ts';
 import { HatField } from '../EntityDetail/HatField.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
-import { matchedPhysically, shortcutText, sidebarShortcuts } from '../../signals/shortcuts.ts';
+import { shortcutText, sidebarShortcuts } from '../../signals/shortcuts.ts';
+import { useNavKeys } from '../../hooks/useNavKeys.ts';
 
 type AppNavbarProps = {
   /** Icons only: the rail beside the page. */
@@ -144,16 +144,15 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
     setFoldedList([...next].join(','));
   };
 
-  // A page's key opens it from anywhere outside a text field, whether or not its entry is drawn (a
-  // folded group, a phone's hidden rail), but not while something modal is open — a dialog, the
-  // lightbox — whose own Alt keys may listen on the window, which hears a key after these.
-  useHotkeys(
+  // A page's key opens it whether or not its entry is drawn (a folded group, a phone's hidden
+  // rail), but not while something modal is open — a dialog, the lightbox — whose own Alt keys may
+  // listen on the window, which hears a key after these.
+  useNavKeys(
     sidebarShortcuts().map((link) => [
       link.shortcut,
       () => {
         if (!document.querySelector('[aria-modal="true"]') && location.pathname !== link.to) navigate(link.to);
       },
-      { preventDefault: true, usePhysicalKeys: matchedPhysically(link.shortcut) },
     ]),
   );
 

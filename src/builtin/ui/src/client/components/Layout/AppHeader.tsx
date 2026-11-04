@@ -1,5 +1,4 @@
 import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
-import { useHotkeys } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import {
   IconInfoCircle,
@@ -42,7 +41,8 @@ import { UploadIndicator } from '../Upload/UploadIndicator.tsx';
 import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
 import { usePhone } from '../../hooks/usePhone.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
-import { keyCaps, matchedPhysically, shortcutHelpOpen, shortcutText, topbarShortcuts } from '../../signals/shortcuts.ts';
+import { keyCaps, shortcutHelpOpen, shortcutText, topbarShortcuts } from '../../signals/shortcuts.ts';
+import { useNavKeys } from '../../hooks/useNavKeys.ts';
 
 /** The shell's dropdown that modules add the reader's own pages to as rows; drawn as the account menu, not as a button of its own. */
 const ACCOUNT_MENU = 'ui.account';
@@ -163,15 +163,14 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
       });
   };
 
-  // An entry's key does what choosing it does, from anywhere outside a text field, whether or not
-  // its button is drawn (a phone's header leaves some out).
-  useHotkeys(
+  // An entry's key does what choosing it does, whether or not its button is drawn (a phone's
+  // header leaves some out).
+  useNavKeys(
     topbarShortcuts().map(({ entry }) => [
       entry.shortcut,
       () => {
         if (!busy.has(entry.id) && !stepsAside(entry, location.pathname)) run(entry);
       },
-      { preventDefault: true, usePhysicalKeys: matchedPhysically(entry.shortcut) },
     ]),
   );
 

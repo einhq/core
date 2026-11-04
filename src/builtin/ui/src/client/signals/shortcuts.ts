@@ -43,6 +43,16 @@ export const topbarShortcuts = (): KeyedEntry[] =>
     .flatMap((entry) => [{ entry, label: entry.title }, ...(entry.menu ?? []).map((row) => ({ entry: row, label: `${entry.title} › ${row.title}` }))])
     .filter((keyed): keyed is KeyedEntry => keyed.entry.shortcut !== undefined && keyed.entry.action !== undefined);
 
+/**
+ * Whether a key types something in a text field, and so belongs to the field there. An Alt+letter
+ * types nothing outside a Mac, where Option types another character; anything with Ctrl or Cmd
+ * may be the field's own (`mod+C`), and Ctrl with Alt is AltGr.
+ */
+export const typedInFields = (keys: string): boolean => {
+  const parts = keys.toLowerCase().split('+').map((part) => part.trim());
+  return IS_MAC || !parts.includes('alt') || parts.some((part) => part === 'ctrl' || part === 'mod' || part === 'meta');
+};
+
 type KeyedEntry = { entry: ResolvedTopbarEntry & { shortcut: string }; label: string };
 
 /** The sidebar's pages with a key (`shortcut` in a module's `ui/nav.json`). None for a visitor held to their share link, who has no sidebar. */

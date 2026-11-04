@@ -177,9 +177,10 @@ than with the others on the right. A sidebar entry, a button or a row may name a
 Mantine's hotkey form): `ui-nav` keeps it for the first entry to name that key, the sidebar's in
 order and then the top bar's, and drops it with a warning from a dropdown, a later entry, a key it
 cannot read or one of the shell's own (`SHELL_KEYS`); an overlay's `null` takes it away.
-The header binds every top-bar entry's key with `useHotkeys` (outside text fields; an Alt+letter by
-the key's place, since a Mac types another character for it), runs it as a click would, and shows it
-in the tooltip and beside a row. The sidebar binds its pages' keys the same way, except while
+The header binds every top-bar entry's key with `useNavKeys` (an Alt+letter by the key's place,
+since a Mac types another character for it; outside a Mac an Alt key without Ctrl acts from a text
+field too, where it types nothing, any other key only outside one), runs it as a click would, and
+shows it in the tooltip and beside a row. The sidebar binds its pages' keys the same way, except while
 anything modal is open (`[aria-modal]`: a dialog, a full-screen route), and shows them in the
 rail's tooltips. The finder shows both beside their rows, and the `?` overlay lists them with the
 app's own keys, the pages' under Go to
