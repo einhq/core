@@ -20,6 +20,17 @@ const PASSWORD_FILE = '.password';
 /** What a wrong password, an unknown account and an account without a password all fail with. */
 export const AUTHENTICATION_FAILED = 'authentication failed';
 
+/**
+ * A failed sign-in. The message is what the client is told; `uid` is the account it named, when
+ * it named one, for the access log and never for the client.
+ */
+export class SignInFailedError extends Error {
+  constructor(message: string, readonly uid?: number) {
+    super(message);
+    this.name = 'SignInFailedError';
+  }
+}
+
 /** Whether the account at `userPath` has a password set. Read as the administrator, who alone may. */
 export const hasAccountPassword = (vfs: NodeVFS, userPath: string): Promise<boolean> => vfs.exists(ADMIN_ACCESS, join(userPath, PASSWORD_FILE));
 
@@ -102,19 +113,21 @@ type SignInOrigin = { env: Record<string, string | undefined>; from?: string; th
  * costs one hash and fails no sooner than the throttle answers a failure, so neither the answer nor
  * its time says whether the account exists: an unknown account, a wrong password and no password
  * set all throw `AUTHENTICATION_FAILED`, and only the right password learns why an account may not
- * sign in.
+ * sign in. Every failure is a `SignInFailedError`.
  */
 export async function passwordSignIn(vfs: NodeVFS, typed: string, password: string, origin: SignInOrigin): Promise<SignInAccount> {
   const account = await accountByLoginName(vfs, typed);
-  const attempt = await (origin.throttle ?? signInThrottle).begin(account?.username ?? typed.trim().toLowerCase(), origin.from);
+  const attempt = await (origin.throttle ?? signInThrottle).begin(account?.username ?? typed.trim().toLowerCase(), origin.from).catch((error: Error) => {
+    throw new SignInFailedError(error.message, account?.userNode.attrs.uid);
+  });
   const passwordHash = account && await storedPasswordHash(vfs, account.userPath);
   const right = await verifyPassword(password, passwordHash ?? await dummyPasswordHash(origin.env));
   if (!account || passwordHash === undefined || !right) {
     await attempt.failed();
-    throw new Error(AUTHENTICATION_FAILED);
+    throw new SignInFailedError(AUTHENTICATION_FAILED, account?.userNode.attrs.uid);
   }
   attempt.succeeded();
   const refusal = loginRefusal(account.userNode.attrs);
-  if (refusal) throw new Error(refusal);
+  if (refusal) throw new SignInFailedError(refusal, account.userNode.attrs.uid);
   return account;
 }

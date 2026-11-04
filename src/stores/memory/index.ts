@@ -7,6 +7,11 @@ import { ulid } from '@std/ulid/ulid';
 import { type Access, ADMIN_GID, ADMIN_UID, verifyAccess } from '../../lib/access/mod.ts';
 import { GroupId, Ownership, UserId } from '../../lib/mode/mod.ts';
 import {
+  accessLogMatches,
+  type AccessLogPurge,
+  accessLogPurgeMatches,
+  type AccessLogQuery,
+  type AccessRecord,
   type AggregateBucket,
   auditMatches,
   type AuditPurge,
@@ -82,6 +87,8 @@ export class InMemoryStore implements NodeStore {
   private edges: Map<NodeId, NodeChild[]> = new Map();
   /** The audit trail, oldest first, when `auditing`. */
   private audit: AuditRecord[] = [];
+  /** The access log, oldest first, when `auditing`. */
+  private accessLog: AccessRecord[] = [];
   /** Each node's reach (see `vfs/reach.ts`), a class of `classes`. */
   private reach = new Map<NodeId, number>();
   private classes: ReachClasses;
@@ -129,6 +136,7 @@ export class InMemoryStore implements NodeStore {
     this.edges.clear();
     this.reach.clear();
     this.audit = [];
+    this.accessLog = [];
     this.initialized = false;
   }
 
@@ -167,6 +175,25 @@ export class InMemoryStore implements NodeStore {
     const before = this.audit.length;
     this.audit = this.audit.filter((record) => !auditPurgeMatches(record, purge));
     return before - this.audit.length;
+  }
+
+  // ===== Access Log =====
+
+  async appendAccessLog(records: AccessRecord[]): Promise<void> {
+    this.accessLog.push(...structuredClone(records));
+  }
+
+  async queryAccessLog(query: AccessLogQuery): Promise<AccessRecord[]> {
+    const limit = query.limit ?? 100;
+    const matching = this.accessLog.filter((record) => accessLogMatches(record, query));
+    const order = query.after !== undefined ? 1 : -1;
+    return matching.sort((a, b) => (a.id < b.id ? -order : a.id > b.id ? order : 0)).slice(0, limit).map((record) => structuredClone(record));
+  }
+
+  async purgeAccessLog(purge: AccessLogPurge): Promise<number> {
+    const before = this.accessLog.length;
+    this.accessLog = this.accessLog.filter((record) => !accessLogPurgeMatches(record, purge));
+    return before - this.accessLog.length;
   }
 
   // ===== Core Operations =====

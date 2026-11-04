@@ -5,7 +5,7 @@ import { SystemCore } from '../../system-core.ts';
 import { ExecutionManager } from './mod.ts';
 import { Signal } from './signal.ts';
 import type { Input } from './command-input.ts';
-import { CmdOpts } from './types.ts';
+import { CmdOpts, type TtyAccessInput } from './types.ts';
 
 export type CommandSystemCore = SystemCore & {
   cem: ExecutionManager;
@@ -77,6 +77,8 @@ export interface Command {
   logout(session?: boolean): Promise<void>;
   /** Act as a share link's principal from now on, in this shell and with `session` in its session. */
   actAsLink(access: Access, session?: boolean): Promise<void>;
+  /** Add an event to the access log as this shell's: its account, session, client address and origin. */
+  recordAccess(input: TtyAccessInput): Promise<void>;
   /** Make this shell's sign-in an administrator's, and with `session` its session's (`user-elevate`). */
   elevate(password: string, session?: boolean): Promise<void>;
   /** Make this shell's sign-in, and with `session` its session's, no longer an administrator's. */

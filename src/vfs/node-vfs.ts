@@ -45,6 +45,7 @@ import {
 } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
 import type { AuditPurge, AuditQuery, AuditRecord } from './audit.ts';
+import type { AccessLogPurge, AccessLogQuery, AccessRecord } from '../lib/api/audit.ts';
 import type { OwnerRelease, ReleasedOwner } from './node-store.ts';
 
 /**
@@ -720,6 +721,25 @@ export interface NodeVFS extends ModuleVFS {
    * and say how many went. Administrators only.
    */
   auditPurge(access: Access, purge: AuditPurge): Promise<number>;
+
+  /**
+   * Add records to the access log: in this VFS's own store when it keeps one, otherwise in the
+   * first mount that does. Says whether any did. Internal: no command writes the log.
+   */
+  appendAccessLog(records: AccessRecord[]): Promise<boolean>;
+
+  /**
+   * Read the access log, newest first, or with `query.after` oldest first from there: who signed
+   * in or out, opened a share link or downloaded what, from where, and when. Administrators only.
+   * Covers this VFS's own store and what is mounted into it, merged in id order.
+   */
+  accessLog(access: Access, query: AccessLogQuery): Promise<AccessRecord[]>;
+
+  /**
+   * Delete the access-log records `purge` names, in this VFS's own store and what is mounted into
+   * it, and say how many went. Administrators only.
+   */
+  accessLogPurge(access: Access, purge: AccessLogPurge): Promise<number>;
 
   // ===== Mount Operations =====
   /**

@@ -39,6 +39,7 @@ import { ResourceHandleIf, ResourceMode, ResourceStat } from '../registries/type
 import { VfsEventEmitter } from '../vfs/event-emitter.ts';
 import { SizeTrackingHandle } from '../vfs/size-tracking-handle.ts';
 import { ContentWriteHandle } from './content-write-handle.ts';
+import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.ts';
 import { type AuditInput, type AuditOp, type AuditPurge, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
@@ -1781,6 +1782,38 @@ export class LocalNodeVFS implements NodeVFS {
 
     let purged = this.store.auditing ? await this.store.purgeAudit!(purge) : 0;
     for (const mount of this.mountpoints) purged += await mount.vfs.auditPurge(access, purge);
+    return purged;
+  }
+
+  async appendAccessLog(records: AccessRecord[]): Promise<boolean> {
+    if (this.store.auditing) {
+      await this.store.appendAccessLog!(records);
+      return true;
+    }
+    for (const mount of this.mountpoints) {
+      if (await mount.vfs.appendAccessLog(records)) return true;
+    }
+    return false;
+  }
+
+  async accessLog(access: Access, query: AccessLogQuery): Promise<AccessRecord[]> {
+    if (!isAdmin(access)) throw new NodeAccessDeniedError(this.store.rootId, 'accessLog');
+
+    // Paths in the access log are absolute: they are recorded as the client named them, not
+    // relative to the mount whose store keeps the log.
+    const limit = query.limit ?? 100;
+    const records = this.store.auditing ? await this.store.queryAccessLog!({ ...query, limit }) : [];
+    for (const mount of this.mountpoints) records.push(...await mount.vfs.accessLog(access, { ...query, limit }));
+
+    const order = query.after !== undefined ? -1 : 1;
+    return records.sort((a, b) => (a.id < b.id ? order : a.id > b.id ? -order : 0)).slice(0, limit);
+  }
+
+  async accessLogPurge(access: Access, purge: AccessLogPurge): Promise<number> {
+    if (!isAdmin(access)) throw new NodeAccessDeniedError(this.store.rootId, 'accessLogPurge');
+
+    let purged = this.store.auditing ? await this.store.purgeAccessLog!(purge) : 0;
+    for (const mount of this.mountpoints) purged += await mount.vfs.accessLogPurge(access, purge);
     return purged;
   }
 

@@ -30,9 +30,9 @@ const formatChanges = (changes: Record<string, AuditChange> | undefined): string
 
 export const audit = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    string: ['user', 'id', 'record', 'cause', 'op', 'since', 'until', 'n', 'after', 'type'],
+    string: ['user', 'id', 'record', 'sid', 'cause', 'op', 'since', 'until', 'n', 'after', 'type'],
     collect: ['type'],
-    boolean: ['v'],
+    boolean: ['v', 'no-pipeline'],
   });
 
   const fail = async (message: string): CmdReturn => {
@@ -50,6 +50,8 @@ export const audit = async (cmd: Command): CmdReturn => {
   if (flags._[0] !== undefined) query.pathPrefix = resolve(cmd.cwd, String(flags._[0]));
   if (flags.id) query.nodeId = flags.id;
   if (flags.record) query.id = flags.record;
+  if (flags.sid) query.sid = flags.sid;
+  if (flags['no-pipeline']) query.pipeline = false;
   if (flags.cause) query.cause = flags.cause;
   if (flags.after) query.after = flags.after;
   const types = (Array.isArray(flags.type) ? flags.type : flags.type === undefined ? [] : [flags.type]).map(String).filter((type) => type !== '');
@@ -128,6 +130,8 @@ audit.spec = {
     { name: 'user', type: 'string' as const, description: 'only writes by this user (name or uid)' },
     { name: 'id', type: 'string' as const, description: 'only writes to this node id' },
     { name: 'record', type: 'string' as const, description: 'only the record with this id' },
+    { name: 'sid', type: 'string' as const, description: 'only writes of this session, SSH connection or pipeline run, as -v and access-log show it' },
+    { name: 'no-pipeline', type: 'bool' as const, description: 'leave out the writes of pipeline runs: only what people, imports and services wrote' },
     {
       name: 'cause',
       type: 'string' as const,

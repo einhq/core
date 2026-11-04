@@ -1,6 +1,10 @@
-/** What the VFS audit trail records, and what `audit` answers with. */
+/**
+ * What the VFS audit trail and the access log record, and what `audit` and `access-log` answer
+ * with: the first what changed, the second who reached EiN and what they took away.
+ */
 
 import type { NodeId, NodePath, UserId } from './ids.ts';
+import type { ShellOrigin } from './system.ts';
 
 /**
  * What a VFS write did to one node.
@@ -55,6 +59,10 @@ export type AuditQuery = {
   /** The one record with this id. */
   id?: string;
   uid?: UserId;
+  /** Writes of this session, SSH connection or pipeline run (`AuditRecord.sid`). */
+  sid?: string;
+  /** `false`: no writes of pipeline runs, only what people, imports and services wrote. `true`: only those. */
+  pipeline?: boolean;
   nodeId?: NodeId;
   /** Writes set off by the write with this record id. */
   cause?: string;
@@ -81,3 +89,94 @@ export type AuditPurge = { before: number; pipeline?: boolean };
 
 /** `audit`: one record, with the account name resolved when the account still exists. */
 export type AuditEntry = AuditRecord & { username?: string };
+
+/**
+ * What happened. `download` is an original file's contents sent to someone, saved or shown;
+ * `download-archive` a selection sent as one zip; `link-open` a share link opened.
+ */
+export type AccessEvent =
+  | 'sign-in'
+  | 'sign-in-failed'
+  | 'sign-out'
+  | 'elevate'
+  | 'elevate-failed'
+  | 'link-open'
+  | 'download'
+  | 'download-archive';
+
+export const ACCESS_EVENTS: readonly AccessEvent[] = [
+  'sign-in',
+  'sign-in-failed',
+  'sign-out',
+  'elevate',
+  'elevate-failed',
+  'link-open',
+  'download',
+  'download-archive',
+];
+
+/** How the client reached EiN: a shell's origin, `sftp`, or `http` for a file fetched by URL. */
+export type AccessVia = ShellOrigin | 'sftp' | 'http';
+
+/**
+ * One sign-in, sign-out, share-link opening or download. Unlike the audit trail, which records
+ * what changed, this records who reached EiN, from where, and what they took away.
+ */
+export type AccessRecord = {
+  /** Monotonic ULID: ids sort in the order the events happened. */
+  id: string;
+  /** Milliseconds since the epoch. */
+  timestamp: number;
+  event: AccessEvent;
+  /**
+   * Who: the account, or a share link's principal. Absent when a failed sign-in named no account;
+   * what was typed is not kept, since it is sometimes a password.
+   */
+  uid?: UserId;
+  /** The session or SSH connection, as the audit trail records it on that session's writes. */
+  sid?: string;
+  /** The client's address. */
+  from?: string;
+  via?: AccessVia;
+  /** `sign-in` over SSH: how the client proved who it is. */
+  method?: 'password' | 'publickey';
+  /** A failed sign-in or elevation: why, as the client was told. */
+  reason?: string;
+  /** `link-open`, and a download made through a share link: the link's id. */
+  linkId?: string;
+  /** `link-open`: what the link opens. `download`: the file. `download-archive`: the folder holding the selection. */
+  path?: NodePath;
+  /** `download-archive`: how many files the zip holds. */
+  count?: number;
+};
+
+/**
+ * Which records `access-log` reads. Every field narrows; none returns the newest records, newest
+ * first. With `after` the log is read forward instead: the records after that id, oldest first.
+ */
+export type AccessLogQuery = {
+  /** The one record with this id. */
+  id?: string;
+  uid?: UserId;
+  /** Only these events. */
+  events?: AccessEvent[];
+  sid?: string;
+  from?: string;
+  linkId?: string;
+  /** The path itself and everything below it. */
+  pathPrefix?: NodePath;
+  /** Inclusive, milliseconds since the epoch. */
+  since?: number;
+  /** Exclusive, milliseconds since the epoch. */
+  until?: number;
+  /** Only records after this id (exclusive), oldest first. */
+  after?: string;
+  /** Defaults to 100. */
+  limit?: number;
+};
+
+/** Which records `accessLogPurge` removes: those written before `before` (milliseconds since the epoch). */
+export type AccessLogPurge = { before: number };
+
+/** `access-log`: one record, with the account name resolved when the account still exists. */
+export type AccessLogEntry = AccessRecord & { username?: string };

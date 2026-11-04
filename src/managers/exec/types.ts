@@ -1,6 +1,7 @@
 import { ExecContextIf, ShellIf } from '@ein/bash-executor';
 import { Access, Attribution } from '../../lib/access/mod.ts';
 import type { ShellOrigin } from '../../lib/api/system.ts';
+import type { AccessRecord } from '../../lib/api/audit.ts';
 import { JSONObject } from '../../types.ts';
 import { NodePath } from '../../vfs/mod.ts';
 import { Command } from './command.ts';
@@ -61,6 +62,12 @@ export type ShellJobInfo = {
   state: 'running' | 'done';
 };
 
+/**
+ * An access-log event as a tty records it (`TtyIf.recordAccess`): the tty adds the session, the
+ * client's address and its origin, and the account it acts as unless `uid` names another.
+ */
+export type TtyAccessInput = Omit<AccessRecord, 'id' | 'timestamp' | 'sid' | 'from' | 'via'>;
+
 /** The bash executor's shell, with what EiN's terminals add to it. */
 export interface TtyIf extends ShellIf {
   readonly name: string;
@@ -99,6 +106,9 @@ export interface TtyIf extends ShellIf {
 
   /** Act as a share link's principal in this tty and, with `session`, in its session (`share-link open`). */
   actAsLink(access: Access, session?: boolean): Promise<void>;
+
+  /** Add an event to the access log as this tty's: its account, session, client address and origin. */
+  recordAccess(input: TtyAccessInput): Promise<void>;
 
   /** Make this tty's sign-in an administrator's and, with `session`, its session's (`user-elevate`). */
   elevate(password: string, session?: boolean): Promise<void>;

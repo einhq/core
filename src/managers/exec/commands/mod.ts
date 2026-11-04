@@ -106,6 +106,8 @@ import { resolveId } from './vfs/resolve-id.ts';
 import { reachCheck } from './vfs/reach-check.ts';
 import { audit } from './vfs/audit.ts';
 import { auditPurge } from './vfs/audit-purge.ts';
+import { accessLog } from './vfs/access-log.ts';
+import { accessLogPurge } from './vfs/access-log-purge.ts';
 import { unmount } from './vfs/unmount.ts';
 import { mknode } from './node/mknode.ts';
 import { completeArg } from './completion/completion-arg.ts';
@@ -302,6 +304,8 @@ export const COMMAND_NAMES: CmdFunction[] = [
   reachCheck,
   audit,
   auditPurge,
+  accessLog,
+  accessLogPurge,
   mount,
   unmount,
   chmod,

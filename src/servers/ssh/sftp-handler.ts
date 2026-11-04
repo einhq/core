@@ -20,7 +20,7 @@ import { createLogger } from '../../managers/logger/mod.ts';
 import type { ResourceHandleIf } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
 import type { Node, NodeVFS } from '../../vfs/mod.ts';
-import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
+import { isLoggedDownload, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError, recordAccess } from '../../vfs/mod.ts';
 import { NODE_TYPE_EMBEDDING } from '../../vfs/types/embedding.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
@@ -52,6 +52,8 @@ export type SFTPHandlerConfig = {
   vfs: NodeVFS;
   access: Access;
   homePath: string;
+  /** The client's address, for the access log. */
+  from?: string;
 };
 
 type HandleEntry = {
@@ -163,6 +165,14 @@ export class SFTPHandler {
     if (!this.closed) {
       fn();
     }
+  }
+
+  /** Add a read of an original to the access log, as `GET /file/` does for the browser. */
+  private async recordDownload(path: string): Promise<void> {
+    const { vfs, access, from } = this.config;
+    const node = await vfs.get(access, path).catch(() => undefined);
+    if (!node || !isLoggedDownload(path, node)) return;
+    await recordAccess(vfs, { event: 'download', uid: access.uid, sid: access.sid, from, via: 'sftp', path });
   }
 
   private async acquirePathLock(path: string): Promise<() => void> {
@@ -400,6 +410,7 @@ export class SFTPHandler {
       const handle = await this.config.vfs.open(this.config.access, vfsPath, {
         mode,
       });
+      if (mode === 'r') await this.recordDownload(vfsPath);
       const handleId = this.nextHandle++;
       this.handles.set(handleId, {
         handle,

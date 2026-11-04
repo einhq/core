@@ -56,6 +56,16 @@ pgTest('PgStore audit trail', async (t) => {
       assertEquals(under[0].path, '/myXalbum/trip');
     });
 
+    await t.step('filters by session, and leaves out or keeps only pipeline runs', async () => {
+      await vfs.create({ ...ADMIN_ACCESS, sid: 'pipeline:thumbnails/1' }, 'directory', '/myXalbum', 'derived');
+
+      assertEquals((await vfs.audit(ADMIN_ACCESS, { sid: 'pipeline:thumbnails/1' })).map((r) => r.path), ['/myXalbum/derived']);
+      assertEquals((await vfs.audit(ADMIN_ACCESS, { pipeline: true })).map((r) => r.path), ['/myXalbum/derived']);
+      const people = await vfs.audit(ADMIN_ACCESS, { pipeline: false });
+      assertEquals(people.some((r) => r.path === '/myXalbum/derived'), false);
+      assertEquals(people.some((r) => r.sid === undefined) && people.some((r) => r.sid === 'session-anna'), true);
+    });
+
     await t.step('filters by user, op and time', async () => {
       assertEquals((await vfs.audit(ADMIN_ACCESS, { uid: ANNA.uid, op: 'create' })).length, 2);
       assertEquals((await vfs.audit(ADMIN_ACCESS, { since: Date.now() + 60_000 })).length, 0);

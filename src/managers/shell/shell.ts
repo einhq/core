@@ -39,6 +39,7 @@ import {
   type RunAndCaptureOptions,
   type RunAndCaptureResult,
   type ShellJobInfo,
+  type TtyAccessInput,
   TtyIf,
   TtyIO,
 } from '../exec/mod.ts';
@@ -68,9 +69,9 @@ import { StepTimer } from '../../lib/metrics/mod.ts';
 import type { BufferManagerIf } from '../buffer/mod.ts';
 import { ResourceHandleIf, ResourceMode } from '../../registries/types.ts';
 import { isMemberOf, userAccess } from '../../lib/auth/member-gids.ts';
-import { AUTHENTICATION_FAILED, isAccountPassword, passwordSignIn } from '../../lib/auth/account-password.ts';
+import { AUTHENTICATION_FAILED, isAccountPassword, passwordSignIn, SignInFailedError } from '../../lib/auth/account-password.ts';
 import { signInThrottle } from '../../lib/auth/sign-in-throttle.ts';
-import { assertAccess, Node, NodeNotFoundError, NodePath, NodeVFS } from '../../vfs/mod.ts';
+import { assertAccess, Node, NodeNotFoundError, NodePath, NodeVFS, recordAccess } from '../../vfs/mod.ts';
 import { NODE_TYPE_COMMAND } from '../../vfs/types/command.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
 import { NODE_TYPE_NULL } from '../../vfs/types/null.ts';
@@ -531,7 +532,7 @@ export class Shell implements TtyIf {
     // was copied from whoever made the session.
     this.ctx.setEnv({ ...sessionNode.attrs.env, TTY_NAME: this.name });
 
-    this.access = isSessionNode(sessionNode) ? storedAccess(sessionNode.attrs.access) : GUEST_ACCESS;
+    this.access = this.inSession(isSessionNode(sessionNode) ? storedAccess(sessionNode.attrs.access) : GUEST_ACCESS);
 
     this.ctx.setEnv({
       HOME: '/',
@@ -1073,6 +1074,27 @@ export class Shell implements TtyIf {
   }
 
   /**
+   * `access` as this shell's session holds it: its writes, and the access log, name the session
+   * (`sid`) they come from. An access already naming one — an SSH connection's — keeps it.
+   */
+  private inSession(access: Access): Access {
+    const sid = this.access?.sid ?? access.sid ?? basename(this.config.sessionPath);
+    return sid ? { ...access, sid } : access;
+  }
+
+  /** Add an event to the access log as this shell's: its account, session, client address and origin. */
+  async recordAccess(input: TtyAccessInput): Promise<void> {
+    const access = this.access;
+    await recordAccess(this.config.vfs, {
+      ...(access && !isGuest(access) ? { uid: access.uid } : {}),
+      ...input,
+      sid: access?.sid,
+      from: this.from,
+      via: this.origin,
+    });
+  }
+
+  /**
    * Sign this shell in as the account `typed` names, by username or e-mail address, with its
    * password (`passwordSignIn`), from the fixed layout and `launchEnv` rather than this shell's
    * environment, which whoever is at the shell can change; `session` also makes the sign-in the session's.
@@ -1082,10 +1104,22 @@ export class Shell implements TtyIf {
     password: string,
     session?: boolean,
   ): Promise<void> {
-    const { username, userNode } = await passwordSignIn(this.config.vfs, typed, password, { env: this.launchEnv, from: this.from });
+    let account;
+    try {
+      account = await passwordSignIn(this.config.vfs, typed, password, { env: this.launchEnv, from: this.from });
+    } catch (error) {
+      await this.recordAccess({
+        event: 'sign-in-failed',
+        uid: error instanceof SignInFailedError ? error.uid : undefined,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+    const { username, userNode } = account;
 
     // Signing in from a share link becomes the account: the link opens nothing for someone signed in.
-    this.access = await userAccess(this.config.vfs, ADMIN_ACCESS, username, userNode);
+    this.access = this.inSession(await userAccess(this.config.vfs, ADMIN_ACCESS, username, userNode));
+    await this.recordAccess({ event: 'sign-in' });
 
     this.ctx.setEnv({
       USER: username,
@@ -1133,7 +1167,7 @@ export class Shell implements TtyIf {
    * opening the same one again takes up a changed expiry.
    */
   async actAsLink(access: Access, session?: boolean): Promise<void> {
-    this.access = access;
+    this.access = this.inSession(access);
     this.ctx.setEnv({ UID: access.uid.toString(), GID: String(access.gid) });
     await this.persist();
 
@@ -1174,10 +1208,16 @@ export class Shell implements TtyIf {
     if (!await isMemberOf(this.config.vfs, ADMIN_ACCESS, SUDO_GROUPNAME, account.name, account.node)) {
       throw new Error(`${account.name} is not in the ${SUDO_GROUPNAME} group`);
     }
-    const attempt = await signInThrottle.begin(account.name, this.from);
-    if (!await isAccountPassword(this.config.vfs, join(USERS_PATH, account.name), password)) throw new Error(AUTHENTICATION_FAILED);
-    attempt.succeeded();
+    try {
+      const attempt = await signInThrottle.begin(account.name, this.from);
+      if (!await isAccountPassword(this.config.vfs, join(USERS_PATH, account.name), password)) throw new Error(AUTHENTICATION_FAILED);
+      attempt.succeeded();
+    } catch (error) {
+      await this.recordAccess({ event: 'elevate-failed', reason: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
     await this.setElevated(true, session);
+    await this.recordAccess({ event: 'elevate' });
     logger.info('sign-in elevated', { tty: this.name, uid: access.uid, session: session === true });
   }
 
@@ -1222,11 +1262,14 @@ export class Shell implements TtyIf {
   }
 
   async logout(session?: boolean): Promise<void> {
-    this.access = {
+    // Recorded as whoever is signing out, before the access is the guest's.
+    if (this.access && !isVisitor(this.access)) await this.recordAccess({ event: 'sign-out' });
+
+    this.access = this.inSession({
       uid: GUEST_UID,
       gid: GUEST_GID,
       gids: [GUEST_GID],
-    };
+    });
 
     this.ctx.setEnv({
       USER: GUEST_USERNAME,

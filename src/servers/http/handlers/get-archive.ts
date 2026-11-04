@@ -3,6 +3,7 @@ import { Access } from '../../../lib/access/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { NodeAccessDeniedError, NodeNotFoundError, NodePath } from '../../../vfs/mod.ts';
 import { ArchiveTicket, ArchiveTicketStore } from '../archive-tickets.ts';
+import type { DownloadLog } from '../download-log.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
 
@@ -24,8 +25,15 @@ configure({ useWebWorkers: false });
  * access of the session making *this* request, so a token that leaks gives its holder
  * exactly what `GET /file/<path>` already would.
  */
-export async function handleGetArchive(config: HttpServerConfig, req: Request, url: URL, tickets: ArchiveTicketStore): Promise<Response> {
-  const { responseHeaders, access } = await getSession(config, req.headers, { create: false });
+export async function handleGetArchive(
+  config: HttpServerConfig,
+  req: Request,
+  url: URL,
+  tickets: ArchiveTicketStore,
+  downloads?: DownloadLog,
+  from?: string,
+): Promise<Response> {
+  const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: false });
   if (await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
   const token = decodeURIComponent(url.pathname.replace('/archive/', ''));
   const ticket = tickets.get(token);
@@ -60,6 +68,8 @@ export async function handleGetArchive(config: HttpServerConfig, req: Request, u
   if (req.method === 'HEAD') {
     return new Response(null, { headers: responseHeaders });
   }
+
+  await downloads?.archive(access, sessionPath, from, ticket.entries.map((entry) => entry.path));
 
   // The zip is assembled into one side of this and served from the other. There is no
   // Content-Length either way: the size of an entry is known only once it has been written,

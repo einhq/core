@@ -196,6 +196,16 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Audit trail',
     restarts: ['audit-purger'],
   },
+  {
+    key: 'CFG_ACCESS_LOG_RETENTION_DAYS',
+    scope: 'system',
+    type: 'number',
+    default: '365',
+    label: 'Days the access log keeps sign-ins and downloads',
+    description: 'How long the access log keeps its records: who signed in or out, opened a share link or downloaded what, and from where. 0 keeps them for good.',
+    group: 'Audit trail',
+    restarts: ['audit-purger'],
+  },
 
   /* Users and sharing */
   {

@@ -2,6 +2,8 @@ import { isTrackerPath } from '../../lib/track/tracker.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { ArchiveTicketStore } from './archive-tickets.ts';
+import { clientAddress } from './client-address.ts';
+import { DownloadLog } from './download-log.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
 import { handleGetFile } from './handlers/get-file.ts';
@@ -21,6 +23,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   // Per server rather than module-level: a token means nothing outside the process holding
   // the files, and the test harness starts several instances in one.
   const archiveTickets = new ArchiveTicketStore();
+  const downloads = new DownloadLog(config.vfs);
   const interactiveTerminals = new InteractiveTerminalRegistry(config);
 
   const handler = async (req: Request, info: Deno.ServeHandlerInfo): Promise<Response> => {
@@ -31,7 +34,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetShell({ ...config, interactiveTerminals }, req, url, info.remoteAddr);
       } else if (url.pathname.startsWith('/file/')) {
         if (req.method === 'GET' || req.method === 'HEAD') {
-          return await handleGetFile(config, req, url);
+          return await handleGetFile(config, req, url, { downloads, from: clientAddress(req.headers, info.remoteAddr) });
         } else if (req.method === 'PUT') {
           return await handlePutFile(config, req, url);
         } else if (req.method === 'POST') {
@@ -40,7 +43,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
       } else if (url.pathname === '/archive' && req.method === 'POST') {
         return await handlePostArchive(config, req, archiveTickets);
       } else if (url.pathname.startsWith('/archive/') && (req.method === 'GET' || req.method === 'HEAD')) {
-        return await handleGetArchive(config, req, url, archiveTickets);
+        return await handleGetArchive(config, req, url, archiveTickets, downloads, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname.startsWith('/log/') && req.method === 'POST') {
         return await handlePostLog(config, req, url);
       } else if (url.pathname.startsWith('/track/') && req.method === 'POST') {

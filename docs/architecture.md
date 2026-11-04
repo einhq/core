@@ -250,7 +250,9 @@ commit** — the opposite timing to events, and the reason the trail is not just
 `system.vfs.#`: the log relay drops the oldest events past a 20k backlog and a whole batch when a
 flush fails. A record here exists exactly when the change it describes does.
 
-A record carries `uid`, the session or pipeline run (`Access.sid`) and the write it was set off by
+A record carries `uid`, the session or pipeline run (`Access.sid`: a shell stamps its session's
+name, `session-<name>`, on the access it opens with and keeps it through `login`, `logout` and a
+share link; an SSH connection is `ssh-<connection id>`, its shells and SFTP included) and the write it was set off by
 (`Access.cause`), the node's id, type and path (and for a
 move the old path), and the values that changed: attrs as `{ from, to }` on update, all attrs on
 create and on delete — enough to see and restore what a node held — and
@@ -294,7 +296,10 @@ Whether a store keeps a trail is its own `auditing` flag: `PgStore` always (tabl
 unread trail in memory. Records are written with the storing VFS's own paths; `vfs.audit()`
 (administrators only) walks the mounts, rebases their paths onto the mount point and merges in id
 order, which is how the router-only root reads the pg trail mounted at `/`. The `audit` command
-(`audit [path] --user --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it.
+(`audit [path] --user --sid --no-pipeline --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it;
+`--no-pipeline` (`AuditQuery.pipeline: false`) leaves out the runs' writes through a partial index
+on the rest (`people_idx`), so a page of what people wrote never walks past millions of derived
+records.
 
 **Retention.** The trail grows with every content write, a crawl's or a re-embedding's included, and
 the writes of pipeline runs (`sid` starting `pipeline:`) are nearly all of it: on a photo archive
@@ -317,6 +322,38 @@ own transaction, so a transaction that commits late appears after a later id was
 So a follower keeps its place some minutes behind the newest record it read, and the ids it read
 after that place, and reads from there each time; the staging organizer keeps ten minutes
 ([auto-albums.md](../modules/archive/architecture/auto-albums.md#the-organizer)).
+
+### Access log
+
+The audit trail says what changed; the access log says who reached EiN and what they took away:
+`sign-in`, `sign-in-failed`, `sign-out`, `elevate`, `elevate-failed`, `link-open`, `download` and
+`download-archive` (`AccessRecord`, `@ein/api`). A record carries the account (or a share link's
+principal; none for a failed sign-in naming no account — what was typed is not kept, it is
+sometimes a password), the session as the audit trail names it (`sid`), the client's address and
+how it came (`via`: the shell's origin, `sftp` or `http`), and what the event is about: the path, the
+link, the files in a zip, the reason a sign-in failed, the SSH method.
+
+It is kept by the store that keeps the audit trail (`PgStore`: table `<prefix>_access`), but is not
+written in a mutation's transaction: an event is not a node write. `recordAccess(vfs, input)` adds
+one through `NodeVFS.appendAccessLog`, which the router-only root hands to the first mount whose
+store keeps it, and never throws — a log that cannot be written must not stop a sign-in. Where
+events are recorded:
+
+- `Shell.login`, `elevate` and `logout`: the web UI's and a terminal's sign-ins
+  (`SignInFailedError` carries the uid of the account a failed one named), through
+  `Shell.recordAccess`, which adds the shell's session, address and origin.
+- `share-link open`, through `cmd.recordAccess`.
+- The SSH server: a connection's sign-in when it is ready, with its method, a failed password, and
+  the sign-out when it closes; the SFTP handler a file opened for reading.
+- `GET /file/` and `GET /archive/` (`DownloadLog`, per server). A download is a read from byte 0 of
+  a file under `/archive` or `/home` that is not a rendition (`sourceId`) or hidden
+  (`isLoggedDownload`); the same session's further reads of the file within ten minutes are not
+  recorded, so a video's seeks or a grid redrawn are one download.
+
+`vfs.accessLog()` reads it like `vfs.audit()` (administrators only, newest first or forward from
+`after`), `access-log` is the shell's view, and the dashboard's Activity tab lists both logs as
+one, newest first. `vfs.accessLogPurge()` deletes by age in the same batches as the trail; the
+`audit-purger` service runs `access-log-purge` after `CFG_ACCESS_LOG_RETENTION_DAYS` (365).
 
 ### Write-time size and hash tracking
 

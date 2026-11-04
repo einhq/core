@@ -11,7 +11,7 @@ import { type Channel, type Connection, type ConnectionInfo, type PKAuthContext,
 import { type Access, ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { accountByLoginName } from '../../lib/auth/email.ts';
 import { userAccess } from '../../lib/auth/member-gids.ts';
-import { passwordSignIn, type SignInAccount } from '../../lib/auth/account-password.ts';
+import { passwordSignIn, type SignInAccount, SignInFailedError } from '../../lib/auth/account-password.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
 import { homePath, USERS_PATH } from '../../lib/paths.ts';
 import type { BufferManagerIf } from '../../managers/buffer/mod.ts';
@@ -20,7 +20,7 @@ import { createLogger } from '../../managers/logger/mod.ts';
 import { InteractiveShell } from '../../managers/shell/interactive-shell.ts';
 import { Shell } from '../../managers/shell/shell.ts';
 import type { ResourceHandleIf } from '../../registries/types.ts';
-import type { EventSubscription, Node, NodeEvent, NodeVFS } from '../../vfs/mod.ts';
+import { type AccessInput, type EventSubscription, type Node, type NodeEvent, type NodeVFS, recordAccess } from '../../vfs/mod.ts';
 import { StepTimer } from '../../lib/metrics/mod.ts';
 import type { SessionAttrs } from '../../vfs/types/session.ts';
 import { loginRefusal, NODE_TYPE_USER, type UserAttrs } from '../../vfs/types/user.ts';
@@ -41,6 +41,7 @@ export type SSHServerConfig = {
 type AuthenticatedUser = {
   access: Access;
   username: string;
+  method: 'password' | 'publickey';
 };
 
 export class SSHServer {
@@ -117,6 +118,9 @@ export class SSHServer {
     const connId = ulid();
     this.connections.set(connId, client);
     let authenticatedUser: AuthenticatedUser | null = null;
+    // What the connection's writes and its access-log records name it by.
+    const sid = `ssh-${connId}`;
+    const record = (input: Omit<AccessInput, 'sid' | 'from' | 'via'>) => recordAccess(this.config.vfs, { ...input, sid, from: info.ip, via: 'ssh' });
 
     logger.info('SSH connection', { connId, ip: info.ip });
 
@@ -127,6 +131,7 @@ export class SSHServer {
             ctx.username,
             (ctx as ServerAuthContext & { password: string }).password,
             info.ip,
+            sid,
           );
           if (user) {
             authenticatedUser = user;
@@ -135,7 +140,7 @@ export class SSHServer {
           }
         } else if (ctx.method === 'publickey') {
           const pk = ctx as PKAuthContext;
-          const user = await this.authenticateKey(ctx.username, pk);
+          const user = await this.authenticateKey(ctx.username, pk, sid);
           if (user) {
             // Without a signature the client only asks whether this key would
             // do; accept() answers PK_OK and the signed request follows
@@ -158,7 +163,10 @@ export class SSHServer {
         connId,
         username: authenticatedUser?.username,
       });
-      if (authenticatedUser) this.usernames.set(connId, authenticatedUser.username);
+      if (authenticatedUser) {
+        this.usernames.set(connId, authenticatedUser.username);
+        void record({ event: 'sign-in', uid: authenticatedUser.access.uid, method: authenticatedUser.method });
+      }
 
       client.on('session', (accept, _reject) => {
         const session = accept();
@@ -170,6 +178,7 @@ export class SSHServer {
     client.on('close', () => {
       this.connections.delete(connId);
       this.usernames.delete(connId);
+      if (authenticatedUser) void record({ event: 'sign-out', uid: authenticatedUser.access.uid });
       logger.info('SSH client disconnected', { connId });
     });
 
@@ -194,10 +203,11 @@ export class SSHServer {
     return account;
   }
 
-  private async authenticatedAs(username: string, userNode: Node<UserAttrs>): Promise<AuthenticatedUser> {
+  private async authenticatedAs(username: string, userNode: Node<UserAttrs>, method: AuthenticatedUser['method'], sid: string): Promise<AuthenticatedUser> {
     return {
-      access: await userAccess(this.config.vfs, ADMIN_ACCESS, username, userNode),
+      access: { ...await userAccess(this.config.vfs, ADMIN_ACCESS, username, userNode), sid },
       username,
+      method,
     };
   }
 
@@ -206,7 +216,7 @@ export class SSHServer {
    * normal client: first without a signature ("would this key do?"), then with
    * one, which is verified here against the listed key.
    */
-  private async authenticateKey(username: string, pk: PKAuthContext): Promise<AuthenticatedUser | null> {
+  private async authenticateKey(username: string, pk: PKAuthContext, sid: string): Promise<AuthenticatedUser | null> {
     try {
       const account = await this.keySignInAccount(username);
       if (!account) return null;
@@ -222,7 +232,7 @@ export class SSHServer {
         const valid = await found.key.verify(pk.blob!, pk.signature, pk.hashAlgo);
         if (valid !== true) return null;
       }
-      return await this.authenticatedAs(account.username, account.userNode);
+      return await this.authenticatedAs(account.username, account.userNode, 'publickey', sid);
     } catch (err) {
       logger.debug('key auth failed', { username, error: (err as Error).message });
       return null;
@@ -233,14 +243,24 @@ export class SSHServer {
     username: string,
     password: string,
     from: string | undefined,
+    sid: string,
   ): Promise<AuthenticatedUser | null> {
     try {
       const account = await passwordSignIn(this.config.vfs, username, password, { env: this.config.env, from });
-      return await this.authenticatedAs(account.username, account.userNode);
+      return await this.authenticatedAs(account.username, account.userNode, 'password', sid);
     } catch (err) {
       logger.debug('password auth failed', {
         username,
         error: (err as Error).message,
+      });
+      await recordAccess(this.config.vfs, {
+        event: 'sign-in-failed',
+        uid: err instanceof SignInFailedError ? err.uid : undefined,
+        reason: (err as Error).message,
+        method: 'password',
+        sid,
+        from,
+        via: 'ssh',
       });
     }
     return null;
@@ -440,6 +460,7 @@ export class SSHServer {
         vfs: this.config.vfs,
         access: { ...user.access, gids: [...user.access.gids] },
         homePath: homePath(user.username),
+        from,
       });
 
       handler.attach(sftp);

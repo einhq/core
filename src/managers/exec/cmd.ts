@@ -12,7 +12,7 @@ import { ExecutionManager } from './execution-manager.ts';
 import type { Input } from './command-input.ts';
 import { stdinInput } from './input.ts';
 import { isTerminatingSignal, Signal } from './signal.ts';
-import { CmdOpts, CmdSpec } from './types.ts';
+import { CmdOpts, CmdSpec, type TtyAccessInput } from './types.ts';
 
 const logger = createLogger('cmd');
 
@@ -359,6 +359,10 @@ export class Cmd implements Command {
 
   async actAsLink(access: Access, session?: boolean): Promise<void> {
     return this._opts.tty.actAsLink(access, session);
+  }
+
+  async recordAccess(input: TtyAccessInput): Promise<void> {
+    return this._opts.tty.recordAccess(input);
   }
 
   async elevate(password: string, session?: boolean): Promise<void> {

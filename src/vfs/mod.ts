@@ -8,4 +8,5 @@ export * from './query-eval.ts';
 export * from './query.ts';
 export * from './types.ts';
 export * from './audit.ts';
+export * from './access-log.ts';
 export * from './reach.ts';

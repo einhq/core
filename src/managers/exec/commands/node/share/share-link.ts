@@ -206,6 +206,7 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       await cmd.sys.vfs.update<ShareLinkAttrs>(ADMIN_ACCESS, join(cmd.env.LINKS_PATH, id), {
         attrs: { opened: record.attrs.opened + 1, lastOpenedAt: Date.now() },
       });
+      await cmd.recordAccess({ event: 'link-open', linkId: id, path });
 
       const opened: ShareLinkOpened = {
         id,

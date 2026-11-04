@@ -9,6 +9,9 @@ import type { FileTier } from '../../registries/file/types.ts';
 import { type Access, ADMIN_GID, ADMIN_UID, type ReachFormula, reachNamed } from '../../lib/access/mod.ts';
 import { GroupId, Mode, ModeACL, Ownership, UserId } from '../../lib/mode/mod.ts';
 import {
+  type AccessLogPurge,
+  type AccessLogQuery,
+  type AccessRecord,
   type AggregateBucket,
   type AuditPurge,
   type AuditQuery,
@@ -94,7 +97,10 @@ const UNIQUE_VIOLATION = '23505';
 /** The parent went away between resolving it and writing under it. */
 const FOREIGN_KEY_VIOLATION = '23503';
 
-/** Audit records deleted per statement by `purgeAudit`. */
+/** An audit record that is not a pipeline run's write: the predicate of the trail's `people_idx`. */
+const NOT_PIPELINE_SQL = `NOT coalesce(starts_with(sid, '${PIPELINE_SID_PREFIX}'), false)`;
+
+/** Audit and access-log records deleted per statement by `purgeBefore`. */
 const AUDIT_PURGE_BATCH = 5000;
 
 /** A node row as the bulk reads give it, without the link-count join; `n` is the nodes table, `a` its attrs. */
@@ -316,6 +322,9 @@ export class PgStore implements NodeStore {
   private get auditTable() {
     return `${this.tablePrefix}_audit`;
   }
+  private get accessLogTable() {
+    return `${this.tablePrefix}_access`;
+  }
   /** Registry storage a committed delete is still to remove; see `recordStorageDeletes`. */
   private get storageDeletesTable() {
     return `${this.tablePrefix}_storage_deletes`;
@@ -520,6 +529,32 @@ export class PgStore implements NodeStore {
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_node_idx ON ${this.auditTable} (node_id, id)`);
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_path_idx ON ${this.auditTable} (path text_pattern_ops)`);
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_cause_idx ON ${this.auditTable} (cause, id) WHERE cause IS NOT NULL`);
+      // What people, imports and services wrote, newest first, without walking past the far more
+      // numerous writes of pipeline runs (`audit --no-pipeline`).
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_people_idx ON ${this.auditTable} (id) WHERE ${NOT_PIPELINE_SQL}`);
+
+      // The access log: sign-ins, sign-outs, share links opened and downloads (`appendAccessLog`).
+      // Ids are monotonic ULIDs as in the audit trail, so the same reads and purge apply.
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS ${this.accessLogTable} (
+          id VARCHAR(26) PRIMARY KEY,
+          at TIMESTAMPTZ NOT NULL,
+          event VARCHAR(32) NOT NULL,
+          uid INTEGER,
+          sid TEXT,
+          from_addr TEXT,
+          via VARCHAR(16),
+          method VARCHAR(16),
+          reason TEXT,
+          link_id TEXT,
+          path TEXT,
+          count INTEGER
+        )
+      `);
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_uid_idx ON ${this.accessLogTable} (uid, id)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_event_idx ON ${this.accessLogTable} (event, id)`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_sid_idx ON ${this.accessLogTable} (sid, id) WHERE sid IS NOT NULL`);
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_path_idx ON ${this.accessLogTable} (path text_pattern_ops)`);
 
       await conn.query(`
         CREATE TABLE IF NOT EXISTS ${this.storageDeletesTable} (
@@ -2572,6 +2607,9 @@ export class PgStore implements NodeStore {
 
     if (query.id !== undefined) where.push(`id = ${param(query.id)}`);
     if (query.uid !== undefined) where.push(`uid = ${param(query.uid)}`);
+    if (query.sid !== undefined) where.push(`sid = ${param(query.sid)}`);
+    // Spelled as the predicate of `people_idx` is, so the planner can use it: a parameter would hide the match.
+    if (query.pipeline !== undefined) where.push(`${query.pipeline ? 'NOT ' : ''}${NOT_PIPELINE_SQL}`);
     if (query.nodeId !== undefined) where.push(`node_id = ${param(query.nodeId)}`);
     if (query.cause !== undefined) where.push(`cause = ${param(query.cause)}`);
     if (query.op !== undefined) where.push(`op = ${param(query.op)}`);
@@ -2617,15 +2655,19 @@ export class PgStore implements NodeStore {
     }));
   }
 
+  async purgeAudit(purge: AuditPurge): Promise<number> {
+    return await this.purgeBefore(this.auditTable, purge.before, purge.pipeline ? PIPELINE_SID_PREFIX : null);
+  }
+
   /**
-   * Deletes in batches of {@link AUDIT_PURGE_BATCH} by ascending id, each its own statement, so a
-   * purge of millions of records never holds one transaction open. A record's id is a ULID minted
+   * Delete a ULID-keyed log's rows written before `before` (and with `sidPrefix`, only those whose
+   * `sid` starts with it), in batches of {@link AUDIT_PURGE_BATCH} by ascending id, each its own
+   * statement, so a purge of millions of rows never holds one transaction open. An id is minted
    * with its timestamp, so "written before" is a range of the primary key: the bound is the
    * smallest id of the millisecond `before`.
    */
-  async purgeAudit(purge: AuditPurge): Promise<number> {
-    const bound = ulid(purge.before).slice(0, 10) + '0'.repeat(16);
-    const sidPrefix = purge.pipeline ? PIPELINE_SID_PREFIX : null;
+  private async purgeBefore(table: string, before: number, sidPrefix: string | null): Promise<number> {
+    const bound = ulid(before).slice(0, 10) + '0'.repeat(16);
 
     let total = 0;
     let after = '';
@@ -2633,9 +2675,9 @@ export class PgStore implements NodeStore {
       const [row] = await this.runParameterized({
         text: `
           WITH del AS (
-            DELETE FROM ${this.auditTable}
+            DELETE FROM ${table}
              WHERE id IN (
-               SELECT id FROM ${this.auditTable}
+               SELECT id FROM ${table}
                 WHERE id > $1 AND id < $2
                   AND ($3::text IS NULL OR starts_with(sid, $3))
                 ORDER BY id
@@ -2653,6 +2695,97 @@ export class PgStore implements NodeStore {
       if (n < AUDIT_PURGE_BATCH || row.last === null) return total;
       after = row.last as string;
     }
+  }
+
+  // ===== Access Log =====
+
+  async appendAccessLog(records: AccessRecord[]): Promise<void> {
+    if (records.length === 0) return;
+
+    const rows = records.map((r) => ({
+      id: r.id,
+      at: r.timestamp,
+      event: r.event,
+      uid: r.uid ?? null,
+      sid: r.sid ?? null,
+      from_addr: r.from ?? null,
+      via: r.via ?? null,
+      method: r.method ?? null,
+      reason: r.reason ?? null,
+      link_id: r.linkId ?? null,
+      path: r.path ?? null,
+      count: r.count ?? null,
+    }));
+
+    await this.runParameterized({
+      text: `
+        INSERT INTO ${this.accessLogTable} (id, at, event, uid, sid, from_addr, via, method, reason, link_id, path, count)
+        SELECT id, to_timestamp(at / 1000.0), event, uid, sid, from_addr, via, method, reason, link_id, path, count
+        FROM jsonb_to_recordset($1::jsonb) AS r(
+          id text, at double precision, event text, uid integer, sid text, from_addr text, via text,
+          method text, reason text, link_id text, path text, count integer
+        )
+      `,
+      values: [JSON.stringify(rows)],
+    });
+  }
+
+  async queryAccessLog(query: AccessLogQuery): Promise<AccessRecord[]> {
+    const where: string[] = [];
+    const values: unknown[] = [];
+    const param = (value: unknown) => {
+      values.push(value);
+      return `$${values.length}`;
+    };
+
+    if (query.id !== undefined) where.push(`id = ${param(query.id)}`);
+    if (query.uid !== undefined) where.push(`uid = ${param(query.uid)}`);
+    if (query.events !== undefined) where.push(`event = ANY(${param(query.events)}::text[])`);
+    if (query.sid !== undefined) where.push(`sid = ${param(query.sid)}`);
+    if (query.from !== undefined) where.push(`from_addr = ${param(query.from)}`);
+    if (query.linkId !== undefined) where.push(`link_id = ${param(query.linkId)}`);
+    if (query.after !== undefined) where.push(`id > ${param(query.after)}`);
+    if (query.since !== undefined) where.push(`at >= to_timestamp(${param(query.since)} / 1000.0)`);
+    if (query.until !== undefined) where.push(`at < to_timestamp(${param(query.until)} / 1000.0)`);
+    if (query.pathPrefix !== undefined) {
+      if (query.pathPrefix === '/') {
+        where.push(`path IS NOT NULL`);
+      } else {
+        const exact = param(query.pathPrefix);
+        const below = param(query.pathPrefix.replace(/[\\%_]/g, (c) => '\\' + c) + '/%');
+        where.push(`(path = ${exact} OR path LIKE ${below})`);
+      }
+    }
+
+    const rows = await this.runParameterized({
+      text: `
+        SELECT id, (extract(epoch FROM at) * 1000)::bigint AS at, event, uid, sid, from_addr, via, method, reason, link_id, path, count
+        FROM ${this.accessLogTable}
+        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+        ORDER BY id ${query.after !== undefined ? 'ASC' : 'DESC'}
+        LIMIT ${param(query.limit ?? 100)}
+      `,
+      values,
+    });
+
+    return rows.map((row) => ({
+      id: row.id as string,
+      timestamp: Number(row.at),
+      event: row.event as AccessRecord['event'],
+      ...(row.uid !== null ? { uid: row.uid as UserId } : {}),
+      ...(row.sid !== null ? { sid: row.sid as string } : {}),
+      ...(row.from_addr !== null ? { from: row.from_addr as string } : {}),
+      ...(row.via !== null ? { via: row.via as AccessRecord['via'] } : {}),
+      ...(row.method !== null ? { method: row.method as AccessRecord['method'] } : {}),
+      ...(row.reason !== null ? { reason: row.reason as string } : {}),
+      ...(row.link_id !== null ? { linkId: row.link_id as string } : {}),
+      ...(row.path !== null ? { path: row.path as NodePath } : {}),
+      ...(row.count !== null ? { count: row.count as number } : {}),
+    }));
+  }
+
+  async purgeAccessLog(purge: AccessLogPurge): Promise<number> {
+    return await this.purgeBefore(this.accessLogTable, purge.before, null);
   }
 
   // ===== Storage Deletes =====

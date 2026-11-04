@@ -108,6 +108,8 @@ export const isPathWithin = (path: NodePath, prefix: NodePath): boolean => prefi
 export const auditMatches = (record: AuditRecord, query: AuditQuery): boolean => {
   if (query.id !== undefined && record.id !== query.id) return false;
   if (query.uid !== undefined && record.uid !== query.uid) return false;
+  if (query.sid !== undefined && record.sid !== query.sid) return false;
+  if (query.pipeline !== undefined && (record.sid?.startsWith(PIPELINE_SID_PREFIX) === true) !== query.pipeline) return false;
   if (query.nodeId !== undefined && record.nodeId !== query.nodeId) return false;
   if (query.cause !== undefined && record.cause !== query.cause) return false;
   if (query.op !== undefined && record.op !== query.op) return false;

@@ -1,5 +1,5 @@
 import { Alert, Badge, Container, Group, SimpleGrid, Stack, Tabs, Text, Tooltip } from '@mantine/core';
-import { IconAlertTriangle, IconGauge, IconHeartbeat, IconPlugConnectedX, IconStack2, IconTerminal2 } from '@tabler/icons-react';
+import { IconAlertTriangle, IconGauge, IconHeartbeat, IconHistory, IconPlugConnectedX, IconStack2, IconTerminal2 } from '@tabler/icons-react';
 import { useSignals } from '@preact/signals-react/runtime';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -23,13 +23,14 @@ import {
 import type { DiskUsage, HealthAnswer, HostMetrics as Metrics, LogLine, PoolStatAnswer, ServiceEntry, SystemInfo } from '@ein/api';
 import { usePipelineOverview, usePipelines, usePolledCommand } from '@ein/ui/hooks';
 import { panelRoute, panelsOf, shellClientConnected } from '@ein/ui/signals';
+import { ActivityLog } from '../components/Activity/ActivityLog.tsx';
 
 /** Must match pipeline-overview's BUCKET_MS and window. */
 const BUCKET_MS = 1_000_000;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** The dashboard's own tabs; a module's are `system.tabs` panels (ems's media service), drawn after Work. */
-const TABS = ['overview', 'work', 'services', 'log'] as const;
+const TABS = ['overview', 'work', 'services', 'log', 'activity'] as const;
 type SystemTab = string;
 
 const isTab = (value: string | null): value is SystemTab =>
@@ -53,7 +54,8 @@ const isTab = (value: string | null): value is SystemTab =>
  *
  * Tabs, ordered by how quickly a problem needs to be seen: the machine's vital
  * signs and what the work is doing first, then the work in detail, then the
- * things you go looking for once something is already wrong.
+ * things you go looking for once something is already wrong, and last who reached EiN and
+ * what they took or changed.
  */
 export default function SystemPage() {
   useSignals();
@@ -177,6 +179,7 @@ export default function SystemPage() {
             ))}
             <Tabs.Tab value='services' leftSection={<IconHeartbeat size={16} />}>Services</Tabs.Tab>
             <Tabs.Tab value='log' leftSection={<IconTerminal2 size={16} />}>Log</Tabs.Tab>
+            <Tabs.Tab value='activity' leftSection={<IconHistory size={16} />}>Activity</Tabs.Tab>
           </Tabs.List>
         }
         pattern='mixed'
@@ -280,6 +283,11 @@ export default function SystemPage() {
               <RecentErrors errors={problems ?? undefined} />
               <LogTail />
             </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value='activity'>
+            {/* Who signed in, downloaded or shared what, and who changed what: `access-log` and `audit`. */}
+            <ActivityLog />
           </Tabs.Panel>
         </Stack>
       </Container>

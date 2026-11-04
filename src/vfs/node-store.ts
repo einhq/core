@@ -10,6 +10,7 @@ import type { AggregateBucket, NodeAggregateQuery, NodeQuery, NodeQueryRow, Pare
 import { NodeAttrsUpdate, NodeChildEntry, NodePropsCreate, NodePropsUpdate, TreeEntry } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
 import type { AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
+import type { AccessLogPurge, AccessLogQuery, AccessRecord } from '../lib/api/audit.ts';
 
 /**
  * Narrows a child-edge lookup: by name or by child. `getChildren` also takes a page of the
@@ -545,7 +546,10 @@ export interface NodeStore {
 
   // ===== Audit Trail (Optional) =====
 
-  /** Whether this store keeps an audit trail; when true, `appendAudit`, `queryAudit` and `purgeAudit` exist. */
+  /**
+   * Whether this store keeps an audit trail and an access log; when true, `appendAudit`,
+   * `queryAudit`, `purgeAudit` and their `…AccessLog` counterparts exist.
+   */
   readonly auditing?: boolean;
 
   /**
@@ -559,6 +563,18 @@ export interface NodeStore {
 
   /** Delete the records `purge` names, and say how many went. */
   purgeAudit?(purge: AuditPurge): Promise<number>;
+
+  // ===== Access Log (Optional) =====
+  // Kept by every store that keeps the audit trail: present exactly when `auditing` is true.
+
+  /** Add sign-ins, sign-outs, share-link openings and downloads to the access log. */
+  appendAccessLog?(records: AccessRecord[]): Promise<void>;
+
+  /** Read the access log back, newest first, or with `query.after` oldest first from there. */
+  queryAccessLog?(query: AccessLogQuery): Promise<AccessRecord[]>;
+
+  /** Delete the access-log records `purge` names, and say how many went. */
+  purgeAccessLog?(purge: AccessLogPurge): Promise<number>;
 
   // ===== Storage Deletes (Optional) =====
 

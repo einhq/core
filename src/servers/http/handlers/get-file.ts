@@ -1,6 +1,7 @@
 import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
+import type { DownloadLog } from '../download-log.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
 import { fileBody } from './file-body.ts';
@@ -20,10 +21,13 @@ type GetFileOptions = {
    * reads them whether or not visitors may browse.
    */
   site?: boolean;
+  /** Where a read of an original is recorded as a download, with the client's address. */
+  downloads?: DownloadLog;
+  from?: string;
 };
 
 export async function handleGetFile(config: HttpServerConfig, req: Request, url: URL, opts: GetFileOptions = {}): Promise<Response> {
-  const { responseHeaders, access } = await getSession(config, req.headers, { create: opts.createSession === true });
+  const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
   if (!opts.site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
   const vfsPath = decodeURIComponent(url.pathname.replace('/file', ''));
   // Resolved once for both the `get` and the `open` below: a static asset's path runs through
@@ -102,6 +106,9 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
     responseHeaders.set('Content-Range', `bytes */${size}`);
     return new Response(null, { status: 416, headers: responseHeaders });
   }
+
+  // A read from the start is a download; the requests a player seeks with are part of the one before.
+  if (req.method === 'GET' && (!range || range.start === 0)) await opts.downloads?.file(access, sessionPath, opts.from, vfsPath, node);
 
   if (!range) {
     responseHeaders.set('Content-Length', size.toString());

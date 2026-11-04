@@ -1,5 +1,5 @@
 {
-  "description": "Removes audit records once they are older than the retention",
+  "description": "Removes audit and access-log records once they are older than their retention",
   "restartPolicy": "on-failure",
   "workClass": "background"
 }
