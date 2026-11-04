@@ -81,9 +81,8 @@ export const routes: RouteObject[] = [{
     { path: 'trash', element: <TrashPage />, handle: ownPage },
     { path: 'system', element: <SystemPage />, handle: fullBleed },
     { path: 'system/nodes', element: <NodesPage />, handle: fullBleed },
-    // A pipeline's page wears the system header; the instance page under it does not.
     { path: 'system/pipelines/:pipeline', element: <PipelineDetailPage />, handle: fullBleed },
-    { path: 'system/pipelines/:pipeline/:id', element: <InstanceDetailPage /> },
+    { path: 'system/pipelines/:pipeline/:id', element: <InstanceDetailPage />, handle: fullBleed },
     { path: '*', element: <NotFound />, handle: fullBleed },
   ],
 }];

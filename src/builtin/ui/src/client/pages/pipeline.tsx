@@ -1,4 +1,4 @@
-import { Anchor, Badge, Box, Button, Card, Checkbox, Container, Group, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { Badge, Box, Button, Card, Checkbox, Container, Group, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -6,10 +6,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Dialog, DialogActions, elapsed, EntityDetailHeader, PageLoader, statusColor } from '@ein/ui/components';
 import { countOf } from '@ein/ui/lib';
 import { useAccessIds, usePipelineActions, usePipelineInstances, usePipelines } from '@ein/ui/hooks';
+import { HeaderTrail } from '../components/EntityDetail/HeaderTrail.tsx';
 
 const STATUS_TABS = ['all', 'running', 'completed', 'failed', 'cancelled'] as const;
 
 const formatTime = (ts?: number) => ts ? new Date(ts).toLocaleString() : '-';
+
+/** The pages above a pipeline's: the system dashboard and its Work tab, which lists the pipelines. */
+export const SYSTEM_TRAIL = [{ label: 'System dashboard', to: '/system' }, { label: 'Work', to: '/system?tab=work' }];
 
 export default function PipelineDetailPage() {
   const { pipeline } = useParams<{ pipeline: string }>();
@@ -78,19 +82,15 @@ export default function PipelineDetailPage() {
   return (
     <Tabs value={statusFilter} onChange={(v) => setStatusFilter(v || 'all')}>
       <EntityDetailHeader
+        eyebrow={<HeaderTrail steps={SYSTEM_TRAIL} />}
         title={pipeline}
-        pattern='system'
+        pattern='mixed'
         tabs={
           <Tabs.List>
             {STATUS_TABS.map((tab) => <Tabs.Tab key={tab} value={tab}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</Tabs.Tab>)}
           </Tabs.List>
         }
         subtitle={definition?.description && <Text size='sm' c='gray.2'>{definition.description}</Text>}
-        meta={
-          <Anchor size='sm' c='gray.3' onClick={() => navigate('/system?tab=work')}>
-            ← System dashboard
-          </Anchor>
-        }
         flowContent
       />
 

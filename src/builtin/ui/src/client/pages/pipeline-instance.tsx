@@ -1,9 +1,11 @@
 import { Badge, Box, Button, Card, Code, Container, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
-import { IconArrowLeft, IconChevronDown, IconChevronRight, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { elapsed, statusColor } from '@ein/ui/components';
+import { elapsed, EntityDetailHeader, type PageAction, statusColor } from '@ein/ui/components';
 import { type PipelineStep, useAccessIds, usePipelineActions, usePipelineStatus } from '@ein/ui/hooks';
+import { HeaderTrail } from '../components/EntityDetail/HeaderTrail.tsx';
+import { SYSTEM_TRAIL } from './pipeline.tsx';
 
 const formatTime = (ts?: number) => ts ? new Date(ts).toLocaleString() : '-';
 const duration = (start?: number, end?: number) => start ? elapsed(start, end ?? Date.now()) : '-';
@@ -119,92 +121,85 @@ export default function InstanceDetailPage() {
 
   if (!pipeline || !id) return <Text>Missing instance reference</Text>;
 
+  // Rerun stands in the header's corner; Cancel beside it while there is something to stop.
+  const actions: PageAction[] = admin
+    ? [
+      { label: 'Rerun', icon: 'refresh', onClick: () => void act(() => rerun([ref])), disabled: busy, button: true },
+      ...(data?.status === 'running' || data?.status === 'queued')
+        ? [{ label: 'Cancel', icon: 'player-stop', color: 'orange', onClick: () => void act(() => cancel([ref])), disabled: busy, button: true }]
+        : [],
+      { label: 'Remove', icon: 'trash', color: 'red', onClick: () => void act(() => remove([ref]), true), disabled: busy },
+    ]
+    : [];
+
+  // The run is named by what it ran on; its pipeline is the trail's last step, above it.
   return (
-    <Container py='md'>
-      <Stack gap='lg'>
-        <Group>
-          <IconArrowLeft size={20} style={{ cursor: 'pointer' }} onClick={back} />
-          <Title order={1}>{pipeline}</Title>
-          {loading && !data && <Loader size='sm' />}
-          {admin && (
-            <Group gap='xs' ml='auto'>
-              <Button size='xs' variant='light' leftSection={<IconRefresh size={14} />} onClick={() => act(() => rerun([ref]))} loading={busy}>
-                Rerun
-              </Button>
-              {(data?.status === 'running' || data?.status === 'queued') && (
-                <Button
-                  size='xs'
-                  variant='light'
-                  color='orange'
-                  leftSection={<IconPlayerStop size={14} />}
-                  onClick={() => act(() => cancel([ref]))}
-                  loading={busy}
-                >
-                  Cancel
-                </Button>
-              )}
-              <Button size='xs' variant='light' color='red' leftSection={<IconTrash size={14} />} onClick={() => act(() => remove([ref]), true)} loading={busy}>
-                Remove
-              </Button>
-            </Group>
+    <>
+      <EntityDetailHeader
+        eyebrow={<HeaderTrail steps={[...SYSTEM_TRAIL, { label: pipeline, to: `/system/pipelines/${encodeURIComponent(pipeline)}` }]} />}
+        title={data?.triggerPath.split('/').filter(Boolean).pop() || data?.triggerPath || id}
+        name={`${pipeline} run ${id}`}
+        pattern='mixed'
+        subtitle={data && <Text size='sm' c='gray.2' ff='monospace'>{data.triggerPath}</Text>}
+        meta={loading && !data && <Loader size='sm' color='white' />}
+        actions={actions.length > 0 ? { items: actions } : undefined}
+        flowContent
+      />
+
+      <Container py='md' px='md'>
+        <Stack gap='lg'>
+          {error && <Text c='red'>{error.message}</Text>}
+
+          {data && (
+            <>
+              <Card>
+                <Group gap='xl'>
+                  <Box>
+                    <Text size='xs' c='dimmed'>Status</Text>
+                    <Badge color={statusColor(data.status)} variant='light' mt={4}>{data.status}</Badge>
+                  </Box>
+                  <Box>
+                    <Text size='xs' c='dimmed'>Started</Text>
+                    <Text size='sm' mt={4}>{formatTime(data.startedAt)}</Text>
+                  </Box>
+                  <Box>
+                    <Text size='xs' c='dimmed'>Duration</Text>
+                    <Text size='sm' mt={4}>{duration(data.startedAt, data.completedAt)}</Text>
+                  </Box>
+                </Group>
+                <Text size='xs' c='dimmed' mt='sm' ff='monospace'>{ref}</Text>
+              </Card>
+
+              <Card>
+                <Title order={4} mb='md'>Steps</Title>
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th w={30} />
+                      <Table.Th>Step</Table.Th>
+                      <Table.Th>Status</Table.Th>
+                      <Table.Th>Depends on</Table.Th>
+                      <Table.Th>Command</Table.Th>
+                      <Table.Th ta='right'>Duration</Table.Th>
+                      <Table.Th w={70} />
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {data.steps.map((step) => (
+                      <StepRow
+                        key={step.stepName}
+                        step={step}
+                        busy={busy}
+                        onRestart={admin ? () => act(() => restartStep(ref, step.stepName)) : undefined}
+                      />
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Card>
+            </>
           )}
-        </Group>
-
-        {error && <Text c='red'>{error.message}</Text>}
-
-        {data && (
-          <>
-            <Card>
-              <Group gap='xl'>
-                <Box>
-                  <Text size='xs' c='dimmed'>Status</Text>
-                  <Badge color={statusColor(data.status)} variant='light' mt={4}>{data.status}</Badge>
-                </Box>
-                <Box>
-                  <Text size='xs' c='dimmed'>Target</Text>
-                  <Text size='sm' ff='monospace' mt={4}>{data.triggerPath}</Text>
-                </Box>
-                <Box>
-                  <Text size='xs' c='dimmed'>Started</Text>
-                  <Text size='sm' mt={4}>{formatTime(data.startedAt)}</Text>
-                </Box>
-                <Box>
-                  <Text size='xs' c='dimmed'>Duration</Text>
-                  <Text size='sm' mt={4}>{duration(data.startedAt, data.completedAt)}</Text>
-                </Box>
-              </Group>
-              <Text size='xs' c='dimmed' mt='sm' ff='monospace'>{ref}</Text>
-            </Card>
-
-            <Card>
-              <Title order={4} mb='md'>Steps</Title>
-              <Table striped>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th w={30} />
-                    <Table.Th>Step</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Depends on</Table.Th>
-                    <Table.Th>Command</Table.Th>
-                    <Table.Th ta='right'>Duration</Table.Th>
-                    <Table.Th w={70} />
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {data.steps.map((step) => (
-                    <StepRow
-                      key={step.stepName}
-                      step={step}
-                      busy={busy}
-                      onRestart={admin ? () => act(() => restartStep(ref, step.stepName)) : undefined}
-                    />
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Card>
-          </>
-        )}
-      </Stack>
-    </Container>
+        </Stack>
+      </Container>
+    </>
   );
 }
