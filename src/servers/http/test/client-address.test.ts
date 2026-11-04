@@ -1,10 +1,10 @@
 /**
  * The client address of a request: the socket's peer, or the forwarded client
- * when the peer is a proxy on this host.
+ * when the peer is a proxy on this host or a trusted one.
  */
 
 import { assertEquals } from '@std/assert';
-import { clientAddress } from '../client-address.ts';
+import { clientAddress, parseTrustedProxies } from '../client-address.ts';
 
 const tcp = (hostname: string): Deno.NetAddr => ({ transport: 'tcp', hostname, port: 40000 });
 
@@ -34,4 +34,19 @@ Deno.test('clientAddress: a proxy on this host that forwards nothing is the clie
 
 Deno.test('clientAddress: a unix socket has no address', () => {
   assertEquals(clientAddress(new Headers(), { transport: 'unix', path: '/tmp/ein.sock' }), undefined);
+});
+
+Deno.test('clientAddress: a proxy in TRUSTED_PROXIES names the client', () => {
+  const headers = new Headers({ 'x-forwarded-for': '198.51.100.1' });
+  const trusted = parseTrustedProxies('10.0.2.2, 192.0.2.9');
+  assertEquals(clientAddress(headers, tcp('10.0.2.2'), trusted), '198.51.100.1');
+  assertEquals(clientAddress(headers, tcp('::ffff:10.0.2.2'), trusted), '198.51.100.1');
+  assertEquals(clientAddress(headers, tcp('192.0.2.9'), trusted), '198.51.100.1');
+  assertEquals(clientAddress(headers, tcp('192.0.2.7'), trusted), '192.0.2.7');
+});
+
+Deno.test('clientAddress: an empty TRUSTED_PROXIES trusts only this host', () => {
+  const headers = new Headers({ 'x-forwarded-for': '198.51.100.1' });
+  assertEquals(clientAddress(headers, tcp('10.0.2.2'), parseTrustedProxies('')), '10.0.2.2');
+  assertEquals(clientAddress(headers, tcp('10.0.2.2'), parseTrustedProxies(undefined)), '10.0.2.2');
 });

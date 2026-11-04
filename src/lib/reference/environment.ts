@@ -34,6 +34,12 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     description: 'Connections kept apart for change notifications, which hold theirs for good.',
   },
   {
+    key: 'TRUSTED_PROXIES',
+    kind: 'deployment',
+    description:
+      "Addresses, separated by commas, of proxies whose X-Forwarded-For and Forwarded headers name the client, besides this host's loopback, which is always believed. setup.sh sets 10.0.2.2 under rootless podman's slirp4netns, where a proxy on the machine reaches EiN from there.",
+  },
+  {
     key: 'FILE_ROOT_PATH',
     kind: 'deployment',
     default: './files',
