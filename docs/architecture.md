@@ -299,7 +299,8 @@ order, which is how the router-only root reads the pg trail mounted at `/`. The 
 (`audit [path] --user --sid --no-pipeline --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it;
 `--no-pipeline` (`AuditQuery.pipeline: false`) leaves out the runs' writes through a partial index
 on the rest (`people_idx`), so a page of what people wrote never walks past millions of derived
-records.
+records, and `--sid` of a session or SSH connection reads `sid_idx`, a partial index on the same
+writes.
 
 **Retention.** The trail grows with every content write, a crawl's or a re-embedding's included, and
 the writes of pipeline runs (`sid` starting `pipeline:`) are nearly all of it: on a photo archive

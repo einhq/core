@@ -97,7 +97,7 @@ const UNIQUE_VIOLATION = '23505';
 /** The parent went away between resolving it and writing under it. */
 const FOREIGN_KEY_VIOLATION = '23503';
 
-/** An audit record that is not a pipeline run's write: the predicate of the trail's `people_idx`. */
+/** An audit record that is not a pipeline run's write: the predicate of the trail's `people_idx` and `sid_idx`. */
 const NOT_PIPELINE_SQL = `NOT coalesce(starts_with(sid, '${PIPELINE_SID_PREFIX}'), false)`;
 
 /** Audit and access-log records deleted per statement by `purgeBefore`. */
@@ -532,6 +532,8 @@ export class PgStore implements NodeStore {
       // What people, imports and services wrote, newest first, without walking past the far more
       // numerous writes of pipeline runs (`audit --no-pipeline`).
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_people_idx ON ${this.auditTable} (id) WHERE ${NOT_PIPELINE_SQL}`);
+      // A session's or SSH connection's writes (`audit --sid`), which the access log leads to.
+      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_sid_idx ON ${this.auditTable} (sid, id) WHERE sid IS NOT NULL AND ${NOT_PIPELINE_SQL}`);
 
       // The access log: sign-ins, sign-outs, share links opened and downloads (`appendAccessLog`).
       // Ids are monotonic ULIDs as in the audit trail, so the same reads and purge apply.
@@ -2607,7 +2609,11 @@ export class PgStore implements NodeStore {
 
     if (query.id !== undefined) where.push(`id = ${param(query.id)}`);
     if (query.uid !== undefined) where.push(`uid = ${param(query.uid)}`);
-    if (query.sid !== undefined) where.push(`sid = ${param(query.sid)}`);
+    if (query.sid !== undefined) {
+      // A session's sid is no pipeline run's: saying so lets the planner use `sid_idx`.
+      where.push(`sid = ${param(query.sid)}`);
+      if (!query.sid.startsWith(PIPELINE_SID_PREFIX)) where.push(NOT_PIPELINE_SQL);
+    }
     // Spelled as the predicate of `people_idx` is, so the planner can use it: a parameter would hide the match.
     if (query.pipeline !== undefined) where.push(`${query.pipeline ? 'NOT ' : ''}${NOT_PIPELINE_SQL}`);
     if (query.nodeId !== undefined) where.push(`node_id = ${param(query.nodeId)}`);
