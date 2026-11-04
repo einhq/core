@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, SegmentedControl, Skeleton, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Card, Chip, Group, Skeleton, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { IconAlertTriangle, IconSearch, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
@@ -196,7 +196,12 @@ export function ActivityLog() {
     <Stack gap='md'>
       <Card>
         <Stack gap='sm'>
-          <SegmentedControl size='xs' data={KINDS} value={filters.kind} onChange={(kind) => narrow({ kind: kind as Kind })} />
+          {/* Chips rather than a segmented control: six of them wrap on a phone instead of being cut off. */}
+          <Chip.Group value={filters.kind} onChange={(kind) => narrow({ kind: kind as Kind })}>
+            <Group gap={6}>
+              {KINDS.map((kind) => <Chip key={kind.value} value={kind.value} size='xs'>{kind.label}</Chip>)}
+            </Group>
+          </Chip.Group>
           <Group gap='xs' align='flex-end'>
             {field('user', 'User')}
             {field('path', 'Path, e.g. /archive/Summer')}
@@ -260,7 +265,10 @@ export function ActivityLog() {
                         {row.user ? <Anchor size='xs' onClick={() => narrow({ user: row.user! })}>{row.who}</Anchor> : <Text size='xs' c='dimmed'>{row.who ?? '—'}</Text>}
                       </Table.Td>
                       <Table.Td>
-                        <Badge size='xs' variant='light' color={row.color}>{row.label}</Badge>
+                        {/* Never cut short: the column keeps the badge's width when the table is narrow. */}
+                        <Badge size='xs' variant='light' color={row.color} styles={{ root: { maxWidth: 'none', overflow: 'visible' }, label: { overflow: 'visible' } }}>
+                          {row.label}
+                        </Badge>
                       </Table.Td>
                       <Table.Td style={{ maxWidth: 360 }}>
                         {row.path && (
