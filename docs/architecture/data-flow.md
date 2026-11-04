@@ -151,9 +151,10 @@ A pass over the corpus is **resumable**, and has to be: the facts are predicates
 that starts at the top every time re-announces whatever the previous run announced and the
 engine has not drained yet — the 8.1x redundancy that a 15-minute timer produced. Each run
 examines at most `--scan-limit` files (default 20000) and stores where it stopped as
-`mediaScanCursor` on the root it was given, so repeated runs cover the library instead of
-repeating its first slice; reaching the end of the subtree ends the pass and clears the
-cursor. Resuming finds the entry the cursor names rather than comparing names against it,
+`mediaScanPass` on the root it was given, with what the pass has announced and held back so
+far, so repeated runs cover the library instead of repeating its first slice and a restart of
+EiN between runs loses nothing; reaching the end of the subtree ends the pass, reports its
+totals and clears it. media-heal walks a pass this way, 5000 files a run. Resuming finds the entry the cursor names rather than comparing names against it,
 since a listing is ordered by `(position, name)` in PostgreSQL and by insertion order in
 memory. `--restart` goes back to the top.
 
