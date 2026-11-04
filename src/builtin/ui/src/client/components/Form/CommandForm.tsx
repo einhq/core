@@ -11,8 +11,12 @@ export type CommandFormProps = {
   fields: FormField[];
   /** Values to start with, such as what a link already knew (a scanned camera's make and model). */
   initial?: FormValues;
-  /** The command line the values make, and the route to open once it has run; throw to show an error. */
-  build: (values: FormValues) => { command: string; navigateTo: string };
+  /**
+   * The command line the values make, and the route to open once it has run: a route, or for a
+   * command whose JSON answer names what it made, the route that answer leads to. Throw to show
+   * an error.
+   */
+  build: (values: FormValues) => { command: string; navigateTo: string | ((answer: unknown) => string) };
   submitLabel?: string;
 };
 
@@ -38,8 +42,8 @@ export function CommandForm({ fields, initial, build, submitLabel = 'Create' }: 
     setError(null);
     try {
       const { command, navigateTo } = build(values);
-      await execCommand(command);
-      surface.openPage(navigateTo);
+      const answer = await execCommand(command);
+      surface.openPage(typeof navigateTo === 'function' ? navigateTo(answer) : navigateTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
