@@ -18,7 +18,7 @@ import { shq } from '../shell-quote/mod.ts';
 import type { SubjectEntry, SubjectListing, SubjectMatch, SubjectsOf } from '../subjects/types.ts';
 import { TEMP_PATH } from '../paths.ts';
 import { classify } from './filters.ts';
-import { type Candidate, type ChannelHits, CONFIDENT_NAME, sortKeyOf, wallClockOf, writeIdFile } from './sources.ts';
+import { type Candidate, type ChannelHits, CONFIDENT_NAME, sortKeyOf, type SubjectHits, wallClockOf, writeIdFile } from './sources.ts';
 
 export type Subject = {
   kind: string;
@@ -149,7 +149,7 @@ export const hydrateSubjectCandidates = async (cmd: Command, ids: ReadonlySet<No
 /**
  * A subject a text search named — a person, a location — brings its media with it: they are added
  * to `byPath` and ranked in the `subject` channel, each at the `name` rank of its subject (the best
- * one, when several subjects hold it).
+ * one, when several subjects hold it), and listed under each subject that holds it.
  *
  * Typing someone's name and getting back only their person node is the wrong answer to the
  * obvious question — the pictures *of* them are what was meant, and a face is how a picture
@@ -164,7 +164,7 @@ export const expandSubjectHits = async (
   byPath: Map<string, Candidate>,
   names: ChannelHits,
   nameRanks: Map<string, number>,
-): Promise<Map<string, number>> => {
+): Promise<SubjectHits> => {
   const confident = [...names].filter(([, hit]) => hit.score >= CONFIDENT_NAME).flatMap(([path]) => byPath.get(path) ?? []);
   // A provider hands back the id of what it matched, so the kinds cost one batched read.
   const loaded = await cmd.sys.vfs.getNodesByIds(cmd.access, confident.flatMap((candidate) => !candidate.node && candidate.id ? [candidate.id] : []));
@@ -178,6 +178,7 @@ export const expandSubjectHits = async (
   }
 
   const ranks = new Map<string, number>();
+  const media = new Map<string, string[]>();
   for (const [kind, subjects] of byKind) {
     const expandedAt = Date.now();
     // An unreadable subject contributes nothing rather than failing the search.
@@ -192,7 +193,8 @@ export const expandSubjectHits = async (
         if (!byPath.has(member.path)) byPath.set(member.path, { ...member, score: 0 });
         ranks.set(member.path, Math.min(rank, ranks.get(member.path) ?? rank));
       }
+      media.set(subjects[index].path, members.map((member) => member.path));
     }
   }
-  return ranks;
+  return { ranks, media };
 };

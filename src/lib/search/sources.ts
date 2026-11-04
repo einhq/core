@@ -265,7 +265,8 @@ export const listSource = (name: string, items: Candidate[], start = 0): Candida
  * An album's pictures (`members`) count for less than a name: an album found by its pictures alone
  * should not tie with a person called what was asked, and at 1 albums fill the picture queries'
  * top 10 (nDCG@10 0.66 → 0.36); an album is found by what it shows under `--kind album`.
- * `subject` is the media of a person, place or camera whose name matched, under the subject itself.
+ * `subject` is the media of a person, place or camera whose name matched; however much another
+ * channel adds to one of them, the subject itself leads it (`fuseChannels`).
  */
 const CHANNEL_WEIGHTS: Record<SearchRankChannel, number> = {
   picture: 1,
@@ -332,15 +333,22 @@ const hitWeight = (channel: SearchRankChannel, hit: { score: number; confident?:
   return hit?.confident ? CONFIDENT_HIT_WEIGHT : CHANNEL_WEIGHTS[channel];
 };
 
+/** The `subject` channel: each medium's rank, and each subject's media by path. */
+export type SubjectHits = { ranks: Map<string, number>; media: Map<string, string[]> };
+
 /**
  * Weighted reciprocal-rank fusion of `ranks` into the candidates' `score`, scaled so the best is 1,
  * and each candidate's `channels`. Ordered by score, then path. `hits` are the providers' hits by
  * channel, whose scores and `confident` say a hit's weight (`hitWeight`).
+ *
+ * A subject in `subjects` scores just above the best of its media: the query named it, and a
+ * medium another channel also found would otherwise lead it on the `subject` weight it owes to it.
  */
 export const fuseChannels = (
   byPath: Map<string, Candidate>,
   ranks: Map<SearchRankChannel, Map<string, number>>,
   hits: ReadonlyMap<SearchChannel, ChannelHits> = new Map(),
+  subjects: ReadonlyMap<string, readonly string[]> = new Map(),
 ): Candidate[] => {
   for (const candidate of byPath.values()) {
     candidate.score = 0;
@@ -354,6 +362,12 @@ export const fuseChannels = (
       candidate.score += weight / (RRF_K + rank);
       candidate.channels![channel] = rank;
     }
+  }
+  for (const [path, media] of subjects) {
+    const subject = byPath.get(path);
+    if (!subject) continue;
+    const best = Math.max(0, ...media.flatMap((medium) => medium === path ? [] : byPath.get(medium)?.score ?? []));
+    if (best >= subject.score) subject.score = best * (1 + 1e-9);
   }
   const best = Math.max(0, ...[...byPath.values()].map((candidate) => candidate.score));
   if (best > 0) { for (const candidate of byPath.values()) candidate.score /= best; }
@@ -392,9 +406,9 @@ export const textSource = async (
   opts: {
     /**
      * Ranks more hits in the `subject` channel, from the `name` channel's hits and ranks; it adds
-     * the candidates it ranks to `byPath`.
+     * the candidates it ranks to `byPath`, and says which subject each came from.
      */
-    expand?: (byPath: Map<string, Candidate>, names: ChannelHits, nameRanks: Map<string, number>) => Promise<Map<string, number>>;
+    expand?: (byPath: Map<string, Candidate>, names: ChannelHits, nameRanks: Map<string, number>) => Promise<SubjectHits>;
     /** Rank inside these files: the ids file, and which providers take `--within`. */
     within?: { path: string; providers: ReadonlySet<string> };
     /** Leave out what lies under these directories, at the providers that take `--not-within`. */
@@ -490,9 +504,11 @@ export const textSource = async (
   );
   for (const path of namesDate) byPath.get(path)!.namesDate = true;
   // A subject the query named brings its media with it — see `expandSubjectHits`.
+  let subjectMedia = new Map<string, string[]>();
   if (opts.expand) {
     const subject = await opts.expand(byPath, channels.get('name') ?? new Map(), ranks.get('name') ?? new Map());
-    if (subject.size > 0) ranks.set('subject', subject);
+    if (subject.ranks.size > 0) ranks.set('subject', subject.ranks);
+    subjectMedia = subject.media;
   }
 
   // Where in a recording the words are, when what was said is one of the reasons it matched.
@@ -501,7 +517,7 @@ export const textSource = async (
     if (candidate && hit.atSeconds !== undefined) candidate.atSeconds = hit.atSeconds;
   }
 
-  const items = fuseChannels(byPath, ranks, channels);
+  const items = fuseChannels(byPath, ranks, channels, subjectMedia);
   const source = await orderedListSource(cmd, 'text', items, start, order);
   return { ...source, capped, ...(warnings.size > 0 ? { warnings: [...warnings] } : {}) };
 };

@@ -100,3 +100,31 @@ Deno.test('a person called what was asked leads a picture with their name writte
   ]);
   assertEquals(fuseChannels(candidates('/albums/invite.jpg', '/people/anna'), ranks, said).map((candidate) => candidate.path), ['/people/anna', '/albums/invite.jpg']);
 });
+
+Deno.test('a person named alone leads their own media that a second channel also finds', () => {
+  // The file named after her ties her name and sorts first; her pictures add `subject` to a picture
+  // rank or a transcript the provider is confident of.
+  const ranks = new Map<SearchRankChannel, Map<string, number>>([
+    ['name', new Map([['/albums/anna andersson.jpg', 1], ['/people/anna andersson', 2]])],
+    ['picture', new Map([['/albums/beach.jpg', 1], ['/albums/boat.jpg', 2]])],
+    ['transcript', new Map([['/albums/speech.mp4', 1]])],
+    ['subject', new Map([['/albums/anna andersson.jpg', 2], ['/albums/beach.jpg', 2], ['/albums/speech.mp4', 2]])],
+  ]);
+  const said = new Map<'name' | 'transcript', ChannelHits>([
+    ['name', hits([['/albums/anna andersson.jpg', 1], ['/people/anna andersson', 1]])],
+    ['transcript', new Map([['/albums/speech.mp4', { score: 0.9, confident: true }]])],
+  ]);
+  const paths = ['/albums/anna andersson.jpg', '/albums/beach.jpg', '/albums/boat.jpg', '/albums/speech.mp4', '/people/anna andersson'];
+  const media = new Map([['/people/anna andersson', ['/albums/anna andersson.jpg', '/albums/beach.jpg', '/albums/speech.mp4']]]);
+  const fused = fuseChannels(candidates(...paths), ranks, said, media);
+  assertEquals(fused.map((candidate) => candidate.path), [
+    '/people/anna andersson',
+    '/albums/anna andersson.jpg',
+    '/albums/speech.mp4',
+    '/albums/beach.jpg',
+    '/albums/boat.jpg',
+  ]);
+  assertEquals(fused[0].score, 1);
+  // Without the subjects, the media lead her.
+  assertEquals(fuseChannels(candidates(...paths), ranks, said)[0].path, '/albums/anna andersson.jpg');
+});
