@@ -1288,6 +1288,13 @@ export const search = async (cmd: Command): CmdReturn => {
   }
   const ownPoints = new Map(ownHits.flatMap((hit) => hit.point ? [[hit.path, hit.point] as const] : []));
   const holding = holdingGroups ? new Set([...holdingGroups.map((group) => group.path), ...ownHits.map((hit) => hit.path)]) : undefined;
+  /**
+   * Whether a name carrying the date asked (`namesDate`) answers for the pictures: when the date is
+   * the only picture filter, the album called "Christmas 1975" is that year's whether or not its
+   * pictures carry a date. A subject, a label or a region asked as well is still for the pictures
+   * it holds.
+   */
+  const namesDateHolds = holdingGroups !== undefined && namedDate !== undefined && subjectGroups.length === 0 && tags.length === 0 && region === undefined;
   // What the pictures are asked; the groups answer the rest through `holding`.
   const pictureGroups = holding ? [] : subjectGroups;
   /** Subjects that are sets of ids: materialized, intersected, and able to drive. */
@@ -1718,7 +1725,7 @@ export const search = async (cmd: Command): CmdReturn => {
   const passes = async (candidate: Candidate): Promise<boolean> => {
     if (isUnlistedPath(unlisted, candidate.path)) return false;
     const containerMember = containerMembers?.get(candidate.path);
-    if (holding && !holding.has(candidate.path)) return false;
+    if (holding && !holding.has(candidate.path) && !(namesDateHolds && candidate.namesDate)) return false;
     if (tagSet && !tagSet.has(candidate.path)) return false;
     if (containerMembers && !containerMember) return false;
     if (candidate.id !== undefined) {

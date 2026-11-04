@@ -3,7 +3,9 @@
  * "autumn trip 2014" finds the pictures of 2014 that match "autumn trip", and the undated album
  * called "Autumn trip 2014" first on the `name` channel, but neither the album of another year nor
  * a picture of one. A year given as both bounds, as the search box sends it, is the same; a window
- * open at one end is one only what has a date can be in.
+ * open at one end is one only what has a date can be in. Asked of albums, the year is otherwise for
+ * the pictures they hold, and the album called "Christmas 1975" is that year's though its scans
+ * carry no date — unless something else is asked of the pictures too.
  */
 
 import { assertEquals } from '@std/assert';
@@ -26,7 +28,11 @@ Deno.test({
   const cmd = testCommands(client);
 
   try {
-    await cmd.shouldSucceed('mkdir -p /albums/autumn-trip-2013 /albums/autumn-trip-2014 /library');
+    await cmd.shouldSucceed('mkdir -p /albums/autumn-trip-2013 /albums/autumn-trip-2014 /library /albums/christmas-1975 /albums/christmas-1976');
+    for (const album of ['christmas-1975', 'christmas-1976']) {
+      await cmd.shouldSucceed(`echo x > /albums/${album}/scan.jpg`);
+      await vfs.update(ADMIN_ACCESS, `/albums/${album}/scan.jpg`, { attrs: { mimetype: 'image/jpeg' } });
+    }
     for (const [name, takenAt] of [['trip-2014.jpg', '2014-10-01T10:00:00'], ['trip-2015.jpg', '2015-10-01T10:00:00']]) {
       await cmd.shouldSucceed(`echo x > /library/${name}`);
       await vfs.update(ADMIN_ACCESS, `/library/${name}`, { attrs: { mimetype: 'image/jpeg', ...captureTime(takenAt) } });
@@ -53,6 +59,21 @@ Deno.test({
     } finally {
       await script.close();
     }
+    const christmas = JSON.stringify({
+      results: [
+        { path: '/albums/christmas-1975', type: 'directory', name: 'Christmas 1975', channel: 'name', score: 0.8 },
+        { path: '/albums/christmas-1976', type: 'directory', name: 'Christmas 1976', channel: 'name', score: 0.8 },
+      ],
+    });
+    await vfs.create(ADMIN_ACCESS, 'file', bin, 'search-christmas', { props: { mode: 0o755 } });
+    const christmasScript = await vfs.open(ADMIN_ACCESS, `${bin}/search-christmas`, { mode: 'w' });
+    try {
+      await christmasScript.write(new TextEncoder().encode(
+        `#!bash\nif [ "$1" = --kinds ]; then echo '{"kinds":["directory"]}'; exit 0; fi\nif [ "$1" != christmas ]; then exit 1; fi\necho '${christmas}'\n`,
+      ));
+    } finally {
+      await christmasScript.close();
+    }
     const search = (args: string) => client.execJson<Results>(`PATH=${bin}:$PATH search ${args} --fields channels`);
 
     await t.step('the album named by the date leads its name channel, beside the pictures of that year', async () => {
@@ -71,6 +92,15 @@ Deno.test({
 
     await t.step('a window open at one end holds only what has a date', async () => {
       assertEquals(paths(await search("'autumn trip' --from 2014")), ['/library/trip-2015.jpg', '/library/trip-2014.jpg']);
+    });
+
+    await t.step('an album named by the year is found though its pictures carry no date', async () => {
+      assertEquals(paths(await search("'christmas 1975' --kind directory")), ['/albums/christmas-1975']);
+      assertEquals(paths(await search('christmas --kind directory --from 1975 --to 1975')), ['/albums/christmas-1975']);
+    });
+
+    await t.step('with a region asked too, the album has to hold pictures in it', async () => {
+      assertEquals(paths(await search("'christmas 1975' --kind directory --bbox=60,50,20,10")), []);
     });
   } finally {
     client.close();
