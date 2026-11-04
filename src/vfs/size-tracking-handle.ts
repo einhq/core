@@ -1,5 +1,5 @@
 import { modeFlags, type ResourceHandleIf, type ResourceMode, type ResourceOptions, ResourceSeekMode, type ResourceStat } from '../registries/types.ts';
-import { createSha256, type Sha256Hasher } from '../lib/hash/mod.ts';
+import { createSha256Stream, type Sha256Stream } from '../lib/hash/mod.ts';
 import { MIME_SAMPLE_BYTES } from '../lib/media/mime.ts';
 
 /**
@@ -16,7 +16,9 @@ import { MIME_SAMPLE_BYTES } from '../lib/media/mime.ts';
  *
  * **`sha256` rides along with `size`**, hashed from the bytes as they go past —
  * it is a property of the content exactly as the length is, and computing it
- * here costs nothing extra because the writer already holds every byte.
+ * here costs no read, because the writer already holds every byte. The hashing
+ * itself runs on a worker thread (`createSha256Stream`), not on the thread
+ * that serves every request.
  *
  * A streaming hash is only correct when the handle sees the whole file in
  * order, so it is kept **only for a write that starts from an empty file and
@@ -52,7 +54,7 @@ export class SizeTrackingHandle implements ResourceHandleIf {
    * Set while every byte of the file has gone past this handle in order, so the
    * running digest is the digest of what is on disk. Cleared by a seek.
    */
-  #hasher: Sha256Hasher | undefined;
+  #hasher: Sha256Stream | undefined;
   /** How many bytes the digest covers — i.e. where a seek must land to be a no-op. */
   #hashedBytes: number;
   /**
@@ -83,7 +85,7 @@ export class SizeTrackingHandle implements ResourceHandleIf {
     // Writing from an empty file is what makes a streaming digest, and the
     // bytes going past, the file's own.
     const fromEmpty = modeFlags(inner.mode).truncate || startSize === 0;
-    this.#hasher = fromEmpty ? createSha256() : undefined;
+    this.#hasher = fromEmpty ? createSha256Stream() : undefined;
     this.#hashedBytes = 0;
     this.#everWrote = false;
     this.#head = fromEmpty ? new Uint8Array(MIME_SAMPLE_BYTES) : undefined;
@@ -92,6 +94,7 @@ export class SizeTrackingHandle implements ResourceHandleIf {
 
   /** The bytes on disk are no longer the bytes that went past — stop claiming a hash. */
   #blind(): void {
+    this.#hasher?.free();
     this.#hasher = undefined;
     this.#head = undefined;
   }
@@ -115,14 +118,18 @@ export class SizeTrackingHandle implements ResourceHandleIf {
   }
 
   /**
-   * `peekHex` rather than `hex`: close() reports after a sync() already did, and
-   * finalising on the first would leave the second with a dead hasher.
+   * The running digest, or `null` without one. A digest the hashing thread
+   * could not give is no digest: no attr is better than a wrong one.
    */
+  async #digest(): Promise<string | null> {
+    return await this.#hasher?.peekHex().catch(() => null) ?? null;
+  }
+
   private async report(size: number): Promise<void> {
     if (!this.#dirty && size === this.#lastReported) return;
     this.#dirty = false;
     this.#lastReported = size;
-    await this.onFlush(size, this.#hasher?.peekHex() ?? null, this.#headSample());
+    await this.onFlush(size, await this.#digest(), this.#headSample());
   }
 
   /**
@@ -230,6 +237,7 @@ export class SizeTrackingHandle implements ResourceHandleIf {
     const size = await this.inner.size();
     await this.inner.writeEOF();
     await this.reportFinal(size);
+    this.#hasher?.free();
   }
 
   async sync(): Promise<void> {
@@ -248,5 +256,6 @@ export class SizeTrackingHandle implements ResourceHandleIf {
     }
     await this.inner.close();
     if (size !== undefined) await this.reportFinal(size);
+    this.#hasher?.free();
   }
 }

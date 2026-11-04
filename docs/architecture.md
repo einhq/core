@@ -363,7 +363,9 @@ Raw content writes go straight to a registry handle (`open → handle.write`), s
 
 **`sha256` rides along in that same write.** A content hash is a property of the bytes exactly as
 their length is, so the two belong to the same moment; the handle already holds every byte, which
-makes the digest free where `file-sync` re-reads the whole file. Before this it existed only where
+saves the read `file-sync` would make of the whole file. The hashing itself runs on a worker thread
+(`createSha256Stream` in [src/lib/hash/sha256.ts](../src/lib/hash/sha256.ts)) once a file passes a
+megabyte, so a large upload does not take the time of the thread that serves every request. Before this it existed only where
 somebody remembered to call `file-sync` — two derivative steps did, which is why 99% of derivatives
 carried one and essentially no original did, leaving `media-reindex` unable to fire and
 `duplicates`' exact mode with nothing to group on (ein/core#265).

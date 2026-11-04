@@ -47,6 +47,20 @@ Deno.test('write-time sha256', async (t) => {
     assertEquals((await vfs.get(ADMIN_ACCESS, '/b.bin')).attrs.sha256, sha256Hex(enc.encode('hello world')));
   });
 
+  await t.step('a write of several megabytes records the digest of all of it', async () => {
+    await mkfile(vfs, 'large.bin');
+    const body = new Uint8Array(3 * 1024 * 1024 + 7);
+    for (let i = 0; i < body.length; i++) body[i] = (i * 7 + (i >> 10)) & 0xff;
+
+    const h = await vfs.open(ADMIN_ACCESS, '/large.bin', { mode: 'w' });
+    for (let offset = 0; offset < body.length; offset += 32_768) await h.write(body.subarray(offset, offset + 32_768));
+    await h.close();
+
+    const node = await vfs.get(ADMIN_ACCESS, '/large.bin');
+    assertEquals(node.attrs.size, body.length);
+    assertEquals(node.attrs.sha256, sha256Hex(body));
+  });
+
   await t.step('the writable stream hashes too — most callers pipe rather than write()', async () => {
     await mkfile(vfs, 'c.bin');
     const h = await vfs.open(ADMIN_ACCESS, '/c.bin', { mode: 'w' });
