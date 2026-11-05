@@ -474,6 +474,25 @@ Deno.test({
       assertEquals((await step()).status, 'skipped');
     });
 
+    await t.step('restarting the engine hangs up a running step, which recovery runs again', async () => {
+      const id = await startFor('mgmt-hang', '/work/b.bin');
+      const stepPath = `${PIPELINE_INSTANCES_PATH}/mgmt-hang/${id}/steps/only`;
+      const step = () => client.execJson<{ status: string; startedAt?: number }>(`attrs ${stepPath}`);
+      await waitFor(async () => (await step()).status === 'running', 'step runs');
+      const first = (await step()).startedAt!;
+
+      // A stop that waited for the step would wait its ten minutes.
+      const restarted = Date.now();
+      assertEquals((await client.exec('service restart pipeline-engine')).success, true);
+      assertEquals(Date.now() - restarted < 20_000, true, `restart took ${Date.now() - restarted} ms`);
+      await waitFor(async () => {
+        const now = await step();
+        return now.status === 'running' && now.startedAt! > first;
+      }, 'step runs again');
+
+      assertEquals((await client.exec(`pipeline cancel mgmt-hang/${id}`)).success, true);
+    });
+
     await t.step('step-restart refuses a completed step', async () => {
       const id = await startFor('mgmt', '/work/a.bin');
       await waitFor(async () => (await statusOf('mgmt', id)) === 'completed', 'instance completes');

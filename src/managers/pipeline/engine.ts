@@ -413,6 +413,10 @@ export class PipelineEngine {
       await this.recovering;
       this.recovering = undefined;
     }
+    // Hang up the steps running inline, as a stopping pool worker does its own: a step may run for
+    // an hour, and a stop that waited for it would hold a restart that long. Each stays 'running'
+    // and is run again by recovery; one that ignores the hang-up is abandoned after the grace.
+    for (const hangUp of this.runningInline.values()) hangUp.abort();
     // Let in-flight steps settle; any still mid-run stay 'running' and are recovered.
     await Promise.allSettled([...this.inFlight]);
     // Same for trigger jobs: letting each finish releases its claim properly.
