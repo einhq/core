@@ -420,6 +420,8 @@ export type PipelineStepAttrs = NodeAttrs & {
   completedAt?: number;
   exitCode?: number;
   error?: string;
+  /** The end of what a completed step wrote, when it wrote anything (`stepOutputTail`). */
+  output?: string;
   /** Why a failed step failed when it was not the step's own doing: `input`, bytes that cannot be processed. */
   cause?: 'input';
 };

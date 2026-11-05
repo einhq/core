@@ -513,7 +513,10 @@ warning, and a person decides whether one is stuck. Bins that run as steps narra
 phases through `stepPhase` (`@ein/client`), which writes `<bin>: +<ms> <label>` to stderr
 only when captured or `-v`: those lines keep a slow step off the quiet list, and are a
 failed step's account of how far it got. A step that never settles holds its semaphore
-permit, or its pool capacity, for as long as it runs — the quiet list is how that shows.
+permit, or its pool capacity, for as long as it runs — the quiet list is how that shows. When a step
+exits zero, the end of its stdout (`stepOutputTail`, 400 characters) is kept as the step's
+`output`, so a step that ends by summing up what it did says it on its instance; a failed step's
+output goes to `error` instead.
 
 **`health` says, in one word, whether the work is well** ([health.ts](../../src/managers/exec/commands/system/health.ts),
 ein/core#515): `healthy` when nothing is waiting, `catching-up` when work is waiting and

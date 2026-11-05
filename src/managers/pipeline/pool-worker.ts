@@ -7,7 +7,7 @@ import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { PoolJob, PoolJobId } from '../../registries/pool/mod.ts';
 import type { TtyIf } from '../exec/types.ts';
 import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
-import { stepErrorDetail, stepErrorLogDetail } from './step-error.ts';
+import { stepErrorDetail, stepErrorLogDetail, stepOutputTail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
 import { isLiveInstance, type PipelineInstanceAttrs, type PipelineStepAttrs, type PoolJobParams, TARGET_MISSING } from './types.ts';
 
@@ -837,7 +837,7 @@ export class PoolWorker {
 
     try {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, progress: undefined, progressAt: undefined, attempts: job.attempts },
+        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, output: undefined, progress: undefined, progressAt: undefined, attempts: job.attempts },
       });
 
       const { code, stdout, stderr } = await this.runStep(msg.command, stepPath, jobAbort.signal, msg.attribution);
@@ -858,7 +858,7 @@ export class PoolWorker {
         this.jobPauses.delete(job.id);
         // Step node first, pool job last — see `releaseJob`.
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-          attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0 },
+          attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0, output: stepOutputTail(stdout) },
         });
         await this.releaseJob(job, () => this.vfs.poolComplete(ADMIN_ACCESS, this.poolPath, job.id, this.owner, { exitCode: 0 }));
         logger.info('pooled step completed', { step: msg.stepName, instance: msg.instancePath });

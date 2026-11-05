@@ -191,6 +191,8 @@ export type PipelineStepStatus = {
   completedAt?: number;
   exitCode?: number;
   error?: string;
+  /** The end of what a completed step wrote, when it wrote anything. */
+  output?: string;
 };
 
 export type PipelineInstanceStatus = {

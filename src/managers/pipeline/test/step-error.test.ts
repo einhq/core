@@ -1,11 +1,22 @@
 /**
  * A failed step's `error` attr keeps both ends of its output: a noisy first tool
  * cannot push the step's own verdict, written last, out of the window. The
- * engine and the pool worker go through the same window.
+ * engine and the pool worker go through the same window. A completed step's
+ * `output` keeps the end, where a command says what it did.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import { elide, STEP_ERROR_HEAD, STEP_ERROR_TAIL, STEP_LOG_HEAD, STEP_LOG_TAIL, stepErrorDetail, stepErrorLogDetail } from '../step-error.ts';
+import {
+  elide,
+  STEP_ERROR_HEAD,
+  STEP_ERROR_TAIL,
+  STEP_LOG_HEAD,
+  STEP_LOG_TAIL,
+  STEP_OUTPUT_TAIL,
+  stepErrorDetail,
+  stepErrorLogDetail,
+  stepOutputTail,
+} from '../step-error.ts';
 
 Deno.test('output within the window is kept whole', () => {
   const out = 'ffmpeg: no such file or directory';
@@ -42,4 +53,13 @@ Deno.test('the log detail keeps both ends within a narrower window', () => {
   assertStringIncludes(logDetail, cause, 'a transcribe-file failure logged as {step,code} alone is what this line is for');
   assert(logDetail.length < STEP_LOG_HEAD + STEP_LOG_TAIL + 64, `log detail is ${logDetail.length} characters`);
   assert(STEP_LOG_HEAD + STEP_LOG_TAIL < STEP_ERROR_HEAD + STEP_ERROR_TAIL, 'the log line is the cheaper of the two');
+});
+
+Deno.test("a completed step's output keeps its end, and silence is no output", () => {
+  assertEquals(stepOutputTail('  Scanned 3 file(s), emitted 2 event(s), pass complete\n'), 'Scanned 3 file(s), emitted 2 event(s), pass complete');
+  assertEquals(stepOutputTail(' \n '), undefined);
+  const summary = 'Held back while their work waits: media.file.discovered';
+  const output = stepOutputTail(`${'w'.repeat(5000)}\n${summary}`)!;
+  assert(output.endsWith(summary));
+  assertEquals(output.length, STEP_OUTPUT_TAIL + 2);
 });

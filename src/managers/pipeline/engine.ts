@@ -26,7 +26,7 @@ import type { ResourceHandleIf } from '../../registries/types.ts';
 import type { TtyIf } from '../exec/types.ts';
 import { parsePipeline } from './parse.ts';
 import { DEFAULT_MAX_ATTEMPTS, instanceTree } from './step-attrs.ts';
-import { stepErrorDetail, stepErrorLogDetail } from './step-error.ts';
+import { stepErrorDetail, stepErrorLogDetail, stepOutputTail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
 import {
   isLiveInstance,
@@ -783,7 +783,7 @@ export class PipelineEngine {
 
     if (job === 'ready') {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'waiting', startedAt: undefined, outputAt: undefined, progress: undefined, progressAt: undefined },
+        attrs: { status: 'waiting', startedAt: undefined, outputAt: undefined, output: undefined, progress: undefined, progressAt: undefined },
       });
       logger.info('pooled step lost its worker, waiting on its requeued job', { step: stepName, instance: instancePath });
       return 'waiting';
@@ -2409,7 +2409,7 @@ export class PipelineEngine {
       // before the command runs rather than after, so a step that never returns is still
       // visible as running rather than as forever parked.
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, join(instancePath, 'steps', stepName), {
-        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, progress: undefined, progressAt: undefined },
+        attrs: { status: 'running', startedAt: Date.now(), outputAt: undefined, output: undefined, progress: undefined, progressAt: undefined },
       });
       this.schedule(instancePath, () => this.advanceDAG(instancePath));
       this.runningInline.set(ticket.stepId, hangUp);
@@ -2438,7 +2438,7 @@ export class PipelineEngine {
           }
           await this.completeStep(ticket, code, detail);
         } else {
-          await this.completeStep(ticket, code);
+          await this.completeStep(ticket, code, undefined, stdout);
         }
       }
     } catch (err) {
@@ -2490,7 +2490,7 @@ export class PipelineEngine {
    * Update a step after execution: complete, retry (re-pend), or fail. Idempotent. A step that is
    * gone, or that a new instance for the same node has replaced, is left alone.
    */
-  private async completeStep(ticket: DispatchTicket, code: number, errMsg?: string): Promise<void> {
+  private async completeStep(ticket: DispatchTicket, code: number, errMsg?: string, stdout = ''): Promise<void> {
     const { instancePath, stepName } = ticket;
     const stepPath = join(instancePath, 'steps', stepName);
 
@@ -2510,7 +2510,7 @@ export class PipelineEngine {
 
     if (code === 0) {
       await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
-        attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0 },
+        attrs: { status: 'completed', completedAt: Date.now(), exitCode: 0, output: stepOutputTail(stdout) },
       });
       logger.info('step completed', { step: stepName, instance: instancePath });
       return;

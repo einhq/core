@@ -45,6 +45,7 @@ export const pipelineStatus = async (cmd: Command): CmdReturn => {
         completedAt: s.node.attrs.completedAt,
         exitCode: s.node.attrs.exitCode,
         error: s.node.attrs.error,
+        output: s.node.attrs.output,
       }));
     } catch { /* no steps */ }
 
@@ -112,6 +113,9 @@ export const pipelineStatus = async (cmd: Command): CmdReturn => {
   }
 
   await cmd.write(table.render());
+  for (const step of steps) {
+    if (step.node.attrs.output) await cmd.write(`\n${step.node.attrs.stepName}:\n${step.node.attrs.output}\n`);
+  }
   return 0;
 };
 

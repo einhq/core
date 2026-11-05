@@ -16,7 +16,7 @@ const duration = (start?: number, end?: number) => start ? elapsed(start, end ??
  */
 function StepRow({ step, onRestart, busy }: { step: PipelineStep; onRestart?: () => void; busy: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const hasDetail = Boolean(step.error || step.exitCode !== undefined || step.attempts || step.pool);
+  const hasDetail = Boolean(step.error || step.output || step.exitCode !== undefined || step.attempts || step.pool);
   const restartable = onRestart !== undefined && (step.status === 'failed' || step.status === 'skipped' || step.status === 'running');
 
   return (
@@ -86,6 +86,12 @@ function StepRow({ step, onRestart, busy }: { step: PipelineStep; onRestart?: ()
                   <Box>
                     <Text size='sm' fw={500} c='red' mb={4}>Error</Text>
                     <Code block>{step.error}</Code>
+                  </Box>
+                )}
+                {step.output && (
+                  <Box>
+                    <Text size='sm' fw={500} mb={4}>Output</Text>
+                    <Code block>{step.output}</Code>
                   </Box>
                 )}
               </Stack>

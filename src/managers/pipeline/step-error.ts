@@ -1,5 +1,6 @@
 /**
- * How a failed step's output is condensed for its `error` attr and its log line.
+ * How a step's output is condensed: a failed step's for its `error` attr and its log line, a
+ * completed step's for its `output` attr.
  *
  * Both ends are kept. A step command that retries through several tools writes
  * the noisiest tool's output first and its own diagnosis last: the head shows
@@ -47,4 +48,17 @@ export function stepErrorDetail(code: number, stdout: string, stderr: string): s
 /** The same output, cut to a size a structured log field can carry. */
 export function stepErrorLogDetail(code: number, stdout: string, stderr: string): string {
   return elide(stepOutput(code, stdout, stderr), STEP_LOG_HEAD, STEP_LOG_TAIL);
+}
+
+/** Characters kept from the end of a completed step's output for its `output` attr. */
+export const STEP_OUTPUT_TAIL = 400;
+
+/**
+ * The `output` attr for a step that exited zero: the end of what it wrote, where a command that
+ * ends by saying what it did says it. Undefined when it wrote nothing.
+ */
+export function stepOutputTail(stdout: string): string | undefined {
+  const text = stdout.trim();
+  if (!text) return undefined;
+  return text.length <= STEP_OUTPUT_TAIL ? text : `… ${text.slice(-STEP_OUTPUT_TAIL)}`;
 }
