@@ -609,7 +609,10 @@ the page's width is no box: Settings' users, groups and modules lists and panels
 surface and their padding there, so what they hold uses the width inside the page's gutter.
 A page whose body is a tool that wants the height — the chat, the nodes explorer — opens with `PageBar`
 instead (`EntityDetail/PageBar.tsx`): the same pattern band, one line high, with the title at the
-left and the page's controls at the right, wrapping below the title when they do not fit. The chat
+left and the page's controls at the right, wrapping below the title when they do not fit. Its
+`actions` are an entity header's (`PageActions`), laid out by the same `CornerActions`: buttons,
+then ⋮ with the page's items, and ⋮ alone on a phone, so a tool page's menu is the one every page
+has. The chat
 page's bar holds the new-chat button (and the recent-chats menu on a phone), with the recent chats
 beside the chat in a bordered box under a filter over their titles. The map page has no header at
 all: the map fills the page under the app bar. Its type menu (`MapTypeMenu`) and base-map picker

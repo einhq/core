@@ -1,11 +1,18 @@
 import { Box, Title } from '@mantine/core';
-import type { ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
+import { UploadDropzone } from '../Upload/UploadDropzone.tsx';
 import { HatField, type HatPattern } from './HatField.tsx';
+import { CornerActions, type PageActions, useActionGroups } from './HeaderActions.tsx';
 
 type PageBarProps = {
   title: ReactNode;
   /** Right-aligned beside the title; wraps onto a line of its own when the two do not fit. */
   controls?: ReactNode;
+  /**
+   * What can be done on the page, after `controls` and laid out as `EntityDetailHeader` lays its
+   * own: the buttons, then ⋮ with the page's items; on a phone ⋮ with all of them.
+   */
+  actions?: PageActions;
   /** The band's einstein-hat field; without one the bar is a plain band a shade lighter than the page. */
   pattern?: HatPattern;
   /** The page's `Tabs.List`, as `EntityDetailHeader` takes it: a second line on the bar's bottom edge. */
@@ -30,7 +37,11 @@ type PageBarProps = {
  * the map. The title sits at the left and the page's controls at the right, on
  * the band's dark ground rather than over the tool.
  */
-export function PageBar({ title, controls, pattern, tabs, flushTabs, band }: PageBarProps) {
+export function PageBar({ title, controls, actions, pattern, tabs, flushTabs, band }: PageBarProps) {
+  const openUpload = useRef<() => void>(null);
+  const openFolder = useRef<() => void>(null);
+  const groups = useActionGroups(actions, openUpload, openFolder);
+  const hasActions = groups.some((group) => group.length > 0);
   return (
     <Box
       component='header'
@@ -41,9 +52,15 @@ export function PageBar({ title, controls, pattern, tabs, flushTabs, band }: Pag
       {pattern && <HatField pattern={pattern} />}
       <Box className='mrx-page-bar-content'>
         <Title order={1} className='mrx-page-bar-title'>{title}</Title>
-        {controls && <Box className='mrx-page-bar-controls'>{controls}</Box>}
+        {(controls || hasActions) && (
+          <Box className='mrx-page-bar-controls'>
+            {controls}
+            {hasActions && <CornerActions groups={groups} />}
+          </Box>
+        )}
       </Box>
       {tabs && <Box className='mrx-header-tabs' data-flush={flushTabs || undefined}>{tabs}</Box>}
+      {actions?.upload && <UploadDropzone {...actions.upload} openRef={openUpload} openFolderRef={openFolder} />}
     </Box>
   );
 }
