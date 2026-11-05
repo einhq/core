@@ -16,6 +16,24 @@ const logger = createLogger('config-registry');
  */
 const options = new Map<string, ConfigOption>(CORE_OPTIONS.map((option) => [option.key, option]));
 
+/**
+ * Settings a module declared while another module owned the key, by key: the first to wait takes
+ * the key when its owner lets go. An update that moves a setting from one module to another sets
+ * up the new owner first when it is a dependency of the old one, so without this the setting
+ * would have no owner until the next start.
+ */
+const waiting = new Map<string, ConfigOption>();
+
+/** Drop the owner's entry for a key, and hand the key to the module waiting for it. */
+const release = (key: string) => {
+  options.delete(key);
+  const next = waiting.get(key);
+  if (!next) return;
+  waiting.delete(key);
+  options.set(key, next);
+  logger.info('module config option taken over', { owner: next.owner, key });
+};
+
 /** Validate one declaration well enough that a bad `mod.json` is refused, not half-installed. */
 export const validateConfigOption = (option: ConfigOption): string | undefined => {
   if (!option.key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(option.key)) {
@@ -57,13 +75,17 @@ export const validateConfigOption = (option: ConfigOption): string | undefined =
  * so a changed default or description holds from then on, and an option it no longer declares is
  * dropped. A key core or another module already
  * owns is declined with a warning rather than an error: the module is otherwise fine, and refusing
- * the whole setup over a name collision would take a working module offline.
+ * the whole setup over a name collision would take a working module offline. A declined option
+ * waits, and is registered when the module owning the key drops it.
  */
 export const registerConfigOptions = (owner: string, declared: ConfigOption[]): string[] => {
   const added: string[] = [];
   const keys = new Set(declared.map((option) => option.key));
+  for (const [key, option] of waiting) {
+    if (option.owner === owner && !keys.has(key)) waiting.delete(key);
+  }
   for (const [key, option] of options) {
-    if (option.owner === owner && !keys.has(key)) options.delete(key);
+    if (option.owner === owner && !keys.has(key)) release(key);
   }
 
   for (const option of declared) {
@@ -80,9 +102,12 @@ export const registerConfigOptions = (owner: string, declared: ConfigOption[]): 
         key: option.key,
         registeredBy: existing.owner ?? 'core',
       });
+      const first = waiting.get(option.key);
+      if (!first || first.owner === owner) waiting.set(option.key, { ...option, owner });
       continue;
     }
 
+    waiting.delete(option.key);
     options.set(option.key, { ...option, owner });
     added.push(option.key);
   }
@@ -91,13 +116,19 @@ export const registerConfigOptions = (owner: string, declared: ConfigOption[]): 
   return added;
 };
 
-/** Drop the options a module registered. Core's carry no owner and are never removed. */
+/**
+ * Drop the options a module registered, each to the module waiting for its key, and the ones it
+ * waits for. Core's carry no owner and are never removed.
+ */
 export const unregisterConfigOptions = (owner: string): string[] => {
   const removed: string[] = [];
 
+  for (const [key, option] of waiting) {
+    if (option.owner === owner) waiting.delete(key);
+  }
   for (const [key, option] of options) {
     if (option.owner !== owner) continue;
-    options.delete(key);
+    release(key);
     removed.push(key);
   }
 

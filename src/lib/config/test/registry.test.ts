@@ -1,4 +1,7 @@
-/** A module's settings: registered at its set-up, replaced by the next, never over another owner's. */
+/**
+ * A module's settings: registered at its set-up, replaced by the next, never over another owner's,
+ * and taken over by the module waiting for a key once its owner drops it.
+ */
 
 import { assertEquals } from '@std/assert';
 import type { ConfigOption } from '../types.ts';
@@ -33,5 +36,38 @@ Deno.test("a module never takes another module's setting", () => {
     assertEquals(getConfigOption('CFG_EXAMPLE_LIMIT')?.default, '0.5');
   } finally {
     unregisterConfigOptions('example');
+    unregisterConfigOptions('other');
+  }
+});
+
+Deno.test('a setting moved to a module set up first is taken over when the old owner drops it', () => {
+  try {
+    registerConfigOptions('old', [option('CFG_EXAMPLE_SLOTS', '2'), option('CFG_EXAMPLE_KEPT', '1')]);
+    assertEquals(registerConfigOptions('new', [option('CFG_EXAMPLE_SLOTS', '3')]), []);
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.owner, 'old');
+
+    registerConfigOptions('old', [option('CFG_EXAMPLE_KEPT', '1')]);
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.owner, 'new');
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.default, '3');
+  } finally {
+    unregisterConfigOptions('old');
+    unregisterConfigOptions('new');
+  }
+});
+
+Deno.test('a removed module hands its settings to the module waiting for them, and waits for none', () => {
+  try {
+    registerConfigOptions('old', [option('CFG_EXAMPLE_SLOTS', '2')]);
+    registerConfigOptions('new', [option('CFG_EXAMPLE_SLOTS', '3')]);
+    unregisterConfigOptions('old');
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.owner, 'new');
+
+    registerConfigOptions('later', [option('CFG_EXAMPLE_SLOTS', '4')]);
+    registerConfigOptions('later', []);
+    unregisterConfigOptions('new');
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS'), undefined);
+  } finally {
+    unregisterConfigOptions('old');
+    unregisterConfigOptions('new');
   }
 });
