@@ -16,7 +16,8 @@ import type { Command } from '../../command.ts';
 import { CmdReturn } from '../../types.ts';
 import { removePathLine } from './path-line.ts';
 import { writeModuleGroups } from '../../../../modules/audience.ts';
-import { unlinkModuleFiles } from './module-links.ts';
+import { dropInReaders, dropInsOf, unlinkModuleFiles } from './module-links.ts';
+import { restartServices, runningServices, servicesOf } from './module-services.ts';
 import { rebuildModulePages } from './module-pages.ts';
 
 /**
@@ -186,6 +187,10 @@ export const modRemove = async (cmd: Command): CmdReturn => {
       }
     }
 
+    // What reads its drop-ins (`dropIns`) read them as it started, and starts again without them.
+    const own = new Set(await servicesOf(cmd, name));
+    const readers = (await dropInReaders(cmd, await dropInsOf(cmd, modulePath))).filter((service) => !own.has(service));
+
     // While the module directory is still there: it says what setup did.
     await undoModuleSetup(cmd, modulePath, manifest.name);
 
@@ -202,6 +207,10 @@ export const modRemove = async (cmd: Command): CmdReturn => {
     }
 
     await rebuildModulePages(cmd);
+    if (readers.length > 0) {
+      const running = await runningServices(cmd);
+      await restartServices(cmd, readers.filter((service) => running.has(service)), 'mod remove');
+    }
 
     if (cmd.json) {
       await cmd.writeJSON({ ok: true, removed: true });

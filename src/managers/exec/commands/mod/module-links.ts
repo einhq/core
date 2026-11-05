@@ -1,8 +1,10 @@
 import { join } from '@std/path';
 import { ADMIN_ACCESS, ADMIN_GROUPNAME } from '../../../../lib/access/mod.ts';
 import { moduleConfigDir } from '../../../../lib/config/paths.ts';
-import { ETC_PATH, GROUP_HOMES_PATH, groupHomePath, HOME_UI_NAV_D, UI_NAV_D_PATH } from '../../../../lib/paths.ts';
+import { ETC_PATH, GROUP_HOMES_PATH, groupHomePath, HOME_UI_NAV_D, MOD_PATH, UI_NAV_D_PATH } from '../../../../lib/paths.ts';
 import { shq } from '../../../../lib/shell-quote/mod.ts';
+import { sameFiles } from '../../../../modules/install.ts';
+import { readManifests } from '../../../../modules/mod.ts';
 import type { Command } from '../../command.ts';
 import { linkOwned, type OwnedLink, unlinkOwned } from './owned-link.ts';
 
@@ -83,7 +85,7 @@ const linksOf = async (cmd: Command, name: string, modulePath: string, groups: s
     ...await navLinks(cmd, name, modulePath, groups),
     { source: join(modulePath, 'etc', 'config'), linkPath: join(moduleConfigDir(cmd.env.ETC_PATH), name), what: 'settings' },
   ];
-  const shipped = (await namesIn(join(modulePath, 'etc'), cmd)).filter((entry) => DROP_IN.test(entry));
+  const shipped = await dropInsOf(cmd, modulePath);
   const linked = [];
   for (const dir of (await namesIn(etc, cmd)).filter((entry) => DROP_IN.test(entry))) {
     if ((await namesIn(join(etc, dir), cmd)).includes(name)) linked.push(dir);
@@ -114,4 +116,34 @@ export const linkModuleFiles = async (cmd: Command, name: string, modulePath: st
 /** Remove the module's links, those that are the module's. */
 export const unlinkModuleFiles = async (cmd: Command, name: string, modulePath: string): Promise<void> => {
   for (const link of await linksOf(cmd, name, modulePath, [])) await unlinkOwned(cmd, modulePath, link);
+};
+
+/** The drop-in directories (`etc/<name>.d`) a module's tree at `root` ships. */
+export const dropInsOf = async (cmd: Command, root: string): Promise<string[]> => (await namesIn(join(root, 'etc'), cmd)).filter((entry) => DROP_IN.test(entry));
+
+/**
+ * The drop-in directories a module's tree at `after` changes against the one at `before`: one
+ * added, removed, or with a file added, removed or changed. A module new here (`before`
+ * undefined) changes every one it ships.
+ */
+export const changedDropIns = async (cmd: Command, before: string | undefined, after: string): Promise<string[]> => {
+  const dirs = new Set([...before === undefined ? [] : await dropInsOf(cmd, before), ...await dropInsOf(cmd, after)]);
+  const changed: string[] = [];
+  for (const dir of [...dirs].sort()) {
+    if (!await sameFiles(cmd.sys.vfs, cmd.access, before && join(before, 'etc', dir), join(after, 'etc', dir))) changed.push(dir);
+  }
+  return changed;
+};
+
+/** The services the modules say read one of the drop-in directories `dirs` (`dropIns`), each once. */
+export const dropInReaders = async (cmd: Command, dirs: Iterable<string>): Promise<string[]> => {
+  const wanted = new Set(dirs);
+  const readers = new Set<string>();
+  if (wanted.size === 0) return [];
+  for (const manifest of (await readManifests(cmd.sys.vfs, cmd.access, cmd.env.MOD_PATH || MOD_PATH)).values()) {
+    for (const [dir, { restarts = [] }] of Object.entries(manifest.dropIns ?? {})) {
+      if (wanted.has(dir)) { for (const service of restarts) readers.add(service); }
+    }
+  }
+  return [...readers].sort();
 };

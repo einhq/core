@@ -66,6 +66,15 @@ export type ModuleManifest = {
   };
 
   /**
+   * The drop-in directories this module's services read, by name (`media-worker.d`): `/etc/<name>`,
+   * where `mod setup` links every module's `etc/<name>/` as `/etc/<name>/<module>`. A service reads
+   * them as it starts, so `restarts` names this module's services that read each: `mod install`
+   * restarts those that run once it has put in place a module whose drop-ins there are new or
+   * changed, and `mod remove` once it has removed one that had some.
+   */
+  dropIns?: Record<string, { restarts?: string[] }>;
+
+  /**
    * The node types this module defines, described for a reader: what `docs node-types` and the
    * documentation's node-type page say about them. A type in use but described nowhere is still
    * listed, with its count and no description. A type with a `root` is what an `@` completes to,
@@ -114,7 +123,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * anything a module could be broken by (a caret range `^0.1.0` takes 0.1.x only). Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.12.3';
+export const MODULE_API_VERSION = '0.12.4';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];

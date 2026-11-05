@@ -20,6 +20,8 @@
  * Then each module put in place is set up, dependencies first, and its services started — or
  * restarted, on an update — and every module depending on an updated one, however indirectly, is
  * set up again with its running services restarted, so nothing keeps running the code replaced.
+ * A service that reads the modules' drop-ins (a module's `dropIns`) and runs is restarted last
+ * when a module put in place adds or changes some it reads, once every one is linked.
  *
  * Boot installs the modules the deployment asks for (`INSTALL_MODULES`) with `--missing`, which
  * leaves any module installed already as it is without asking a forge, and `--no-setup`, which
@@ -36,7 +38,7 @@
 import { basename, join } from '@std/path';
 import { canParse, parse, parseRange, satisfies } from '@std/semver';
 import { ulid } from '@std/ulid';
-import type { InstalledModule, ModuleInstall, ModuleInstallResult, ModuleInstallStatus, ServiceEntry } from '../../../../lib/api/mod.ts';
+import type { InstalledModule, ModuleInstall, ModuleInstallResult, ModuleInstallStatus } from '../../../../lib/api/mod.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { groupGid } from '../../../../lib/auth/member-gids.ts';
 import { writeModuleGroups } from '../../../../modules/audience.ts';
@@ -73,6 +75,8 @@ import { groupHomeProblem } from '../auth/group-home.ts';
 import { accountNames } from '../system/accounts.ts';
 import { setupOne } from './mod-setup.ts';
 import { followInstall } from './mod-status.ts';
+import { changedDropIns, dropInReaders } from './module-links.ts';
+import { restartServices, runningServices, servicesOf } from './module-services.ts';
 import { rebuildModulePages } from './module-pages.ts';
 import { ARCHIVE_TIMEOUT_MS, FORGE_TIMEOUT_MS, moduleSources, within } from './sources.ts';
 
@@ -100,6 +104,8 @@ type Run = {
   visiting: Set<string>;
   /** The updated modules whose new tree differs from the old only in its pages (`changedBeyondPages`). */
   pagesOnly: Set<string>;
+  /** The drop-in directories the modules put in place add, change or take away (`changedDropIns`). */
+  dropIns: Set<string>;
 };
 
 const short = (commit: string): string => commit.slice(0, 9);
@@ -361,6 +367,7 @@ const installTarget = async (
     // has tens of thousands of files to compare.
     const hasServices = updated && (await vfs.exists(cmd.access, join(installedPath, 'services')) || await vfs.exists(cmd.access, join(staging, 'services')));
     if (hasServices && !await changedBeyondPages(vfs, cmd.access, installedPath, staging)) run.pagesOnly.add(name);
+    for (const dir of await changedDropIns(cmd, updated ? installedPath : undefined, staging)) run.dropIns.add(dir);
     const replaced = `${REPLACED_PREFIX}${name}-${ulid().toLowerCase()}`;
     if (updated) await vfs.rename(cmd.access, run.store, name, run.store, replaced, { failIfExists: true });
     await vfs.rename(cmd.access, run.store, basename(staging), run.store, name, { failIfExists: true });
@@ -385,35 +392,6 @@ const installTarget = async (
         // Nothing reads a staging directory, and the next install's name is another.
       }
     }
-  }
-};
-
-/** The names of a module's services, as `mod setup` registers them. */
-const servicesOf = async (cmd: Command, name: string): Promise<string[]> => {
-  try {
-    return (await cmd.sys.vfs.children(cmd.access, join(cmd.env.MOD_PATH || MOD_PATH, name, 'services'))).map((child) => child.name);
-  } catch {
-    return [];
-  }
-};
-
-/** Restart services, or start them; one that will not is said and does not fail the install. */
-const restartServices = async (cmd: Command, names: string[]): Promise<void> => {
-  for (const name of names) {
-    const res = await cmd.execute(`service restart ${name}`);
-    if (res.code !== 0) await cmd.writeError(`mod install: service ${name} did not restart: ${res.stderr.trim()}\n`);
-    else if (!cmd.json) await cmd.write(`  Restarted service '${name}'\n`);
-  }
-};
-
-/** The services running now. */
-const runningServices = async (cmd: Command): Promise<Set<string>> => {
-  const res = await cmd.execute('JSON_OUTPUT=1 service-list');
-  if (res.code !== 0) return new Set();
-  try {
-    return new Set((JSON.parse(res.stdout) as ServiceEntry[]).filter((service) => service.enabled && service.status === 'running').map((service) => service.name));
-  } catch {
-    return new Set();
   }
 };
 
@@ -526,6 +504,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     installed: [],
     visiting: new Set(),
     pagesOnly: new Set(),
+    dropIns: new Set(),
   };
   await removeLeftovers(run);
 
@@ -555,13 +534,21 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
   // of its pages alone leaves its services running: a restart hangs up every step they have in
   // flight, minutes of a video's model work among them (ein/core#862).
   const setUp = flags['no-setup'] === true ? [] : run.installed;
+  // A service that reads the modules' drop-ins (`dropIns`) reads them as it starts, so one that reads
+  // those the run changed starts again once every module is set up and its drop-ins are linked.
+  const readers = new Set(setUp.length > 0 ? await dropInReaders(cmd, run.dropIns) : []);
+  const startedHere = new Set<string>();
   for (const module of setUp) {
     if (await setupOne(cmd, module.name) !== 0) {
       await fail(`${module.name}: its setup failed (mod list --long says why)`);
       continue;
     }
     if (run.pagesOnly.has(module.name)) await say(run, `  Nothing but the pages of ${module.name} changed: its services keep running`);
-    else await restartServices(cmd, await servicesOf(cmd, module.name));
+    else {
+      const services = await servicesOf(cmd, module.name);
+      for (const service of services) startedHere.add(service);
+      await restartServices(cmd, services.filter((service) => !readers.has(service)), 'mod install');
+    }
   }
 
   // What depends on an updated module set up again, and its running services restarted. Nothing
@@ -573,8 +560,15 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     for (const name of affected) {
       await say(run, `${name} depends on what was updated: setting it up again`);
       if (await setupOne(cmd, name) !== 0) await fail(`${name}: its setup failed after the update (mod list --long says why)`);
-      await restartServices(cmd, (await servicesOf(cmd, name)).filter((service) => running.has(service)));
+      await restartServices(cmd, (await servicesOf(cmd, name)).filter((service) => running.has(service) && !readers.has(service)), 'mod install');
     }
+  }
+
+  if (readers.size > 0) {
+    const running = await runningServices(cmd);
+    const restarting = [...readers].filter((service) => running.has(service) || startedHere.has(service));
+    if (restarting.length > 0) await say(run, `The drop-ins in /etc/${[...run.dropIns].join(', /etc/')} changed: restarting what reads them`);
+    await restartServices(cmd, restarting, 'mod install');
   }
 
   if (setUp.length > 0) await rebuildModulePages(cmd);

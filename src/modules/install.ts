@@ -61,20 +61,24 @@ export const writeInstallRecord = async (vfs: NodeVFS, access: Access, modulePat
 /** A module's pages, which only the browser runs: `mod.json`'s `ui` and every file under `ui/`. */
 const PAGES = 'ui';
 
-/** The files under `root`, by their path relative to it, leaving out the pages and the install record. */
-const filesBeyondPages = async (vfs: NodeVFS, access: Access, root: string, relative = ''): Promise<Map<string, number>> => {
+/** The files under `root` with their sizes, by their path relative to it, but those `skip` leaves out. */
+const filesUnder = async (vfs: NodeVFS, access: Access, root: string, skip: (path: string) => boolean, relative = ''): Promise<Map<string, number>> => {
   const files = new Map<string, number>();
   for (const child of await vfs.children<FileAttrs>(access, join(root, relative))) {
     const path = relative ? `${relative}/${child.name}` : child.name;
-    if (path === PAGES || path === INSTALL_RECORD) continue;
+    if (skip(path)) continue;
     if (child.node.type === NODE_TYPE_DIRECTORY) {
-      for (const [inner, size] of await filesBeyondPages(vfs, access, root, path)) files.set(inner, size);
+      for (const [inner, size] of await filesUnder(vfs, access, root, skip, path)) files.set(inner, size);
     } else {
       files.set(path, child.node.attrs.size ?? -1);
     }
   }
   return files;
 };
+
+/** The files under `root`, leaving out the pages and the install record. */
+const filesBeyondPages = (vfs: NodeVFS, access: Access, root: string): Promise<Map<string, number>> =>
+  filesUnder(vfs, access, root, (path) => path === PAGES || path === INSTALL_RECORD);
 
 const readBytes = async (vfs: NodeVFS, access: Access, path: string): Promise<Uint8Array> => {
   const handle = await vfs.open(access, path, { mode: 'r' });
@@ -114,6 +118,23 @@ export const changedBeyondPages = async (vfs: NodeVFS, access: Access, before: s
     if (manifest ? manifestBeyondPages(a) !== manifestBeyondPages(b) : a.length !== b.length || !a.every((byte, i) => byte === b[i])) return true;
   }
   return false;
+};
+
+/**
+ * Whether the directories `before` and `after` hold the same files with the same bytes; one that is
+ * missing, or undefined, holds none.
+ */
+export const sameFiles = async (vfs: NodeVFS, access: Access, before: string | undefined, after: string | undefined): Promise<boolean> => {
+  const filesOf = (root: string | undefined) =>
+    root === undefined ? Promise.resolve(new Map<string, number>()) : filesUnder(vfs, access, root, () => false).catch(() => new Map<string, number>());
+  const [old, now] = await Promise.all([filesOf(before), filesOf(after)]);
+  if (old.size !== now.size) return false;
+  for (const [path, size] of now) {
+    if (old.get(path) !== size) return false;
+    const [a, b] = await Promise.all([readBytes(vfs, access, join(before!, path)), readBytes(vfs, access, join(after!, path))]);
+    if (a.length !== b.length || !a.every((byte, i) => byte === b[i])) return false;
+  }
+  return true;
 };
 
 /** The `path` record of a pax extended header, which names the entry after it when its name is too long for the tar header. */
