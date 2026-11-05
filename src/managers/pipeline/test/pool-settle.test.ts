@@ -75,6 +75,10 @@ class SettleVfs {
     return this.reg.heartbeat(POOL_ID, jobId, owner, leaseMs);
   }
 
+  poolJob(_a: unknown, _p: string, jobId: PoolJobId): Promise<PoolJob | null> {
+    return this.reg.get(POOL_ID, jobId);
+  }
+
   poolComplete(_a: unknown, _p: string, jobId: PoolJobId, owner: string, result?: unknown): Promise<PoolJob | null> {
     return this.release(() => this.reg.complete(POOL_ID, jobId, owner, result));
   }
@@ -450,18 +454,53 @@ Deno.test('a step on its last attempt is not failed by the worker stopping', asy
   }
 });
 
-Deno.test('losing the lease hangs up the running step', async () => {
+/** Run `body` with `console.error` recording the lines it is given, and return them. */
+async function errorLines(body: () => Promise<void>): Promise<string[]> {
+  const lines: string[] = [];
+  const original = console.error;
+  console.error = (line: string) => lines.push(line);
+  try {
+    await body();
+  } finally {
+    console.error = original;
+  }
+  return lines;
+}
+
+Deno.test('losing the lease to a cancel hangs up the running step, and is no error', async () => {
   // A lease of 3 s heartbeats every second; the cancel makes the next heartbeat find it gone.
   const { reg, worker, hungUp, step } = await startHanging({ leaseMs: 3_000 });
 
   try {
-    assertEquals(await reg.cancel(POOL_ID, { dedupKey: STEP_PATH }), 1);
-    await hungUp;
+    const errors = await errorLines(async () => {
+      assertEquals(await reg.cancel(POOL_ID, { dedupKey: STEP_PATH }), 1);
+      await hungUp;
+      // The new owner, if any, drives the step: the old run writes nothing.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
 
-    // The new owner, if any, drives the step: the old run writes nothing.
-    await new Promise((resolve) => setTimeout(resolve, 50));
     assertEquals(step().status, 'running');
     assertEquals(step().exitCode, undefined);
+    assertEquals(errors.filter((line) => line.includes('lease lost')), []);
+  } finally {
+    await worker.stop();
+    await reg.dispose();
+  }
+});
+
+Deno.test('losing the lease to anything but a cancel is an error', async () => {
+  const { reg, worker, jobId, hungUp } = await startHanging({ leaseMs: 3_000 });
+
+  try {
+    const errors = await errorLines(async () => {
+      // Handed back from under the worker, as the sweep does with a lease it saw expire.
+      const owner = (await reg.get(POOL_ID, jobId))!.leaseOwner!;
+      await reg.release(POOL_ID, jobId, owner);
+      await hungUp;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    assertEquals(errors.filter((line) => line.includes('lease lost')).length, 1);
   } finally {
     await worker.stop();
     await reg.dispose();

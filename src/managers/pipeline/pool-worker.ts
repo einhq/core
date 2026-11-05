@@ -847,7 +847,7 @@ export class PoolWorker {
       // the lease was lost (swept, cancelled, reclaimed) and another owner
       // drives this step now. Either way, stop writing to it.
       if (jobAbort.signal.aborted) {
-        if (this.running) logger.error('lease lost mid-step, abandoning', { step: msg.stepName, instance: msg.instancePath });
+        if (this.running) await this.logLostLease(job, msg);
         return;
       }
 
@@ -1090,6 +1090,23 @@ export class PoolWorker {
     }, intervalMs);
 
     return () => clearInterval(timer);
+  }
+
+  /**
+   * Say why a running step's lease was lost. A cancelled job was dropped on purpose — its instance
+   * cancelled or removed, its subject deleted, its step restarted — and is no one's to act on; any
+   * other state means the lease was taken from this worker (swept after a stall, or claimed by
+   * another owner), which is.
+   */
+  private async logLostLease(job: PoolJob, msg: PoolJobParams): Promise<void> {
+    const now = await this.vfs.poolJob(ADMIN_ACCESS, this.poolPath, job.id).catch(() => null);
+    const where = { step: msg.stepName, instance: msg.instancePath };
+
+    if (now?.state === 'cancelled') {
+      logger.info('job cancelled mid-step, abandoning', where);
+    } else {
+      logger.error('lease lost mid-step, abandoning', { ...where, state: now?.state, owner: now?.leaseOwner });
+    }
   }
 
   /** Run a step command to its end, or until the job hangs up — see `runStep`. */

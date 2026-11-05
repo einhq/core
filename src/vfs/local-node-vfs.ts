@@ -1014,6 +1014,14 @@ export class LocalNodeVFS implements NodeVFS {
     return await reg.jobs(id, filter);
   }
 
+  async poolJob(access: Access, ref: NodeReference, jobId: PoolJobId): Promise<PoolJob | null> {
+    const entry = await this.resolveEntry(access, ref);
+    if (entry.vfs !== this) return await entry.vfs.poolJob(access, entry, jobId);
+
+    const { id, reg } = await this.poolTarget(access, entry, 'r');
+    return await reg.get(id, jobId);
+  }
+
   async poolCounts(access: Access, ref: NodeReference): Promise<PoolCounts> {
     const entry = await this.resolveEntry(access, ref);
     if (entry.vfs !== this) return await entry.vfs.poolCounts(access, entry);

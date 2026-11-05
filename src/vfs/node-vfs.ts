@@ -681,6 +681,9 @@ export interface NodeVFS extends ModuleVFS {
 
   poolJobs(access: Access, ref: NodeReference, filter?: PoolJobFilter): Promise<PoolJob[]>;
 
+  /** One job of the pool, whatever its state; null once purged or when it is another pool's. */
+  poolJob(access: Access, ref: NodeReference, jobId: PoolJobId): Promise<PoolJob | null>;
+
   poolCounts(access: Access, ref: NodeReference): Promise<PoolCounts>;
 
   /** Reclaim expired leases, fail exhausted jobs, promote aging. Idempotent. */
