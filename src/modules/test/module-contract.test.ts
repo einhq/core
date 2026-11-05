@@ -187,6 +187,26 @@ Deno.test({
       assertEquals(defs.includes('fixture-index'), true);
     });
 
+    await t.step('mod setup hands a pipeline it stops shipping to another module that ships it', async () => {
+      // A pipeline moving to another module: the old owner may hold the name when its new version
+      // drops it, and leaving the name undefined would stop the pipeline until the heir is set up.
+      const pipeline = `${MOD_PATH}/mod-fixture/pipelines/fixture-index.yaml`;
+      const parked = `${MOD_PATH}/mod-fixture/fixture-index.yaml.parked`;
+      const definition = async () => (await vfs.get(ADMIN_ACCESS, `${PIPELINE_DEFINITIONS_PATH}/fixture-index`, { follow: false })).props.softlink;
+      await miniModule('mod-successor', { name: 'mod-successor', version: '0.1.0' });
+      await cmd.shouldSucceed(`mkdir -p ${MOD_PATH}/mod-successor/pipelines && cp ${pipeline} ${MOD_PATH}/mod-successor/pipelines/`);
+      await cmd.shouldSucceed(`mv --no-relink ${pipeline} ${parked}`);
+      try {
+        await cmd.shouldSucceed('mod setup mod-fixture');
+        assertEquals(await definition(), `${MOD_PATH}/mod-successor/pipelines/fixture-index.yaml`);
+      } finally {
+        await cmd.shouldSucceed(`rm -r ${MOD_PATH}/mod-successor`);
+        await cmd.shouldSucceed(`mv --no-relink ${parked} ${pipeline}`);
+        await cmd.shouldSucceed('mod setup mod-fixture');
+      }
+      assertEquals(await definition(), pipeline);
+    });
+
     await t.step('mod setup retires an owned service its module no longer ships', async () => {
       // A service a new module version drops is retired on upgrade, as its pipelines are,
       // rather than staying registered and failing to start at every boot.

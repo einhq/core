@@ -1,6 +1,7 @@
 import { PIPELINES_PATH, SERVICES_PATH, WWW_PATH } from '../../../../lib/paths.ts';
 import { join } from '@std/path';
 import { toText } from '@std/streams/to-text';
+import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { ADMIN_ACCESS, ADMIN_GROUPNAME } from '../../../../lib/access/mod.ts';
 import { registerConfigOptions } from '../../../../lib/config/registry.ts';
 import { contributionsOf, registerContributions } from '../../../../lib/contributions/registry.ts';
@@ -19,6 +20,33 @@ import { rebuildModulePages } from './module-pages.ts';
 import { recordModuleSetup } from '../../../../modules/setup-state.ts';
 import { clearModuleAudienceCache, readModuleGroups } from '../../../../modules/audience.ts';
 import { groupGid } from '../../../../lib/auth/member-gids.ts';
+
+/**
+ * The YAML of the pipeline `name` that another installed module than the one at `except` ships, if
+ * one does. A broken YAML is passed over: its own module's setup says what is wrong with it.
+ */
+const pipelineShippedElsewhere = async (cmd: Command, name: string, except: string): Promise<string | undefined> => {
+  const modulesPath = cmd.env.MOD_PATH;
+  for (const module of await cmd.sys.vfs.children(cmd.access, modulesPath).catch(() => [])) {
+    const dir = join(modulesPath, module.name, 'pipelines');
+    if (join(modulesPath, module.name) === except) continue;
+    for (const child of await cmd.sys.vfs.children(cmd.access, dir).catch(() => [])) {
+      if (!child.name.endsWith('.yaml') && !child.name.endsWith('.yml')) continue;
+      const yamlPath = join(dir, child.name);
+      try {
+        const handle = await cmd.sys.vfs.open(cmd.access, yamlPath, { mode: 'r' });
+        try {
+          if (parsePipeline(await toText(handle.readable)).name === name) return yamlPath;
+        } finally {
+          await handle.close();
+        }
+      } catch {
+        // Not a definition this can read.
+      }
+    }
+  }
+  return undefined;
+};
 
 /**
  * Set up every installed module, dependencies first: a module's setup fails when a dependency is
@@ -328,10 +356,14 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
 
   // Definitions are symlinks back into the module's pipelines directory. One
   // whose YAML the module does not ship any more is undefined, so a renamed
-  // pipeline stops matching events. Reconcile only links owned by this module;
-  // definitions installed from elsewhere are not ours to touch. If any current
-  // definition failed, leave the set as it is rather than turning a broken
-  // upgrade into destructive partial removal.
+  // pipeline stops matching events, unless another installed module ships it:
+  // then it is defined from that module's YAML, since a pipeline moving between
+  // modules can be held by the old owner when it drops it (`pipeline define`
+  // points a name at whoever defined it last, and an update sets the modules
+  // that depend on the updated one up again). Reconcile only links owned by this
+  // module; definitions installed from elsewhere are not ours to touch. If any
+  // current definition failed, leave the set as it is rather than turning a
+  // broken upgrade into destructive partial removal.
   if (pipelineDefinitionsValid) {
     const definitionsPath = join(cmd.env.PIPELINES_PATH || PIPELINES_PATH, 'definitions');
     if (await cmd.sys.vfs.exists(cmd.access, definitionsPath)) {
@@ -341,11 +373,12 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
         if (typeof target !== 'string' || !target.startsWith(`${pipelinesDir}/`)) continue;
         if (currentPipelineNames.has(definition.name)) continue;
 
-        const res = await cmd.execute(`pipeline undefine ${definition.name}`);
+        const heir = await pipelineShippedElsewhere(cmd, definition.name, modulePath);
+        const res = await cmd.execute(heir ? `pipeline define ${shq(heir)}` : `pipeline undefine ${definition.name}`);
         if (res.code !== 0) {
-          await fail(`pipeline undefine ${definition.name}: ${res.stderr}`);
+          await fail(`pipeline ${heir ? 'define' : 'undefine'} ${definition.name}: ${res.stderr}`);
         } else if (!cmd.json) {
-          await cmd.write(`  Retired pipeline '${definition.name}'\n`);
+          await cmd.write(heir ? `  Handed pipeline '${definition.name}' to ${heir}\n` : `  Retired pipeline '${definition.name}'\n`);
         }
       }
     }

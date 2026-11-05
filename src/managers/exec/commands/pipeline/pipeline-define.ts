@@ -45,14 +45,19 @@ export const pipelineDefine = async (cmd: Command): CmdReturn => {
   await cmd.sys.vfs.ensure(cmd.access, NODE_TYPE_DIRECTORY, pipelinesPath, 'definitions');
   await cmd.sys.vfs.ensure(cmd.access, NODE_TYPE_DIRECTORY, pipelinesPath, 'instances');
 
-  // A definition is a link to its YAML.
+  // A definition is a link to its YAML. One left pointing at a YAML that is gone, as a module's
+  // update leaves it, is replaced too.
   const linkPath = join(defsPath, def.name);
-  if (await cmd.sys.vfs.exists(cmd.access, linkPath)) {
+  if (await cmd.sys.vfs.exists(cmd.access, linkPath, { follow: false })) {
     if (!cmd.json) await cmd.write(`Pipeline '${def.name}' already defined, updating\n`);
     await cmd.sys.vfs.unlink(cmd.access, linkPath, defsPath, { readlink: true });
   }
 
-  await cmd.execute(`ln -s ${shq(yamlPath)} ${shq(linkPath)}`);
+  const linked = await cmd.execute(`ln -s ${shq(yamlPath)} ${shq(linkPath)}`);
+  if (linked.code !== 0) {
+    await cmd.writeError(`pipeline-define: cannot link ${linkPath}: ${linked.stderr.trim()}\n`);
+    return 1;
+  }
   if (cmd.json) {
     await cmd.writeJSON({ ok: true, name: def.name });
   } else {
