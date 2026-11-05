@@ -329,9 +329,10 @@ search's matches, though core's `search` names none of them.
 
 Nor does a search provider. Every `search-*` command on `PATH` is a candidate (archive's
 `search-people`, `search-media`, …). `search` asks each once `<command> --kinds`; one answering
-`{ "kinds": [...], "within": true?, "notWithin": true?, "like": true? }` — what it can return
-(`person`, `photo`, `album`, …), whether it can rank inside a given set of files, whether it can
-leave out what lies under a directory, and whether it can rank by a picture — is a provider,
+`{ "kinds": [...], "within": true?, "notWithin": true?, "unlisted": true?, "like": true? }` — what it
+can return (`person`, `photo`, `album`, …), whether it can rank inside a given set of files, whether
+it can leave out what lies under a directory, whether its kinds are found wherever they are,
+unlisted trees included, and whether it can rank by a picture — is a provider,
 anything else is left out. A search then asks the providers whose kinds it wants
 `<command> '<words>' -l <limit>` (or, for `search --like`, those answering `like`,
 `<command> --like <path> -l <limit>`), with `--not-within <dir>` once per unlisted tree to those

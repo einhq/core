@@ -1,9 +1,9 @@
 /**
  * Unlisted trees are left out of the library's views: the feed and a seek into it, its facets and
  * the `facets` command, a subject's media, a region; `--within` the tree, or a place inside it,
- * still lists what it holds, and `--within` a directory above it leaves it out. Marking and
- * unmarking a directory takes effect on the next search. `unlistedIds` names the nodes that lie in
- * one.
+ * still lists what it holds, and `--within` a directory above it leaves it out. A provider that says
+ * it finds its kinds anywhere keeps its hits in one. Marking and unmarking a directory takes effect
+ * on the next search. `unlistedIds` names the nodes that lie in one.
  */
 
 import { assertEquals } from '@std/assert';
@@ -81,6 +81,21 @@ Deno.test({
     }
     const withSubject = `PATH=${bin}:$PATH`;
 
+    /** A `search-<name>` provider on a PATH of its own, answering `--kinds` with `kinds` and any query with a hit on the staged scan. */
+    const provider = async (name: string, kinds: Record<string, unknown>): Promise<string> => {
+      const dir = `/tmp/provider-${crypto.randomUUID()}`;
+      await cmd.shouldSucceed(`mkdir -p ${dir}`);
+      const hit = JSON.stringify({ results: [{ path: `${INBOX}/scan.jpg`, type: 'file', name: 'scan.jpg', channel: 'name', score: 1 }] });
+      await vfs.create(ADMIN_ACCESS, 'file', dir, `search-${name}`, { props: { mode: 0o755 } });
+      const file = await vfs.open(ADMIN_ACCESS, `${dir}/search-${name}`, { mode: 'w' });
+      try {
+        await file.write(new TextEncoder().encode(`#!bash\nif [ "$1" = "--kinds" ]; then echo '${JSON.stringify(kinds)}'; else echo '${hit}'; fi\n`));
+      } finally {
+        await file.close();
+      }
+      return `PATH=${dir}:$PATH`;
+    };
+
     await t.step('the roots are found, with nothing under another', async () => {
       await cmd.shouldSucceed(`mkdir -p ${STAGING}/files/nested`);
       await vfs.update(ADMIN_ACCESS, `${STAGING}/files/nested`, { attrs: { [UNLISTED_ATTR]: true } });
@@ -122,6 +137,13 @@ Deno.test({
       await mkmedia('/home/anna/portrait.jpg', '2012-01-01T10:00:00');
       assertEquals(names(await client.execJson<Results>('search --within /home/anna')), ['portrait.jpg']);
       assertEquals((await client.execJson<Facets>('search --within /home/anna --facets')).total, 1);
+    });
+
+    await t.step("a provider's hit in the tree is left out, unless it finds its kinds anywhere", async () => {
+      const listedOnly = await provider('notes', { kinds: ['note'] });
+      assertEquals(names(await client.execJson<Results>(`${listedOnly} search scan`)).includes('scan.jpg'), false);
+      const anywhere = await provider('memos', { kinds: ['memo'], unlisted: true });
+      assertEquals(names(await client.execJson<Results>(`${anywhere} search scan`)).includes('scan.jpg'), true);
     });
 
     await t.step('unlistedIds names the nodes in an unlisted tree, read either way round', async () => {

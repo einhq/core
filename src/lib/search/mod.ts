@@ -220,6 +220,12 @@ const providerWithin = new Set<string>();
  * `--not-within`, given once per unlisted tree), so those trees do not use up their hits.
  */
 const providerNotWithin = new Set<string>();
+/**
+ * Providers whose `--kinds` answer says their kinds are found wherever they are, unlisted trees
+ * included (`unlisted`): a module's content kept in an unlisted tree so that its pictures stay out
+ * of the library's views, while the content itself is what a search names.
+ */
+const providerUnlisted = new Set<string>();
 /** Providers whose `--kinds` answer says they rank by likeness to a picture or a label (`--like`). */
 const providerLike = new Set<string>();
 /** Providers whose `--kinds` answer says they rank by likeness to a label only (`likeLabel`): a `--like` of a tag directory. */
@@ -250,6 +256,7 @@ const kindsOf = async (cmd: Command, provider: string): Promise<Kind[] | undefin
       }
       if (kinds && parsed?.within === true) providerWithin.add(provider);
       if (kinds && parsed?.notWithin === true) providerNotWithin.add(provider);
+      if (kinds && parsed?.unlisted === true) providerUnlisted.add(provider);
       if (kinds && parsed?.like === true) providerLike.add(provider);
       if (kinds && parsed?.likeLabel === true) providerLikeLabel.add(provider);
     }
@@ -1574,7 +1581,7 @@ export const search = async (cmd: Command): CmdReturn => {
           ? { expand: (byPath: Map<string, Candidate>, names: ChannelHits, nameRanks: Map<string, number>) => expandSubjectHits(cmd, byPath, names, nameRanks) }
           : {}),
         ...(withinPath ? { within: { path: withinPath, providers: providerWithin } } : {}),
-        ...(unlisted.length > 0 ? { notWithin: { roots: unlisted, providers: providerNotWithin } } : {}),
+        ...(unlisted.length > 0 ? { notWithin: { roots: unlisted, providers: providerNotWithin }, unlisted: providerUnlisted } : {}),
         ...(namedDate !== undefined ? { date: namedDate } : {}),
       });
       driver = text;
@@ -1723,7 +1730,7 @@ export const search = async (cmd: Command): CmdReturn => {
     : undefined;
 
   const passes = async (candidate: Candidate): Promise<boolean> => {
-    if (isUnlistedPath(unlisted, candidate.path)) return false;
+    if (!candidate.anywhere && isUnlistedPath(unlisted, candidate.path)) return false;
     const containerMember = containerMembers?.get(candidate.path);
     if (holding && !holding.has(candidate.path) && !(namesDateHolds && candidate.namesDate)) return false;
     if (tagSet && !tagSet.has(candidate.path)) return false;

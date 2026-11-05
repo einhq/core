@@ -481,7 +481,9 @@ leaves out everything at or under one: `search`'s timeline driver passes the roo
 its facets and the `facets` command count with them, and every other driver's candidates (text,
 `--like`, a label, a subject, a region, the groups holding matches) are dropped by path. The text
 providers that answer `notWithin` are handed the roots too, so a staging area spends none of their
-hits (media-ingestion's "Text outside the unlisted trees"). A search
+hits (media-ingestion's "Text outside the unlisted trees"). A provider that answers `unlisted` keeps
+its hits in one: the content a module keeps in an unlisted tree so that its pictures stay out of the
+library's views, while the content itself is what a search names (the recipes module's recipes). A search
 that names a place leaves out only the roots inside it: `--within` an unlisted tree, or a place in
 one, lists it as usual, and `--under` a container lists whatever it links. A module's view of the
 library does the same through `@ein/client`: `unlistedRoots(vfs)` for `notWithin`, and

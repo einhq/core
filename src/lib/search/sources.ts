@@ -77,6 +77,11 @@ export type Candidate = {
    * date of its own.
    */
   namesDate?: boolean;
+  /**
+   * A provider that finds its kinds wherever they are named it (`unlisted` in its `--kinds`
+   * answer), so it is kept though it lies in an unlisted tree.
+   */
+  anywhere?: boolean;
 };
 
 export interface CandidateSource {
@@ -427,6 +432,8 @@ export const textSource = async (
     within?: { path: string; providers: ReadonlySet<string> };
     /** Leave out what lies under these directories, at the providers that take `--not-within`. */
     notWithin?: { roots: readonly string[]; providers: ReadonlySet<string> };
+    /** The providers whose hits are kept in an unlisted tree: their candidates are marked `anywhere`. */
+    unlisted?: ReadonlySet<string>;
     /**
      * The one date the search asks for, which `question` does not hold. A `name` hit whose name
      * carries it is named by the words and the date together: it ranks ahead of the names that
@@ -492,16 +499,19 @@ export const textSource = async (
         if (!before || score > before.score) hits.set(path, { score, ...(atSeconds !== undefined ? { atSeconds } : {}), ...(confident ? { confident } : {}) });
         if (channel === 'name' && opts.date !== undefined && typeof hit?.name === 'string' && carriesWord(hit.name, opts.date)) namesDate.add(path);
 
+        const anywhere = opts.unlisted?.has(provider) === true;
         const existing = byPath.get(path);
         if (!existing) {
           byPath.set(path, {
             path,
             score: 0,
+            ...(anywhere ? { anywhere } : {}),
             ...(id ? { id } : {}),
             ...(takenAtUtc ? { sortValue: takenAtUtc } : {}),
             ...(takenAt ? { takenAt } : {}),
           });
         } else {
+          if (anywhere) existing.anywhere = true;
           existing.id ??= id;
           if (existing.sortValue === undefined && takenAtUtc) existing.sortValue = takenAtUtc;
           if (existing.takenAt === undefined && takenAt) existing.takenAt = takenAt;
