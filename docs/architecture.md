@@ -498,6 +498,22 @@ is. `person-list` counts a person's faces and voices per file while there is an 
 leaves out the files in one (`unlistedIds`); `person-check` and `person-fixup` count them all, as a
 person held only in staging is no orphan.
 
+#### Which processing a folder wants
+
+A directory's `processing` attr lists the families of pipeline work it wants for what lies under it
+(`['renditions']`, `['renditions', 'picture-vectors']`; one name counts as a list of one). The
+nearest directory carrying it decides for every path under it, a nested one overriding its parent;
+with none above a path every family is wanted, and an empty list wants none. A pipeline trigger
+names its family with `wants`, and the engine skips it for a subject whose folder wants none of the
+families it names; a pipeline that names none runs wherever its trigger says, and `pipeline start`
+passes it by as it does every trigger guard. The modules name the families of the work they do,
+and a module whose tree wants only thumbnails says so on its root (`['renditions']`). Unlike
+`unlisted`, it hides nothing: a staging area is unlisted and wants everything. `src/lib/processing.ts` reads the directories off core's `processing` attr index and
+keeps them per VFS as the unlisted roots are kept (`src/lib/kept-per-vfs.ts`); a module's pass
+over the archive that looks for missing work asks the same through `@ein/client`
+(`processingRoots`, `wantsProcessing`), so it does not announce what a folder does not want. Only
+the directory's owner or an administrator sets or clears it, as with `unlisted`.
+
 `vfs.countWithin(access, path, cap)` is that count with the caller's own cap: how many nodes are
 within `path`, `cap` meaning at least that many (a node linked twice within may count twice). It is
 what a caller asks before it reads a subtree whole: `search --within --layout` answers a complete
@@ -735,7 +751,8 @@ graph TD
 A pipeline trigger is decided in-process for as long as it can be. Its declarative guards come
 first and cost no process: `match` starts it only when every named field's glob matches,
 `unless` skips it when every one does (`unless: {nodePath: '/home/*/staging/**'}` keeps a whole
-subtree out at no process per write). The derived-file guard, `skipIfExists` and `skipIfAttr` cost
+subtree out at no process per write), and `wants` skips it where the subject's folder does not want
+its family of work (below). The derived-file guard, `skipIfExists` and `skipIfAttr` cost
 a node read, and the `filter`/`skipIf` scripts, run last, a turn on the engine's shared shell.
 The trigger model is in [data-flow.md](architecture/data-flow.md).
 

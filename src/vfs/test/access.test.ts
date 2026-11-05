@@ -8,7 +8,7 @@ import type { Access } from '../../lib/access/mod.ts';
 import { ADMIN_ACCESS, GUEST_ACCESS, LINK_UID_BASE } from '../../lib/access/mod.ts';
 import { createTestVfs } from '../../testing/test-vfs.ts';
 import { NodeAccessDeniedError } from '../mod.ts';
-import { UNLISTED_ATTR } from '../types/directory.ts';
+import { PROCESSING_ATTR, UNLISTED_ATTR } from '../types/directory.ts';
 import { mkdir, mkfile, readFile } from './helpers.ts';
 
 const OWNER: Access = { uid: 5000, gid: 4000, gids: [4000] };
@@ -138,6 +138,19 @@ Deno.test('VFS access enforcement', async (t) => {
       await assertRejects(() => vfs.update(GROUP_MATE, '/area/shared', { attrs: { [UNLISTED_ATTR]: null } }), NodeAccessDeniedError);
       await vfs.update(ADMIN_ACCESS, '/area/shared', { attrs: { [UNLISTED_ATTR]: null } });
       assertEquals((await vfs.get(ADMIN_ACCESS, '/area/shared')).attrs[UNLISTED_ATTR], undefined);
+    });
+
+    await t.step('only the owner or the administrator says which processing a directory wants', async () => {
+      // Write access lets a group mate change other attrs, not which pipelines run on the whole tree.
+      await assertRejects(() => vfs.update(GROUP_MATE, '/area/shared', { attrs: { [PROCESSING_ATTR]: ['renditions'] } }), NodeAccessDeniedError);
+
+      await vfs.update(OWNER, '/area/shared', { attrs: { [PROCESSING_ATTR]: ['renditions'] } });
+      // Restating the same list is no change, and is allowed.
+      await vfs.update(GROUP_MATE, '/area/shared', { attrs: { title: 'Shared', [PROCESSING_ATTR]: ['renditions'] } });
+      await assertRejects(() => vfs.update(GROUP_MATE, '/area/shared', { attrs: { [PROCESSING_ATTR]: ['renditions', 'archive'] } }), NodeAccessDeniedError);
+      await assertRejects(() => vfs.update(GROUP_MATE, '/area/shared', { attrs: { [PROCESSING_ATTR]: null } }), NodeAccessDeniedError);
+      await vfs.update(ADMIN_ACCESS, '/area/shared', { attrs: { [PROCESSING_ATTR]: null } });
+      assertEquals((await vfs.get(ADMIN_ACCESS, '/area/shared')).attrs[PROCESSING_ATTR], undefined);
     });
 
     await t.step('admin bypasses all mode bits', async () => {

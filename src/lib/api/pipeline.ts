@@ -127,6 +127,8 @@ export type PipelineTriggerSummary = {
   match?: Record<string, string | string[]>;
   /** `match`'s keys and globs; the event is skipped when every key matches. */
   unless?: Record<string, string | string[]>;
+  /** The families of work it starts; skipped where the subject's folder wants none of them. */
+  wants?: string[];
   allowDerived?: boolean;
   skipIfExists?: string;
   skipIfAttr?: string;

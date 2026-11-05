@@ -669,7 +669,7 @@ when anything under `/var/pipelines/definitions` changes, so `pipeline define` (
 `mod setup`) takes effect without an engine restart.
 
 One definition can carry a `triggers:` list. Each alternative has its own `match`,
-`unless`, `filter`, `skipIf*`, `allowDerived`, variable overrides and scheduling priority; the
+`unless`, `wants`, `filter`, `skipIf*`, `allowDerived`, variable overrides and scheduling priority; the
 first matching alternative starts the pipeline. The singular `trigger:` form is the
 same model with one alternative, and alternatives that differ only in their event share
 the rest through a YAML anchor (`- <<: *trigger` then `event: moved`, as `document-index`
@@ -680,7 +680,12 @@ a variable of the trigger env below in camel case, `$EVENT_<NAME>` before `$<NAM
 `$NODE_PATH` of both; a list of globs matches when any does. In a path key (`nodePath`, any key
 named `path` or ending in `Path`) `*` matches within one name and `**` crosses `/`, so
 `/home/*/staging/**` is each user's staging inbox and not a folder named `staging` deeper in a
-home; in any other key `*` crosses `/` as in a shell `case`. Then come the derived-file guard, `skipIfExists` and `skipIfAttr`, a node read, and
+home; in any other key `*` crosses `/` as in a shell `case`. `wants` names the families of work
+the trigger starts (`wants: renditions`, or a list meaning any of them), and the trigger is skipped
+when the subject's folder wants none of them: the nearest directory above it with a `processing`
+attr decides, read from a kept list of those directories (`src/lib/processing.ts`, and "Which
+processing a folder wants" in [architecture.md](../architecture.md)), so it costs no process and
+no node read either. Then come the derived-file guard, `skipIfExists` and `skipIfAttr`, a node read, and
 last `filter`/`skipIf`, shell scripts run once per candidate event on the engine's shared
 shell. `unless` is what keeps a busy subtree free: `document-index`'s `unless` on `nodePath`
 (staging, `/var`, dotfiles and the trash among others) makes a write there cost no shell

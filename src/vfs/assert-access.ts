@@ -3,7 +3,7 @@ import type { GroupId, Ownership, UserId } from '../lib/mode/mod.ts';
 import { NodeAccessDeniedError, NodeInvalidOperationError } from './errors.ts';
 import type { NodeAttrs, NodeId, NodeType } from './node.ts';
 import type { NodeAttrsUpdate, NodePropsUpdate } from './types.ts';
-import { UNLISTED_ATTR } from './types/directory.ts';
+import { PROCESSING_ATTR, UNLISTED_ATTR } from './types/directory.ts';
 import { NODE_TYPE_GROUP } from './types/group.ts';
 import { NODE_TYPE_SESSION } from './types/session.ts';
 import { NODE_TYPE_USER } from './types/user.ts';
@@ -81,8 +81,9 @@ const ACCOUNT_ATTRS: Partial<Record<NodeType, readonly string[]>> = {
   [NODE_TYPE_SESSION]: ['access', 'secret'],
 };
 
+/** Whether `attrs` gives `key` another value than the node has, compared by content: restating a list is no change. */
 const changes = (attrs: NodeAttrsUpdate | undefined, node: { attrs: NodeAttrs }, key: string): boolean =>
-  attrs !== undefined && key in attrs && (attrs[key] ?? undefined) !== (node.attrs[key] ?? undefined);
+  attrs !== undefined && key in attrs && JSON.stringify(attrs[key] ?? null) !== JSON.stringify(node.attrs[key] ?? null);
 
 /**
  * Assert that an update leaves an identity alone: an account's or group's number for everyone,
@@ -113,9 +114,10 @@ export const assertIdentityUnchanged = (
 
 /**
  * Attrs whose effect reaches past the node to what everyone else sees, so write access is not
- * enough to change them: `unlisted` takes a tree out of every user's library views.
+ * enough to change them: `unlisted` takes a tree out of every user's library views, and
+ * `processing` decides which pipelines run on everything under it.
  */
-const OWNER_ATTRS: readonly string[] = [UNLISTED_ATTR];
+const OWNER_ATTRS: readonly string[] = [UNLISTED_ATTR, PROCESSING_ATTR];
 
 /** Assert that an update changes none of the `OWNER_ATTRS` unless the node's owner or an administrator makes it. */
 export const assertOwnerAttrsUnchanged = (

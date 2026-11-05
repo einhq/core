@@ -235,5 +235,10 @@ export { taggedPaths } from '../lib/search/sources.ts';
 // unlisted directory, and which of a batch of nodes lie in one.
 export { isUnlistedPath, UNLISTED_ATTR, unlistedIds, unlistedRoots } from '../lib/search/unlisted.ts';
 
+// Which processing a folder wants, as the pipeline engine reads it for a trigger's `wants`: for a
+// module's own tree, and for a pass that looks for missing work and must leave out what a folder
+// does not want.
+export { familiesOf, PROCESSING_ATTR, processingAt, type ProcessingRoot, processingRoots, wantsProcessing } from '../lib/processing.ts';
+
 // The command catalogue: every command on the caller's PATH with its spec.
 export { type CatalogueEntry, commandCatalogue, forgetCommandCatalogues } from '../lib/commands/catalogue.ts';

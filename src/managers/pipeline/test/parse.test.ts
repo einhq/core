@@ -110,6 +110,15 @@ Deno.test('parse: unless takes the same globs as match and must name a field', (
   assertThrows(() => parsePipeline(withTrigger('  on: x', '  unless: {}')), Error, 'unless must name at least one field');
 });
 
+Deno.test('parse: wants takes a family or a list of them, and must name one', () => {
+  assertEquals(parsePipeline(withTrigger('  on: x', '  wants: renditions')).triggers[0].wants, ['renditions']);
+  assertEquals(parsePipeline(withTrigger('  on: x', '  wants: [text, transcripts]')).triggers[0].wants, ['text', 'transcripts']);
+  assertEquals(parsePipeline(withTrigger('  on: x')).triggers[0].wants, undefined);
+  assertThrows(() => parsePipeline(withTrigger('  on: x', '  wants: []')), Error, 'wants must name a family');
+  assertThrows(() => parsePipeline(withTrigger('  on: x', "  wants: ''")), Error, 'wants must name a family');
+  assertThrows(() => parsePipeline(withTrigger('  on: x', '  wants: [text, 3]')), Error, 'wants must name a family');
+});
+
 Deno.test('parse: a YAML anchor shares one trigger body between events', () => {
   const def = parsePipeline([
     'name: p',

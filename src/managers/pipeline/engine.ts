@@ -8,6 +8,7 @@ import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
 import { Mutex, Semaphore } from '../../lib/async/mod.ts';
 import { type DomainEvent, eventEnv, EVENTS_ROUTING_KEY, isDomainEvent, PIPELINE_EVENTS_NODE_PATH, serializeEvent } from '../../lib/events/mod.ts';
 import { globToRegex } from '../../lib/glob/mod.ts';
+import { processingRoots, wantsProcessing } from '../../lib/processing.ts';
 import { shq } from '../../lib/shell-quote/mod.ts';
 import { createLogger } from '../logger/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
@@ -1158,6 +1159,11 @@ export class PipelineEngine {
           continue;
         }
 
+        if (trigger.wants && !await this.folderWants(trigger.wants, event.subject)) {
+          logger.debug('skipping pipeline (the folder does not want it)', { pipeline: def.name, path: event.subject, wants: trigger.wants });
+          continue;
+        }
+
         if (!trigger.allowDerived && isDerivedFile(await subjectAttrs())) {
           logger.debug('skipping pipeline (derived subject)', { pipeline: def.name, path: event.subject });
           continue;
@@ -1235,6 +1241,11 @@ export class PipelineEngine {
 
         if (trigger.unless && this.matchesTrigger(trigger.unless, env)) {
           logger.debug('skipping pipeline (unless matched)', { pipeline: def.name, path: event.path });
+          continue;
+        }
+
+        if (trigger.wants && !await this.folderWants(trigger.wants, event.path)) {
+          logger.debug('skipping pipeline (the folder does not want it)', { pipeline: def.name, path: event.path, wants: trigger.wants });
           continue;
         }
 
@@ -2618,6 +2629,11 @@ export class PipelineEngine {
     }
 
     return true;
+  }
+
+  /** `wants`: whether the folder `path` lies in wants any of `families` (`src/lib/processing.ts`). */
+  private async folderWants(families: string[], path: string): Promise<boolean> {
+    return wantsProcessing(await processingRoots(this.vfs), path, families);
   }
 
   /** `skipIfExists`, with `$NAME` from the trigger env substituted. */

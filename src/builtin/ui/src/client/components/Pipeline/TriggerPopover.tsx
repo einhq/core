@@ -70,6 +70,17 @@ function TriggerCard({ trigger }: { trigger: PipelineTriggerSummary }) {
         </Condition>
       )}
 
+      {trigger.wants && (
+        <Condition icon={<IconFilter size={14} />} color='blue'>
+          Only where the folder wants {trigger.wants.map((family, i) => (
+            <span key={family}>
+              {i > 0 && ' or '}
+              <Code>{family}</Code>
+            </span>
+          ))}
+        </Condition>
+      )}
+
       {trigger.allowDerived
         ? <Condition icon={<IconCheck size={14} />} color='blue'>Also derived files (renditions, versions)</Condition>
         : <Condition icon={<IconPlayerSkipForward size={14} />} color='gray'>Skip derived files (renditions, versions)</Condition>}

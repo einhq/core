@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.11.1
+MODULE_API_VERSION 0.11.2
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -882,9 +882,11 @@ src/client/mod.ts NodeReference f2d4c2d76b42
 src/client/mod.ts NodeResolveOptions bb4b13e989a8 follow=0e2746401d99,readlink=966b519539c5,readmount=6ca5264393b0
 src/client/mod.ts NodeType 86e54873a4c8
 src/client/mod.ts NodeVFS c602740cd169 aggregate=eeae3164ceb5,audit=6b3f524023ad,childCount=46e3af6628c9,children=8ab7bf233521,childrenMany=2e490c82e537,copy=fcb4752361b6,countWithin=e9372ae0dd70,create=7e220647af55,createTree=e0a30d400b42,ensure=fbd6837c94f5,exists=204560e042e7,findAllPairs=5ae2882fa700,findContaining=11fb5644d521,findLinks=1918617a0fe5,findLinksUnder=4ea7013cb6bc,findNearby=8f94089f88bb,findSimilar=91aca3139163,findWithin=6b6b8f02636c,get=155a434cfa76,getChildLinksByIds=4c4b5310c245,getNodesByIds=22238586366e,getParentLinksByIds=65d534493a1d,getPoints=67549f470e57,getVectors=b3b3479fc16c,link=554d793393d2,mounts=692e216dccc3,open=f98bc691ef30,poolAdd=3eb9882585f6,query=cc118666ea05,rename=3eded9e9864e,renameMany=9ba0bd6f6464,resolveEntry=d993db350394,resolveId=8b42bfca0ccc,resolveIdEntries=aac044156ee9,resolveIdPaths=ffdcae9c36a2,resolvePath=0fc870563fb0,stat=e92877ab0a44,statX=a89e95fe8720,subscribe=23106e596e97,trackSummaries=81699cf87a30,unlink=c6454eee3fa6,unlinkMany=b82ac789b1ad,update=027d2d6f8c14,updateEach=38298b9219be,updateMany=ec6c4accd4ef
+src/client/mod.ts PROCESSING_ATTR 282d1fc56eee
 src/client/mod.ts PositionData 1c1c80bec501
 src/client/mod.ts PositionFilter bf58cf60223c ownerTypes=4e1cf1506fc0
 src/client/mod.ts PositionPoint 93bc43f0ea4d lat=ab04728f0de4,lng=7ef8fe750a12
+src/client/mod.ts ProcessingRoot 87376f8bf4fc families=93c73a0d6c63,path=3fd20668ef6e
 src/client/mod.ts RAW_IMAGE_MIMETYPES f07881348eb9
 src/client/mod.ts ResolvedPath 31d4fe55b039 parentId=63a1e1fa937e,path=3fd20668ef6e
 src/client/mod.ts ResourceHandleIf 3398c066e06e close=d0c1e69520d4,closed=f3e93208efd9,id=d1012bfaaeb3,init=0c1d8e4d947a,mode=384d42693640,options=1f6eaaf1a8dc,read=3723c61e22e6,readable=66436e82949e,seek=14b8f83d98a0,signal=d4df67d29a71,size=f923aca232cf,stat=ff259ef2bb0a,statX=bac1bbf261a4,sync=26fefc4da235,writable=224c0f255046,write=021b0d897a08,writeEOF=8865b3e41ee2
@@ -913,6 +915,7 @@ src/client/mod.ts applySharePreference 55dd6d25bd7d 0|01cf56cdc9c9=01cf56cdc9c9,
 src/client/mod.ts collectUnknownFlags 39b96e07cae3 0|a16bff8fef55=a16bff8fef55,@signature=4e997493c556
 src/client/mod.ts commandCatalogue f792d0142683 0|5499dd5ab1a4=5499dd5ab1a4,@signature=8a313878ffe7
 src/client/mod.ts commandsIn 9638f072126e 0|336e2b46aff6=336e2b46aff6,@signature=bc32739bf753
+src/client/mod.ts familiesOf 7a0c21bacc67 0|e2e9e83e047a=e2e9e83e047a,@signature=cfa4888cff7c
 src/client/mod.ts forgetCommandCatalogues df01802e180a
 src/client/mod.ts guestMayBrowse c086ced2a5da 0|f564a7144c6e=f564a7144c6e,@signature=d62cbcd7b1fe
 src/client/mod.ts haversineMeters 92a735fb0f6f 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,2|b3d9da3d9fc5=b3d9da3d9fc5,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=139a5f86b451
@@ -929,6 +932,8 @@ src/client/mod.ts nodeOwnership 6bb3cf997713 @signature=b6249f4a5a3b,props=21035
 src/client/mod.ts parseArgs 0a752fffac0f
 src/client/mod.ts parseCaptureTime 2c0bd41e9df1
 src/client/mod.ts pointInPolygon a97e58cc3aec 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,2|5491a649ee2a=5491a649ee2a,@signature=8591dd6d80d5
+src/client/mod.ts processingAt 07233032a7dd 0|508a730f01d8=508a730f01d8,1|336e2b46aff6=336e2b46aff6,@signature=f981bd00b088
+src/client/mod.ts processingRoots db9f5786a786 0|99facbb459eb=99facbb459eb,@signature=6ff0bc666394
 src/client/mod.ts readComments 32bd81f0ff14 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,@signature=bfaae59ae325
 src/client/mod.ts readSettings 1f20f42ca86e 0|d78cb581f075=d78cb581f075,1|175dd1db44d3=175dd1db44d3,2|619766deeb64=619766deeb64,@signature=b772afb160d7
 src/client/mod.ts readTail 723b012f72f5 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=0451835f9428
@@ -949,6 +954,7 @@ src/client/mod.ts unlistedRoots acdf12f2e4e1 0|f564a7144c6e=f564a7144c6e,@signat
 src/client/mod.ts upperBoundExclusive c1c917c55e2a 0|336e2b46aff6=336e2b46aff6,@signature=c3495290fb82
 src/client/mod.ts verifyAccess 353c3daee7d6 0|e05c872d6b52=e05c872d6b52,1|f4c89c8d8886=f4c89c8d8886,2|11b832eef333=11b832eef333,@signature=522bd562b07f
 src/client/mod.ts wallClockOf 92d188ce1039 0|336e2b46aff6=336e2b46aff6,@signature=04fe420b81f4
+src/client/mod.ts wantsProcessing 6c7943f44f54 0|508a730f01d8=508a730f01d8,1|336e2b46aff6=336e2b46aff6,2|dfa2c59f3b81=dfa2c59f3b81,@signature=be01a53df06f
 src/client/mod.ts withHostPath 9108a4237bdd 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,2|7190150d3525=7190150d3525,@signature=615cd3ee6b2d
 src/client/mod.ts withHostPaths a8b8ba8d7c51 0|8dcbaff60bef=8dcbaff60bef,1|a16bff8fef55=a16bff8fef55,2|f28cbbbdbfc6=f28cbbbdbfc6,@signature=72124ce6d762
 src/client/mod.ts withOffset 4e27ae453ef0 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=06c24ea4331c
@@ -1053,7 +1059,7 @@ src/lib/api/mod.ts PipelineOverview a29fcf45b2db active=2ec2587ca8a8,completions
 src/lib/api/mod.ts PipelineRow 9760c7bbb86c
 src/lib/api/mod.ts PipelineStepStatus 021861ac34e7 attempts=d87fea524631,command=bc11a5f7f30a,completedAt=5b21d7233912,condition=6e88d4fd776f,dependsOn=c7f0f19cf081,error=03c9a5b2b69b,exitCode=fd0fe53ed9a4,kind=f4f29121bc5f,maxAttempts=b1104ef39a7e,output=9bcbec104dfd,outputAt=85d708bac557,pool=73e621e6703c,progress=e24bc97d8b72,progressAt=4ed28844b24a,startedAt=2e6346888312,status=606b7556b079,stepName=4fad8845b846,waitingSince=0f099334bb80
 src/lib/api/mod.ts PipelineSummary f65c4e5b113c description=c4833b0d92ac,error=7a151e0a316a,name=6d0c36381511,options=91e1aac8fe95,stepKinds=4cff97a00c73,steps=dee33928d24b,triggerLabel=1f36f80dcbb9,triggerRules=e701af5bcedf,triggers=e7d337f0b700
-src/lib/api/mod.ts PipelineTriggerSummary bfc9d9726433 allowDerived=4c7a1ed8a816,event=f760438c1fb7,filter=64a5f17f59a3,match=5d95e86573b0,nodeType=f1cd3ed91694,on=10d3c75ec6eb,priority=703fc31e18d4,skipIf=bba395bb2551,skipIfAttr=90af6b697da7,skipIfExists=7550030d2acf,unless=615b1d7e8dcb,vars=99f4e1f4f001
+src/lib/api/mod.ts PipelineTriggerSummary 69fd98a1c9cf allowDerived=4c7a1ed8a816,event=f760438c1fb7,filter=64a5f17f59a3,match=5d95e86573b0,nodeType=f1cd3ed91694,on=10d3c75ec6eb,priority=703fc31e18d4,skipIf=bba395bb2551,skipIfAttr=90af6b697da7,skipIfExists=7550030d2acf,unless=615b1d7e8dcb,vars=99f4e1f4f001,wants=d70ff2137589
 src/lib/api/mod.ts PoolKindThroughput aee9b0cddc2f claimed=b2cae02b364f,done=ad11fd3265a9,etaMs=4335b7111c73,failed=759801f9d7dc,inPerHour=3a74805451d3,kind=9089229b6341,oldestReadyAt=95084f1c80ce,perHour=44ea6a464925,ready=01c84af451e1,restingUntil=83fa4c111b76,unservableSince=acf23bbfbf43
 src/lib/api/mod.ts PoolStatAnswer 6cba048c8bad
 src/lib/api/mod.ts PoolThroughput b4076485cd7c claimed=b2cae02b364f,done=ad11fd3265a9,etaMs=4335b7111c73,failed=759801f9d7dc,inPerHour=3a74805451d3,kinds=2a2974b0c793,name=6d0c36381511,path=3fd20668ef6e,perHour=44ea6a464925,ready=01c84af451e1,role=00c1ed749a93

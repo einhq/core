@@ -7,12 +7,12 @@
  * and a view that names a place inside one (`search --within` it) lists that place as usual.
  *
  * The roots are found with administrative access: leaving rows out reveals nothing, and one
- * cached list serves every caller. They are kept per VFS until a
- * directory is created or changed with the marker, or moved or removed, and for `CACHE_MS` at
- * most, which covers a write the VFS never announced.
+ * kept list serves every caller, until a directory is created or changed with the marker, or
+ * moved or removed (`keptPerVfs`).
  */
 
 import { ADMIN_ACCESS } from '../access/constants.ts';
+import { keptPerVfs } from '../kept-per-vfs.ts';
 import type { NodeId } from '../../vfs/node.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import type { NodeQueryCursor } from '../../vfs/query.ts';
@@ -21,51 +21,11 @@ import { UNLISTED_ATTR } from '../../vfs/types/directory.ts';
 
 export { UNLISTED_ATTR };
 
-/** How long the roots are kept when no change is seen. */
-const CACHE_MS = 60_000;
-
 /** Unlisted directories read per query. */
 const PAGE = 1000;
 
-type Cache = {
-  /** Resolves once the VFS's changes are watched, whether or not it can announce them. */
-  watching: Promise<void>;
-  roots?: Promise<string[]>;
-  at: number;
-};
-
-const caches = new WeakMap<ModuleVFS, Cache>();
-
 /** Whether `path` is one of `roots` or lies under one. */
 export const isUnlistedPath = (roots: readonly string[], path: string): boolean => roots.some((root) => path === root || path.startsWith(`${root}/`));
-
-/**
- * The absolute paths of the unlisted directories, sorted, leaving out one that lies under
- * another. Read once and kept (see the file's comment).
- */
-export const unlistedRoots = async (vfs: ModuleVFS): Promise<readonly string[]> => {
-  let cache = caches.get(vfs);
-  if (!cache) {
-    const entry: Cache = {
-      at: 0,
-      watching: watch(vfs, () => {
-        entry.roots = undefined;
-      }),
-    };
-    caches.set(vfs, cache = entry);
-  }
-  await cache.watching;
-  if (cache.roots && Date.now() - cache.at > CACHE_MS) cache.roots = undefined;
-  if (!cache.roots) {
-    const reading = readRoots(vfs);
-    cache.roots = reading;
-    cache.at = Date.now();
-    reading.catch(() => {
-      if (cache.roots === reading) cache.roots = undefined;
-    });
-  }
-  return await cache.roots;
-};
 
 /**
  * The roots a view over `within` leaves out, the whole archive when it is undefined: every root
@@ -138,10 +98,10 @@ const changesRoots = (event: NodeEvent): boolean => {
   return event.node.attrs[UNLISTED_ATTR] !== event.previousNode?.attrs[UNLISTED_ATTR];
 };
 
-/** Call `changed` after a directory event that `changesRoots`, when the VFS announces its changes. */
-const watch = async (vfs: ModuleVFS, changed: () => void): Promise<void> => {
-  if (!vfs.subscribe) return;
-  await vfs.subscribe(() => ADMIN_ACCESS, (event) => {
-    if (changesRoots(event)) changed();
-  }, { nodeTypes: ['directory'], eventTypes: ['created', 'updated', 'moved', 'deleted'] });
-};
+const keptRoots = keptPerVfs({ read: readRoots, nodeTypes: ['directory'], changes: changesRoots });
+
+/**
+ * The absolute paths of the unlisted directories, sorted, leaving out one that lies under
+ * another. Read once and kept (see the file's comment).
+ */
+export const unlistedRoots = async (vfs: ModuleVFS): Promise<readonly string[]> => await keptRoots(vfs);

@@ -217,6 +217,15 @@ function parseTrigger(
     trigger.unless = unless;
   }
 
+  if (raw.wants !== undefined) {
+    const wants = Array.isArray(raw.wants) ? raw.wants : [raw.wants];
+    // An empty list wants nothing, which would switch the trigger off
+    if (wants.length === 0 || wants.some((family) => typeof family !== 'string' || !family)) {
+      throw new Error('invalid trigger: wants must name a family, or a list of families');
+    }
+    trigger.wants = wants as string[];
+  }
+
   if (raw.skipIfExists !== undefined) {
     if (typeof raw.skipIfExists !== 'string' || !raw.skipIfExists) {
       throw new Error('invalid trigger: skipIfExists must be a non-empty path');

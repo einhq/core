@@ -53,6 +53,13 @@ export type PipelineTrigger = {
    */
   unless?: Record<string, string | string[]>;
   /**
+   * The families of work this trigger starts (`['renditions']`), any of which the subject's folder
+   * must want: the nearest directory above it with a `processing` attr decides, and with none
+   * every family is wanted (`src/lib/processing.ts`). Tested straight after `unless`, from a kept
+   * list of those directories, so a tree that wants none of it costs no node read and no process.
+   */
+  wants?: string[];
+  /**
    * Skip when this VFS path exists — the declarative form of the overwhelmingly
    * common `skipIf: info "$NODE_PATH/faces" >/dev/null`. `$NAME` from the
    * trigger env is substituted.

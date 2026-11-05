@@ -15,7 +15,7 @@ const REPO_ROOT = fromFileUrl(new URL('../../../', import.meta.url));
 const CONTRACT = fromFileUrl(new URL('../mod.ts', import.meta.url));
 
 /** Room to grow, and far below the whole of core. */
-const MAX_CORE_FILES = 100;
+const MAX_CORE_FILES = 110;
 
 /** Parts of core the contract must never reach, whatever the count. */
 const FORBIDDEN = [
