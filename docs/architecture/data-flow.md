@@ -139,7 +139,7 @@ a step node is not one (`pipeline-retention-by-age` removes those).
 
 The refusal is a function of EMS's encode budget, not of the source, so each entry stores
 the signature it was decided under — `capabilities.encode.cpu_budget`, EMS's own
-`<max MB>/<MB per 1k frames>/<max windows>`, read through `transcodeBudget()` in `@ems/client`
+`<max MB>/<MB per 1k frames>/<max windows>`, read through `generations()` in `@ems/client`
 by the writer and again by every scan, so the two cannot derive it differently — and it is
 compared against EMS's current one. Raising any of the three knobs on EMS makes every
 refusal recorded under the old signature stale, which re-opens those gaps without anyone
