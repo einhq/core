@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals-react';
 import type { ResolvedSection } from '@ui/nav';
+import { lightboxPathFromSearch } from '../lib/lightbox-route.ts';
 import { pageLocation } from './module-ui.ts';
 import { uiNav } from './nav.ts';
 
@@ -52,6 +53,16 @@ export const pageShown = (): PageShown | undefined => {
   if (!location) return undefined;
   const section = sectionLabel(location.pathname, uiNav.value.sections);
   return { ...(section ? { section } : {}), ...subjectAt(location.pathname) };
+};
+
+/**
+ * The node on screen: the picture open full screen in the lightbox, else the node the page says it
+ * is about (`usePageSubject`) — an album, a person, a place. Undefined on a page about no node.
+ * `useShownNode` follows it as it changes.
+ */
+export const shownNode = (): string | undefined => {
+  const location = pageLocation();
+  return (location ? lightboxPathFromSearch(location.search) : undefined) ?? pageShown()?.node;
 };
 
 /**

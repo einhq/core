@@ -96,7 +96,9 @@ type TopbarEntry = {
  * Search page before anything is asked (`search.explore`), a part above the Search page's results
  * while it asks for one label (`search.label`, whose route gets the label's tag directory for
  * `{path}`), a way to begin under the home page's
- * empty News (`home.start`), a tile on the About dialog (`about.services`). It is how a page shows a module's part without naming the module.
+ * empty News (`home.start`), a tile on the About dialog (`about.services`), something floating over
+ * every page and the lightbox, under a dialog (`shell.float`, which places what it draws itself). It
+ * is how a page shows a module's part without naming the module.
  */
 export type PanelEntry = {
   id: string;

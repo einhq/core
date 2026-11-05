@@ -31,6 +31,7 @@ import { type Surface, SurfaceContext } from '../../hooks/useSurface.ts';
 import { RouteError } from '../RouteProblem/RouteProblem.tsx';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { Dialog, type DialogProps, type DialogSize } from './Dialog.tsx';
+import { FLOAT_LAYER } from './float-layer.ts';
 import type { HatPattern } from '../EntityDetail/HatField.tsx';
 
 /**
@@ -92,7 +93,8 @@ function FullscreenFrame({ children }: { children: ReactNode }) {
   useSignals();
   const surface = useContext(SurfaceContext)!;
   // The drawer, lifted beside it (`fullscreenBesideDrawer`), is left its width, and stays a location
-  // to scroll and type in: a shard of the scroll lock, and outside a focus trap that is not set.
+  // to scroll and type in: a shard of the scroll lock, and outside a focus trap that is not set. The
+  // floating panels' layer is a shard too, so a list in a panel scrolls.
   const beside = fullscreenBesideDrawer.value;
   // Escape closes it unless the route has taken the key itself (the lightbox closes a layer
   // over it first, and its hotkey prevents the default) or it is typed into a field. Mantine's
@@ -111,7 +113,9 @@ function FullscreenFrame({ children }: { children: ReactNode }) {
       withCloseButton={false}
       padding={0}
       trapFocus={beside === null}
-      removeScrollProps={beside === null ? undefined : { shards: [...document.querySelectorAll<HTMLElement>('.mrx-drawer-aside')] }}
+      removeScrollProps={{ shards: [...document.querySelectorAll<HTMLElement>(beside === null ? `.${FLOAT_LAYER}` : `.mrx-drawer-aside, .${FLOAT_LAYER}`)] }}
+      // One below the `shell.float` layer (`FloatHost`), which floats over it and under a dialog.
+      zIndex='calc(var(--mantine-z-index-modal) - 2)'
       // It fades in by a keyframe animation rather than Mantine's transition, which only moves
       // between two styles the browser has painted: mounted open, the frame reaches the page
       // already in its entered style, and would appear at once. An animation runs from the first

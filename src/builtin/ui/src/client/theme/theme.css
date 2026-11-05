@@ -3158,6 +3158,17 @@ html.mrx-floating .mrx-scrubber {
   background: inherit;
 }
 
+/* The `shell.float` panels' layer (`FloatHost`): above the page, the drawer and the full-screen surface, one below
+ * (`FullscreenFrame`), and under a dialog. No size of its own; a panel places what it draws, fixed. */
+.mrx-float-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: calc(var(--mantine-z-index-modal) - 1);
+}
+
 /* Toasts (`notify`): centred near the foot of the screen, above dialogs, the lightbox and a selection bar, clear of the
  * phone's home indicator. */
 .mrx-toasts {

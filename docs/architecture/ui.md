@@ -148,7 +148,11 @@ section of the Search page before anything is asked (archive's people, places, y
 drawn above the Search page's results while it asks for exactly one label, whose route gets the label's
 tag directory for `{path}` (archive's "Looks like", for the signed in); `home.start`, a way to
 begin under the home page's News while it is still empty (archive's Import media, for the signed in); `about.services`, a
-tile on the About dialog for a service EiN uses (ems's media service, the assistant's language model). The page draws each
+tile on the About dialog for a service EiN uses (ems's media service, the assistant's language model); `shell.float`,
+something floating over every page, the drawer and the lightbox and under a dialog (todo's widget), drawn once for the
+whole app by `FloatHost` in a layer of no size of its own, so the panel places what it draws itself (`position: fixed`)
+and follows the node on screen with `useShownNode` — the picture in the lightbox, else what the page declares with
+`usePageSubject`. The page draws each
 with `RoutePanel` (`components/Surface/`), the surface router of the dialog and the drawer with a
 `panel` kind: no frame of its own, and a navigation that leaves the route opens on the page. A route
 an answer names is drawn the same way — a chat card, an entry on the home page — and where the

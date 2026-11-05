@@ -5,6 +5,7 @@ import { AppHeader, AppNavbar, CodeEditorModal, DialogHost, DrawerHost, Fullscre
 import { CommandPalette } from './components/Palette/CommandPalette.tsx';
 import { ToastHost } from './components/Toast/ToastHost.tsx';
 import { BackToTop } from './components/Layout/BackToTop.tsx';
+import { FloatHost } from './components/Surface/FloatHost.tsx';
 import { PageScrollbar } from './components/Layout/PageScrollbar.tsx';
 import { ShortcutHelp } from './components/Palette/ShortcutHelp.tsx';
 import { watchSidebarSwipe } from './lib/sidebar-swipe.ts';
@@ -284,6 +285,7 @@ function Frame({ children }: Props) {
       {authenticated && <Terminal />}
       <DialogHost />
       <FullscreenHost />
+      <FloatHost />
       <ShareModalHost />
       <CodeEditorModal />
       <BackToTop />

@@ -13,10 +13,10 @@ export type CommandFormProps = {
   initial?: FormValues;
   /**
    * The command line the values make, and the route to open once it has run: a route, or for a
-   * command whose JSON answer names what it made, the route that answer leads to. Throw to show
-   * an error.
+   * command whose JSON answer names what it made, the route that answer leads to; none, and the
+   * dialog closes on the page it was opened over. Throw to show an error.
    */
-  build: (values: FormValues) => { command: string; navigateTo: string | ((answer: unknown) => string) };
+  build: (values: FormValues) => { command: string; navigateTo?: string | ((answer: unknown) => string) };
   submitLabel?: string;
 };
 
@@ -25,7 +25,7 @@ export type CommandFormProps = {
  * and submit, which Enter in a field presses too. Shown wherever the route is — in the shell's
  * dialog, which takes its title from the route's `handle` and holds the buttons in its bar, or as
  * a page, where the same title heads it. On success it opens the new thing as the page, closing
- * the dialog.
+ * the dialog, or only closes it.
  */
 export function CommandForm({ fields, initial, build, submitLabel = 'Create' }: CommandFormProps) {
   const surface = useSurface();
@@ -43,7 +43,8 @@ export function CommandForm({ fields, initial, build, submitLabel = 'Create' }: 
     try {
       const { command, navigateTo } = build(values);
       const answer = await execCommand(command);
-      surface.openPage(typeof navigateTo === 'function' ? navigateTo(answer) : navigateTo);
+      if (navigateTo === undefined) surface.close();
+      else surface.openPage(typeof navigateTo === 'function' ? navigateTo(answer) : navigateTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

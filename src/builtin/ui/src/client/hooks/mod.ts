@@ -40,4 +40,5 @@ export * from './useVerticalWindow.ts';
 export * from './useReference.ts';
 export * from './useSurface.ts';
 export * from './usePageSubject.ts';
+export * from './useShownNode.ts';
 export * from './useShortcutHelp.ts';
