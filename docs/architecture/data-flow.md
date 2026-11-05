@@ -170,8 +170,9 @@ after when they are not indexed at all.
 link that never ran and one that ran and matched nothing are the same thing, and a term
 would republish every file from an unregistered camera on every scan. It is swept from
 the registry side instead, where the thing that changed actually lives —
-`device-relink <device>`, or `device-relink --all` over the whole registry, each device
-an indexed equality over the exif nodes carrying its fingerprint.
+`device-relink <device>`, which `device-create` and a fingerprint change in `device-update`
+run, or `device-relink --all` over the whole registry, each device an indexed equality over
+the exif nodes carrying its fingerprint.
 
 A video's storyboard sheet and its chapters have no gap term either: they are steps of
 `media-transcode`, made whenever that pipeline runs for the video, and a missing one is only a
