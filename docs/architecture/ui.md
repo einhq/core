@@ -675,7 +675,9 @@ The pattern is `HatField`, an inline SVG laid out by `lib/hat-field.ts` from a p
 tiling (`lib/hat-tiling.ts`) each time the band changes size: hats about 38 px across, cut from the
 patch at a place picked by the accent and the route, so a page keeps its field and pages differ.
 The field covers the band edge to edge: its hats run on past the top, the sides and the foot and
-are cut there, and every tile is filled with the page's accent, more on the mirrored hats and towards the upper right, and outlined. Nothing
+are cut there, and every tile is filled with the page's accent, more on the mirrored hats and towards the upper right, and outlined.
+A field given a `color` takes it in place of the accent, for a tint that says something of its own,
+such as how long a Todo card has waited; its pattern still picks where the tiling is cut. Nothing
 shades the band: each tile darkens as a whole towards the foot, where the title and controls stand.
 Every tile is its own path, so the field can arrive tile by tile the first time it is shown
 (`lib/hat-entrance.ts`): drawn as if by pen and filled from the foot up by default, or falling,

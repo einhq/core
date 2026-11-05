@@ -113,7 +113,13 @@ export const PATTERN_CONTROLS: Partial<Record<HatPattern, readonly [color: strin
  * (`.mrx-hat-glint`): not over a cover, with reduced motion or at a dialog's foot, nor while the page
  * is hidden.
  */
-export function HatField({ pattern, kind = 'band', backdrop }: { pattern: HatPattern; kind?: HatFieldKind; backdrop?: LuminanceMap | null }) {
+export function HatField({ pattern, kind = 'band', backdrop, color }: {
+  pattern: HatPattern;
+  kind?: HatFieldKind;
+  backdrop?: LuminanceMap | null;
+  /** One colour in place of `pattern`'s accent, for a field whose tint says something of its own; the pattern still picks where the tiling is cut. */
+  color?: string;
+}) {
   const ref = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState<readonly [number, number]>();
   const { pathname } = useLocation();
@@ -180,10 +186,10 @@ export function HatField({ pattern, kind = 'band', backdrop }: { pattern: HatPat
     };
   }, [layout, entrance]);
 
-  const accent = ACCENTS[pattern];
+  const accent = color ?? ACCENTS[pattern];
   const paint = typeof accent === 'string' ? accent : `url(#${id}-accent)`;
   const controls = PATTERN_CONTROLS[pattern];
-  const onLight = controls ? `var(--mantine-color-${controls[0]}-${controls[1]})` : patternAccent(pattern);
+  const onLight = color ?? (controls ? `var(--mantine-color-${controls[0]}-${controls[1]})` : patternAccent(pattern));
   const look = (tile: HatTile): SVGProps<SVGPathElement> =>
     kind === 'cover'
       ? {
