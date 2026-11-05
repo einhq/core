@@ -435,9 +435,10 @@ Deno.test('modules do not import core internals', async (t) => {
     assertEquals(offenders, [], offenders.join('\n  '));
   });
 
-  await t.step('every pooled step names a kind some worker in the module claims', async () => {
+  await t.step('every pooled step names a kind some worker in the module claims, or one it hands on', async () => {
     // A `kind` no worker declares is not a slow step — the pool has nobody to claim it, so the
-    // instance sits in `pending` forever with nothing logged.
+    // instance sits in `pending` forever with nothing logged. A module may hand its kinds to another
+    // module's worker in a drop-in, `etc/<x>.d/kinds`, a kind a line.
     const offenders: string[] = [];
 
     for (const { name: moduleName, dir: moduleRoot } of repoModules()) {
@@ -449,7 +450,18 @@ Deno.test('modules do not import core internals', async (t) => {
           for (const m of source.matchAll(/--kind\s+([\w-]+)/g)) claimed.add(m[1]);
         }
       } catch {
-        // no services/ — then no pooled step may be declared either
+        // no services/
+      }
+      // What it names in its drop-ins for another module's worker.
+      try {
+        for await (const entry of walk(join(moduleRoot, 'etc'), { includeDirs: false, match: [/\.d\/kinds$/] })) {
+          for (const line of (await Deno.readTextFile(entry.path)).split('\n')) {
+            const kind = line.replace(/#.*/, '').trim().split(/\s+/)[0];
+            if (kind) claimed.add(kind);
+          }
+        }
+      } catch {
+        // no etc/ — then no pooled step may be declared either, unless its own workers claim it
       }
 
       try {
