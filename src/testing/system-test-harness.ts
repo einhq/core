@@ -91,8 +91,9 @@ const passwordEnv: Record<string, string> = {
 };
 
 /**
- * Copy a mounted module's `etc/` files into /etc, each only when /etc has none of that name, as
- * `mod setup` does; its settings and drop-in directories, which setup links, are left out.
+ * Copy a mounted module's `etc/` files into /etc, each only when /etc has none of that name, and
+ * link its drop-in directories as `/etc/<x>.d/<module>`, as `mod setup` does; its settings, which
+ * setup links too, are left out.
  */
 const copyEtcFiles = async (vfs: NodeVFS, name: string): Promise<void> => {
   const etc = join(moduleSourceDir(name), 'etc');
@@ -104,6 +105,14 @@ const copyEtcFiles = async (vfs: NodeVFS, name: string): Promise<void> => {
     throw error;
   }
   for (const entry of entries) {
+    if (entry.isDirectory && isLinkedEtc(entry.name) && entry.name !== 'config') {
+      await vfs.ensure(ADMIN_ACCESS, 'directory', ETC_PATH, entry.name, { props: { mode: 0o755 } });
+      if (await vfs.exists(ADMIN_ACCESS, join(ETC_PATH, entry.name, name), { follow: false })) continue;
+      await vfs.create(ADMIN_ACCESS, 'softlink', join(ETC_PATH, entry.name), name, {
+        props: { mode: 0o777, softlink: join(MOD_PATH, name, 'etc', entry.name) },
+      });
+      continue;
+    }
     if (!entry.isFile || isLinkedEtc(entry.name) || await vfs.exists(ADMIN_ACCESS, join(ETC_PATH, entry.name))) continue;
     await vfs.create(ADMIN_ACCESS, 'file', ETC_PATH, entry.name, { props: { mode: 0o644 } });
     const handle = await vfs.open(ADMIN_ACCESS, join(ETC_PATH, entry.name), { mode: 'w' });
