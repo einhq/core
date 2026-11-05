@@ -99,6 +99,12 @@ export const SERVICES_PATH = `${ETC_PATH}/services`;
  */
 export const BASHRC_GROUPS_PATH = `${ETC_PATH}/bashrc.d`;
 /**
+ * The rendition table (`RenditionTable` in `@ein/api`): the renditions made of every picture, video
+ * and recording, by role. The module that makes them ships it in its `etc/`, which `mod setup`
+ * copies here once and never overwrites, so the administrator's edits stay.
+ */
+export const RENDITIONS_PATH = `${ETC_PATH}/renditions.yaml`;
+/**
  * The groups a module is kept to, as `<module>.groups` here, one group name per line. A module
  * without one is everyone's.
  */

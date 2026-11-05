@@ -13,7 +13,7 @@
 import { execCommand } from '../signals/shell-client.ts';
 import { shq } from './shquote.ts';
 import type { NodeChildEntry } from './node-entry.ts';
-import { THUMB_NAME } from './derivatives.ts';
+import { renditionName } from './derivatives.ts';
 import { fileUrl } from './file-url.ts';
 
 /** The softlink child naming a node's cover image. */
@@ -63,11 +63,12 @@ export type CoverImage = { url: string; fallbackUrl?: string };
  * so this has to be asked rather than assumed — serving the original instead is
  * a full-size JPEG behind an 80px avatar.
  *
- * `rendition` picks which rendition: the square `thumb` for a round avatar, which is
+ * `role` picks which rendition: the square `thumb` for a round avatar, which is
  * cropped to a square anyway, and the aspect-preserving `grid` for a card banner,
- * where the square crop would be cropped a second time.
+ * where the square crop would be cropped a second time. A role the rendition table
+ * lacks leaves the original.
  */
-export async function mediaCoverImage(target: string, rendition: string = THUMB_NAME, fallbackRendition?: string): Promise<CoverImage | undefined> {
+export async function mediaCoverImage(target: string, role = 'thumb', fallbackRole?: string): Promise<CoverImage | undefined> {
   let children: NodeChildEntry[];
   try {
     children = await execCommand<NodeChildEntry[]>(`ls -l ${shq(target)}`);
@@ -78,14 +79,16 @@ export async function mediaCoverImage(target: string, rendition: string = THUMB_
     return undefined;
   }
 
-  if (!children.some((child) => child.name === 'thumbnails')) {
+  const name = renditionName(role);
+  if (!name || !children.some((child) => child.name === 'thumbnails')) {
     // Reached but not derived yet: the original is the only thing to show.
     return { url: fileUrl(target) };
   }
 
+  const fallbackName = fallbackRole ? renditionName(fallbackRole) : undefined;
   return {
-    url: `${fileUrl(target)}/thumbnails/${rendition}`,
-    fallbackUrl: fallbackRendition ? `${fileUrl(target)}/thumbnails/${fallbackRendition}` : undefined,
+    url: `${fileUrl(target)}/thumbnails/${name}`,
+    fallbackUrl: fallbackName ? `${fileUrl(target)}/thumbnails/${fallbackName}` : undefined,
   };
 }
 
@@ -99,14 +102,14 @@ const FACE_CROP_PATH = /^(.*)\/regions\/[^/]+\/image\.avif$/;
  * wants the crop — it is the face — but a crop is at most 384 px, and stretched across a
  * page-wide banner it is a blur of skin.
  */
-export async function coverLinkImage(ownerPath: string, rendition: string = THUMB_NAME, fallbackRendition?: string, sourcePhoto = false): Promise<CoverImage | undefined> {
+export async function coverLinkImage(ownerPath: string, role = 'thumb', fallbackRole?: string, sourcePhoto = false): Promise<CoverImage | undefined> {
   try {
     const children = await execCommand<NodeChildEntry[]>(`ls -l ${shq(ownerPath)}`);
     const link = children.find((child) => child.name === COVER_LINK_NAME);
     const target = link?.node.props.softlink;
     if (!target) return undefined;
     const photo = sourcePhoto ? FACE_CROP_PATH.exec(target)?.[1] : undefined;
-    return await mediaCoverImage(photo ?? target, rendition, fallbackRendition);
+    return await mediaCoverImage(photo ?? target, role, fallbackRole);
   } catch {
     return undefined;
   }

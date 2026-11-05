@@ -36,6 +36,7 @@ import {
   underBase,
 } from '@ein/ui/signals';
 import { pageTitle } from './signals/page-subject.ts';
+import { loadRenditions } from './signals/renditions.ts';
 import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
 import { isShareLinkPage, withinRoute } from './lib/share-link.ts';
@@ -157,10 +158,11 @@ function Frame({ children }: Props) {
     initShellClient();
   }, []);
 
-  // Once the shell is connected: who is signed in, and their settings.
+  // Once the shell is connected: who is signed in, their settings, and the renditions the pages
+  // ask for, all before any page is drawn.
   useEffect(() => {
     if (connected && !authChecked) {
-      checkAuth().then(loadUserConfig).finally(() => setAuthChecked(true));
+      checkAuth().then(() => Promise.all([loadUserConfig(), loadRenditions()])).finally(() => setAuthChecked(true));
     }
   }, [connected, authChecked]);
 

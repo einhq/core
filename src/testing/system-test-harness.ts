@@ -17,6 +17,7 @@ import { ShellManager } from '../managers/shell/mod.ts';
 import { Shell } from '../managers/shell/shell.ts';
 import { setFirstAdminPassword } from '../init/admin-password.ts';
 import { boot } from '../init/boot.ts';
+import { isLinkedEtc } from '../managers/exec/commands/mod/module-links.ts';
 import { buildPathExportLine } from '../managers/exec/commands/mod/path-line.ts';
 import { contributionsOf, registerContributions, unregisterContributions } from '../lib/contributions/registry.ts';
 import { ensureArchiveRoots } from '../lib/contributions/roots.ts';
@@ -87,6 +88,31 @@ const testEnvironment = (modules: string[]): Record<string, string> => {
  */
 const passwordEnv: Record<string, string> = {
   CFG_PASSWORD_HASH_LOGN: '10',
+};
+
+/**
+ * Copy a mounted module's `etc/` files into /etc, each only when /etc has none of that name, as
+ * `mod setup` does; its settings and drop-in directories, which setup links, are left out.
+ */
+const copyEtcFiles = async (vfs: NodeVFS, name: string): Promise<void> => {
+  const etc = join(moduleSourceDir(name), 'etc');
+  let entries: Deno.DirEntry[];
+  try {
+    entries = await Array.fromAsync(Deno.readDir(etc));
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return;
+    throw error;
+  }
+  for (const entry of entries) {
+    if (!entry.isFile || isLinkedEtc(entry.name) || await vfs.exists(ADMIN_ACCESS, join(ETC_PATH, entry.name))) continue;
+    await vfs.create(ADMIN_ACCESS, 'file', ETC_PATH, entry.name, { props: { mode: 0o644 } });
+    const handle = await vfs.open(ADMIN_ACCESS, join(ETC_PATH, entry.name), { mode: 'w' });
+    try {
+      await handle.write(await Deno.readFile(join(etc, entry.name)));
+    } finally {
+      await handle.close();
+    }
+  }
 };
 
 const baseEnv: Record<string, string> = {
@@ -287,6 +313,9 @@ export class SystemTestHarness {
         const contributions = contributionsOf(manifest);
         if (registerContributions(name, contributions)) await ensureArchiveRoots(vfs, contributions.roots ?? []);
         this.contributionOwners.push(name);
+        // The files of its `etc/` that `mod setup` copies into /etc when none is there, such as
+        // the rendition table: what the module's commands read from /etc.
+        await copyEtcFiles(vfs, name);
       }
 
       await this.createUser(vfs, 'admin', ADMIN_PASSWORD, ADMIN_UID, ADMIN_GID);

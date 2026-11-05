@@ -174,6 +174,7 @@ import { hostMetrics } from './system/host-metrics.ts';
 import { gauges, health } from './system/health.ts';
 import { systemInfo } from './system/system-info.ts';
 import { ps } from './system/ps.ts';
+import { renditions } from './system/renditions.ts';
 import { top } from './system/top/mod.ts';
 import { who } from './system/who.ts';
 import { pipeline } from './pipeline/pipeline.ts';
@@ -399,6 +400,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   gauges,
   systemInfo,
   ps,
+  renditions,
   top,
   who,
 

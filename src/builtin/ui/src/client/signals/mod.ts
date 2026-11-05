@@ -10,6 +10,7 @@ export * from './upload.ts';
 export * from './user.ts';
 export * from './nav.ts';
 export * from './module-ui.ts';
+export { renditionTable } from './renditions.ts';
 export * from './surface.ts';
 export { type PageShown, pageShown, type PageSubject } from './page-subject.ts';
 export { noteOutsideEdit, onOutsideEdit } from './edits.ts';

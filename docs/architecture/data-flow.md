@@ -125,14 +125,14 @@ The transcode term needs its own read because `media-transcode` writes under
 `thumbnails/` next to the poster frames: a video with still frames and no transcode has
 a `thumbnails/` directory and the derivatives term reads it as complete. It counts
 children by extension (`.mp4`, `.m4a`) rather than by name, since the names are the
-target boxes from `config/sizes.yaml`, and it expects one rendition rather than two for
-a video too short to get a hover clip.
+boxes of the rendition table's roles (`/etc/renditions.yaml`), as many as the table has video and
+audio roles, and one fewer for a video too short to get a hover clip.
 
 It also counts renditions EMS **refused**. `video.transcode` declines a rendition when a CPU
 decode of the source will not fit in EMS's budget (`EMS_CPU_ENCODE_MAX_MB`) and cannot be
 split into placeable windows; it answers `refused`, permanent, and `generate-derivatives`
 records that on the file node as **`transcodeRefused`** — a map keyed by the rendition's
-file name, so one source can be refused its 1080p rendition and still owe its hover clip.
+file name, so one source can be refused its `playback` rendition and still owe its hover clip.
 Without it the gap rule announced the same file on every scan forever, the same shape
 `undecodable` already had and for the same reason: `deriveGaps` reads the file node, and
 a step node is not one (`pipeline-retention-by-age` removes those).

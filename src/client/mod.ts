@@ -197,6 +197,9 @@ export { SYSTEM_TIME_ZONE } from '../lib/datetime/mod.ts';
 /* Media predicates that are core's to define (mimetype tables live in src/lib/media) */
 export { isRawExtension, isRawMimetype, RAW_IMAGE_MIMETYPES, refineMimeByName } from '../lib/media/raw.ts';
 export { isOriginalMedia } from '../lib/media/original.ts';
+// The rendition table in /etc/renditions.yaml, for the commands that make renditions; its shape and
+// the rules over it (which file a role is, which roles a picture gets) are `@ein/api`'s.
+export { readRenditionTable, type RenditionTableRead } from '../lib/media/renditions.ts';
 
 // The store condition for a file that is no other file's derivative.
 export { NOT_DERIVED } from '../lib/kinds/mod.ts';

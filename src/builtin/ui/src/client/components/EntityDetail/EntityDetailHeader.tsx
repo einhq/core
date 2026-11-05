@@ -6,7 +6,6 @@ import { useAppHeaderHeight } from '../../hooks/useHeaderHeight.ts';
 import { usePhone } from '../../hooks/usePhone.ts';
 import { usePageSubject } from '../../hooks/usePageSubject.ts';
 import { SurfaceContext } from '../../hooks/useSurface.ts';
-import { DISPLAY_DERIVATIVE, GRID_NAME } from '../../lib/derivatives.ts';
 import { imageLuminance, type LuminanceMap } from '../../lib/image-luminance.ts';
 import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
 import { UploadDropzone } from '../Upload/UploadDropzone.tsx';
@@ -145,7 +144,7 @@ export function EntityDetailHeader({
   pattern,
 }: EntityDetailHeaderProps) {
   useSignals();
-  const cover = useCover(path ?? '', Boolean(path), { rendition: DISPLAY_DERIVATIVE.photo, fallbackRendition: GRID_NAME, sourcePhoto: true });
+  const cover = useCover(path ?? '', Boolean(path), { role: 'medium', fallbackRole: 'grid', sourcePhoto: true });
   const avatarSize = coverSize ?? 144;
   const titleRef = useRef<HTMLHeadingElement>(null);
   const headerRef = useRef<HTMLElement>(null);

@@ -1,26 +1,18 @@
 /**
- * gridSrcSet: the `w` descriptors are the rendition's real width, not its bounding box.
+ * The pages' rendition helpers answer from the rendition table, by role.
  *
- * The renditions are `contain`, so a 3:4 portrait in an 800 box is 600px wide. Advertising
- * it as 800w — which is all the box-sized IMAGE_LADDER can do — tells the browser it has
- * more pixels than it does, and it settles for a size too small.
+ * gridSrcSet: the `w` descriptors are the rendition's real width, not its bounding box. The
+ * renditions are `contain`, so a 3:4 portrait in an 800 box is 600px wide; advertising it as 800w
+ * tells the browser it has more pixels than it does, and it settles for a size too small.
  */
 
 import { assertEquals } from '@std/assert';
-import {
-  availableBoxes,
-  displayUrl,
-  GRID_FALLBACK_NAME,
-  GRID_NAME,
-  gridFallbackUrl,
-  gridSrcSet,
-  gridUrl,
-  imageSrcSet,
-  posterUrl,
-  PREVIEW_NAME,
-  previewUrl,
-  THUMB_NAME,
-} from '../derivatives.ts';
+import { NO_RENDITIONS } from '@ein/api';
+import { displayUrl, gridFallbackUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, previewUrl, renditionName, thumbnailUrl } from '../derivatives.ts';
+import { renditionTable } from '../../signals/renditions.ts';
+import { TEST_RENDITIONS } from './rendition-table.ts';
+
+renditionTable.value = TEST_RENDITIONS;
 
 Deno.test('a landscape tile advertises the full box width', () => {
   assertEquals(
@@ -69,17 +61,17 @@ Deno.test('an audio waveform gets the same sizes as a photo', () => {
 });
 
 Deno.test('gridUrl points at the contain rendition, and at the original without derivatives', () => {
-  assertEquals(gridUrl(`/archive/albums/a/p.jpg`, true), `/file/archive/albums/a/p.jpg/thumbnails/${GRID_NAME}`);
+  assertEquals(gridUrl(`/archive/albums/a/p.jpg`, true), `/file/archive/albums/a/p.jpg/thumbnails/512x512.avif`);
   assertEquals(gridUrl(`/archive/albums/a/p.jpg`, false), `/file/archive/albums/a/p.jpg`);
   // Audio too, since the waveform is a real picture at that size.
-  assertEquals(gridUrl(`/archive/albums/a/s.mp3`, true), `/file/archive/albums/a/s.mp3/thumbnails/${GRID_NAME}`);
+  assertEquals(gridUrl(`/archive/albums/a/s.mp3`, true), `/file/archive/albums/a/s.mp3/thumbnails/512x512.avif`);
 });
 
 Deno.test('the tile fallback is a contain rendition, never the square crop', () => {
   const fallback = gridFallbackUrl(`/archive/albums/a/p.jpg`, true);
-  assertEquals(fallback, `/file/archive/albums/a/p.jpg/thumbnails/${GRID_FALLBACK_NAME}`);
+  assertEquals(fallback, `/file/archive/albums/a/p.jpg/thumbnails/800x800.avif`);
   // The whole point: a 320 cover crop here would re-crop the picture in a non-square slot.
-  assertEquals(fallback.includes(THUMB_NAME), false);
+  assertEquals(fallback.includes('320x320'), false);
   assertEquals(gridFallbackUrl(`/archive/albums/a/p.jpg`, false), `/file/archive/albums/a/p.jpg`);
 });
 
@@ -90,7 +82,7 @@ Deno.test('the tile fallback is a contain rendition, never the square crop', () 
  * tile that stays a still.
  */
 Deno.test('previewUrl is video-only and never falls back', () => {
-  assertEquals(previewUrl(`/archive/albums/a/v.mp4`, 'video', true), `/file/archive/albums/a/v.mp4/thumbnails/${PREVIEW_NAME}`);
+  assertEquals(previewUrl(`/archive/albums/a/v.mp4`, 'video', true), `/file/archive/albums/a/v.mp4/thumbnails/480x480.mp4`);
   assertEquals(previewUrl(`/archive/albums/a/v.mp4`, 'video', false), '');
   assertEquals(previewUrl(`/archive/albums/a/p.jpg`, 'photo', true), '');
   assertEquals(previewUrl(`/archive/albums/a/s.mp3`, 'audio', true), '');
@@ -104,30 +96,10 @@ Deno.test('previewUrl is video-only and never falls back', () => {
 Deno.test('posterUrl is a contain rendition, never the square crop', () => {
   const poster = posterUrl(`/archive/albums/a/v.mp4`, 'video', true);
   assertEquals(poster, `/file/archive/albums/a/v.mp4/thumbnails/1600x1600.avif`);
-  assertEquals(poster.includes(THUMB_NAME), false);
+  assertEquals(poster.includes('320x320'), false);
   // Empty rather than the original: `poster=""` paints a broken-image icon over the video.
   assertEquals(posterUrl(`/archive/albums/a/v.mp4`, 'video', false), '');
   assertEquals(posterUrl(`/archive/albums/a/p.jpg`, 'photo', true), '');
-});
-
-/**
- * A source smaller than the ladder. `contain` never upscales, so `generate-derivatives`
- * stops at the first box the picture fits inside — the one that holds it at its own size —
- * and the UI must ask for nothing above it, and must describe that top size at the picture's
- * real width rather than the box's. A 600x400 photo has a 512 (512x341) and an 800 (600x400),
- * nothing more.
- */
-Deno.test('availableBoxes stops at the first box the picture fits inside', () => {
-  assertEquals(availableBoxes({ width: 600, height: 400 }), [512, 800]);
-  assertEquals(availableBoxes({ width: 400, height: 300 }), [512]);
-  assertEquals(availableBoxes({ width: 800, height: 800 }), [512, 800]);
-  assertEquals(availableBoxes({ width: 801, height: 600 }), [512, 800, 1600]);
-  assertEquals(availableBoxes({ width: 4000, height: 3000 }), [512, 800, 1600, 2560]);
-  // A portrait fits by its long side.
-  assertEquals(availableBoxes({ width: 400, height: 1000 }), [512, 800, 1600]);
-  // Unknown dimensions: the whole ladder, which is what generation makes for such a file.
-  assertEquals(availableBoxes(undefined), [512, 800, 1600, 2560]);
-  assertEquals(availableBoxes({ width: 0, height: 0 }), [512, 800, 1600, 2560]);
 });
 
 Deno.test('a small photo advertises only the sizes it has, at its real width', () => {
@@ -177,6 +149,34 @@ Deno.test('the display and poster URLs step down to the largest size a small sou
   assertEquals(posterUrl(`/archive/albums/a/v.mp4`, 'video', true, { width: 1920, height: 1080 }), `/file/archive/albums/a/v.mp4/thumbnails/1600x1600.avif`);
 
   // The grid's stand-in is the 800, unless the picture is too small to have one.
-  assertEquals(gridFallbackUrl(`/archive/albums/a/p.jpg`, true, { width: 600, height: 400 }), `/file/archive/albums/a/p.jpg/thumbnails/${GRID_FALLBACK_NAME}`);
+  assertEquals(gridFallbackUrl(`/archive/albums/a/p.jpg`, true, { width: 600, height: 400 }), `/file/archive/albums/a/p.jpg/thumbnails/800x800.avif`);
   assertEquals(gridFallbackUrl(`/archive/albums/a/p.jpg`, true, { width: 400, height: 300 }), `/file/archive/albums/a/p.jpg`);
+});
+
+Deno.test('a role is the file the table names for it', () => {
+  assertEquals(renditionName('thumb'), '320x320.avif');
+  assertEquals(renditionName('large'), '2560x2560.avif');
+  assertEquals(renditionName('poster'), undefined);
+});
+
+/**
+ * A table that lacks a role makes no such rendition, so nothing may ask for one: the original
+ * stands in where a page needs a picture, and the optional ones are left out.
+ */
+Deno.test('without the table, or a role in it, the pages ask for the original or nothing', () => {
+  renditionTable.value = NO_RENDITIONS;
+  try {
+    assertEquals(thumbnailUrl('/a/p.jpg', true), '/file/a/p.jpg');
+    assertEquals(gridUrl('/a/p.jpg', true), '/file/a/p.jpg');
+    assertEquals(gridFallbackUrl('/a/p.jpg', true), '/file/a/p.jpg');
+    assertEquals(displayUrl('/a/p.jpg', 'photo', true), '/file/a/p.jpg');
+    assertEquals(displayUrl('/a/v.mp4', 'video', true), '/file/a/v.mp4');
+    assertEquals(gridSrcSet('/a/p.jpg', true, 1.5), '');
+    assertEquals(imageSrcSet('/a/p.jpg', 'photo', true), '');
+    assertEquals(posterUrl('/a/v.mp4', 'video', true), '');
+    assertEquals(previewUrl('/a/v.mp4', 'video', true), '');
+    assertEquals(renditionName('thumb'), undefined);
+  } finally {
+    renditionTable.value = TEST_RENDITIONS;
+  }
 });

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { type CoverImage, coverLinkImage, runLimited } from '../lib/cover.ts';
-import { THUMB_NAME } from '../lib/derivatives.ts';
 
 // Results persist for the session: re-entering a card's viewport, or navigating
-// away and back, is then instant and never refetches. Keyed by rendition as well as
+// away and back, is then instant and never refetches. Keyed by role as well as
 // path — an 80px avatar and a card banner want different renditions of the same
 // picture, and a shared key would hand one the other's URL.
 const cache = new Map<string, CoverImage | null>();
@@ -24,10 +23,10 @@ export function forgetCover(ownerPath: string): void {
 }
 
 export type UseCoverOptions = {
-  /** Rendition to draw. Defaults to the square `thumb`, which is what avatars want. */
-  rendition?: string;
-  /** Rendition to try when the file has no `rendition`. */
-  fallbackRendition?: string;
+  /** The rendition's role. Defaults to the square `thumb`, which is what avatars want. */
+  role?: string;
+  /** The role to try when the file has no `role` rendition. */
+  fallbackRole?: string;
   /** Draw the whole photo a face-crop cover was cut from — for a banner, where a crop is too small. */
   sourcePhoto?: boolean;
 };
@@ -42,9 +41,9 @@ export type UseCoverOptions = {
 export function useCover(
   ownerPath: string,
   enabled = true,
-  { rendition = THUMB_NAME, fallbackRendition, sourcePhoto = false }: UseCoverOptions = {},
+  { role = 'thumb', fallbackRole, sourcePhoto = false }: UseCoverOptions = {},
 ): { coverUrl?: string; coverFallbackUrl?: string; loaded: boolean } {
-  const key = `${rendition}${sourcePhoto ? '+photo' : ''}\0${ownerPath}`;
+  const key = `${role}${sourcePhoto ? '+photo' : ''}\0${ownerPath}`;
   const [cover, setCover] = useState<CoverImage | null | undefined>(() => cache.get(key));
   const [shownKey, setShownKey] = useState(key);
 
@@ -75,7 +74,7 @@ export function useCover(
     if (cover !== undefined || !enabled || !ownerPath) return;
     let cancelled = false;
 
-    runLimited(() => coverLinkImage(ownerPath, rendition, fallbackRendition, sourcePhoto)).then((found) => {
+    runLimited(() => coverLinkImage(ownerPath, role, fallbackRole, sourcePhoto)).then((found) => {
       cache.set(key, found ?? null);
       if (!cancelled) setCover(found ?? null);
     }).catch(() => {});
@@ -83,7 +82,7 @@ export function useCover(
     return () => {
       cancelled = true;
     };
-  }, [key, ownerPath, enabled, rendition, fallbackRendition, sourcePhoto, cover]);
+  }, [key, ownerPath, enabled, role, fallbackRole, sourcePhoto, cover]);
 
   return { coverUrl: cover?.url, coverFallbackUrl: cover?.fallbackUrl, loaded: cover !== undefined };
 }

@@ -1,6 +1,10 @@
 import { assertEquals } from '@std/assert';
 import { encodeVfsPath, fileUrl } from '../file-url.ts';
 import { displayUrl, gridSrcSet, imageSrcSet, thumbnailUrl } from '../derivatives.ts';
+import { renditionTable } from '../../signals/renditions.ts';
+import { TEST_RENDITIONS } from './rendition-table.ts';
+
+renditionTable.value = TEST_RENDITIONS;
 
 Deno.test('file url: an ordinary path is unchanged apart from its non-ASCII', () => {
   assertEquals(fileUrl(`/archive/albums/Jul/files/a.jpg`), `/file/archive/albums/Jul/files/a.jpg`);

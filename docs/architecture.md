@@ -516,6 +516,23 @@ over the archive that looks for missing work asks the same through `@ein/client`
 (`processingRoots`, `wantsProcessing`), so it does not announce what a folder does not want. Only
 the directory's owner or an administrator sets or clears it, as with `unlisted`.
 
+#### The rendition table
+
+`/etc/renditions.yaml` (`RENDITIONS_PATH`) says which renditions are made of every picture, video
+and recording, each under a role: `image` (`thumb`, a square crop, and `grid`, `small`, `medium`,
+`large`, which keep the picture's shape, each with the kinds it is made of), `video` (`preview`,
+`playback`), `audio` (`playback`) and `storyboard`. Its type and the rules over it are `@ein/api`'s
+(`src/lib/api/renditions.ts`), free of imports so the shell's pages and the commands that make
+renditions run the same code: a role's file is named after its box (`imageFileName`, …), and a
+picture gets every `cover` role of its kind and the `contain` roles up to the first box it fits
+inside (`imageRolesOf`). `src/lib/media/renditions.ts` reads the file as the administrator, leaving
+out an entry it gets wrong with a warning; no file is no renditions. Core ships no table: the module
+that makes renditions ships one in its `etc/`, which `mod setup` copies once and never overwrites.
+`renditions` answers it, and the shell reads it with the auth check, before any page is drawn, into
+the kit's `renditionTable` signal; the kit's helpers (`thumbnailUrl`, `gridSrcSet`,
+`imageSrcSet`, `displayUrl`, `posterUrl`, `renditionName`) ask by role, and fall back to the
+original for a role the table lacks.
+
 `vfs.countWithin(access, path, cap)` is that count with the caller's own cap: how many nodes are
 within `path`, `cap` meaning at least that many (a node linked twice within may count twice). It is
 what a caller asks before it reads a subtree whole: `search --within --layout` answers a complete

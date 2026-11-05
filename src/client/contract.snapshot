@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.11.2
+MODULE_API_VERSION 0.12.0
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -296,7 +296,7 @@ src/builtin/ui/src/client/hooks/mod.ts StatsPage 248ae8381e0f
 src/builtin/ui/src/client/hooks/mod.ts Surface 7081f248283e close=a70610dbf827,kind=525714dd50dd,openPage=62c0748667fe
 src/builtin/ui/src/client/hooks/mod.ts SurfaceContext 0a752fffac0f
 src/builtin/ui/src/client/hooks/mod.ts UseConfigResult ceddbcf838ab entries=7b3089c1d9ca,error=badebb2f202e,loading=6ab16fe49a65,refetch=e606a4dac3f8,reset=cccae9671ff7,save=3cdf36bc4fb3
-src/builtin/ui/src/client/hooks/mod.ts UseCoverOptions 1f61feaf1347 fallbackRendition=6bfc359cca32,rendition=3bbb84d28c0b,sourcePhoto=7151cb6ee3c1
+src/builtin/ui/src/client/hooks/mod.ts UseCoverOptions 4cb801125d35 fallbackRole=7d41e83fbd11,role=7726cb798072,sourcePhoto=7151cb6ee3c1
 src/builtin/ui/src/client/hooks/mod.ts UseEntityCompleteResult 564ad7ae61d0 hits=96dbe2689832,loading=6ab16fe49a65
 src/builtin/ui/src/client/hooks/mod.ts UseGuideResult 67f5f75f37cd guide=b77f948d0989,loading=6ab16fe49a65
 src/builtin/ui/src/client/hooks/mod.ts UseLabelsResult c78535763d32 error=badebb2f202e,labels=282800e2a618,loading=6ab16fe49a65,refetch=e606a4dac3f8
@@ -324,7 +324,7 @@ src/builtin/ui/src/client/hooks/mod.ts useCommandFind c39a43522a2a 0|336e2b46aff
 src/builtin/ui/src/client/hooks/mod.ts useCommandQueue d20dd21f3e73
 src/builtin/ui/src/client/hooks/mod.ts useCommandReference 51fae67f903b
 src/builtin/ui/src/client/hooks/mod.ts useConfig 74daa24318c8 0|07417c174d31=07417c174d31,0|a726c4d87eb1=a726c4d87eb1,@signature=a8c398f8dc5e
-src/builtin/ui/src/client/hooks/mod.ts useCover e84f2e58ac22
+src/builtin/ui/src/client/hooks/mod.ts useCover 821a0b0ff84f
 src/builtin/ui/src/client/hooks/mod.ts useDropTarget ef2d6cb8b294 0|13c7cb9e0538=13c7cb9e0538,@signature=c20e6f34cff5
 src/builtin/ui/src/client/hooks/mod.ts useElementWidth a4f30aa3c2a9
 src/builtin/ui/src/client/hooks/mod.ts useEntityComplete 332e19a07c40 0|336e2b46aff6=336e2b46aff6,0|803a222e6f94=803a222e6f94,1|6952841946da=6952841946da,@signature=ce9775ed500f
@@ -448,7 +448,6 @@ src/builtin/ui/src/client/lib/mod.ts SectionPoint f3413216c118 path=c29ab32b39f5
 src/builtin/ui/src/client/lib/mod.ts SectionSelection 7ebbc82f5bd3 excluded=722681a514ff,items=abf75200a6e8,sections=222597916f45
 src/builtin/ui/src/client/lib/mod.ts SortDir 2153bc01de28
 src/builtin/ui/src/client/lib/mod.ts SortKey 947f614d563c
-src/builtin/ui/src/client/lib/mod.ts THUMB_NAME fcb5d6851488
 src/builtin/ui/src/client/lib/mod.ts TO_TOP_EVENT 5c12d11a698e
 src/builtin/ui/src/client/lib/mod.ts TerminalRestore a8408593740d cols=414c23c9265f,pwd=d5f678d02deb,resumed=576e26a49d70,rows=00a8a3453fd7,snapshot=0f0fa437a8a4
 src/builtin/ui/src/client/lib/mod.ts TileBox 64de01e6bad8 height=64579e3c11b3,left=724f4e98fffa,top=53cbd27c99c3,width=4f23b8406a01
@@ -572,6 +571,7 @@ src/builtin/ui/src/client/lib/mod.ts posterUrl 6775abbbb867 0|336e2b46aff6=336e2
 src/builtin/ui/src/client/lib/mod.ts prefetchMediaSet ba2599d7fede 0|336e2b46aff6=336e2b46aff6,1|afd012024260=afd012024260,@signature=3c046eeb2d07
 src/builtin/ui/src/client/lib/mod.ts preloadIcons 27bdc6ad17df
 src/builtin/ui/src/client/lib/mod.ts queryWords 18ee60f5a0af 0|336e2b46aff6=336e2b46aff6,@signature=e9618345473c
+src/builtin/ui/src/client/lib/mod.ts renditionName 5e912e31d0a0 0|336e2b46aff6=336e2b46aff6,@signature=aef0a136d9df
 src/builtin/ui/src/client/lib/mod.ts sameHits 00de4eb62fd4 0|f4b9ca6a7021=f4b9ca6a7021,1|f4b9ca6a7021=f4b9ca6a7021,@signature=b8282f786a37
 src/builtin/ui/src/client/lib/mod.ts sectionHit e9c5a64e5816 0|79a556091416=79a556091416,1|63025b360575=63025b360575,@signature=20e79e13b789
 src/builtin/ui/src/client/lib/mod.ts setActiveTab 3b45ea9e6ab9 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,@signature=f71f7e1466ea
@@ -755,6 +755,7 @@ src/builtin/ui/src/client/signals/mod.ts registerShellRouting b8c1cd1add0c 0|297
 src/builtin/ui/src/client/signals/mod.ts registerTerminalTerminator dc0940e333c4 0|336e2b46aff6=336e2b46aff6,1|c1d58a2d45e9=c1d58a2d45e9,@signature=48d9c3b2cabd
 src/builtin/ui/src/client/signals/mod.ts reloadModuleUi d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts reloadUiManifest f9707429e5ae
+src/builtin/ui/src/client/signals/mod.ts renditionTable 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts resetCopiedTerminalWorkspace 4d4f6f36e8b5 0|336e2b46aff6=336e2b46aff6,@signature=69e4a2499ceb
 src/builtin/ui/src/client/signals/mod.ts resetTerminalWorkspace df01802e180a
 src/builtin/ui/src/client/signals/mod.ts retryFailed df01802e180a
@@ -888,6 +889,7 @@ src/client/mod.ts PositionFilter bf58cf60223c ownerTypes=4e1cf1506fc0
 src/client/mod.ts PositionPoint 93bc43f0ea4d lat=ab04728f0de4,lng=7ef8fe750a12
 src/client/mod.ts ProcessingRoot 87376f8bf4fc families=93c73a0d6c63,path=3fd20668ef6e
 src/client/mod.ts RAW_IMAGE_MIMETYPES f07881348eb9
+src/client/mod.ts RenditionTableRead bac0532f76f3 table=46f21ad67e13,warnings=9e8d69c3a0d6
 src/client/mod.ts ResolvedPath 31d4fe55b039 parentId=63a1e1fa937e,path=3fd20668ef6e
 src/client/mod.ts ResourceHandleIf 3398c066e06e close=d0c1e69520d4,closed=f3e93208efd9,id=d1012bfaaeb3,init=0c1d8e4d947a,mode=384d42693640,options=1f6eaaf1a8dc,read=3723c61e22e6,readable=66436e82949e,seek=14b8f83d98a0,signal=d4df67d29a71,size=f923aca232cf,stat=ff259ef2bb0a,statX=bac1bbf261a4,sync=26fefc4da235,writable=224c0f255046,write=021b0d897a08,writeEOF=8865b3e41ee2
 src/client/mod.ts STEP_EXIT_INPUT 308c196c61c7
@@ -935,6 +937,7 @@ src/client/mod.ts pointInPolygon a97e58cc3aec 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9
 src/client/mod.ts processingAt 07233032a7dd 0|508a730f01d8=508a730f01d8,1|336e2b46aff6=336e2b46aff6,@signature=f981bd00b088
 src/client/mod.ts processingRoots db9f5786a786 0|99facbb459eb=99facbb459eb,@signature=6ff0bc666394
 src/client/mod.ts readComments 32bd81f0ff14 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,@signature=bfaae59ae325
+src/client/mod.ts readRenditionTable 090c370c8fff 0|f564a7144c6e=f564a7144c6e,@signature=a28e35f2a1f8
 src/client/mod.ts readSettings 1f20f42ca86e 0|d78cb581f075=d78cb581f075,1|175dd1db44d3=175dd1db44d3,2|619766deeb64=619766deeb64,@signature=b772afb160d7
 src/client/mod.ts readTail 723b012f72f5 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=0451835f9428
 src/client/mod.ts refineMimeByName 507ea9b3e316 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=5d850c6098ae
@@ -966,6 +969,7 @@ src/lib/api/mod.ts AccessLogQuery dd167d603a1a after=e4bacfe86e34,events=c5dc8ef
 src/lib/api/mod.ts AccessRecord e7a68b2e7625 count=5f7a2d24acdb,event=a78beb31f184,from=c8d7e716465d,id=752fa5797ebe,linkId=379ec9984adf,method=9073fc51b5dd,path=80bab4427ac6,reason=20bc6d7ee727,sid=08f4ee703802,timestamp=7c04c15af263,uid=af4adc33e4ac,via=cbd5cb0a3f7a
 src/lib/api/mod.ts AccessVia 9e6da098edcd
 src/lib/api/mod.ts ArgCompleteType d91fb6b71d55
+src/lib/api/mod.ts AudioRendition 2649cf638c28 bitrate=aa45486ca3c8,sampleRate=a67666d1c64a
 src/lib/api/mod.ts AuditChange a6155ab3c9ba from=403446cbad2f,to=f2843449c172
 src/lib/api/mod.ts AuditEntry c2a637f1d646
 src/lib/api/mod.ts AuditOp 46e7f0132b72
@@ -1019,6 +1023,7 @@ src/lib/api/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f7
 src/lib/api/mod.ts HeldShareLink 77320111b197 expiresAt=7f1dc30637cf,id=752fa5797ebe,path=3fd20668ef6e,title=f6007128d157,type=e22be5ee8605
 src/lib/api/mod.ts HostMetrics 801f6fe98da4 cpu=af2d62a38378,lag=df22a4b0150c,memory=52d077815122,sampled=f8c4a3271656
 src/lib/api/mod.ts INSTANCE_STATUSES ce7dcbd0ac95
+src/lib/api/mod.ts ImageRendition 61adf0949bbc fit=af9b6a108f67,height=2d6643d8656a,kinds=3393d34f26c0,quality=f53f72d7683c,width=4f23b8406a01
 src/lib/api/mod.ts InstalledModule 5cad0480c24d
 src/lib/api/mod.ts InstancePage adafceca68cf items=677a45bdcefd,nextCursor=99657b6f99c0
 src/lib/api/mod.ts InstanceStatus 928a9b0ac247
@@ -1042,6 +1047,7 @@ src/lib/api/mod.ts ModuleInstallStatus 1ee18d56ab68 install=05b3c435c0bb
 src/lib/api/mod.ts ModuleSearch d398b651cd14 failed=5c344902269d,modules=bf3d2fbeff73
 src/lib/api/mod.ts ModuleSetup fe19b5504218 at=8cd35eed1400,ok=23e6985ecee8,problems=8893d997c20b
 src/lib/api/mod.ts MvAnswer d3c776c77f0d failed=d44eace00090,moved=2989b701e1c7,ok=23e6985ecee8,relinked=2337f90e5c1f
+src/lib/api/mod.ts NO_RENDITIONS 99252254fc58
 src/lib/api/mod.ts NewsEntry f7a39200258c at=8cd35eed1400,by=f96a8d5ce49c,icon=91a07d7cb04f,path=c29ab32b39f5,route=66a673b16b8a,source=0c6e4d4f274b,title=f6007128d157
 src/lib/api/mod.ts NodeId 86e54873a4c8
 src/lib/api/mod.ts NodeOwnership 0d8b9cf127d6 acl=7168135aef88,gid=65495816f804,mode=63788613056a,uid=d8def3ee020e
@@ -1053,6 +1059,7 @@ src/lib/api/mod.ts NodeTypeGrowth 9651fab7cf8c months=96cfca46a8f0,total=08c7a0b
 src/lib/api/mod.ts NodeTypeReference 96e70a9a9255 category=51bd90ce51c5,count=56355d434a33,description=644be3c4d4da,label=995d88c00ff2,owner=e042e7caef36,type=e22be5ee8605
 src/lib/api/mod.ts OnThisDayEntry 0f79d809163e path=c29ab32b39f5,route=66a673b16b8a,source=0c6e4d4f274b,title=f6007128d157,year=2483b032582a
 src/lib/api/mod.ts Owned 736b501bbeed
+src/lib/api/mod.ts PictureSize 9c111e7021f8 height=2d6643d8656a,width=4f23b8406a01
 src/lib/api/mod.ts PipelineInstance 8b48e3cbf2ea completedAt=5b21d7233912,id=752fa5797ebe,pipeline=4d16cdec526e,startedAt=4e4642f81a31,status=606b7556b079,triggerPath=4bae9b3a4715
 src/lib/api/mod.ts PipelineInstanceStatus f1bbcd4becf1 completedAt=5b21d7233912,id=752fa5797ebe,pipelineName=a178ad0085c1,startedAt=4e4642f81a31,status=606b7556b079,steps=844f05dbe7af,triggerEvent=97388ac502b9,triggerPath=4bae9b3a4715,vars=99f4e1f4f001
 src/lib/api/mod.ts PipelineOverview a29fcf45b2db active=2ec2587ca8a8,completions=a0ef815682e2,coverage=62b7aba7cf45,instances=61867b72e1e1,memory=4cd7dd1007c7,queues=25169682af36,quiet=4e6889ca23fb,quietMs=405b67986376,steps=f2d7e86eb537
@@ -1081,6 +1088,8 @@ src/lib/api/mod.ts QueueStat 866ca703e58d deadLettered=3365f0b2fd2b,inFlight=d5b
 src/lib/api/mod.ts ReachCheck b9a40e317180 callers=df7bcf2e72b0,mismatches=05fdff189b3d,sampled=568c6128b2d1,unknown=7e54d22ec9cd
 src/lib/api/mod.ts ReachMismatch 1dccb9967873 byPath=6449a374f07f,byReach=4bcb1223c601,id=752fa5797ebe,path=3fd20668ef6e,uid=fccc8afd13b7
 src/lib/api/mod.ts RelationAttrs e6411206cd02 relation=98f66278c4b9
+src/lib/api/mod.ts RenditionKind fc936da363c1
+src/lib/api/mod.ts RenditionTable 4e8a2e97d29f audio=3381d0f28bb4,image=4d210ce30ecc,storyboard=83c36bb52a72,video=ebc1ae0b9464
 src/lib/api/mod.ts SearchAppliedFilters 44b842494a4a creator=47956d2275eb,dateFromQuery=0333b930c1a2,from=53663ea434d3,kinds=47ee7f719d18,like=1e1dcee6bb58,missing=dd2ed7888329,region=055c8c38a1a0,sort=f05d841982c8,subjectNames=14204a7360ad,subjects=ce3983d48a9e,tags=b1b2b0ee4fa5,to=0c314d304b17,under=1b55ebce20ec,within=589817095bad
 src/lib/api/mod.ts SearchChannel d4f221ff6839
 src/lib/api/mod.ts SearchFacetsResponse 5bfe9e866f5d days=7778bb379c1a,kinds=e84a0e44e45e,labels=2f7739fad6be,months=5576981f5691,range=593b85884ea6,total=08c7a0b849b7,truncated=ee81b8046300,years=d281e1971a11
@@ -1116,6 +1125,7 @@ src/lib/api/mod.ts SshKeyPairCreated 491297f7a47b fingerprint=3fdf3c8b7bd6,ok=d7
 src/lib/api/mod.ts StarEntry 69f9bc1bb7ed name=6d0c36381511,target=d9c423f5ed28
 src/lib/api/mod.ts StatsOverview 5a3a5f827164 nodeTypes=aa49233bcb23
 src/lib/api/mod.ts StorageTier 9c7fcc71c2cb bytesPerDay=c3b39afb60fd,daysUntilFull=185b0321edc0,device=dc9837b78932,freeBytes=83f01c00d354,path=3fd20668ef6e,tier=61a16a28c047,totalBytes=d9605855ffba,usedPercent=bea966994fba
+src/lib/api/mod.ts StoryboardRendition 0d8fdf517ec9 columns=03d908b52c17,maxTiles=20eceeda8f93,minInterval=073eadf9c3db,quality=f53f72d7683c,tile=b4392b86f5e2
 src/lib/api/mod.ts SubjectEntry 0565fcbee9e5 error=03c9a5b2b69b,ids=9122864f7055,match=da2b6926c5b0,path=c29ab32b39f5,ref=5bab60719c93,truncated=3ea297a2e647
 src/lib/api/mod.ts SubjectListing fa4b7e68258d subjects=d0ef21a7668d
 src/lib/api/mod.ts SubjectMatch 01cef5f7c778 attr=5043d8c692fc,value=5647ee15e4bf
@@ -1136,13 +1146,19 @@ src/lib/api/mod.ts UserInactive 88883091bf0c inactive=99060b4ec8f1,username=0235
 src/lib/api/mod.ts UserResolved 3bcf1429f6be title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
 src/lib/api/mod.ts UserRole ee233c346180
 src/lib/api/mod.ts UserUpdated 559f15e82855 updated=fdd29c0093ac,username=02356e67b2c7
+src/lib/api/mod.ts VideoRendition 3a0661fd6a5f audioBitrate=bbd83c121a19,crf=860e35726799,height=2d6643d8656a,mute=280550e41fb7,preset=b568736ab296,seconds=0562d89733f4,start=47592b69b0f8,width=4f23b8406a01
 src/lib/api/mod.ts Whoami 0e39545b00c0
 src/lib/api/mod.ts Wire 66ac924bb486
 src/lib/api/mod.ts accountNameProblem 3e60a4f617ea 0|336e2b46aff6=336e2b46aff6,@signature=1b0dad74a13f
+src/lib/api/mod.ts audioFileName 1797d157b549 0|ef032c4dd6c6=ef032c4dd6c6,@signature=9d83176318dc
 src/lib/api/mod.ts emailProblem 575f75ff7b21 0|336e2b46aff6=336e2b46aff6,@signature=a775bf37e49d
+src/lib/api/mod.ts imageFileName 7e0567f4ff80 0|f589a205c44e=f589a205c44e,@signature=9d83176318dc
+src/lib/api/mod.ts imageRolesOf ac4bcb3a58c7 0|977ba9cc86f9=977ba9cc86f9,1|c12042931487=c12042931487,2|23aca61e80e8=23aca61e80e8,@signature=d88c7bba200c
 src/lib/api/mod.ts normalizeEmail d358c7df85e2 0|336e2b46aff6=336e2b46aff6,@signature=c9279ae3a117
+src/lib/api/mod.ts storyboardFileName fb47dd18d88f 0|371ee31afa9b=371ee31afa9b,@signature=0e934749159a
 src/lib/api/mod.ts suggestUsername 3a2065bfbeb5 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|2aa6c6de03e2=2aa6c6de03e2,@signature=f32418ae522c
 src/lib/api/mod.ts usernameCandidates badb67306d54
+src/lib/api/mod.ts videoFileName 47fa2b116cf9 0|40e7e281d511=40e7e281d511,@signature=9d83176318dc
 src/lib/paths.ts ARCHIVE_PATH 5d105d800e20
 src/lib/paths.ts BASHRC_GROUPS_PATH 629098147f14
 src/lib/paths.ts BIN_PATH 629098147f14
@@ -1180,6 +1196,7 @@ src/lib/paths.ts PIPELINE_QUEUE_PATH 629098147f14
 src/lib/paths.ts POOLS_PATH 629098147f14
 src/lib/paths.ts PREVIOUS_LINK_NAME c43bf301b2ef
 src/lib/paths.ts QUEUES_PATH 629098147f14
+src/lib/paths.ts RENDITIONS_PATH 629098147f14
 src/lib/paths.ts SERVICES_PATH 629098147f14
 src/lib/paths.ts SESSIONS_PATH 629098147f14
 src/lib/paths.ts SYSTEM_LOG_PATH 629098147f14

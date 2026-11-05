@@ -8,7 +8,6 @@ import { useCover } from '../../hooks/useCover.ts';
 import { useNodeAttrs } from '../../hooks/useNodeAttrs.ts';
 import { albumDates, type DatedAlbumAttrs } from '../../lib/album-dates.ts';
 import { ENTITY_KIND_STYLES, entityKindOf } from '../../lib/entity-kind.ts';
-import { GRID_NAME, THUMB_NAME } from '../../lib/derivatives.ts';
 import { openRoute } from '../../signals/module-ui.ts';
 import { EntityCard } from '../EntityCard/EntityCard.tsx';
 
@@ -51,7 +50,7 @@ export function SearchResultCard({ result, actions }: SearchResultCardProps) {
   // A search hit carries no listing, so `hasFilesDir` is a guess; useAlbumCover probes
   // the other shape when the guess misses.
   const album = useAlbumCover({ path: result.path, hasFilesDir: true }, inViewport && isAlbum);
-  const owner = useCover(result.path, inViewport && !isAlbum, { rendition: GRID_NAME, fallbackRendition: THUMB_NAME });
+  const owner = useCover(result.path, inViewport && !isAlbum, { role: 'grid', fallbackRole: 'thumb' });
 
   // The dates, labels and description behind an album card come from its attrs, and a
   // hit has none — `--fields description` is all the command was asked for. One extra

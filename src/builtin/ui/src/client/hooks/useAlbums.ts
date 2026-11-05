@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { execCommand } from '../signals/shell-client.ts';
 import { shq } from '../lib/shquote.ts';
 import type { NodeChildEntry } from '../lib/node-entry.ts';
-import { GRID_NAME, THUMB_NAME } from '../lib/derivatives.ts';
+import { gridUrl, thumbnailUrl } from '../lib/derivatives.ts';
 import { fileUrl } from '../lib/file-url.ts';
 import { COVER_LINK_NAME, type CoverImage, mediaCoverImage, runLimited } from '../lib/cover.ts';
 import { NON_MEMBER_LINK_NAMES } from '@ein/paths';
@@ -133,7 +133,7 @@ async function coverFrom(dir: string): Promise<CoverInfo> {
   // hand from `ls -lC`. A cover link that no longer resolves falls through to
   // the first picture rather than to a broken image.
   if (coverTarget) {
-    const cover = await mediaCoverImage(coverTarget, GRID_NAME, THUMB_NAME);
+    const cover = await mediaCoverImage(coverTarget, 'grid', 'thumb');
     if (cover) return { cover, itemCount };
   }
 
@@ -143,9 +143,7 @@ async function coverFrom(dir: string): Promise<CoverInfo> {
 
   const coverPath = `${dir}/${firstMedia.name}`;
   const childNames = new Set((firstMedia.children ?? []).map((c) => c.name));
-  const cover: CoverImage = childNames.has('thumbnails')
-    ? { url: `${fileUrl(coverPath)}/thumbnails/${GRID_NAME}`, fallbackUrl: `${fileUrl(coverPath)}/thumbnails/${THUMB_NAME}` }
-    : { url: fileUrl(coverPath) };
+  const cover: CoverImage = childNames.has('thumbnails') ? { url: gridUrl(coverPath, true), fallbackUrl: thumbnailUrl(coverPath, true) } : { url: fileUrl(coverPath) };
 
   return { cover, itemCount };
 }
