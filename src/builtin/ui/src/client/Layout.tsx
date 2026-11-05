@@ -158,11 +158,16 @@ function Frame({ children }: Props) {
     initShellClient();
   }, []);
 
-  // Once the shell is connected: who is signed in, their settings, and the renditions the pages
-  // ask for, all before any page is drawn.
+  // Once the shell is connected: who is signed in, their settings, and, for whoever a page is drawn
+  // for (as `browsing` says), the renditions the pages ask for, all before any page is drawn.
   useEffect(() => {
     if (connected && !authChecked) {
-      checkAuth().then(() => Promise.all([loadUserConfig(), loadRenditions()])).finally(() => setAuthChecked(true));
+      checkAuth()
+        .then(() => {
+          const drawnFor = isAuthenticated.value || guestBrowsing.value || heldLinks.value.length > 0;
+          return Promise.all([loadUserConfig(), drawnFor ? loadRenditions() : undefined]);
+        })
+        .finally(() => setAuthChecked(true));
     }
   }, [connected, authChecked]);
 
