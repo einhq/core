@@ -196,8 +196,9 @@ pgTest('PgLogRegistry appends to, truncates and deletes a log in compressed chun
     await append(registry, 'kept', [1, 2], old);
     await append(registry, 'gone', [3, 4], old);
 
+    // The table's compression policy may already have taken a chunk this old.
     const compressed = await ctx.pool.query<{ n: string }>(
-      `SELECT count(compress_chunk(c)) AS n FROM show_chunks('${ctx.prefix}_logs_e_forever') c`,
+      `SELECT count(compress_chunk(c, if_not_compressed => true)) AS n FROM show_chunks('${ctx.prefix}_logs_e_forever') c`,
     );
     assert(Number(compressed.rows[0].n) > 0, 'no chunk was compressed');
 
