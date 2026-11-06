@@ -510,7 +510,8 @@ names its family with `wants`, and the engine skips it for a subject whose folde
 families it names; a pipeline that names none runs wherever its trigger says, and `pipeline start`
 passes it by as it does every trigger guard. The modules name the families of the work they do,
 and a module whose tree wants only thumbnails says so on its root (`['renditions']`). Unlike
-`unlisted`, it hides nothing: a staging area is unlisted and wants everything. `src/lib/processing.ts` reads the directories off core's `processing` attr index and
+`unlisted`, it hides nothing: a staging area is unlisted and wants every family but `text`, so its
+files are read and rendered but their text waits until they are filed. `src/lib/processing.ts` reads the directories off core's `processing` attr index and
 keeps them per VFS as the unlisted roots are kept (`src/lib/kept-per-vfs.ts`); a module's pass
 over the archive that looks for missing work asks the same through `@ein/client`
 (`processingRoots`, `wantsProcessing`), so it does not announce what a folder does not want. Only
@@ -769,7 +770,7 @@ graph TD
 
 A pipeline trigger is decided in-process for as long as it can be. Its declarative guards come
 first and cost no process: `match` starts it only when every named field's glob matches,
-`unless` skips it when every one does (`unless: {nodePath: '/home/*/staging/**'}` keeps a whole
+`unless` skips it when every one does (`unless: {nodePath: '/var/**'}` keeps a whole
 subtree out at no process per write), and `wants` skips it where the subject's folder does not want
 its family of work (below). The derived-file guard, `skipIfExists` and `skipIfAttr` cost
 a node read, and the `filter`/`skipIf` scripts, run last, a turn on the engine's shared shell.

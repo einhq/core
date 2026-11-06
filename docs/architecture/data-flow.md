@@ -688,7 +688,7 @@ processing a folder wants" in [architecture.md](../architecture.md)), so it cost
 no node read either. Then come the derived-file guard, `skipIfExists` and `skipIfAttr`, a node read, and
 last `filter`/`skipIf`, shell scripts run once per candidate event on the engine's shared
 shell. `unless` is what keeps a busy subtree free: `document-index`'s `unless` on `nodePath`
-(staging, `/var`, dotfiles and the trash among others) makes a write there cost no shell
+(`/var`, `/tmp`, dotfiles and the trash among others) makes a write there cost no shell
 evaluation.
 A **fact** trigger exports `$NODE_PATH`
 (the subject), `$EVENT_TYPE`, `$EVENT_ID`, `$EVENT_SOURCE`, `$EVENT_DATA` (the whole
