@@ -237,6 +237,12 @@ export type NodeAggregateQuery = {
   /** Leave out the nodes within these paths; see `NodeQuery.notWithin`. */
   notWithin?: NodePath[];
   /**
+   * Judge `notWithin` by the node this attr names instead of the row itself: the row is left out
+   * when that node lies within one of the trees, and kept when it names none. A face region lies
+   * under its file, below where `notWithin` reaches, and names the file in `fileId`.
+   */
+  notWithinBy?: AttrRef;
+  /**
    * Ordered group dimensions. A node must have a value for every attr
    * dimension to contribute; node-column dimensions are always present. An
    * `each` dimension puts a node in as many buckets as its array has distinct

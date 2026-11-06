@@ -13,6 +13,7 @@ import {
   type AccessLogQuery,
   type AccessRecord,
   type AggregateBucket,
+  type AttrRef,
   auditMatches,
   type AuditPurge,
   auditPurgeMatches,
@@ -43,6 +44,7 @@ import {
   pageChildEntries,
   type ParentLink,
   passesChanged,
+  projectAttrText,
   ReachClasses,
   type ReachGraph,
   type ReachRow,
@@ -599,8 +601,8 @@ export class InMemoryStore implements NodeStore {
     query: StoreAggregateQuery,
     _tx?: Transaction,
   ): Promise<AggregateBucket[]> {
-    const { withinId, notWithinIds, reader, ...rest } = query;
-    return runAggregate(this.readable(this.scoped({ withinId, notWithinIds }), reader), rest);
+    const { withinId, notWithinIds, notWithinBy, reader, ...rest } = query;
+    return runAggregate(this.readable(this.scoped({ withinId, notWithinIds }, notWithinBy), reader), rest);
   }
 
   /** Of `nodes`, those `reader` may read and reach; all of them without a reader. */
@@ -614,12 +616,20 @@ export class InMemoryStore implements NodeStore {
     return Math.min(this.membersOf([rootId]).size, cap);
   }
 
-  /** The nodes a scope admits: within `withinId` when given, and within none of `notWithinIds`. */
-  private scoped(scope: StoreScope): Iterable<Node> {
+  /**
+   * The nodes a scope admits: within `withinId` when given, and within none of `notWithinIds`, or
+   * naming no node within one in `notWithinBy` (see `NodeAggregateQuery.notWithinBy`).
+   */
+  private scoped(scope: StoreScope, notWithinBy?: AttrRef): Iterable<Node> {
     if (scope.withinId === undefined && !scope.notWithinIds?.length) return this.nodes.values();
     const within = scope.withinId === undefined ? undefined : this.membersOf([scope.withinId]);
     const excluded = scope.notWithinIds?.length ? this.membersOf(scope.notWithinIds) : undefined;
-    return [...this.nodes.values()].filter((node) => (within === undefined || within.has(node.id)) && !excluded?.has(node.id));
+    const judged = (node: Node) => notWithinBy === undefined ? node.id : projectAttrText(node.attrs, notWithinBy);
+    return [...this.nodes.values()].filter((node) => {
+      if (within !== undefined && !within.has(node.id)) return false;
+      const id = excluded && judged(node);
+      return !id || !excluded!.has(id);
+    });
   }
 
   /**

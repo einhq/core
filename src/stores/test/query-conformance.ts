@@ -10,7 +10,7 @@
 import { assertEquals, assertRejects } from '@std/assert';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import type { Access } from '../../lib/access/types.ts';
-import type { AttrRef, NodeQueryCursor, NodeQueryEntry, NodeQueryOrder, NodeVFS } from '../../vfs/mod.ts';
+import type { AttrRef, NodeAggregateQuery, NodeQueryCursor, NodeQueryEntry, NodeQueryOrder, NodeVFS } from '../../vfs/mod.ts';
 
 export type QueryVfsFactory = () => Promise<{ vfs: NodeVFS; dispose: () => Promise<void> }>;
 
@@ -866,6 +866,25 @@ async function runScopeSteps(t: Deno.TestContext, vfs: NodeVFS) {
       counts: { audio: [{ ref: 'mimetype', op: 'prefix', value: 'audio/' }] },
     });
     assertEquals(none, [{ key: ['file'], count: 9, counts: { audio: 0 } }]);
+  });
+
+  await t.step('notWithinBy leaves out the rows naming a node within, and keeps those naming none', async () => {
+    const id = async (path: string) => (await vfs.resolvePath(ADMIN_ACCESS, path)).id;
+    const named = async (parent: string, name: string, fileId?: string) =>
+      await vfs.create(ADMIN_ACCESS, 'file', parent, name, { props: { mode: 0o644 }, attrs: { fixture: 'named', ...(fileId ? { fileId } : {}) } });
+    await named('/scope/folder/c.jpg', 'face', await id('/scope/folder/c.jpg'));
+    await named('/scope/folder/deep/b.jpg', 'face', await id('/scope/folder/deep/b.jpg'));
+    await named('/elsewhere/outside.jpg', 'face', await id('/elsewhere/outside.jpg'));
+    await named('/elsewhere', 'gone', 'no-such-node');
+    await named('/elsewhere', 'unnamed');
+    const where = scoped('named');
+    const byName = async (query: Partial<NodeAggregateQuery>) => (await vfs.aggregate(ADMIN_ACCESS, { types: ['file'], where, group: [{ column: 'id' }], ...query })).length;
+
+    // A face lies under its file, where notWithin alone does not reach.
+    assertEquals(await byName({ notWithin: ['/scope/folder'] }), 5);
+    assertEquals(await byName({ notWithin: ['/scope/folder'], notWithinBy: 'fileId' }), 3);
+    assertEquals(await byName({ notWithin: ['/scope'], notWithinBy: 'fileId', within: '/elsewhere' }), 2);
+    assertEquals(await byName({ notWithinBy: 'fileId' }), 5);
   });
 
   await t.step('an aggregate refuses a count name that is not an identifier', async () => {

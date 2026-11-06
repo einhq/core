@@ -441,7 +441,10 @@ the tree is not within. `notWithin: <path>[]` leaves the nodes within any of tho
 same rule. Its roots are resolved with administrative access, since excluding can only remove rows,
 and a root that does not exist is ignored. Nothing is copied onto nodes for either: the subtree is
 computed from the hierarchy table when asked. The store sees them as ids (`StoreNodeQuery`
-`withinId`, `notWithinIds`).
+`withinId`, `notWithinIds`). An aggregate's `notWithinBy: <attr>` judges `notWithin` by the node
+that attr names instead of the row: a face region lies under its file, below where `notWithin`
+reaches, and names the file in `fileId`, so the people pages count only the library's faces in one
+pass. A row naming no node is kept.
 
 The memory store computes the member set from its edge map and filters the nodes before
 `query-eval.ts` runs, which is the reference. `PgStore` chooses between two plans that answer alike:
@@ -470,7 +473,8 @@ P1). An aggregate within a root joins the materialized members. `notWithin` is a
 hierarchy's edges under the excluded trees' nodes, bound as an array: a CTE scan cannot run in a
 parallel worker, so joining the excluded members themselves would make an aggregate over the whole
 archive serial, while the array reaches the workers, each hashing the edges under it off an index
-led by `parent_id` (`src/stores/pg/test/unlisted-plan.test.ts`). The store walks those nodes (the
+led by `parent_id` (`src/stores/pg/test/unlisted-plan.test.ts`); with `notWithinBy` the anti-join
+matches the edge's child against the attr's text instead of the row's id. The store walks those nodes (the
 roots and every node below that is neither a file nor a softlink) once per set of roots and keeps
 them (`src/stores/pg/tree-cache.ts`) until a write adds, removes or moves an edge under one of them,
 other than a new file or softlink, or deletes one: a staging area holding a 500,000-file import took

@@ -49,7 +49,7 @@ const projectAttrValue = (attrs: NodeAttrs, ref: AttrRef): unknown => {
  * Project an attr to the text form comparisons operate on.
  * Mirrors PostgreSQL's `->>`: absent/null → undefined, objects → JSON.
  */
-const projectAttrText = (attrs: NodeAttrs, ref: AttrRef): string | undefined => {
+export const projectAttrText = (attrs: NodeAttrs, ref: AttrRef): string | undefined => {
   const value = projectAttrValue(attrs, ref);
   if (value === undefined) return undefined;
   return typeof value === 'object' ? JSON.stringify(value) : String(value);

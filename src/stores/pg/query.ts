@@ -182,14 +182,15 @@ export type SqlScope = StoreScope & { excluded?: NodeId[] };
 
 /**
  * What a scope adds to a statement over `attrs a`: the CTEs, the relation to read the attrs rows
- * from — the members joined to the attrs for `withinId` — and an anti-join for `notWithinIds`.
+ * from — the members joined to the attrs for `withinId` — and an anti-join for `notWithinIds`, on
+ * the row's own id or, with `notWithinBy`, on the id that attr names.
  *
  * The anti-join asks the hierarchy whether a row hangs under one of the excluded trees' nodes,
  * handed over as a bound array. A CTE scan cannot run in a parallel worker, so joining the
  * excluded members themselves would make an aggregate over the whole table serial; the array is
  * handed to the workers, each of which hashes the edges under it off an index led by `parent_id`.
  */
-const scopeSql = (scope: SqlScope, params: ParamList, attrsTable: string, tables: TreeTables | undefined) => {
+const scopeSql = (scope: SqlScope & { notWithinBy?: AttrRef }, params: ParamList, attrsTable: string, tables: TreeTables | undefined) => {
   const ctes: string[] = [];
   const clauses: string[] = [];
   let from = `${attrsTable} a`;
@@ -201,7 +202,8 @@ const scopeSql = (scope: SqlScope, params: ParamList, attrsTable: string, tables
   }
   if (scope.notWithinIds?.length) {
     if (scope.excluded === undefined) throw new Error('a query leaving trees out needs their nodes walked (buildTreeSql)');
-    clauses.push(`NOT EXISTS (SELECT 1 FROM ${tables!.hierarchy} x WHERE x.child_id = a.node_id AND x.parent_id = ANY(${params.bind(scope.excluded)}::varchar[]))`);
+    const judged = scope.notWithinBy === undefined ? 'a.node_id' : `(${attrTextExpr(scope.notWithinBy, 'a.attributes')})`;
+    clauses.push(`NOT EXISTS (SELECT 1 FROM ${tables!.hierarchy} x WHERE x.child_id = ${judged} AND x.parent_id = ANY(${params.bind(scope.excluded)}::varchar[]))`);
   }
   return { with: ctes.length > 0 ? `WITH RECURSIVE ${ctes.join(',')}` : '', from, clauses };
 };
