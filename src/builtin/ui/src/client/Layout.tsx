@@ -37,6 +37,7 @@ import {
   underBase,
 } from '@ein/ui/signals';
 import { pageTitle } from './signals/page-subject.ts';
+import { navArranging } from './signals/nav-arrange.ts';
 import { loadRenditions } from './signals/renditions.ts';
 import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
@@ -154,6 +155,12 @@ function Frame({ children }: Props) {
       if ((swipe === 'right') !== menuOpen) toggleMenu();
     });
   }, [swipeable, menuOpen, toggleMenu]);
+
+  // Arranging the navigation needs the sidebar in sight, which a phone may have put away.
+  const arranging = navArranging.value;
+  useEffect(() => {
+    if (arranging && mobile && !menuOpen) toggleMenu();
+  }, [arranging]);
 
   useEffect(() => {
     initShellClient();

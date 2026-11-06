@@ -1,6 +1,8 @@
-import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
 import { useSignals } from '@preact/signals-react/runtime';
 import {
+  IconArrowsMove,
+  IconDots,
   IconInfoCircle,
   IconKeyboard,
   IconLogin2,
@@ -10,9 +12,7 @@ import {
   IconShieldOff,
   IconShieldUp,
   IconTerminal2,
-  IconTrash,
   IconUser,
-  IconUserCog,
 } from '@tabler/icons-react';
 import {
   currentUser,
@@ -43,9 +43,13 @@ import { usePhone } from '../../hooks/usePhone.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { keyCaps, shortcutHelpOpen, shortcutText, topbarShortcuts } from '../../signals/shortcuts.ts';
 import { useNavKeys } from '../../hooks/useNavKeys.ts';
+import { movableEntry, type NavSpot } from '../../lib/nav-arrange.ts';
+import { ACCOUNT_MENU, navArrangeState, navArranging, resetNavArrangement } from '../../signals/nav-arrange.ts';
+import { ArrangeItem, useArrangeZone } from './NavArrange.tsx';
 
-/** The shell's dropdown that modules add the reader's own pages to as rows; drawn as the account menu, not as a button of its own. */
-const ACCOUNT_MENU = 'ui.account';
+/** How many of the configured buttons the right of the top bar holds before the rest go under More. */
+const TOPBAR_ROOM = 8;
+const PHONE_TOPBAR_ROOM = 3;
 
 /** A dropdown row's icon, in the row's colour when it has one. */
 const rowIcon = (row: ResolvedTopbarEntry) => <TablerIcon name={row.icon} size={14} style={row.color ? { color: `var(--mantine-color-${row.color}-4)` } : undefined} />;
@@ -80,9 +84,18 @@ function TopbarItem({ entry, phone, busy, run }: { entry: ResolvedTopbarEntry; p
   const buttonSize = phone ? 36 : undefined;
   const iconSize = phone ? 22 : 18;
 
-  if (stepsAside(entry, pathname)) return null;
-
   const visibleFrom = entry.phone === false ? 'sm' : undefined;
+
+  // Arranging, the button is only something to move: every entry shows, and none opens.
+  if (navArranging.value) {
+    return (
+      <ActionIcon variant='subtle' color={entry.color ?? 'gray'} size={buttonSize} aria-label={entry.title} component='div'>
+        <TablerIcon name={entry.icon} size={iconSize} />
+      </ActionIcon>
+    );
+  }
+
+  if (stepsAside(entry, pathname)) return null;
 
   if (entry.menu) {
     return (
@@ -126,6 +139,118 @@ function TopbarItem({ entry, phone, busy, run }: { entry: ResolvedTopbarEntry; p
   );
 }
 
+type ItemProps = { phone: boolean; busy: ReadonlySet<string>; run: (entry: ResolvedTopbarEntry) => void };
+
+/**
+ * A part of the top bar its configured entries stand in: beside the search box, or on the right.
+ * Arranging, it is a place to drop entries and each one is moved rather than opened. Otherwise the
+ * right holds as many as there is room for (`room`) and the rest go under More.
+ */
+function TopbarZone({ spot, entries, room, ...item }: ItemProps & { spot: NavSpot; entries: ResolvedTopbarEntry[]; room?: number }) {
+  useSignals();
+  const { zone, mark } = useArrangeZone(spot, 'x');
+  if (navArranging.value) {
+    return (
+      <Group gap={item.phone ? 4 : 'xs'} wrap='nowrap' {...zone}>
+        {entries.map((entry, i) => (
+          <ArrangeItem key={`${entry.list}:${entry.id}`} entry={movableEntry(entry)} spot={spot} label={entry.title} mark={mark(i, entries.length)}>
+            <TopbarItem entry={entry} phone={item.phone} busy={false} run={item.run} />
+          </ArrangeItem>
+        ))}
+      </Group>
+    );
+  }
+  // What a phone draws counts against its room; what it leaves out (`phone: false`) does not.
+  const drawn = item.phone ? entries.filter((entry) => entry.phone !== false) : entries;
+  const more = room !== undefined && drawn.length > room ? drawn.slice(room - 1) : [];
+  const inBar = entries.filter((entry) => !more.includes(entry));
+  return (
+    <>
+      {inBar.map((entry) => <TopbarItem key={`${entry.list}:${entry.id}`} entry={entry} phone={item.phone} busy={item.busy.has(entry.id)} run={item.run} />)}
+      {more.length > 0 && <MoreMenu entries={more} {...item} />}
+    </>
+  );
+}
+
+/** The top bar's entries there was no room for, as rows; a dropdown's rows under its heading. */
+function MoreMenu({ entries, phone, run }: ItemProps & { entries: ResolvedTopbarEntry[] }) {
+  return (
+    <Menu shadow='md' width={phone ? 260 : 220}>
+      <Menu.Target>
+        <Tooltip label='More'>
+          <ActionIcon variant='subtle' color='gray' size={phone ? 36 : undefined} aria-label='More'>
+            <IconDots size={phone ? 22 : 18} />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown className='mrx-topbar-menu'>
+        {entries.flatMap((entry) =>
+          entry.menu
+            ? [
+              <Menu.Label key={`${entry.list}:${entry.id}`}>{entry.label ?? entry.title}</Menu.Label>,
+              ...entry.menu.map((row) => (
+                <Menu.Item key={`${row.list}:${row.id}`} leftSection={rowIcon(row)} rightSection={rowKeys(row)} onClick={() => run(row)}>
+                  {row.title}
+                </Menu.Item>
+              )),
+            ]
+            : [
+              <Menu.Item key={`${entry.list}:${entry.id}`} leftSection={rowIcon(entry)} rightSection={rowKeys(entry)} onClick={() => run(entry)}>
+                {entry.title}
+              </Menu.Item>,
+            ]
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/**
+ * The account menu's rows while arranging, and what ends it: a place to drop entries, each row
+ * moved rather than opened. The shell's own rows (Me, Shortcuts, About, signing out) are not
+ * the navigation's, and stand aside meanwhile.
+ */
+function ArrangeAccountRows({ rows, onDone }: { rows: ResolvedTopbarEntry[]; onDone: () => void }) {
+  useSignals();
+  const spot: NavSpot = { kind: 'menu', parent: ACCOUNT_MENU };
+  const { zone, mark } = useArrangeZone(spot, 'y');
+  const { busy, error } = navArrangeState.value;
+  return (
+    <Box p={4} maw={260}>
+      <Text size='sm' fw={600}>Arrange navigation</Text>
+      <Text size='xs' c='dimmed' mt={2} mb='xs'>
+        Drag entries between the sidebar, the top bar and this menu, or choose one to move it.
+      </Text>
+      <Stack gap={2} {...zone}>
+        {rows.map((row, i) => (
+          <ArrangeItem key={`${row.list}:${row.id}`} entry={movableEntry(row)} spot={spot} label={row.title} mark={mark(i, rows.length)}>
+            <Group gap='xs' px='xs' py={6} wrap='nowrap'>
+              {rowIcon(row)}
+              <Text size='sm'>{row.title}</Text>
+            </Group>
+          </ArrangeItem>
+        ))}
+      </Stack>
+      {error && <Text size='xs' c='red' mt='xs'>{error}</Text>}
+      <Group justify='space-between' mt='sm' wrap='nowrap'>
+        <Button size='compact-sm' variant='subtle' color='gray' disabled={busy} onClick={() => void resetNavArrangement()}>
+          Reset
+        </Button>
+        <Button
+          size='compact-sm'
+          loading={busy}
+          onClick={() => {
+            navArranging.value = false;
+            onDone();
+          }}
+        >
+          Done
+        </Button>
+      </Group>
+    </Box>
+  );
+}
+
 /**
  * `menuOpen` and `onToggleMenu` are a phone's sidebar: its rail shown, or its
  * labelled list open over the page. The configured entries (`ui-nav`) placed
@@ -149,6 +274,9 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
   const besideSearch = entries.filter((entry) => entry.place === 'search');
   const actions = entries.filter((entry) => entry.place !== 'search');
   const accountRows = uiNav.value.topbar.find((entry) => entry.id === ACCOUNT_MENU)?.menu ?? [];
+
+  const arranging = navArranging.value;
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const run = (entry: ResolvedTopbarEntry) => {
@@ -222,7 +350,7 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
             <Box style={{ flex: 1, minWidth: 0 }}>
               <HeaderSearch />
             </Box>
-            {besideSearch.map((entry) => <TopbarItem key={entry.id} entry={entry} phone={phone} busy={busy.has(entry.id)} run={run} />)}
+            {(arranging || besideSearch.length > 0) && <TopbarZone spot={{ kind: 'search' }} entries={besideSearch} phone={phone} busy={busy} run={run} />}
           </>
         )}
       </Group>
@@ -252,7 +380,7 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
         {/* Upload indicator (shows when uploads in queue) */}
         <UploadIndicator />
 
-        {!confined && actions.map((entry) => <TopbarItem key={entry.id} entry={entry} phone={phone} busy={busy.has(entry.id)} run={run} />)}
+        {!confined && <TopbarZone spot={{ kind: 'topbar' }} entries={actions} room={phone ? PHONE_TOPBAR_ROOM : TOPBAR_ROOM} phone={phone} busy={busy} run={run} />}
 
         {/* The terminal is the shell's own, like search and the account menu. */}
         {signedIn && (
@@ -287,7 +415,19 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
             sign-in rings it in orange, with a shield at its lower left. */
         }
         {signedIn && (
-          <Menu shadow='md' width={phone ? 260 : 200}>
+          <Menu
+            shadow='md'
+            width={phone ? 260 : arranging ? 260 : 200}
+            // Arranging keeps it open, as the place its rows are dropped and the way to end it;
+            // closing it (Escape, the avatar) ends arranging.
+            opened={arranging || accountOpen}
+            onChange={(open) => {
+              setAccountOpen(open);
+              if (!open) navArranging.value = false;
+            }}
+            closeOnClickOutside={!arranging}
+            closeOnItemClick={!arranging}
+          >
             <Menu.Target>
               <Tooltip label={elevated ? `${currentUser.value?.name ?? 'Account'} (administrator)` : currentUser.value?.name ?? 'Account'}>
                 <UnstyledButton
@@ -344,59 +484,63 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
               </Tooltip>
             </Menu.Target>
             <Menu.Dropdown className='mrx-topbar-menu'>
-              <Menu.Label>Account</Menu.Label>
-              {currentUser.value?.personPath && (
-                <Menu.Item
-                  leftSection={<IconUser size={14} />}
-                  onClick={() => {
-                    const user = currentUser.value;
-                    // The link is the person's node path; their page is whichever module gives one.
-                    const route = user?.personPath ? openRoute('person', user.personPath) : null;
-                    if (route) navigate(route);
-                  }}
-                >
-                  Me
-                </Menu.Item>
+              {arranging ? <ArrangeAccountRows rows={accountRows} onDone={() => setAccountOpen(false)} /> : (
+                <>
+                  <Menu.Label>Account</Menu.Label>
+                  {currentUser.value?.personPath && (
+                    <Menu.Item
+                      leftSection={<IconUser size={14} />}
+                      onClick={() => {
+                        const user = currentUser.value;
+                        // The link is the person's node path; their page is whichever module gives one.
+                        const route = user?.personPath ? openRoute('person', user.personPath) : null;
+                        if (route) navigate(route);
+                      }}
+                    >
+                      Me
+                    </Menu.Item>
+                  )}
+                  {!confined && accountRows.map((row) => (
+                    <Menu.Item
+                      key={`${row.list}:${row.id}`}
+                      leftSection={rowIcon(row)}
+                      rightSection={rowKeys(row)}
+                      onClick={() => run(row)}
+                    >
+                      {row.title}
+                    </Menu.Item>
+                  ))}
+                  <Menu.Divider />
+                  {!confined && (
+                    <Menu.Item leftSection={<IconArrowsMove size={14} />} closeMenuOnClick={false} onClick={() => (navArranging.value = true)}>
+                      Arrange navigation
+                    </Menu.Item>
+                  )}
+                  <Menu.Item leftSection={<IconKeyboard size={14} />} rightSection={<Kbd size='xs'>?</Kbd>} onClick={() => (shortcutHelpOpen.value = true)}>
+                    Shortcuts
+                  </Menu.Item>
+                  <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => openDialog('/about')}>
+                    About EiN
+                  </Menu.Item>
+                  <Menu.Divider />
+                  {mayElevate && (
+                    <Menu.Item leftSection={<IconShieldUp size={14} />} onClick={() => setElevateOpen(true)}>
+                      Administer…
+                    </Menu.Item>
+                  )}
+                  {elevated && (
+                    <Menu.Item leftSection={<IconShieldOff size={14} />} onClick={handleLeaveElevation}>
+                      Leave admin mode
+                    </Menu.Item>
+                  )}
+                  <Menu.Item
+                    leftSection={<IconLogout size={14} />}
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </Menu.Item>
+                </>
               )}
-              {!confined && accountRows.map((row) => (
-                <Menu.Item key={row.id} leftSection={rowIcon(row)} rightSection={rowKeys(row)} onClick={() => run(row)}>
-                  {row.title}
-                </Menu.Item>
-              ))}
-              <Menu.Item
-                leftSection={<IconUserCog size={14} />}
-                onClick={() => navigate('/profile')}
-              >
-                Profile
-              </Menu.Item>
-              {/* The reader's own trash: visited now and then, so here rather than in the sidebar. */}
-              <Menu.Item leftSection={<IconTrash size={14} />} onClick={() => navigate('/trash')}>
-                Trash
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item leftSection={<IconKeyboard size={14} />} rightSection={<Kbd size='xs'>?</Kbd>} onClick={() => (shortcutHelpOpen.value = true)}>
-                Shortcuts
-              </Menu.Item>
-              <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => openDialog('/about')}>
-                About EiN
-              </Menu.Item>
-              <Menu.Divider />
-              {mayElevate && (
-                <Menu.Item leftSection={<IconShieldUp size={14} />} onClick={() => setElevateOpen(true)}>
-                  Administer…
-                </Menu.Item>
-              )}
-              {elevated && (
-                <Menu.Item leftSection={<IconShieldOff size={14} />} onClick={handleLeaveElevation}>
-                  Leave admin mode
-                </Menu.Item>
-              )}
-              <Menu.Item
-                leftSection={<IconLogout size={14} />}
-                onClick={handleLogout}
-              >
-                Logout
-              </Menu.Item>
             </Menu.Dropdown>
           </Menu>
         )}

@@ -1971,6 +1971,49 @@ html.mrx-railed .mrx-page-scrollbar {
   }
 }
 
+/* Arranging the navigation (components/Layout/NavArrange.tsx): each place entries can be dropped
+ * is outlined, lit while something is dragged over it, and a line shows where the drop lands. */
+[data-arrange-zone] {
+  outline: 1px dashed var(--mrx-text-tertiary);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-sm);
+  transition: outline-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+[data-arrange-zone='x'] {
+  min-width: 36px;
+  min-height: 28px;
+}
+
+[data-arrange-zone='y'] {
+  min-height: 32px;
+}
+
+[data-arrange-zone][data-over] {
+  outline: 2px solid var(--mrx-accent);
+}
+
+[data-arrange-item] {
+  cursor: grab;
+  border-radius: var(--mantine-radius-sm);
+}
+
+[data-arrange-zone='y'] [data-arrange-mark='before'] {
+  box-shadow: 0 -2px 0 var(--mrx-accent);
+}
+
+[data-arrange-zone='y'] [data-arrange-mark='after'] {
+  box-shadow: 0 2px 0 var(--mrx-accent);
+}
+
+[data-arrange-zone='x'] [data-arrange-mark='before'] {
+  box-shadow: -3px 0 0 var(--mrx-accent);
+}
+
+[data-arrange-zone='x'] [data-arrange-mark='after'] {
+  box-shadow: 3px 0 0 var(--mrx-accent);
+}
+
 /* The top bar's create and account menus on a phone: rows a finger can hit,
  * text and icons to match. The width comes from AppHeader. */
 @media (max-width: 47.99em) {

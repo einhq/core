@@ -8,7 +8,8 @@ import { assertEquals } from '@std/assert';
 import { GUEST_ACCESS } from '../../../lib/access/constants.ts';
 import { groupHomePath, HOME_UI_NAV_D, HOME_UI_NAV_FILE, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
 import { createTestContext, type ShellClient } from '@ein/testing';
-import type { UiNav } from '@ui/nav';
+import type { NavLayer, UiNav } from '@ui/nav';
+import { READ_OWN_NAV, resetArrangement, writeOwnNavScript } from '../src/client/lib/nav-arrange.ts';
 
 const testCtx = createTestContext();
 
@@ -112,6 +113,34 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
       } finally {
         guest.close();
         await client.execString('config unset CFG_GUEST_BROWSING');
+      }
+    });
+
+    await t.step("arranging writes the person's own overlay, which ui-nav draws by, and a reset removes it", async () => {
+      await client.exec('user-create cara && user-passwd cara --new-password secret1');
+      const cara = await testCtx.server.createShellClient({ username: 'cara', password: 'secret1' });
+      try {
+        // Run as the browser runs them: without JSON_OUTPUT, stdout as text.
+        const script = async (line: string) => `${(await cara.exec(line, { json: false })).data ?? ''}`;
+        const own = () => script(READ_OWN_NAV);
+        assertEquals(await own(), '');
+        // A quote in the overlay survives the shell.
+        const mine: NavLayer = { sidebar: [{ id: 'ui.home', place: 'topbar', parent: null, order: 5, label: "Cara's home" }] };
+        await script(writeOwnNavScript(mine));
+        assertEquals(JSON.parse(await own()), mine);
+        const nav = await cara.execJson<UiNav>('ui-nav');
+        assertEquals(nav.topbar.map((entry) => [entry.list, entry.id, entry.title, entry.action]), [['sidebar', 'ui.home', "Cara's home", { navigate: '/' }], [
+          'topbar',
+          'ui.chat',
+          'Chat',
+          { drawer: '/chat' },
+        ]]);
+        await script(writeOwnNavScript(resetArrangement(mine)));
+        assertEquals(JSON.parse(await own()), { sidebar: [{ id: 'ui.home', label: "Cara's home" }] });
+        await script(writeOwnNavScript({}));
+        assertEquals(await own(), '');
+      } finally {
+        cara.close();
       }
     });
   } finally {

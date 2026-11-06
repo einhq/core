@@ -170,17 +170,38 @@ its layers from them when it is drawn (`mapLayers()` in `signals/nav.ts`) and kn
 is what a page's `baseLayer` and the map page's `base` parameter hold.
 
 An entry is known by its id (`<module>.<name>`): a later layer naming an id changes the fields it
-gives and keeps the rest, a new id adds an entry, `hide` takes entries (or whole sections) away. Two
+gives and keeps the rest, a field set to `null` is taken away, a new id adds an entry, `hide` takes
+entries (or whole sections) away. Two
 modules giving one id is a warning and the first keeps it; an overlay may change anything. Entries
 marked `admin` are left out for everyone else, those marked `signedIn` for the guest (a top-bar
 dropdown takes its rows with it), and an entry missing a field, naming an unknown
 section or an action of no known kind is left out with a warning (`ui-nav` prints them; the browser
 logs them). A top-bar entry is a button, or a dropdown when other entries name it as their `parent`;
 `phone: false` leaves it out below `sm`, and `place: "search"` stands it beside the search box rather
-than with the others on the right. A sidebar entry, a button or a row may name a `shortcut` (`alt+R`,
+than with the others on the right. An entry is drawn where `place` and `parent` say, whichever list
+it is given in, and `ui-nav` fills in `list` (where an overlay changes it) and `order` on what it
+answers: a sidebar entry with `place: "topbar"` or `"search"` is a button that navigates to its `to`,
+a top-bar entry with `place: "sidebar"` and a `section` is a link to its action's route that keeps a
+non-`navigate` action (Chat still opens the drawer, away from `/chat`), and either with a `parent` is
+a row of that dropdown. A dropdown or a `run` action stays in the top bar with a warning. A section
+with nothing drawn in it is still answered, empty, for arranging to drop into; the shell draws it
+only then. A sidebar entry, a button or a row may name a `shortcut` (`alt+R`,
 Mantine's hotkey form): `ui-nav` keeps it for the first entry to name that key, the sidebar's in
 order and then the top bar's, and drops it with a warning from a dropdown, a later entry, a key it
 cannot read or one of the shell's own (`SHELL_KEYS`); an overlay's `null` takes it away.
+
+**Arranging.** _Arrange navigation_ in the account menu (`navArranging` in
+[signals/nav-arrange.ts](../../src/builtin/ui/src/client/signals/nav-arrange.ts)) keeps the menu
+open as the arranging panel, shows every section unfolded and the phone's sidebar, and makes each
+section, both parts of the top bar and the account menu a drop zone (`useArrangeZone` in
+[NavArrange.tsx](../../src/builtin/ui/src/client/components/Layout/NavArrange.tsx)) for native
+HTML5 drags of the entries; tapping an entry instead opens a menu that moves it a step or to
+another place, for touch and the keyboard. A move reads `~/.ui/nav.json`, writes the entry's
+`place`, `parent`, `section` and an `order` between its new neighbours' (numbering the place afresh
+by tens when there is no whole number between them) in the list it is given in, writes the file
+back with `printf` and loads `ui-nav` again ([lib/nav-arrange.ts](../../src/builtin/ui/src/client/lib/nav-arrange.ts)).
+Reset takes those four fields away, and the file when nothing else is left in it. The right of the
+top bar holds eight of its buttons, three on a phone, and puts the rest under More.
 The header binds every top-bar entry's key with `useNavKeys` (an Alt+letter by the key's place,
 since a Mac types another character for it; outside a Mac an Alt key without Ctrl acts from a text
 field too, where it types nothing, any other key only outside one), runs it as a click would, and
@@ -208,8 +229,9 @@ module adds a `dialog` row for its `new` route — `/albums/new` (media), `/peop
 `/locations/new` (location), `/devices/new` (device; its list page opens it with a scan proposal's
 make and model in the query). The random-album button is media's, beside the search box: `album-random`
 and the album it names. The account menu is the shell's dropdown too (`ui.account`, signed in only), drawn on the
-reader's avatar rather than as a button of its own: the rows modules give it, the reader's own
-pages, stand under _Me_ and above the shell's own rows (Profile, Trash, Shortcuts, About, Logout) — media's Favourites.
+reader's avatar rather than as a button of its own: its rows, the reader's own pages — media's
+Favourites, the shell's Profile and Trash (`ui.profile`, `ui.trash`) — stand under _Me_ and above the
+shell's fixed rows (Arrange navigation, Shortcuts, About, Logout).
 Staging, the reader's own inbox and a place of daily work, is a sidebar entry instead, below Media in
 the `main` section, shown to the signed in only; its Import media is a row of the Create menu, which
 opens the `/staging/import` route as a dialog.

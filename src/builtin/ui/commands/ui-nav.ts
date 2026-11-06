@@ -75,7 +75,7 @@ export const uiNav = async (cmd: Command): CmdReturn => {
   }
 
   const keys = (entry: { shortcut?: string }) => (entry.shortcut ? ` (${entry.shortcut})` : '');
-  for (const section of answer.sections) {
+  for (const section of answer.sections.filter((section) => section.items.length > 0)) {
     await cmd.writeLn(section.label ?? `(${section.id})`);
     for (const item of section.items) await cmd.writeLn(`  ${item.label.padEnd(16)} ${item.to.padEnd(16)} ${item.id}${keys(item)}`);
   }

@@ -98,6 +98,28 @@
       "title": "Account",
       "icon": "user",
       "order": 1000
+    },
+    {
+      "id": "ui.profile",
+      "parent": "ui.account",
+      "signedIn": true,
+      "title": "Profile",
+      "icon": "user-cog",
+      "action": {
+        "navigate": "/profile"
+      },
+      "order": 900
+    },
+    {
+      "id": "ui.trash",
+      "parent": "ui.account",
+      "signedIn": true,
+      "title": "Trash",
+      "icon": "trash",
+      "action": {
+        "navigate": "/trash"
+      },
+      "order": 910
     }
   ],
   "layers": [

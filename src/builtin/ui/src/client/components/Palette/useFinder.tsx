@@ -115,7 +115,7 @@ export function useFinder(query: string, enabled: boolean, done: () => void): Fi
         label: link.label,
         detail: section.label,
         icon: <TablerIcon name={link.icon} size={18} />,
-        run: after(() => navigate(link.to)),
+        run: after(() => void (link.action ? runNavAction(link.action, { navigate }) : navigate(link.to))),
         keys: link.shortcut,
       }))
     );

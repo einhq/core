@@ -9,10 +9,18 @@
  * same format, laid over the fragments in that order.
  * An entry is known by its `id` (`<module>.<name>` by convention): a layer that names an id
  * an earlier layer gave changes the fields it states and keeps the rest, one that names a
- * new id adds an entry, and `hide` takes entries away. So an overlay never copies what it
- * does not change, and a module's next version still reaches what the overlay left alone.
+ * new id adds an entry, a field set to `null` is taken away, and `hide` takes entries away. So
+ * an overlay never copies what it does not change, and a module's next version still reaches
+ * what the overlay left alone.
  *
- * Import-free on purpose: `ui-nav` uses it on the server and the browser imports its types.
+ * A sidebar entry and a top-bar entry are each drawn where `place` and `parent` say, whichever
+ * list they are given in: a page moved to the top bar is a button that opens it, a top-bar entry
+ * that opens a route moved to the sidebar is a link to it, and either is a row of a dropdown
+ * (`ui.account`, the account menu) when it names one as its `parent`. That is how a person
+ * arranges their own navigation in `~/.ui/nav.json`.
+ *
+ * Import-free on purpose: `ui-nav` uses it on the server and the browser imports its types, and
+ * arranging the navigation its default order.
  */
 
 /**
@@ -39,15 +47,31 @@ export type NavAction =
 /** A group of sidebar entries; a section without `label` has no heading. */
 type NavSection = { id: string; label?: string; order?: number };
 
+/**
+ * Where an entry is drawn: in the sidebar under its `section`, in the top bar, or in the top bar
+ * beside the search box. Left out, an entry is drawn in the list it is given in.
+ */
+export type NavPlace = 'sidebar' | 'topbar' | 'search';
+
+/** The list an entry is given in, `sidebar` or `topbar`, which is where an overlay changes it. */
+export type NavList = 'sidebar' | 'topbar';
+
 /** A sidebar entry: a page. */
 export type NavLink = {
   id: string;
+  /** The sidebar section it is drawn under. */
   section: string;
   label: string;
   /** A Tabler icon name (`map-pin`, `heart-filled`) or a VFS path to an SVG. */
   icon: string;
   /** The app route; the entry is lit on it and below it. */
   to: string;
+  /**
+   * What choosing it does instead of opening `to` as the page, away from that page: open the route
+   * in the drawer or the dialog. A top-bar entry moved to the sidebar keeps its action here.
+   */
+  action?: NavAction;
+  /** Filled in by `ui-nav`, as for every entry drawn. */
   order?: number;
   /** Shown to administrators only. */
   admin?: boolean;
@@ -55,6 +79,12 @@ export type NavLink = {
   signedIn?: boolean;
   /** A key that opens the page from anywhere outside a text field, in the top bar's form (`alt+P`). */
   shortcut?: string;
+  /** In the top bar (`topbar`, `search`) it is a button that opens the page. */
+  place?: NavPlace;
+  /** A top-bar dropdown it is a row of, wherever `place` says. */
+  parent?: string;
+  /** The list it is given in, which `ui-nav` fills in: where an overlay changes it, wherever it is drawn. */
+  list?: NavList;
 };
 
 /**
@@ -77,8 +107,16 @@ type TopbarEntry = {
   signedIn?: boolean;
   /** `false` leaves the button out on a phone. */
   phone?: boolean;
-  /** `search` stands the button beside the search box rather than with the others on the right. */
-  place?: 'search';
+  /**
+   * `search` stands the button beside the search box rather than with the others on the right.
+   * `sidebar` draws an entry whose action opens a route as a link under `section`; one that runs
+   * a command, or a dropdown, stays in the top bar.
+   */
+  place?: NavPlace;
+  /** The sidebar section it is drawn under, with `place: 'sidebar'`. */
+  section?: string;
+  /** The list it is given in, which `ui-nav` fills in: where an overlay changes it, wherever it is drawn. */
+  list?: NavList;
   /**
    * A key that does what choosing the entry does, from anywhere outside a text field: Mantine's
    * hotkey form, modifiers and one key joined by `+` (`alt+R`, `mod+shift+K`; `mod` is Ctrl, or
@@ -131,18 +169,26 @@ export type MapLayerEntry = {
 /** One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. */
 export type MapTiles = { url: string; options?: Record<string, unknown> };
 
+/** An entry as a layer gives it: any of its fields, `null` for one an overlay takes away. */
+type Layered<T> = { [K in keyof T]?: T[K] | null };
+
 /** One file: a module's fragment or an overlay. */
 export type NavLayer = {
-  sections?: Partial<NavSection>[];
-  sidebar?: Partial<NavLink>[];
-  topbar?: Partial<TopbarEntry>[];
-  panels?: Partial<PanelEntry>[];
-  layers?: Partial<MapLayerEntry>[];
+  sections?: Layered<NavSection>[];
+  sidebar?: Layered<NavLink>[];
+  topbar?: Layered<TopbarEntry>[];
+  panels?: Layered<PanelEntry>[];
+  layers?: Layered<MapLayerEntry>[];
   /** Ids to leave out, of any kind. */
   hide?: string[];
 };
 
+/**
+ * A section and the links drawn in it, from either list, each with its `list` and `order` filled
+ * in. Empty when nothing is drawn there: the shell leaves it out unless the navigation is being arranged.
+ */
 export type ResolvedSection = { id: string; label?: string; items: NavLink[] };
+/** A top-bar entry or dropdown row as drawn, from either list, with its `list` and `order` filled in. */
 export type ResolvedTopbarEntry = TopbarEntry & { menu?: TopbarEntry[] };
 
 /** `ui-nav`'s answer. */
@@ -164,7 +210,8 @@ const KINDS = ['sections', 'sidebar', 'topbar', 'panels', 'layers'] as const;
 type Kind = typeof KINDS[number];
 type Entry = { id: string; order?: number; admin?: boolean; signedIn?: boolean } & Record<string, unknown>;
 
-const DEFAULT_ORDER = 1000;
+/** The order of an entry that gives none. */
+export const DEFAULT_ORDER = 1000;
 
 const REQUIRED: Record<Kind, string[]> = {
   sections: [],
@@ -180,6 +227,18 @@ const isTiles = (value: unknown): value is MapTiles[] =>
     tiles && typeof tiles === 'object' && typeof tiles.url === 'string' && tiles.url !== '' &&
     (tiles.options === undefined || (typeof tiles.options === 'object' && tiles.options !== null && !Array.isArray(tiles.options)))
   );
+
+/** The route an action opens, as the page or over it; none for one that runs a command. */
+const routeOf = (action: NavAction): string | undefined =>
+  'navigate' in action && !('run' in action)
+    ? action.navigate
+    : 'dialog' in action
+    ? action.dialog
+    : 'drawer' in action
+    ? action.drawer
+    : 'fullscreen' in action
+    ? action.fullscreen
+    : undefined;
 
 const isAction = (value: unknown): value is NavAction => {
   if (!value || typeof value !== 'object') return false;
@@ -258,16 +317,16 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
   [...fragments].sort((a, b) => a.source.localeCompare(b.source)).forEach((layer) => lay(layer, false));
   overlays.forEach((layer) => lay(layer, true));
 
-  /** The entries of one kind a reader gets: whole, not hidden, and theirs to see. */
+  /** The entries of one kind a reader gets: whole, not hidden, and theirs to see, without the fields an overlay took away. */
   const visible = (kind: Kind): Entry[] =>
-    [...merged[kind].values()].filter((entry) => {
+    [...merged[kind].values()].map((entry) => Object.fromEntries(Object.entries(entry).filter(([, value]) => value !== null)) as Entry).filter((entry) => {
       if (hidden.has(entry.id)) return false;
       const missing = REQUIRED[kind].filter((field) => typeof entry[field] !== 'string' || entry[field] === '');
       if (missing.length > 0) {
         warnings.push(`${entry.id}: no ${missing.join(', ')}`);
         return false;
       }
-      if (kind === 'topbar' && entry.action !== undefined && !isAction(entry.action)) {
+      if ((kind === 'topbar' || kind === 'sidebar') && entry.action !== undefined && !isAction(entry.action)) {
         warnings.push(`${entry.id}: action is none of navigate, dialog, drawer, fullscreen or run`);
         return false;
       }
@@ -284,14 +343,47 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
 
   const sections = byOrder(visible('sections') as unknown as NavSection[]);
   const known = new Set(sections.map((section) => section.id));
-  const links = byOrder(visible('sidebar') as unknown as NavLink[]).filter((link) => {
-    if (known.has(link.section)) return true;
-    // A hidden section takes its entries with it, which is what hiding it is for.
-    if (!hidden.has(link.section)) warnings.push(`${link.id}: no section ${link.section}`);
-    return false;
-  });
 
-  const entries = byOrder(visible('topbar') as unknown as TopbarEntry[]);
+  // Each entry where it is drawn: given in the sidebar first, so that is the order of arrival.
+  const linked: NavLink[] = [];
+  const barred: ResolvedTopbarEntry[] = [];
+  for (const entry of visible('sidebar') as unknown as NavLink[]) {
+    const { to, label, section: _section, place, ...rest } = entry;
+    const order = entry.order ?? DEFAULT_ORDER;
+    if (entry.parent !== undefined || place === 'topbar' || place === 'search') {
+      barred.push({
+        ...rest,
+        list: 'sidebar',
+        order,
+        title: label,
+        action: entry.action ?? { navigate: to },
+        ...(place === 'search' && entry.parent === undefined ? { place } : {}),
+      });
+    } else if (known.has(entry.section)) {
+      const { place: _place, ...link } = entry;
+      linked.push({ ...link, list: 'sidebar', order });
+    } // A hidden section takes its entries with it, which is what hiding it is for.
+    else if (!hidden.has(entry.section)) warnings.push(`${entry.id}: no section ${entry.section}`);
+  }
+  for (const entry of visible('topbar') as unknown as TopbarEntry[]) {
+    const order = entry.order ?? DEFAULT_ORDER;
+    const { place, section, ...rest } = entry;
+    if (entry.parent === undefined && place === 'sidebar') {
+      // One that cannot go there stays in the top bar, so it is not lost.
+      const route = entry.action && routeOf(entry.action);
+      if (route === undefined) warnings.push(`${entry.id}: only an entry that opens a route goes in the sidebar`);
+      else if (section !== undefined && known.has(section)) {
+        const { title, action, color: _color, label: _label, phone: _phone, ...link } = rest;
+        linked.push({ ...link, list: 'topbar', order, section, label: title, to: route, ...(action && !('navigate' in action) ? { action } : {}) });
+        continue;
+      } else if (section !== undefined && hidden.has(section)) continue;
+      else warnings.push(`${entry.id}: no section ${section ?? 'named'}`);
+    }
+    barred.push({ ...rest, list: 'topbar', order, ...(place === 'search' ? { place } : {}) });
+  }
+
+  const links = byOrder(linked);
+  const entries = byOrder(barred);
   const tops = entries.filter((entry) => entry.parent === undefined);
   const topIds = new Set(tops.map((entry) => entry.id));
   for (const entry of entries) {
@@ -308,13 +400,12 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
 
   /**
    * Keep an entry's shortcut if it can be bound and is free, or drop it with a warning and keep the
-   * entry. `null`, an overlay's way to take a module's key away, goes quietly.
+   * entry.
    */
   const claimed = new Map(SHELL_KEYS.map((key) => [hotkey(key)!, 'the shell']));
   const keyed = <T extends { id: string; shortcut?: string; menu?: unknown[] }>(entry: T): T => {
     if (entry.shortcut === undefined) return entry;
     const { shortcut, ...rest } = entry;
-    if (shortcut === null) return rest as T;
     const key = typeof shortcut === 'string' ? hotkey(shortcut) : undefined;
     if (key === undefined) warnings.push(`${entry.id}: shortcut ${JSON.stringify(shortcut)} is not modifiers and one key joined by +`);
     else if (entry.menu) warnings.push(`${entry.id}: a dropdown has no shortcut, its rows may`);
@@ -326,9 +417,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
     return rest as T;
   };
 
-  const resolvedSections = sections
-    .map((section) => ({ id: section.id, label: section.label, items: links.filter((link) => link.section === section.id).map(keyed) }))
-    .filter((section) => section.items.length > 0);
+  const resolvedSections = sections.map((section) => ({ id: section.id, label: section.label, items: links.filter((link) => link.section === section.id).map(keyed) }));
 
   return {
     sections: resolvedSections,

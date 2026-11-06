@@ -5,7 +5,7 @@ import { preloadIcons } from '../lib/tabler-icons.ts';
 import { lightboxRoute } from '../lib/lightbox-route.ts';
 import { loadUiManifest, prefetchRoute, reloadUiManifest } from './module-ui.ts';
 import { openDialog, openFullscreen, toggleDrawer } from './surface.ts';
-export type { MapLayerEntry, MapTiles, NavAction, NavLink, PanelEntry, ResolvedSection, ResolvedTopbarEntry, UiNav } from '@ui/nav';
+export type { MapLayerEntry, MapTiles, NavAction, NavLink, NavList, NavPlace, PanelEntry, ResolvedSection, ResolvedTopbarEntry, UiNav } from '@ui/nav';
 
 /**
  * The sidebar and top bar, as `ui-nav` resolves them for this person: every module's
@@ -24,10 +24,10 @@ export async function loadNav(): Promise<void> {
     for (const warning of nav.warnings) console.warn(`ui-nav: ${warning}`);
     // Before the shell is drawn, so the page's own downloads (a grid's covers) cannot queue in
     // front of them: the icons (waited for), and the bundles of the module routes the top bar
-    // opens in a dialog, the drawer or full screen (not waited for). After a first visit they
-    // come from the cache.
-    for (const entry of nav.topbar.flatMap((entry) => [entry, ...(entry.menu ?? [])])) {
-      const route = entry.action && surfaceRoute(entry.action);
+    // and the sidebar open in a dialog, the drawer or full screen (not waited for). After a first
+    // visit they come from the cache.
+    for (const action of navActions(nav)) {
+      const route = surfaceRoute(action);
       if (route) void prefetchRoute(route);
     }
     // So is the lightbox (media's), which any grid opens full screen.
@@ -52,6 +52,12 @@ export async function reloadModuleUi(): Promise<void> {
   await reloadUiManifest();
   await loadNav();
 }
+
+/** Every action the navigation's entries take: the top bar's, its dropdowns' rows' and the sidebar links' moved there from the top bar. */
+const navActions = (nav: UiNav): NavAction[] => [
+  ...nav.topbar.flatMap((entry) => [entry, ...(entry.menu ?? [])]).flatMap((entry) => entry.action ?? []),
+  ...nav.sections.flatMap((section) => section.items).flatMap((link) => link.action ?? []),
+];
 
 /** The panels a page shows at `slot` (`nodes.tools`, `system.tabs`, `stats.sections`, `search.explore`, …), in order. */
 export const panelsOf = (slot: string): PanelEntry[] => uiNav.value.panels.filter((panel) => panel.slot === slot);

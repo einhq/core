@@ -1,9 +1,12 @@
 import { ActionIcon, AppShell, Box, Collapse, Divider, NavLink, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useSignals } from '@preact/signals-react/runtime';
 import { IconChevronDown, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
-import { type NavLink as NavEntry, type ResolvedSection, uiNav } from '@ein/ui/signals';
+import { type NavLink as NavEntry, type ResolvedSection, routeBase, runNavAction, uiNav, underBase } from '@ein/ui/signals';
 import { Fragment } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { type NavigateFunction, useLocation, useNavigate } from 'react-router-dom';
+import { movableLink, type NavSpot } from '../../lib/nav-arrange.ts';
+import { navArranging } from '../../signals/nav-arrange.ts';
+import { ArrangeItem, useArrangeZone } from './NavArrange.tsx';
 import { usePersistedState } from '../../hooks/usePersistedState.ts';
 import { HatField } from '../EntityDetail/HatField.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
@@ -20,10 +23,23 @@ type AppNavbarProps = {
 
 type NavItemProps = NavEntry & { rail: boolean; isActive: boolean; onNavigate: () => void };
 
-function NavItem({ icon, label, to, shortcut, rail, isActive, onNavigate }: NavItemProps) {
+/**
+ * Open a link: its page, or what its action does with its route (a top-bar entry moved here opens
+ * the drawer or the dialog) — except on that route's own page, where there is nothing more to open.
+ */
+const openLink = (link: NavEntry, pathname: string, navigate: NavigateFunction): void => {
+  if (link.action && !underBase(pathname, routeBase(link.to))) {
+    runNavAction(link.action, { navigate }).catch((error) => console.error(`${link.id} failed`, error));
+  } else navigate(link.to);
+};
+
+function NavItem({ rail, isActive, onNavigate, ...link }: NavItemProps) {
+  const { icon, label, shortcut } = link;
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const handleClick = () => {
-    navigate(to);
+    if (navArranging.value) return;
+    openLink(link, pathname, navigate);
     onNavigate();
   };
 
@@ -97,6 +113,24 @@ function activeEntry(sections: ResolvedSection[], pathname: string): string | un
   return best;
 }
 
+/**
+ * One section's entries while the navigation is arranged: a place to drop entries, every entry
+ * draggable or chosen for a "Move to" menu, folded or not.
+ */
+function ArrangedSection({ section, rail, active, onNavigate }: { section: ResolvedSection; rail: boolean; active: string | undefined; onNavigate: () => void }) {
+  const spot: NavSpot = { kind: 'section', section: section.id };
+  const { zone, mark } = useArrangeZone(spot, 'y');
+  return (
+    <Stack gap={rail ? 6 : 4} align={rail ? 'center' : 'stretch'} {...zone}>
+      {section.items.map((item, i) => (
+        <ArrangeItem key={`${item.list}:${item.id}`} entry={movableLink(item)} spot={spot} label={item.label} mark={mark(i, section.items.length)}>
+          <NavItem {...item} rail={rail} isActive={item.to === active} onNavigate={onNavigate} />
+        </ArrangeItem>
+      ))}
+    </Stack>
+  );
+}
+
 /** A labelled group's heading, which folds the group away. */
 function SectionHeading({ label, open, first, onToggle }: { label: string; open: boolean; first: boolean; onToggle: () => void }) {
   return (
@@ -151,10 +185,14 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
     sidebarShortcuts().map((link) => [
       link.shortcut,
       () => {
-        if (!document.querySelector('[aria-modal="true"]') && location.pathname !== link.to) navigate(link.to);
+        if (!document.querySelector('[aria-modal="true"]') && location.pathname !== link.to) openLink(link, location.pathname, navigate);
       },
     ]),
   );
+
+  // Arranging shows every section, empty or folded, so anything can be dropped in any of them.
+  const arranging = navArranging.value;
+  const shown = arranging ? navSections : navSections.filter((section) => section.items.length > 0);
 
   return (
     <>
@@ -163,8 +201,17 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
       </Box>
       <AppShell.Section grow component={ScrollArea} scrollbarSize={6} type='scroll'>
         <Stack gap={rail ? 6 : 4} p={rail ? 'xs' : 'md'} align={rail ? 'center' : 'stretch'}>
-          {navSections.map((section, index) => {
+          {shown.map((section, index) => {
             const open = !section.label || !folded.has(section.id);
+
+            if (arranging) {
+              return (
+                <Fragment key={section.id}>
+                  {rail ? index > 0 && <Divider my={4} w='70%' /> : section.label && <SectionHeading label={section.label} open first={index === 0} onToggle={() => {}} />}
+                  <ArrangedSection section={section} rail={rail} active={active} onNavigate={onNavigate} />
+                </Fragment>
+              );
+            }
 
             // The rail shows every icon whatever is folded: it has no headings
             // to unfold from, and a glyph costs it no room worth saving. A rule
@@ -173,7 +220,7 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
               return (
                 <Fragment key={section.id}>
                   {index > 0 && <Divider my={4} w='70%' />}
-                  {section.items.map((item) => <NavItem key={item.id} {...item} rail isActive={item.to === active} onNavigate={onNavigate} />)}
+                  {section.items.map((item) => <NavItem key={`${item.list}:${item.id}`} {...item} rail isActive={item.to === active} onNavigate={onNavigate} />)}
                 </Fragment>
               );
             }
@@ -187,10 +234,10 @@ export function AppNavbar({ rail, onNavigate, onToggleRail }: AppNavbarProps) {
                 {section.label && <SectionHeading label={section.label} open={open} first={index === 0} onToggle={() => toggleFolded(section.id)} />}
                 <Collapse expanded={open} transitionDuration={150}>
                   <Stack gap={4}>
-                    {section.items.map((item) => <NavItem key={item.id} {...item} rail={false} isActive={item.to === active} onNavigate={onNavigate} />)}
+                    {section.items.map((item) => <NavItem key={`${item.list}:${item.id}`} {...item} rail={false} isActive={item.to === active} onNavigate={onNavigate} />)}
                   </Stack>
                 </Collapse>
-                {current.map((item) => <NavItem key={item.id} {...item} rail={false} isActive onNavigate={onNavigate} />)}
+                {current.map((item) => <NavItem key={`${item.list}:${item.id}`} {...item} rail={false} isActive onNavigate={onNavigate} />)}
               </Fragment>
             );
           })}

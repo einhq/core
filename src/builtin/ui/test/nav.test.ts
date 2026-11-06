@@ -110,11 +110,83 @@ Deno.test('ui-nav: incomplete and misplaced entries are left out with a warning'
   ]);
 });
 
-Deno.test('ui-nav: hiding every row of a dropdown hides the dropdown; empty sections go', () => {
+Deno.test('ui-nav: hiding every row of a dropdown hides the dropdown; an empty section stays, empty', () => {
   const nav = resolveNav([ui], [{ source: 'o', layer: { hide: ['ui.create.album', 'ui.albums'] } }], user);
   assertEquals(nav.topbar.map((e) => e.id), ['ui.chat']);
-  assertEquals(ids(nav), [['main', ['ui.home']]]);
+  assertEquals(ids(nav), [['main', ['ui.home']], ['browse', []]]);
   assertEquals(nav.warnings, []);
+});
+
+Deno.test('ui-nav: an overlay moves a page to the top bar, beside the search box or into a dropdown', () => {
+  const mine: NamedLayer = {
+    source: '/home/anna/.ui/nav.json',
+    layer: {
+      sidebar: [
+        { id: 'ui.albums', place: 'topbar', order: 15 },
+        { id: 'archive.devices', place: 'search' },
+        { id: 'ui.home', parent: 'ui.create', order: 5 },
+      ],
+    },
+  };
+  const nav = resolveNav([ui, device], [mine], user);
+  assertEquals(ids(nav), [['main', []], ['browse', []]]);
+  assertEquals(nav.topbar.map((e) => [e.list, e.id, e.title, e.action ?? e.menu?.map((row) => [row.list, row.id, row.action]), e.place]), [
+    ['topbar', 'ui.chat', 'Chat', { drawer: '/chat' }, undefined],
+    ['sidebar', 'ui.albums', 'Albums', { navigate: '/albums' }, undefined],
+    // Devices keeps its order, 20, and comes before the Create menu's 20: the sidebar's arrive first.
+    ['sidebar', 'archive.devices', 'Devices', { navigate: '/devices' }, 'search'],
+    ['topbar', 'ui.create', 'Create', [['sidebar', 'ui.home', { navigate: '/' }], ['topbar', 'ui.create.album', { dialog: '/albums/new' }], [
+      'topbar',
+      'archive.create-device',
+      { navigate: '/devices?new' },
+    ]], undefined],
+  ]);
+  assertEquals(nav.warnings, []);
+});
+
+Deno.test('ui-nav: an overlay moves a top-bar entry that opens a route to a section, and takes it out of a dropdown with null', () => {
+  const mine: NamedLayer = {
+    source: '/home/anna/.ui/nav.json',
+    layer: {
+      topbar: [
+        { id: 'ui.chat', place: 'sidebar', section: 'main', order: 20 },
+        { id: 'archive.create-device', parent: null, place: 'sidebar', section: 'browse', order: 5 },
+      ],
+    },
+  };
+  const nav = resolveNav([ui, device], [mine], user);
+  assertEquals(ids(nav), [['main', ['ui.home', 'ui.chat']], ['browse', ['archive.create-device', 'ui.albums', 'archive.devices']]]);
+  const [chat, create] = [nav.sections[0].items[1], nav.sections[1].items[0]];
+  assertEquals([chat.list, chat.label, chat.to, chat.action], ['topbar', 'Chat', '/chat', { drawer: '/chat' }]);
+  // A page opened as the page needs no action of its own: the link's route is it.
+  assertEquals([create.label, create.to, create.action], ['Device', '/devices?new', undefined]);
+  assertEquals(nav.topbar.map((e) => e.id), ['ui.create']);
+  assertEquals(nav.warnings, []);
+});
+
+Deno.test('ui-nav: a dropdown, a command, or an entry with no known section stays in the top bar with a warning', () => {
+  const layer: NamedLayer = {
+    source: 'm',
+    layer: { topbar: [{ id: 'm.random', title: 'Random', icon: 'x', action: { run: 'thing-random', navigate: '/things/{path}' } }] },
+  };
+  const mine: NamedLayer = {
+    source: '/home/anna/.ui/nav.json',
+    layer: {
+      topbar: [
+        { id: 'ui.create', place: 'sidebar', section: 'main' },
+        { id: 'm.random', place: 'sidebar', section: 'main' },
+        { id: 'ui.chat', place: 'sidebar', section: 'nowhere' },
+      ],
+    },
+  };
+  const nav = resolveNav([ui, layer], [mine], user);
+  assertEquals(ids(nav), [['main', ['ui.home']], ['browse', ['ui.albums']]]);
+  assertEquals(nav.topbar.map((e) => e.id), ['ui.chat', 'ui.create', 'm.random']);
+  assertEquals(nav.warnings, [
+    'm.random: only an entry that opens a route goes in the sidebar',
+    'ui.create: only an entry that opens a route goes in the sidebar',
+    'ui.chat: no section nowhere',
+  ]);
 });
 
 Deno.test('ui-nav: an entry opens a route as the page, in the dialog, in the drawer or full screen', () => {
@@ -164,7 +236,7 @@ Deno.test("ui-nav: a key belongs to the first entry to name it; a malformed one,
   ]);
 
   // An overlay's null takes a key away, and the next entry to name it gets it.
-  const freed = resolveNav([layer], [{ source: 'o', layer: { topbar: [{ id: 'm.random', shortcut: null as never }] } }], user);
+  const freed = resolveNav([layer], [{ source: 'o', layer: { topbar: [{ id: 'm.random', shortcut: null }] } }], user);
   assertEquals(keys(freed).slice(0, 2), [['m.random', undefined], ['m.again', 'R+Alt']]);
 });
 

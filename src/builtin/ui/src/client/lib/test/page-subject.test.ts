@@ -2,7 +2,7 @@ import { assertEquals } from '@std/assert';
 import type { ResolvedSection } from '@ui/nav';
 import { declarePageSubject, pageTitle, sectionLabel, subjectAt } from '../../signals/page-subject.ts';
 
-const link = (label: string, to: string) => ({ id: label, section: 'main', label, icon: 'x', to });
+const link = (label: string, to: string) => ({ id: label, list: 'sidebar' as const, order: 1000, section: 'main', label, icon: 'x', to });
 const sections: ResolvedSection[] = [
   { id: 'main', items: [link('Home', '/'), link('People', '/people'), link('System', '/system'), link('Pipelines', '/system/pipelines')] },
   { id: 'more', items: [link('Settings', '/settings?tab=account')] },
