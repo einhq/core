@@ -72,8 +72,8 @@ export type CmdWordDef = {
 };
 
 /**
- * What running a command does to the system. `read` never changes anything; `write` changes
- * something on every run. A command that does both is `read`, with the flags or arguments that
+ * What running a command does to the system. `read` never changes anything, keeping a cache of
+ * what it looked up aside; `write` changes something on every run. A command that does both is `read`, with the flags or arguments that
  * make it a write marked `writes`.
  */
 export type CmdEffect = 'read' | 'write';

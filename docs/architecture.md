@@ -870,7 +870,8 @@ myCmd.spec = { name: 'my-cmd', effect: 'read', args: [{ name: 'val' }] };
 ```
 
 Every spec declares its **`effect`**: `read` if running it never changes anything, `write` if it
-always does. A command that does both is `read`, and marks what makes it a write: a flag with
+always does. A cache of what a command looked up is not a change: `weather` keeps what SMHI and
+Open-Meteo answered and is still a read. A command that does both is `read`, and marks what makes it a write: a flag with
 `writes: true` (`attrs -s`), an argument with `writes: true` (a value to set) or
 `writes: ['create', …]` (the subcommands that write), and a flag with `dryRun: true` turns a writing
 command into a report (`--dry-run`, `-n`). A command that reads an expression rather than flags
