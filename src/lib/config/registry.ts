@@ -107,7 +107,8 @@ export const registerConfigOptions = (owner: string, declared: ConfigOption[]): 
       continue;
     }
 
-    waiting.delete(option.key);
+    // Another module waiting for this key goes on waiting: its owner set up again still holds it.
+    if (waiting.get(option.key)?.owner === owner) waiting.delete(option.key);
     options.set(option.key, { ...option, owner });
     added.push(option.key);
   }

@@ -55,6 +55,21 @@ Deno.test('a setting moved to a module set up first is taken over when the old o
   }
 });
 
+Deno.test('a module waiting for a setting keeps waiting while its owner is set up again with it', () => {
+  try {
+    registerConfigOptions('old', [option('CFG_EXAMPLE_SLOTS', '2'), option('CFG_EXAMPLE_KEPT', '1')]);
+    registerConfigOptions('new', [option('CFG_EXAMPLE_SLOTS', '3')]);
+    registerConfigOptions('old', [option('CFG_EXAMPLE_SLOTS', '2'), option('CFG_EXAMPLE_KEPT', '1')]);
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.owner, 'old');
+
+    registerConfigOptions('old', [option('CFG_EXAMPLE_KEPT', '1')]);
+    assertEquals(getConfigOption('CFG_EXAMPLE_SLOTS')?.owner, 'new');
+  } finally {
+    unregisterConfigOptions('old');
+    unregisterConfigOptions('new');
+  }
+});
+
 Deno.test('a removed module hands its settings to the module waiting for them, and waits for none', () => {
   try {
     registerConfigOptions('old', [option('CFG_EXAMPLE_SLOTS', '2')]);
