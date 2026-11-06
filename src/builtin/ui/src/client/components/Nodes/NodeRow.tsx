@@ -88,15 +88,12 @@ export function NodeRow(
 
   /** A finger is down on this row, and where it went down. */
   const touchRef = useRef<MenuPoint | null>(null);
-  /** A long press has just fired, so the click the browser may synthesise when the finger comes up is spent. */
-  const pressedRef = useRef(false);
 
   const longPress = useLongPress(
     () => {
-      pressedRef.current = true;
       onStartSelecting();
       if (selected) onContextMenu(touchRef.current ?? { x: 0, y: 0 }, path);
-      else tree.toggleSelected(node.value);
+      else tree.select(node.value);
       navigator.vibrate?.(10);
     },
     {
@@ -107,9 +104,11 @@ export function NodeRow(
       onStart: (event) => {
         const touch = 'touches' in event ? event.touches[0] : undefined;
         touchRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-        pressedRef.current = false;
       },
-      onFinish: () => {
+      // The press has answered: the mouse events the browser makes of the lifted finger
+      // would toggle the row back, or close the menu as a click outside it.
+      onFinish: (event) => {
+        event.preventDefault();
         touchRef.current = null;
       },
       onCancel: () => {
@@ -119,15 +118,12 @@ export function NodeRow(
   );
 
   const handleClick = (event: MouseEvent) => {
-    if (pressedRef.current) {
-      pressedRef.current = false;
-      return;
-    }
     if (event.shiftKey) {
       elementProps.onClick(event);
       return;
     }
-    if (selecting || event.ctrlKey || event.metaKey) tree.toggleSelected(node.value);
+    // Not `tree.toggleSelected`, which in multiple mode never takes a selected row out.
+    if (selecting || event.ctrlKey || event.metaKey) selected ? tree.deselect(node.value) : tree.select(node.value);
     else {
       tree.select(node.value);
       tree.setSelectedState([node.value]);
@@ -138,7 +134,7 @@ export function NodeRow(
   const handleContextMenu = (event: MouseEvent) => {
     event.preventDefault();
     // The phone's own long press, which the one above has already answered.
-    if (touchRef.current || pressedRef.current) return;
+    if (touchRef.current) return;
     if (!selected) {
       tree.select(node.value);
       tree.setSelectedState([node.value]);
