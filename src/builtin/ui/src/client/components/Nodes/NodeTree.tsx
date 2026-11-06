@@ -1,6 +1,6 @@
 import { Alert, Box, Loader, Text, Tree, UnstyledButton } from '@mantine/core';
 import { IconAlertTriangle, IconChevronDown, IconChevronUp, IconLock } from '@tabler/icons-react';
-import { type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent, useRef } from 'react';
+import { type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
 import type { NodeTreeState } from '../../hooks/useNodeTree.ts';
 import type { NodeChildEntry } from '../../lib/node-entry.ts';
 import { type AccessIds, describeNodeError, isAccessDenied } from '../../lib/access.ts';
@@ -8,7 +8,7 @@ import type { NodeSort, SortKey, ViewMode } from '../../lib/nodes-workspace.ts';
 import { DirectoryWatcher } from './DirectoryWatcher.tsx';
 import type { Identities } from '../../hooks/useIdentities.ts';
 import { columnsMinWidth, columnTemplate, DEFAULT_COLUMN_WIDTHS, DETAIL_COLUMN_LABELS, withColumnWidth } from '../../lib/node-columns.ts';
-import { DETAIL_COLUMNS, NodeRow, type RowDragHandlers } from './NodeRow.tsx';
+import { DETAIL_COLUMNS, type MenuPoint, NodeRow, type RowDragHandlers } from './NodeRow.tsx';
 
 type NodeTreeProps = {
   root: string;
@@ -27,7 +27,7 @@ type NodeTreeProps = {
   cutPaths?: Set<string>;
   onActivate: (path: string) => void;
   /** `path` is `null` for the empty area below the rows. */
-  onContextMenu: (event: MouseEvent, path: string | null) => void;
+  onContextMenu: (at: MenuPoint, path: string | null) => void;
   onKeyDown: (event: KeyboardEvent) => void;
   /** Without it, rows cannot be dragged and nothing can be dropped on them. */
   drag?: RowDragHandlers;
@@ -76,6 +76,14 @@ export function NodeTree(
 ) {
   const { data, tree, loading, error, reload, openDirs } = state;
 
+  // Picking rows by touch (`NodeRow`), which lasts until nothing is selected.
+  const [selecting, setSelecting] = useState(false);
+  const picked = tree.selectedState.length > 0;
+  useEffect(() => {
+    if (!picked) setSelecting(false);
+  }, [picked]);
+  useEffect(() => setSelecting(false), [root]);
+
   const background = {
     onDragOver: (event: DragEvent) => {
       if (event.target !== event.currentTarget) return;
@@ -87,7 +95,8 @@ export function NodeTree(
     },
     onContextMenu: (event: MouseEvent) => {
       if (event.target !== event.currentTarget) return;
-      onContextMenu(event, null);
+      event.preventDefault();
+      onContextMenu({ x: event.clientX, y: event.clientY }, null);
     },
   };
 
@@ -231,6 +240,8 @@ export function NodeTree(
                 cut={cutPaths?.has(payload.node.value) ?? false}
                 onActivate={onActivate}
                 onContextMenu={onContextMenu}
+                selecting={selecting}
+                onStartSelecting={() => setSelecting(true)}
                 drag={drag}
                 renaming={renaming === payload.node.value}
                 onRename={onRename}

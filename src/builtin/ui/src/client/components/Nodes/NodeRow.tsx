@@ -1,6 +1,7 @@
 import { ActionIcon, Loader, type RenderTreeNodePayload, Text } from '@mantine/core';
+import { useLongPress } from '@mantine/hooks';
 import { IconChevronRight, IconLock } from '@tabler/icons-react';
-import { type DragEvent, type MouseEvent, useState } from 'react';
+import { type DragEvent, type MouseEvent, useRef, useState } from 'react';
 import type { Identities } from '../../hooks/useIdentities.ts';
 import { type AccessIds, canList, describeNodeError } from '../../lib/access.ts';
 import { formatBytes } from '../../lib/format.ts';
@@ -18,6 +19,7 @@ export const DETAIL_COLUMNS = 'var(--mrx-detail-columns)';
 const INDENT = 20;
 const ICON_SIZE = 18;
 const TILE_ICON = 56;
+const LONG_PRESS_MS = 400;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -27,6 +29,9 @@ export function formatWhen(ms?: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+
+/** Where a context menu opens. */
+export type MenuPoint = { x: number; y: number };
 
 export type RowDragHandlers = {
   onDragStart: (event: DragEvent, path: string) => void;
@@ -43,7 +48,11 @@ type NodeRowProps = {
   access: AccessIds | null;
   cut: boolean;
   onActivate: (path: string) => void;
-  onContextMenu: (event: MouseEvent, path: string) => void;
+  /** The menu for the row, at a point on screen. */
+  onContextMenu: (at: MenuPoint, path: string) => void;
+  /** A long press has picked rows, so a tap toggles one rather than selecting it alone. */
+  selecting: boolean;
+  onStartSelecting: () => void;
   drag?: RowDragHandlers;
   /** The name is being edited in place. */
   renaming: boolean;
@@ -61,21 +70,64 @@ type NodeRowProps = {
  * a Ctrl-click toggle it, and only a Shift-click — delegated to the tree —
  * extend it from the anchor.
  *
+ * A touch screen has no keys to hold, so a long press stands in for Ctrl: on a
+ * row not selected it adds the row and starts picking (`selecting`), where a
+ * tap toggles a row, until nothing is selected; on a selected row it opens the
+ * menu for the selection, as a right click does.
+ *
  * Every text in a row is monospace: names that differ by a digit, sizes and
  * dates line up down the listing, and a path reads the way the shell prints it.
  */
-export function NodeRow({ payload, view, names, access, cut, onActivate, onContextMenu, drag, renaming, onRename, onRenameCancel, labelOf }: NodeRowProps) {
+export function NodeRow(
+  { payload, view, names, access, cut, onActivate, onContextMenu, selecting, onStartSelecting, drag, renaming, onRename, onRenameCancel, labelOf }: NodeRowProps,
+) {
   const { node, level, expanded, hasChildren, selected, isLoading, loadError, tree, elementProps } = payload;
   const { entry, path } = node.nodeProps as NodeTreeProps;
   const [over, setOver] = useState(false);
   const label = labelOf?.(entry, path) ?? entry.name;
 
+  /** A finger is down on this row, and where it went down. */
+  const touchRef = useRef<MenuPoint | null>(null);
+  /** A long press has just fired, so the click the browser may synthesise when the finger comes up is spent. */
+  const pressedRef = useRef(false);
+
+  const longPress = useLongPress(
+    () => {
+      pressedRef.current = true;
+      onStartSelecting();
+      if (selected) onContextMenu(touchRef.current ?? { x: 0, y: 0 }, path);
+      else tree.toggleSelected(node.value);
+      navigator.vibrate?.(10);
+    },
+    {
+      events: ['touch'],
+      threshold: LONG_PRESS_MS,
+      // Without it, every scroll that starts on a row would pick it.
+      cancelOnMove: true,
+      onStart: (event) => {
+        const touch = 'touches' in event ? event.touches[0] : undefined;
+        touchRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+        pressedRef.current = false;
+      },
+      onFinish: () => {
+        touchRef.current = null;
+      },
+      onCancel: () => {
+        touchRef.current = null;
+      },
+    },
+  );
+
   const handleClick = (event: MouseEvent) => {
+    if (pressedRef.current) {
+      pressedRef.current = false;
+      return;
+    }
     if (event.shiftKey) {
       elementProps.onClick(event);
       return;
     }
-    if (event.ctrlKey || event.metaKey) tree.toggleSelected(node.value);
+    if (selecting || event.ctrlKey || event.metaKey) tree.toggleSelected(node.value);
     else {
       tree.select(node.value);
       tree.setSelectedState([node.value]);
@@ -84,11 +136,14 @@ export function NodeRow({ payload, view, names, access, cut, onActivate, onConte
   };
 
   const handleContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    // The phone's own long press, which the one above has already answered.
+    if (touchRef.current || pressedRef.current) return;
     if (!selected) {
       tree.select(node.value);
       tree.setSelectedState([node.value]);
     }
-    onContextMenu(event, path);
+    onContextMenu({ x: event.clientX, y: event.clientY }, path);
   };
 
   const toggle = (event: MouseEvent) => {
@@ -117,8 +172,10 @@ export function NodeRow({ payload, view, names, access, cut, onActivate, onConte
     'data-value': elementProps['data-value'],
     'data-drag-over': over ? 'inside' : undefined,
     onClick: handleClick,
-    onDoubleClick: () => onActivate(path),
+    // Two quick taps while picking are two toggles, not an open.
+    onDoubleClick: () => !selecting && onActivate(path),
     onContextMenu: handleContextMenu,
+    ...longPress,
     ...dragProps,
   };
 

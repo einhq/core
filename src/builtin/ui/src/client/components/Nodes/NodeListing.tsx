@@ -1,7 +1,7 @@
 import { Alert } from '@mantine/core';
 import { IconAlertTriangle, IconLock } from '@tabler/icons-react';
 import { useSignals } from '@preact/signals-react/runtime';
-import { type DragEvent, type FocusEvent, type KeyboardEvent, type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type DragEvent, type FocusEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccessIds } from '../../hooks/useAccessIds.ts';
 import { canList, describeNodeError, isGuest } from '../../lib/access.ts';
@@ -24,7 +24,7 @@ import { type ContextMenuState, NodeContextMenu } from './NodeContextMenu.tsx';
 import { type NodeDialog, NodeDialogs } from './NodeDialogs.tsx';
 import { setDragChip } from '../../lib/drag-chip.ts';
 import { focusRow, revealRow } from './focus-row.ts';
-import type { RowDragHandlers } from './NodeRow.tsx';
+import type { MenuPoint, RowDragHandlers } from './NodeRow.tsx';
 import { NodeTree } from './NodeTree.tsx';
 
 const DRAG_MIME = 'application/x-ein-nodes';
@@ -423,10 +423,7 @@ export function NodeListing(
     },
   };
 
-  const onContextMenu = (event: MouseEvent, at: string | null) => {
-    event.preventDefault();
-    setMenu({ x: event.clientX, y: event.clientY, path: at });
-  };
+  const onContextMenu = (point: MenuPoint, at: string | null) => setMenu({ ...point, path: at });
 
   // After the item has acted: the row it was about gets the keyboard back,
   // unless the item gave it to something else — the rename field, a dialog.

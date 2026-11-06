@@ -2134,6 +2134,12 @@ html.mrx-railed .mrx-page-scrollbar {
   outline: none;
 }
 
+/* A long press picks rows (`NodeRow`); iOS would otherwise raise its link and
+   image sheet over it. */
+.mrx-node-tree {
+  -webkit-touch-callout: none;
+}
+
 /* Mantine's selected grey is one step off the surface and vanishes on the
    raised one. The accent, dimmer in the pane without the keyboard, as a file
    manager marks an inactive window's selection. */
