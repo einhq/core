@@ -24,12 +24,12 @@ separate licences.
 
 When you open your first pull request, the CLA assistant comments on it with a link; sign the
 agreement there with your GitHub account. A pull request is merged only once everyone with a
-commit in it has signed. Signing once covers every later contribution you make to any of EiN's
-repositories under the Elastic License. If what you create belongs to your employer, such as
+commit in it has signed. Signing once covers every later contribution you make to core. If what you create belongs to your employer, such as
 code you write at work, your employer has to allow it first (section 5 of the agreement).
 
-The libraries EiN is built on, bash-parser, bash-executor and ssh2, are under the MIT licence
-and need no agreement.
+The rest of EiN is under the MIT licence and needs no agreement: the media service (ems), the
+modules, and the libraries EiN is built on, bash-parser, bash-executor and ssh2. A contribution
+there is under the MIT licence too.
 
 ## How the code is written
 

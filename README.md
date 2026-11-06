@@ -44,7 +44,8 @@ module; which ones a deployment runs is the deployment's choice.
 
 ## Licence and contributing
 
-EiN is under the Elastic License 2.0, with a permission to host it free of charge for your
-family and friends, or for your association's members ([LICENSE](LICENSE)). Issues and pull
-requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) says how, and what the contributor
-licence agreement ([CLA.md](CLA.md)) asks.
+EiN core is under the Elastic License 2.0, with a permission to host it free of charge for your
+family and friends, or for your association's members ([LICENSE](LICENSE)); the media service and
+the modules are under the MIT licence. Issues and pull requests are welcome;
+[CONTRIBUTING.md](CONTRIBUTING.md) says how, and what the contributor licence agreement
+([CLA.md](CLA.md)) asks.

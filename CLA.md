@@ -1,11 +1,11 @@
 # EiN Contributor License Agreement
 
-Version 1.0, 3 November 2026
+Version 1.1, 6 November 2026
 
 This agreement is between you and Mattias Runge-Broberg <mattias@runge.se> (the
-"licensor"), who licenses EiN. It covers every contribution you submit to EiN's
-repositories that are under the Elastic License 2.0: core, the media service (ems) and the
-modules. Read it before you submit your first contribution; you agree to it as
+"licensor"), who licenses EiN. It covers every contribution you submit to EiN core, the one
+repository of EiN's under the Elastic License 2.0; the media service (ems) and the modules are
+under the MIT licence and need no agreement. Read it before you submit your first contribution; you agree to it as
 [CONTRIBUTING.md](CONTRIBUTING.md) describes.
 
 In short: you keep the copyright to what you contribute, and you give the licensor the
