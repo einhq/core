@@ -94,9 +94,9 @@ A deleted link cannot be followed to its location and is not announced.
 
 `media-scan` adds one rule the bridge has no use for: `deriveGaps`, which re-emits
 `media.metadata.extracted` for a file that has EXIF but is missing something derived
-from it — a fingerprint, derivatives, (video/audio) a description, (images only) the `facesAt`
-marker `detect-faces` writes in both of its exit paths, or (video and audio) the
-transcoded renditions. One re-emit re-opens the whole fan-out and every pipeline's own
+from it — (video/audio) a transcript, or (images only) the `facesAt` marker `detect-faces`
+writes in both of its exit paths. Renditions, picture vectors and fingerprints are healed by
+the media module's scans instead, each by its marker on the file. One re-emit re-opens the whole fan-out and every pipeline's own
 `skipIf` drops the stages already done, so the predicate has to carry a term per
 pipeline: a stage it does not ask about is a stage nothing ever re-announces, and a
 guard like `skipIfAttr: facesAt` then keeps it unstarted for good. A source carrying
