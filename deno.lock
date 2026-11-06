@@ -3,8 +3,8 @@
   "specifiers": {
     "jsr:@ein/bash-executor@3": "3.0.0",
     "jsr:@ein/bash-parser@3": "3.0.0",
-    "jsr:@ein/ssh2-ts@1.1.6": "1.1.6",
-    "jsr:@ein/ssh2-ts@^1.1.6": "1.1.6",
+    "jsr:@ein/ssh2-ts@1.1.7": "1.1.7",
+    "jsr:@ein/ssh2-ts@^1.1.7": "1.1.7",
     "jsr:@std/assert@^1.0.16": "1.0.19",
     "jsr:@std/assert@^1.0.2": "1.0.19",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
@@ -90,8 +90,8 @@
         "jsr:@std/assert@^1.0.2"
       ]
     },
-    "@ein/ssh2-ts@1.1.6": {
-      "integrity": "0971f6be1c3577ce628e03177e046a63602b206fc1b50b21ba12856faa4a642d"
+    "@ein/ssh2-ts@1.1.7": {
+      "integrity": "b97a54aeedde006ed637b8323e7c81a6ab80dd11b10e903c5806d7a615c98d75"
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -1598,7 +1598,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@ein/bash-executor@3",
-      "jsr:@ein/ssh2-ts@1.1.6",
+      "jsr:@ein/ssh2-ts@1.1.7",
       "jsr:@std/assert@^1.0.16",
       "jsr:@std/cli@^1.0.24",
       "jsr:@std/encoding@^1.0.10",
@@ -1697,7 +1697,7 @@
       },
       "modules/ems": {
         "dependencies": [
-          "jsr:@ein/ssh2-ts@^1.1.6",
+          "jsr:@ein/ssh2-ts@^1.1.7",
           "jsr:@std/assert@^1.0.16",
           "jsr:@std/path@^1.1.3",
           "npm:@hello-pangea/dnd@^18.0.1",
@@ -1722,7 +1722,9 @@
       "modules/media": {
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
+          "jsr:@std/encoding@^1.0.10",
           "jsr:@std/path@^1.1.3",
+          "jsr:@std/streams@^1.0.17",
           "jsr:@std/ulid@1",
           "jsr:@std/yaml@^1.0.11"
         ]
@@ -1750,7 +1752,7 @@
         "dependencies": [
           "jsr:@std/assert@^1.0.16",
           "jsr:@std/path@^1.1.3",
-          "jsr:@std/ulid@1",
+          "jsr:@std/yaml@^1.0.11",
           "npm:@hello-pangea/dnd@^18.0.1",
           "npm:@mantine/core@9.6.2",
           "npm:@mantine/dates@9.6.2",
