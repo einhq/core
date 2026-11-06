@@ -75,7 +75,9 @@ The location rules (`modules/archive/lib/location/event-rules.ts`) bind `locatio
 shape is its `position` child, as a photo's GPS point is `<file>/position`. They announce
 `location.changed` — a location created, its shape written, an attr its position derives from
 changed (`address`, `displayName`, `name`, `locationSource`), or a photo linked to it by hand — and
-`location.point.changed` when a photo's GPS point is written. `position.updated` with **no changed
+`location.point.changed` when a photo's GPS point is written, on which `location-link-point` links
+the photo to the location containing it and `media-weather` (`weather-photo`) writes the weather at
+the point and the file's `takenAtUtc` on the position node as `weather`. `position.updated` with **no changed
 attrs** is a shape write: a writable handle on a `position` node touches the node when it closes
 (`ContentWriteHandle`), the counterpart of a file handle's size report, since the shape is registry
 content no attr describes. Without it a point being written would be invisible, and a rule acting
@@ -111,6 +113,12 @@ and the check always terminates. It covers audio and video, compares only transc
 model (a file with no audio track carries nulls and would otherwise re-announce forever), and is
 simply off for a pass in which the media service cannot be asked.
 `CFG_MEDIA_TRANSCRIPTS_CURRENT=off` turns it off for good.
+
+A position with no `geocodedAt` is re-announced as `media.position.available`, and a file with a
+`takenAtUtc` whose position has no `weather`, or one read for another time, as `media.weather.owed`
+(subject the position), which `media-weather` takes. A moved point is not seen from attrs; writing
+it is `location.point.changed`. The weather term is off for a pass while `CFG_WEATHER` is `false`,
+which would otherwise leave every positioned photo owed for good.
 
 Image work downstream of detection is deliberately different: `detect-faces` writes `facesAt` only
 after every face node and crop has been processed, including a zero-face result, and that file
