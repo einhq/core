@@ -175,16 +175,21 @@ const membersCte = (name: string, roots: string, tables: TreeTables): string => 
   )`;
 
 /**
+ * A scope as the statements take it: the store has walked `notWithinIds`' trees into `excluded`,
+ * their nodes that children lie within (`buildTreeSql`), which it keeps between statements.
+ */
+export type SqlScope = StoreScope & { excluded?: NodeId[] };
+
+/**
  * What a scope adds to a statement over `attrs a`: the CTEs, the relation to read the attrs rows
  * from — the members joined to the attrs for `withinId` — and an anti-join for `notWithinIds`.
  *
  * The anti-join asks the hierarchy whether a row hangs under one of the excluded trees' nodes,
- * which an init plan collects into an array once. A CTE scan cannot run in a parallel worker, so
- * joining the excluded members themselves would make an aggregate over the whole table serial;
- * the array is handed to the workers, each of which hashes the edges under it off an index led by
- * `parent_id`.
+ * handed over as a bound array. A CTE scan cannot run in a parallel worker, so joining the
+ * excluded members themselves would make an aggregate over the whole table serial; the array is
+ * handed to the workers, each of which hashes the edges under it off an index led by `parent_id`.
  */
-const scopeSql = (scope: StoreScope, params: ParamList, attrsTable: string, tables: TreeTables | undefined) => {
+const scopeSql = (scope: SqlScope, params: ParamList, attrsTable: string, tables: TreeTables | undefined) => {
   const ctes: string[] = [];
   const clauses: string[] = [];
   let from = `${attrsTable} a`;
@@ -195,10 +200,8 @@ const scopeSql = (scope: StoreScope, params: ParamList, attrsTable: string, tabl
     from = `within_members m JOIN ${attrsTable} a ON a.node_id = m.id`;
   }
   if (scope.notWithinIds?.length) {
-    ctes.push(treeCte('excluded_tree', params.bind(scope.notWithinIds), tables!));
-    clauses.push(
-      `NOT EXISTS (SELECT 1 FROM ${tables!.hierarchy} x WHERE x.child_id = a.node_id AND x.parent_id = ANY(ARRAY(SELECT id FROM excluded_tree)))`,
-    );
+    if (scope.excluded === undefined) throw new Error('a query leaving trees out needs their nodes walked (buildTreeSql)');
+    clauses.push(`NOT EXISTS (SELECT 1 FROM ${tables!.hierarchy} x WHERE x.child_id = a.node_id AND x.parent_id = ANY(${params.bind(scope.excluded)}::varchar[]))`);
   }
   return { with: ctes.length > 0 ? `WITH RECURSIVE ${ctes.join(',')}` : '', from, clauses };
 };
@@ -281,7 +284,7 @@ const readerClauses = (reader: Access | undefined, admitted: number[] | undefine
  * there are, where `= ANY` over a long list may be planned as a walk of the whole table.
  */
 export const buildQuerySql = (
-  query: StoreNodeQuery,
+  query: StoreNodeQuery & SqlScope,
   nodesTable: string,
   attrsTable: string,
   hierarchyTable?: string,
@@ -380,7 +383,7 @@ const buildEachSql = (query: StoreNodeQuery, each: number, nodesTable: string, a
  * is one of `admitted`, the classes admitting it, and that it may read.
  */
 export const buildAggregateSql = (
-  query: StoreAggregateQuery,
+  query: StoreAggregateQuery & SqlScope,
   nodesTable: string,
   attrsTable: string,
   hierarchyTable?: string,
@@ -471,6 +474,15 @@ export const buildAggregateSql = (
 
   return { text, values: params.values };
 };
+
+/** The nodes of the trees from `roots` that children lie within: the roots and every node below that is neither a file nor a softlink. */
+export const buildTreeSql = (roots: NodeId[], tables: TreeTables): SqlQuery => ({
+  text: `
+    WITH RECURSIVE ${treeCte('tree', '$1', tables)}
+    SELECT DISTINCT id FROM tree
+  `,
+  values: [roots],
+});
 
 /**
  * How many nodes are within `rootId`, up to `cap`: the member edges of the tree, read lazily, so

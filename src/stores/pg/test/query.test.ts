@@ -8,7 +8,7 @@
  * must answer alike. Gated by EIN_TEST_PG.
  */
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 import { join } from '@std/path';
 import type { Pool } from 'pg';
 import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
@@ -160,10 +160,17 @@ for (
 }
 
 Deno.test('a subtree is read through its materialized members, or walked up to from a batch', () => {
-  const p1 = buildQuerySql({ withinId: '01ROOT', notWithinIds: ['01AWAY'], orderBy: { ref: 'takenAtUtc', dir: 'desc' }, limit: 10 }, 'nodes', 'attrs', 'lnk');
+  const p1 = buildQuerySql(
+    { withinId: '01ROOT', notWithinIds: ['01AWAY'], excluded: ['01AWAY', '01AWAYDIR'], orderBy: { ref: 'takenAtUtc', dir: 'desc' }, limit: 10 },
+    'nodes',
+    'attrs',
+    'lnk',
+  );
   assert(p1.text.includes('within_members AS MATERIALIZED'), p1.text);
   assert(p1.text.includes('FROM within_members m JOIN attrs a ON a.node_id = m.id'), p1.text);
-  assert(p1.text.includes('NOT EXISTS (SELECT 1 FROM lnk x WHERE x.child_id = a.node_id AND x.parent_id = ANY(ARRAY(SELECT id FROM excluded_tree)))'), p1.text);
+  assert(/NOT EXISTS \(SELECT 1 FROM lnk x WHERE x\.child_id = a\.node_id AND x\.parent_id = ANY\(\$\d+::varchar\[\]\)\)/.test(p1.text), p1.text);
+  assert(p1.values.some((value) => JSON.stringify(value) === JSON.stringify(['01AWAY', '01AWAYDIR'])), 'the walked tree is bound');
+  assertThrows(() => buildQuerySql({ notWithinIds: ['01AWAY'], limit: 10 }, 'nodes', 'attrs', 'lnk'), Error, 'buildTreeSql');
 
   const counted = buildAggregateSql(
     { withinId: '01ROOT', group: [{ ref: 'sha256' }], counts: { dated: [{ ref: 'takenAtUtc', op: 'exists' }] }, minCount: 2 },

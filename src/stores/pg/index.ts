@@ -60,6 +60,7 @@ import {
 } from '../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
 import { PathCache } from './path-cache.ts';
+import { TreeCache } from './tree-cache.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import {
   attrSortExpr,
@@ -67,11 +68,13 @@ import {
   buildAggregateSql,
   buildQuerySql,
   buildScopeSizeSql,
+  buildTreeSql,
   buildUpwalkSql,
   MAX_PATH_DEPTH,
   ParamList,
   readsSql,
   type SqlQuery,
+  type SqlScope,
   type TreeTables,
   TYPED_ORDER_REF,
 } from './query.ts';
@@ -247,6 +250,9 @@ class PgTransaction implements Transaction {
  */
 const pathCaches = new Map<string, PathCache>();
 
+/** The excluded trees each table set's stores have walked, shared as `pathCaches` are. */
+const treeCaches = new Map<string, TreeCache>();
+
 /** The attrs leading an index, per table set, as `ORDERED_INDEX_LEADERS` and the declared indexes add them. */
 const indexLeaders = new Map<string, Set<string>>();
 
@@ -263,6 +269,9 @@ const rowOwnership = (row: Record<string, unknown>, prefix = ''): Ownership => (
 
 const logger = createLogger('pg-store');
 
+/** Whether a new node of `type` can hold a tree below it, which `TreeCache` must hear of: neither a file nor a softlink. */
+const holdsTree = (type: NodeType, softlink: string | undefined | null): boolean => type !== 'file' && !softlink;
+
 /** Ids per statement when the reach refresh lists children. */
 const CHILDREN_BATCH = 10000;
 
@@ -277,6 +286,8 @@ export class PgStore implements NodeStore {
   private pool: Pool;
   /** What `resolveChain` has read; every write below drops what it changes when its transaction ends. */
   private paths: PathCache;
+  /** The trees `notWithinIds` leave out, walked once; the writes below drop what they change. */
+  private trees: TreeCache;
   private plan: PgQueryPlanOptions;
   /** Attrs an index leads with; see `indexLeaders`. */
   private leaders: Set<string>;
@@ -302,6 +313,8 @@ export class PgStore implements NodeStore {
     this.pool = config.pgPool;
     this.paths = pathCaches.get(name) ?? new PathCache();
     pathCaches.set(name, this.paths);
+    this.trees = treeCaches.get(name) ?? new TreeCache();
+    treeCaches.set(name, this.trees);
     this.leaders = indexLeaders.get(name) ?? new Set(ORDERED_INDEX_LEADERS.map((attr) => leaderKey(attr)));
     indexLeaders.set(name, this.leaders);
     this.plan = { ...DEFAULT_QUERY_PLAN, ...config.queryPlan };
@@ -353,6 +366,7 @@ export class PgStore implements NodeStore {
 
     // The tables may have been dropped and made again since another store over them cached a walk.
     this.paths.clear();
+    this.trees.clear();
     await this.createSchema();
 
     const existingRoot = await this.findRootNode();
@@ -817,7 +831,7 @@ export class PgStore implements NodeStore {
 
   /** `admitted`: the reach classes admitting `query.reader`, when there is one. */
   private async runQuery<T extends NodeAttrs>(query: StoreNodeQuery, admitted: number[] | undefined, tx?: Transaction): Promise<NodeQueryRow<T>[]> {
-    const sql = buildQuerySql(query, this.nodesTable, this.attrsTable, this.hierarchyTable, (ref) => this.leadsIndex({ ref }), admitted);
+    const sql = buildQuerySql(await this.withExcluded(query, tx), this.nodesTable, this.attrsTable, this.hierarchyTable, (ref) => this.leadsIndex({ ref }), admitted);
     const rows = await this.runParameterized(sql, tx);
 
     return rows.map((row) => ({
@@ -891,6 +905,26 @@ export class PgStore implements NodeStore {
       if (scope.withinId !== undefined && !at?.has(scope.withinId)) return false;
       return !(scope.notWithinIds ?? []).some((root) => at?.has(root));
     }));
+  }
+
+  /** `query` with the nodes of its `notWithinIds` trees, which its statement leaves out the children of. */
+  private async withExcluded<Q extends StoreScope>(query: Q, tx?: Transaction): Promise<Q & SqlScope> {
+    if (!query.notWithinIds?.length) return query;
+    return { ...query, excluded: await this.excludedTree(query.notWithinIds, tx) };
+  }
+
+  /**
+   * The nodes of the trees from `roots` that children lie within, walked once and kept (`TreeCache`).
+   * Inside a transaction the walk is read afresh: it may see that transaction's own writes.
+   */
+  private async excludedTree(roots: NodeId[], tx?: Transaction): Promise<NodeId[]> {
+    if (tx) return (await this.runParameterized(buildTreeSql(roots, this.treeTables), tx)).map((row) => row.id as NodeId);
+    const kept = this.trees.get(roots);
+    if (kept) return kept;
+    const version = this.trees.version;
+    const nodes = (await this.runParameterized(buildTreeSql(roots, this.treeTables))).map((row) => row.id as NodeId);
+    this.trees.fill(version, roots, nodes);
+    return nodes;
   }
 
   /**
@@ -977,7 +1011,7 @@ export class PgStore implements NodeStore {
 
   async groupCount(query: StoreAggregateQuery, tx?: Transaction): Promise<AggregateBucket[]> {
     const sql = buildAggregateSql(
-      { ...query, notWithinIds: query.notWithinIds?.length ? query.notWithinIds : undefined },
+      await this.withExcluded({ ...query, notWithinIds: query.notWithinIds?.length ? query.notWithinIds : undefined }, tx),
       this.nodesTable,
       this.attrsTable,
       this.hierarchyTable,
@@ -2026,7 +2060,10 @@ export class PgStore implements NodeStore {
     } catch (error) {
       throw this.hierarchyWriteError(error, parentId, name);
     }
-    pgTx.onEnd(() => this.paths.dropEdge(parentId, name));
+    pgTx.onEnd(() => {
+      this.paths.dropEdge(parentId, name);
+      if (holdsTree(type, props.softlink)) this.trees.drop(parentId);
+    });
 
     return {
       id: nodeId,
@@ -2113,6 +2150,7 @@ export class PgStore implements NodeStore {
     }
     pgTx.onEnd(() => {
       for (const child of children) this.paths.dropEdge(parentId, child.name);
+      if (children.some((child) => holdsTree(child.type, child.props.softlink))) this.trees.drop(parentId);
     });
 
     return rows.map((row, i) => ({
@@ -2390,7 +2428,10 @@ export class PgStore implements NodeStore {
     } catch (error) {
       throw this.hierarchyWriteError(error, parentId, name);
     }
-    pgTx.onEnd(() => this.paths.dropEdge(parentId, name));
+    pgTx.onEnd(() => {
+      this.paths.dropEdge(parentId, name);
+      this.trees.drop(parentId);
+    });
     await refreshReach(this.reachGraph(pgTx, true), [childId]);
   }
 
@@ -2407,7 +2448,10 @@ export class PgStore implements NodeStore {
       `DELETE FROM ${this.hierarchyTable} WHERE parent_id = $1 AND child_id = $2 AND name = $3`,
       [parentId, childId, name],
     );
-    pgTx.onEnd(() => this.paths.dropEdge(parentId, name));
+    pgTx.onEnd(() => {
+      this.paths.dropEdge(parentId, name);
+      this.trees.drop(parentId);
+    });
     await refreshReach(this.reachGraph(pgTx, true), [childId]);
   }
 
@@ -2447,6 +2491,8 @@ export class PgStore implements NodeStore {
     pgTx.onEnd(() => {
       this.paths.dropEdge(oldParentId, oldName);
       this.paths.dropEdge(newParentId, newName);
+      this.trees.drop(oldParentId);
+      this.trees.drop(newParentId);
     });
     if (reparented) await refreshReach(this.reachGraph(pgTx, true), result.rows.map((row) => row.child_id));
   }
@@ -2463,7 +2509,10 @@ export class PgStore implements NodeStore {
       [edges.map((edge) => edge.parentId), edges.map((edge) => edge.id), edges.map((edge) => edge.name)],
     );
     pgTx.onEnd(() => {
-      for (const edge of edges) this.paths.dropEdge(edge.parentId, edge.name);
+      for (const edge of edges) {
+        this.paths.dropEdge(edge.parentId, edge.name);
+        this.trees.drop(edge.parentId);
+      }
     });
     await refreshReach(this.reachGraph(pgTx, true), edges.map((edge) => edge.id));
   }
@@ -2475,7 +2524,10 @@ export class PgStore implements NodeStore {
 
     await this.deleteRows(pgTx, ids);
     pgTx.onEnd(() => {
-      for (const id of ids) this.paths.dropNode(id);
+      for (const id of ids) {
+        this.paths.dropNode(id);
+        this.trees.drop(id);
+      }
     });
   }
 
@@ -2537,6 +2589,8 @@ export class PgStore implements NodeStore {
       for (const { from, to } of moves) {
         this.paths.dropEdge(from.parentId, from.name);
         this.paths.dropEdge(to.parentId, to.name);
+        this.trees.drop(from.parentId);
+        this.trees.drop(to.parentId);
       }
     });
 
@@ -2562,7 +2616,10 @@ export class PgStore implements NodeStore {
 
     // An edge to it left in `paths` answers nothing once its props are gone.
     const deleted = await this.deleteRows(pgTx, [id]);
-    pgTx.onEnd(() => this.paths.dropNode(id));
+    pgTx.onEnd(() => {
+      this.paths.dropNode(id);
+      this.trees.drop(id);
+    });
 
     return deleted > 0;
   }

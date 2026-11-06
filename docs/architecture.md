@@ -467,11 +467,14 @@ Which attrs lead an index is recorded as `createSchema` and `ensureAttrIndexes` 
 threshold, the batch and the cache time are `PgStore` options (`queryPlan`); the PostgreSQL tier runs
 the conformance suite with the threshold at 0 (every subtree by P2) and at infinity (every subtree by
 P1). An aggregate within a root joins the materialized members. `notWithin` is an anti-join on the
-hierarchy's edges under the excluded trees' nodes, which an init plan collects into an array once:
-a CTE scan cannot run in a parallel worker, so joining the excluded members themselves would make
-an aggregate over the whole archive serial, while the array reaches the workers, each hashing the
-edges under it off an index led by `parent_id`
-(`src/stores/pg/test/unlisted-plan.test.ts`).
+hierarchy's edges under the excluded trees' nodes, bound as an array: a CTE scan cannot run in a
+parallel worker, so joining the excluded members themselves would make an aggregate over the whole
+archive serial, while the array reaches the workers, each hashing the edges under it off an index
+led by `parent_id` (`src/stores/pg/test/unlisted-plan.test.ts`). The store walks those nodes (the
+roots and every node below that is neither a file nor a softlink) once per set of roots and keeps
+them (`src/stores/pg/tree-cache.ts`) until a write adds, removes or moves an edge under one of them,
+other than a new file or softlink, or deletes one: a staging area holding a 500,000-file import took
+1.4 s to walk, before each of a facet page's aggregates.
 
 #### Unlisted trees
 

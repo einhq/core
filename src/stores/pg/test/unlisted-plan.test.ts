@@ -1,8 +1,8 @@
 /**
  * PG tier: what leaving an unlisted tree out of a library view costs the plan. The unlisted
  * directories are found off the `unlisted` index; an aggregate that leaves a tree out stays one
- * parallel scan, with a hash anti-join on the edges under the tree's directories, which an init
- * plan collects once, read off a parent index; a feed batch reads the time index, and its walk up
+ * parallel scan, with a hash anti-join on the edges under the tree's directories, walked once and
+ * bound as an array, read off a parent index; a feed batch reads the time index, and its walk up
  * the hierarchy reads it by child. Each holds as a generic plan too, which a prepared statement may be given whatever
  * its values. The answers leave the tree out. Gated by EIN_TEST_PG.
  */
@@ -20,7 +20,7 @@ import { repoModules } from '../../../modules/repo.ts';
 import { pgTest, pgTestContext } from '../../../testing/gates.ts';
 import { LocalNodeVFS, type NodeVFS, type StoreAggregateQuery } from '../../../vfs/mod.ts';
 import { PgStore } from '../index.ts';
-import { buildAggregateSql, buildQuerySql, buildUpwalkSql, type SqlQuery } from '../query.ts';
+import { buildAggregateSql, buildQuerySql, buildTreeSql, buildUpwalkSql, type SqlQuery } from '../query.ts';
 
 const LIBRARY_DIRS = 40;
 const PER_DIR = 50;
@@ -145,15 +145,18 @@ pgTest('leaving an unlisted tree out keeps library views on their indexes', asyn
         await client.query('SET parallel_tuple_cost = 0');
         await client.query('SET min_parallel_table_scan_size = 0');
         await client.query('SET min_parallel_index_scan_size = 0');
+        const tree = buildTreeSql([staging], tables);
+        const excluded = (await client.query<{ id: string }>(tree.text, tree.values)).rows.map((row) => row.id);
+        assertEquals(excluded.length, 4, 'the staging area, files, inbox and upload');
         for (const group of [[{ column: 'type' }], [{ ref: 'takenAt', prefixLength: 10 }]] as StoreAggregateQuery['group'][]) {
-          const sql = buildAggregateSql({ where: [NOT_DERIVED], group, notWithinIds: [staging] }, nodesTable, attrsTable, hierarchyTable);
+          const sql = buildAggregateSql({ where: [NOT_DERIVED], group, notWithinIds: [staging], excluded }, nodesTable, attrsTable, hierarchyTable);
           for (const generic of [false, true]) {
             const plan = await planOf(client, sql, generic);
             const label = `${JSON.stringify(group)}${generic ? ' (generic)' : ''}`;
             // An index-only scan, chosen once the visibility map is set, prints the column without its cast.
             assert(
-              /Index Cond: \((\(parent_id\)::text|parent_id) = ANY \(\(\(InitPlan \d+\)/.test(plan),
-              `${label}: the edges are not read under the init plan's directories:\n${plan}`,
+              /Index Cond: \((\(parent_id\)::text|parent_id) = ANY \((\(\$\d+|'\{)/.test(plan),
+              `${label}: the edges are not read under the bound directories:\n${plan}`,
             );
             assert(new RegExp(`Index[^\\n]*${hierarchyTable}_parent_\\w+_idx`).test(plan), `${label}: the edges are not read off a parent index:\n${plan}`);
             assert(underGather(plan, /Hash (Right )?Anti Join/), `${label}: the anti-join is not a parallel hash join:\n${plan}`);
@@ -201,6 +204,26 @@ pgTest('leaving an unlisted tree out keeps library views on their indexes', asyn
       assertEquals(counts.map((bucket) => [bucket.key[0], bucket.count]), [['file', LIBRARY_DIRS * PER_DIR]]);
       const days = await vfs.aggregate(ADMIN_ACCESS, { where: [NOT_DERIVED], notWithin, group: [{ ref: 'takenAt', prefixLength: 10 }] });
       assertEquals(days.reduce((sum, bucket) => sum + bucket.count, 0), LIBRARY_DIRS * PER_DIR);
+    });
+
+    await t.step('a folder made, moved in or removed in the tree is left out as the walk kept says', async () => {
+      const notWithin = [...await unlistedRoots(vfs)];
+      const files = async () => (await vfs.aggregate(ADMIN_ACCESS, { types: ['file'], where: [NOT_DERIVED], notWithin, group: [{ column: 'type' }] }))[0]?.count;
+      assertEquals(await files(), LIBRARY_DIRS * PER_DIR);
+      const batch = (name: string, at: number) => [{
+        type: 'directory' as const,
+        name,
+        props: { mode: 0o755 },
+        children: Array.from({ length: 5 }, (_, k) => ({ type: 'file' as const, name: `${name}${k}.jpg`, attrs: dated(at + k) })),
+      }];
+      await vfs.createTree(ADMIN_ACCESS, `${STAGING}/files/inbox`, batch('later', 9001));
+      assertEquals(await files(), LIBRARY_DIRS * PER_DIR, 'a folder made in the tree after its walk was kept');
+      await vfs.createTree(ADMIN_ACCESS, '/library', batch('incoming', 9101));
+      assertEquals(await files(), LIBRARY_DIRS * PER_DIR + 5);
+      await vfs.rename(ADMIN_ACCESS, '/library', 'incoming', `${STAGING}/files/inbox`, 'incoming');
+      assertEquals(await files(), LIBRARY_DIRS * PER_DIR, 'a folder moved into the tree');
+      await vfs.rename(ADMIN_ACCESS, `${STAGING}/files/inbox`, 'later', '/library', 'later');
+      assertEquals(await files(), LIBRARY_DIRS * PER_DIR + 5, 'a folder moved out of the tree');
     });
   } finally {
     await dispose();
