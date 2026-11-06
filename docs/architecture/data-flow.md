@@ -86,7 +86,7 @@ most every five seconds while the handle stays open, and on close; points a rout
 not touch it. That touch on a device's
 `track` child, a device's `kind` or `timezone` changing, and a link added to or removed from its
 `homes/` announce `track.changed` for the device, on which `track-trips` derives its trips again and
-`track-places` puts their stays at locations; each write of the device's `.trips` rewrites the
+`track-places` puts their stays at locations, and `track-weather` gives their legs and trips the weather along the track; each write of the device's `.trips` rewrites the
 `trip` attr of the albums made of its trips (`trip-album`). A `<file>/location` link that `location-link-media` made
 from a shape (`linkSource: 'shape'`) announces nothing and never counts toward a centroid;
 otherwise a circle would pull in the photos inside it and let them redraw it, smaller each round.
