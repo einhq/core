@@ -1,7 +1,8 @@
 /**
  * Reads raw stdin and writes what commands are to read to filtered stdin: everything in raw
- * mode; in cooked mode, all but Ctrl-C and Ctrl-D, which become `onSignal` calls. Every chunk
- * that arrives is also an `onInput` call.
+ * mode; in cooked mode, all but Ctrl-C and Ctrl-D, which become `onSignal` calls, with CR turned
+ * into LF as a terminal's ICRNL does, so Enter ends a line. Every chunk that arrives is also an
+ * `onInput` call.
  */
 
 import { ResourceHandleIf } from '../../registries/types.ts';
@@ -16,7 +17,7 @@ type InputMonitorConfig = {
   onSignal: (signal: 'interrupt' | 'eof') => void;
 };
 
-/** The bytes an action was read from, to forward. */
+/** The bytes an action was read from, to forward in cooked mode. */
 function reconstructBytes(action: Action): string {
   switch (action.type) {
     case 'insert':
@@ -28,7 +29,7 @@ function reconstructBytes(action: Action): string {
     case 'lf':
       return '\x0a';
     case 'cr':
-      return '\x0d';
+      return '\x0a';
     case 'backspace':
       return '\x7f';
     case 'delete':

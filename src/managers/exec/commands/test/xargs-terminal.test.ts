@@ -51,8 +51,7 @@ Deno.test({
     });
 
     await t.step('-o gives each command the terminal as its stdin', async () => {
-      // `\n`, not the `\r` a terminal sends for Enter: ein/core#1071
-      await type('typed\n');
+      await type('typed\r');
       assertEquals(await shell.run("printf 'x\\n' | xargs -o -I {} head -n1"), 0);
       assertStringIncludes(await readUntil(stdout, 'typed'), 'typed');
     });
