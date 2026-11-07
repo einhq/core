@@ -24,6 +24,8 @@ import type { NodeType } from '../../vfs/node.ts';
 import type { UserId } from '../mode/mod.ts';
 import { type Region, regionContains } from './geo.ts';
 import type { SearchChannel, SearchRankChannel } from '../api/search.ts';
+import { ADMIN_ACCESS } from '../access/constants.ts';
+import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 
 export type Candidate = {
   path: string;
@@ -394,6 +396,81 @@ export const fuseChannels = (
 };
 
 /**
+ * How long a provider's answer is kept for the next page of the same search, while the VFS announces
+ * no change. A change of any node drops every kept answer, so what is kept is never staler than the
+ * VFS's own events; one it never announced is seen after this long at most.
+ */
+const ANSWER_KEEP_MS = 60_000;
+/** At most this many answers are kept; the oldest goes first. */
+const ANSWER_KEEP_MAX = 32;
+
+type ProviderOutput = Awaited<ReturnType<Command['execute']>>;
+
+/** A provider's answer, settled or in flight, and the command whose run it is. */
+type KeptAnswer = { at: number; owner: Command; output: Promise<ProviderOutput> };
+
+/** The answers kept for one VFS, and whether its changes are watched: one that announces none keeps a run only while it runs. */
+type KeptAnswers = { watched: Promise<boolean>; answers: Map<string, KeptAnswer> };
+
+const keptAnswers = new WeakMap<ModuleVFS, KeptAnswers>();
+
+/** The answers kept for `vfs`, emptied whenever it announces a change. */
+const answersFor = async (vfs: ModuleVFS): Promise<{ answers: Map<string, KeptAnswer>; watched: boolean }> => {
+  let kept = keptAnswers.get(vfs);
+  if (!kept) {
+    const answers = new Map<string, KeptAnswer>();
+    const watched = vfs.subscribe
+      ? vfs.subscribe(() => ADMIN_ACCESS, () => answers.clear(), { eventTypes: ['created', 'updated', 'moved', 'deleted'] }).then(() => true)
+      : Promise.resolve(false);
+    keptAnswers.set(vfs, kept = { watched, answers });
+  }
+  return { answers: kept.answers, watched: await kept.watched };
+};
+
+/** Who runs a provider and which one runs: callers whose answers may differ by what they can read, or by PATH, never share one. */
+const runnerKey = (cmd: Command): string => {
+  const { uid, gid, gids, admin, elevated, link } = cmd.access;
+  return JSON.stringify([uid, gid, [...gids].sort(), admin === true, elevated === true, link?.id ?? null, cmd.env.PATH ?? '']);
+};
+
+/**
+ * `cmd.execute(line)`, shared with every caller that runs the same line as the same reader: the
+ * media page asks for a query's hits and its facets at once, which are the same provider runs, and
+ * its next page asks again (ein/core#1077). A run is tied to the command that started it; a caller
+ * that was waiting on it when that command was interrupted runs the line itself. A failed run is
+ * not kept.
+ */
+const sharedExecute = async (cmd: Command, line: string): Promise<ProviderOutput> => {
+  const { answers, watched } = await answersFor(cmd.sys.vfs);
+  const key = `${runnerKey(cmd)}\n${line}`;
+  for (;;) {
+    const now = Date.now();
+    for (const [old, entry] of answers) if (now - entry.at > ANSWER_KEEP_MS) answers.delete(old);
+    let entry = answers.get(key);
+    if (!entry) {
+      const started: KeptAnswer = { at: now, owner: cmd, output: cmd.execute(line) };
+      entry = started;
+      answers.set(key, started);
+      if (answers.size > ANSWER_KEEP_MAX) answers.delete(answers.keys().next().value!);
+      started.output.then((output) => {
+        if ((output.code !== 0 || !watched) && answers.get(key) === started) answers.delete(key);
+      }, () => {
+        if (answers.get(key) === started) answers.delete(key);
+      });
+    }
+    const owner = entry.owner;
+    try {
+      const output = await entry.output;
+      if (output.code !== 0 && owner !== cmd && owner.interrupted && !cmd.interrupted) continue;
+      return output;
+    } catch (error) {
+      if (owner !== cmd && owner.interrupted && !cmd.interrupted) continue;
+      throw error;
+    }
+  }
+};
+
+/**
  * Text search: fans the question out to the `search-*` providers on PATH and fuses what they found
  * by rank, channel by channel (`fuseChannels`). `question` is what each is asked, as shell words:
  * the quoted query, or `--like <path>` for the pictures that look like one.
@@ -403,11 +480,11 @@ export const fuseChannels = (
  * ceiling, and using it as a predicate instead would mean re-running every
  * provider per candidate.
  *
- * `start` resumes inside that one page. The fan-out is redone on every page —
- * the alternative is caching a ranked list per query across commands, and one
- * extra fan-out per "load more" is the cheaper of the two. It only works
- * because the ranking is deterministic: every rank and the final order break
- * ties by path.
+ * `start` resumes inside that one page. Each provider's answer is shared with
+ * the searches asking the same at once and kept for the next page until the VFS
+ * changes (`sharedExecute`); a page whose answers were dropped runs them again,
+ * which only works because the ranking is deterministic: every rank and the
+ * final order break ties by path.
  *
  * `order` re-orders the whole ranked set by capture time or name instead.
  * Providers report an `id` where they have one, so that reordering is usually one
@@ -453,7 +530,7 @@ export const textSource = async (
     providers.map(async (provider) => {
       const within = opts.within?.providers.has(provider) ? ` --within ${shq(opts.within.path)}` : '';
       const notWithin = opts.notWithin?.providers.has(provider) ? opts.notWithin.roots.map((root) => ` --not-within ${shq(root)}`).join('') : '';
-      const output = await cmd.execute(`JSON_OUTPUT=1 ${provider} ${question} -l ${limit}${within}${notWithin}`);
+      const output = await sharedExecute(cmd, `JSON_OUTPUT=1 ${provider} ${question} -l ${limit}${within}${notWithin}`);
       // `SEARCH_TRACE=1`: which provider the fan-out waited for.
       if (cmd.env.SEARCH_TRACE) await cmd.writeError(`text: ${provider} ${Date.now() - startedAt}ms\n`);
       return { provider, output };
