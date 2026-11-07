@@ -63,6 +63,19 @@ Deno.test({
       assertEquals(host.cpu, undefined);
     });
 
+    await t.step("host-metrics gives the machine's memory beside EiN's, when the sample has it", async () => {
+      // 8 GiB machine with 2 GiB available: 6 GiB in use; EiN's container holds 1 of its 4.
+      await cmd.shouldSucceed(
+        `log-append ${seriesPath('memory')} --data '{"usedBytes":1073741824,"limitBytes":4294967296,"host":{"totalBytes":8589934592,"availableBytes":2147483648}}'`,
+      );
+
+      const host = await client.execJson<HostMetrics>('host-metrics');
+      assertEquals(host.memory?.percent, 25);
+      assertEquals(host.memory?.machine?.percent, 75);
+      assertEquals(host.memory?.machine?.usedBytes, 6442450944);
+      assertEquals(host.memory?.machine?.totalBytes, 8589934592);
+    });
+
     await t.step("host-metrics reports the event loop's lag once the runtime series has entries", async () => {
       await cmd.shouldSucceed(`mknode -t log ${seriesPath('runtime')}`);
       await cmd.shouldSucceed(`log-append ${seriesPath('runtime')} --data '{"lag":{"maxMs":12.5,"meanMs":1.2,"p99Ms":4.5,"samples":150}}'`);

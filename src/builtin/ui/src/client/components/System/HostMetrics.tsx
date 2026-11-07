@@ -26,7 +26,7 @@ function TileSkeleton() {
 const pct = (value?: number) => value === undefined ? '—' : `${Math.round(value)}%`;
 
 /**
- * The machine's CPU and the container's memory: with the GPU a module draws beside them (a `system.overview`
+ * The machine's CPU and memory, each with EiN's share: with the GPU a module draws beside them (a `system.overview`
  * panel), the numbers that say whether the machine is coping.
  *
  * Each tile is one series, so there is no legend and no per-metric hue — the
@@ -57,14 +57,25 @@ export function HostMetrics({ cpu, memory, loading }: Props) {
         />
       )}
 
-      {memory && (
+      {memory?.machine && (
+        <StatTile
+          label='Memory'
+          value={pct(memory.machine.percent)}
+          accent={utilizationColor(memory.machine.percent)}
+          icon={<IconDeviceSdCard size={14} />}
+          hint={`${formatBytes(memory.machine.usedBytes)} of ${formatBytes(memory.machine.totalBytes)} · EiN ${pct((memory.usedBytes / memory.machine.totalBytes) * 100)}`}
+          tooltip={`The machine's memory in use; EiN is this container's part of it, ${formatBytes(memory.usedBytes)} of the ${formatBytes(memory.limitBytes)} it may hold`}
+          series={memory.machine.series}
+        />
+      )}
+      {memory && !memory.machine && (
         <StatTile
           label='Memory'
           value={pct(memory.percent)}
           accent={utilizationColor(memory.percent)}
           icon={<IconDeviceSdCard size={14} />}
           hint={`${formatBytes(memory.usedBytes)} of ${formatBytes(memory.limitBytes)}`}
-          tooltip='Resident memory against the container cap'
+          tooltip="EiN's memory against what it may hold; the machine's is not readable here"
           series={memory.series}
         />
       )}

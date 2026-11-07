@@ -2,10 +2,9 @@
  * Host resource probes — CPU and memory as the kernel reports them.
  *
  * EiN runs in a container, where `/proc/meminfo` and `/proc/stat` are the *host's* numbers and
- * cgroup v2 files are this container's. Memory is the container's: a dashboard built on
- * `/proc/meminfo` would show 15 GiB of RAM on a container capped at 10g. CPU is both: the
- * machine's busy time from `/proc/stat`, because the work that loads it (the media service, the
- * database) runs in other containers, and this container's own time from `cpu.stat`.
+ * cgroup v2 files are this container's. Both are kept, for memory as for CPU: the machine's, because
+ * the work that loads it (the media service, the database) runs in other containers, and this
+ * container's own, against its cap, which is what runs out first when EiN is short.
  *
  * CPU is exposed as cumulative counters, never as a percentage. A percentage needs two
  * observations and this is one, so the rate is derived where two samples are in hand — see
@@ -50,9 +49,12 @@ export type CpuSample = {
 };
 
 export type MemorySample = {
+  /** This container's resident memory. */
   usedBytes: number;
   /** The cgroup cap, or the host total when the cgroup is unlimited ("max"). */
   limitBytes?: number;
+  /** The machine's memory and how much of it is available, as `/proc/meminfo` says; absent where unreadable. */
+  host?: { totalBytes: number; availableBytes: number };
 };
 
 /**
@@ -98,13 +100,14 @@ export const sampleMemory = async (): Promise<MemorySample | undefined> => {
   let limitBytes = max !== undefined && max !== 'max' ? Number(max) : undefined;
   if (limitBytes !== undefined && !Number.isFinite(limitBytes)) limitBytes = undefined;
 
-  if (limitBytes === undefined) {
-    try {
-      limitBytes = Deno.systemMemoryInfo().total;
-    } catch {
-      // --allow-sys not granted; report usage without a ceiling.
-    }
+  let host: MemorySample['host'];
+  try {
+    const info = Deno.systemMemoryInfo();
+    host = { totalBytes: info.total, availableBytes: info.available };
+  } catch {
+    // --allow-sys not granted; the container's numbers alone are still useful.
   }
+  limitBytes ??= host?.totalBytes;
 
-  return { usedBytes, limitBytes };
+  return { usedBytes, limitBytes, ...(host ? { host } : {}) };
 };

@@ -1,5 +1,5 @@
 /**
- * host-metrics — the machine's CPU (and this container's share of it), this container's memory,
+ * host-metrics — the machine's CPU and memory (and this container's share of each),
  * and how late the event loop runs, each now and with its recent history. The media service's GPU is ems's (`ems-gpu`).
  *
  * Read back from `metrics-sampler`'s series (see ./lib.ts), so it answers the same on a laptop
@@ -76,12 +76,23 @@ export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_W
     : undefined;
 
   const memoryNow = latest(memoryAll);
+  const machineUsed = (entry: MemoryEntry) => (entry.host ? entry.host.totalBytes - entry.host.availableBytes : undefined);
   const memory = memoryNow
     ? {
       usedBytes: memoryNow.usedBytes,
       limitBytes: memoryNow.limitBytes,
       percent: percent(memoryNow.usedBytes, memoryNow.limitBytes),
       series: toPoints(within(memoryAll, windowMs), (entry) => percent(entry.usedBytes, entry.limitBytes)),
+      ...(memoryNow.host
+        ? {
+          machine: {
+            usedBytes: machineUsed(memoryNow)!,
+            totalBytes: memoryNow.host.totalBytes,
+            percent: percent(machineUsed(memoryNow)!, memoryNow.host.totalBytes)!,
+            series: toPoints(within(memoryAll, windowMs), (entry) => entry.host ? percent(machineUsed(entry)!, entry.host.totalBytes) : undefined),
+          },
+        }
+        : {}),
     }
     : undefined;
 
@@ -102,7 +113,8 @@ const writeHostMetrics = async (cmd: Command, { cpu, memory, lag }: HostMetrics)
     const load = cpu.load1 !== undefined ? `  load ${cpu.load1.toFixed(2)}` : '';
     await cmd.writeLn(`cpu     ${fmtPct(cpu.percent)} of ${cpu.cores} cores${load}  EiN ${fmtPct(cpu.ownPercent)}`);
   }
-  if (memory) await cmd.writeLn(`memory  ${fmtPct(memory.percent)}  ${fmtBytes(memory.usedBytes)} of ${fmtBytes(memory.limitBytes)}`);
+  if (memory?.machine) await cmd.writeLn(`memory  ${fmtPct(memory.machine.percent)}  ${fmtBytes(memory.machine.usedBytes)} of ${fmtBytes(memory.machine.totalBytes)}`);
+  if (memory) await cmd.writeLn(`ein     ${fmtPct(memory.percent)}  ${fmtBytes(memory.usedBytes)} of ${fmtBytes(memory.limitBytes)}`);
   if (lag) await cmd.writeLn(`lag     p99 ${lag.p99Ms.toFixed(1)} ms  max ${lag.maxMs.toFixed(1)} ms`);
 };
 
@@ -123,7 +135,7 @@ export const hostMetrics = async (cmd: Command): CmdReturn => {
 hostMetrics.spec = {
   name: 'host-metrics',
   effect: 'read' as const,
-  description: "The machine's CPU, this container's memory and event-loop lag now, with their recent history from metrics-sampler",
+  description: "The machine's CPU and memory, this container's share of each, and event-loop lag now, with their recent history from metrics-sampler",
   args: [],
   flags: [
     { name: 'window', type: 'string' as const, description: 'Minutes of history (default: 360)' },
