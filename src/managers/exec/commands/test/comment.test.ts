@@ -107,6 +107,19 @@ Deno.test({
         carl.close();
       }
     });
+
+    await t.step("a comment carries the person its author's account is linked to, read by another user too", async () => {
+      await cmd.shouldSucceed('ln -s /people/anna-andersson /etc/users/anna/person');
+      const carl = await testCtx.server.createShellClient({ username: 'carl', password: 'pw123' });
+      try {
+        const seen = await carl.execJson<CommentEntry[]>('comment list /scratch/shared/pic.txt');
+        assertEquals(seen.map((c) => [c.author, c.personPath]), [['anna', '/people/anna-andersson']]);
+      } finally {
+        carl.close();
+      }
+      const added = await client.execJson<CommentEntry>('comment add /scratch/shared/pic.txt --body "unlinked"');
+      assertEquals([added.author, added.personPath], ['admin', undefined]);
+    });
   } finally {
     client.close();
     await testCtx.teardown();

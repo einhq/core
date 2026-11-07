@@ -13,8 +13,9 @@ import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import type { CommentEntry } from '../../../../lib/api/comments.ts';
 
-import { COMMENT_MIMETYPE, COMMENTS_DIR, readComments, usernames } from '../../../../lib/comments/mod.ts';
+import { COMMENT_MIMETYPE, commentAuthors, COMMENTS_DIR, readComments } from '../../../../lib/comments/mod.ts';
 
 const USAGE = 'Usage: comment <list|add|remove> <path> [--body <text> | --body-base64 <b64>] [<slug>]';
 
@@ -59,8 +60,17 @@ const commentAdd = async (cmd: Command, path: string, body: string): Promise<num
   }
 
   if (cmd.json) {
-    const names = await usernames(cmd);
-    await cmd.writeJSON({ slug, body, uid, author: names.get(uid) ?? String(uid), createdAt: Date.now() });
+    const author = (await commentAuthors(cmd, [uid])).get(uid);
+    await cmd.writeJSON(
+      {
+        slug,
+        body,
+        uid,
+        author: author?.username ?? String(uid),
+        ...(author?.personPath ? { personPath: author.personPath } : {}),
+        createdAt: Date.now(),
+      } satisfies CommentEntry,
+    );
   } else {
     await cmd.writeLn(`Added comment ${slug} on ${path}`);
   }

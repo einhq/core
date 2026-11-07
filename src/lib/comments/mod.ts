@@ -8,6 +8,7 @@
  */
 
 import { toText } from '@std/streams/to-text';
+import { ADMIN_ACCESS } from '../access/mod.ts';
 import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import type { UserAttrs } from '../../vfs/types/user.ts';
 import type { VfsCommand } from '../vfs-command.ts';
@@ -17,14 +18,29 @@ export type { CommentEntry } from '../api/comments.ts';
 export const COMMENTS_DIR = 'comments';
 export const COMMENT_MIMETYPE = 'text/markdown';
 
-/** uid -> username, for the author of a comment. Empty when the users directory cannot be read. */
-export const usernames = async (cmd: VfsCommand): Promise<Map<number, string>> => {
+type CommentAuthor = { username: string; personPath?: string };
+
+/**
+ * The accounts of `uids`, by uid: each one's username and the person it is linked to. A uid with
+ * no account, or every uid when the users directory cannot be read, is left out.
+ */
+export const commentAuthors = async (cmd: VfsCommand, uids: Iterable<number>): Promise<Map<number, CommentAuthor>> => {
+  const wanted = new Set(uids);
+  let users;
   try {
-    const users = await cmd.sys.vfs.children<UserAttrs>(cmd.access, cmd.env.USERS_PATH);
-    return new Map(users.map((u) => [u.node.attrs.uid, u.name]));
+    users = (await cmd.sys.vfs.children<UserAttrs>(cmd.access, cmd.env.USERS_PATH)).filter((u) => wanted.has(u.node.attrs.uid));
   } catch {
     return new Map();
   }
+  // The `person` link is the account's, read as the administrator; the person itself is read by
+  // whoever shows it, with their own access.
+  return new Map(
+    await Promise.all(users.map(async (u) => {
+      const personPath = await cmd.sys.vfs.get(ADMIN_ACCESS, `${cmd.env.USERS_PATH}/${u.name}/person`, { follow: false })
+        .then((link) => link.props.softlink || undefined, () => undefined);
+      return [u.node.attrs.uid, { username: u.name, ...(personPath ? { personPath } : {}) }] as const;
+    })),
+  );
 };
 
 const toMillis = (ts: number | string | undefined): number => {
@@ -46,7 +62,6 @@ export const readComments = async (cmd: VfsCommand, path: string): Promise<Comme
     return [];
   }
 
-  const names = await usernames(cmd);
   const entries: CommentEntry[] = [];
 
   for (const child of children) {
@@ -63,13 +78,15 @@ export const readComments = async (cmd: VfsCommand, path: string): Promise<Comme
       continue;
     }
     const uid = child.node.props.birthtime?.uid ?? child.node.props.uid;
-    entries.push({
-      slug: child.name,
-      body,
-      uid,
-      author: names.get(uid) ?? String(uid),
-      createdAt: toMillis(child.node.props.birthtime?.timestamp),
-    });
+    entries.push({ slug: child.name, body, uid, author: String(uid), createdAt: toMillis(child.node.props.birthtime?.timestamp) });
+  }
+
+  const authors = await commentAuthors(cmd, entries.map((e) => e.uid));
+  for (const entry of entries) {
+    const author = authors.get(entry.uid);
+    if (!author) continue;
+    entry.author = author.username;
+    if (author.personPath) entry.personPath = author.personPath;
   }
 
   entries.sort((a, b) => a.createdAt - b.createdAt);
