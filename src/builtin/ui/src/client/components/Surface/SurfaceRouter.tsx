@@ -13,7 +13,8 @@ import {
   underBase,
 } from '@ein/ui/signals';
 import { awaitModuleRoutes, modulePatcher } from '../../signals/module-ui.ts';
-import { type ComponentType, createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { DRAWER_SLIDE_MS } from '../../lib/drawer-slide.ts';
+import { type ComponentType, createContext, type ReactNode, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   type DataRouter,
   Outlet,
@@ -96,6 +97,19 @@ function FullscreenFrame({ children }: { children: ReactNode }) {
   // to scroll and type in: a shard of the scroll lock, and outside a focus trap that is not set. The
   // floating panels' layer is a shard too, so a list in a panel scrolls.
   const beside = fullscreenBesideDrawer.value;
+  // As the drawer slides in or out beside it, the frame narrows or widens with it, pushed rather
+  // than jumping. Only then: resizing the drawer by its handle moves the edge as the pointer does.
+  const [besideBefore, setBesideBefore] = useState(beside !== null);
+  const [sliding, setSliding] = useState(false);
+  if (besideBefore !== (beside !== null)) {
+    setBesideBefore(beside !== null);
+    setSliding(true);
+  }
+  useEffect(() => {
+    if (!sliding) return;
+    const timer = globalThis.setTimeout(() => setSliding(false), DRAWER_SLIDE_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [sliding, besideBefore]);
   // Escape closes it unless the route has taken the key itself (the lightbox closes a layer
   // over it first, and its hotkey prevents the default) or it is typed into a field. Mantine's
   // own handler would know neither, and would close the route under a layer. The page's hotkeys
@@ -127,7 +141,13 @@ function FullscreenFrame({ children }: { children: ReactNode }) {
         overlay: { animation: FULLSCREEN_FADE },
         body: { padding: 0, height: '100%' },
         content: { background: 'var(--mrx-surface-base)' },
-        inner: { padding: 0, animation: FULLSCREEN_FADE, ...(beside === null ? {} : { right: 'auto', width: `calc(100% - ${beside})` }) },
+        inner: {
+          padding: 0,
+          animation: FULLSCREEN_FADE,
+          right: 'auto',
+          width: `calc(100% - ${beside ?? '0px'})`,
+          transition: sliding ? `width ${DRAWER_SLIDE_MS}ms ease` : undefined,
+        },
       }}
     >
       {children}

@@ -9,6 +9,7 @@ import { FloatHost } from './components/Surface/FloatHost.tsx';
 import { PageScrollbar } from './components/Layout/PageScrollbar.tsx';
 import { ShortcutHelp } from './components/Palette/ShortcutHelp.tsx';
 import { watchSidebarSwipe } from './lib/sidebar-swipe.ts';
+import { DRAWER_SLIDE_MS } from './lib/drawer-slide.ts';
 import {
   checkAuth,
   DRAWER_BESIDE_QUERY,
@@ -51,8 +52,6 @@ import './theme/theme.css';
 
 /** The icon rail's width. */
 const RAIL_WIDTH = 72;
-/** How long the side drawer and the rail take to slide (`AppShell`'s `transitionDuration`). */
-const DRAWER_SLIDE_MS = 280;
 
 type Props = {
   children: ReactNode;
@@ -123,6 +122,16 @@ function Frame({ children }: Props) {
   const wide = useMediaQuery(DRAWER_BESIDE_QUERY, false, { getInitialValueInEffect: false });
   const besideFullscreen = drawerShown && wide && fullscreenPath.value !== null;
   const besideWidth = `min(${drawerWidth.value}px, calc(100vw - 320px))`;
+  // Closed over full screen, the drawer stays lifted until it is out, so it slides out over the
+  // lightbox rather than dropping beneath it, as the lightbox grows back into its room.
+  const [lifted, setLifted] = useState(besideFullscreen);
+  const fullscreenOpen = fullscreenPath.value !== null;
+  useEffect(() => {
+    if (besideFullscreen || !fullscreenOpen) return setLifted(besideFullscreen);
+    const timer = globalThis.setTimeout(() => setLifted(false), DRAWER_SLIDE_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [besideFullscreen, fullscreenOpen]);
+  const asideLifted = besideFullscreen || (lifted && fullscreenOpen && wide);
   // The page makes room for the drawer once it is in, and takes the room back the moment it starts
   // out: the drawer slides over the page on the compositor, and the page lays out once each way
   // rather than on every frame of the slide, which on a grid of pictures is what makes it judder.
@@ -246,7 +255,7 @@ function Frame({ children }: Props) {
           collapsed: { mobile: !opened },
         }}
         aside={{
-          width: { base: '100%', md: besideFullscreen ? besideWidth : desktopDrawerWidth },
+          width: { base: '100%', md: asideLifted ? besideWidth : desktopDrawerWidth },
           breakpoint: 'md',
           collapsed: { mobile: !drawerShown, desktop: !drawerShown },
         }}
@@ -258,7 +267,7 @@ function Frame({ children }: Props) {
           navbar: { backgroundColor: 'var(--mrx-surface-chrome)', borderRight: 'none' },
           // Without the drawer's room while it slides in (`drawerRoom`, above).
           main: { backgroundColor: 'var(--mrx-surface-base)', ...(drawerRoom ? {} : { paddingInlineEnd: 0 }) },
-          aside: besideFullscreen ? { top: 0, height: '100dvh', zIndex: 'calc(var(--mantine-z-index-modal) + 1)' } : {},
+          aside: asideLifted ? { top: 0, height: '100dvh', zIndex: 'calc(var(--mantine-z-index-modal) + 1)' } : {},
         }}
       >
         <AppShell.Header>
