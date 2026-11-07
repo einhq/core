@@ -226,6 +226,9 @@ export type { TrackSummary } from '../registries/track/types.ts';
 // The latest samples of a metrics series: core's own, or one a module's service keeps.
 export { readTail } from '../lib/metrics/read.ts';
 export { seriesPath } from '../lib/metrics/series.ts';
+// The pool matched triggers wait in before they are instances: in core's `pools` series, the work
+// not started yet, as against the work pools' work in line for a worker.
+export { TRIGGER_POOL } from '../managers/pipeline/types.ts';
 
 export type { UserAttrs } from '../vfs/types/user.ts';
 

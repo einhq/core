@@ -42,10 +42,10 @@ export function WorkSummary({ counts, cancelled, total, completions, bucketMs, w
         <Stack gap={2} miw={170}>
           <Group gap={6} wrap='nowrap'>
             <Box w={8} h={8} style={{ borderRadius: 2, background: SERIES_ACCENT, flexShrink: 0 }} />
-            <Text size='xs' c='dimmed'>Completed per hour</Text>
+            <Text size='xs' c='dimmed'>Done per hour</Text>
           </Group>
           {loading ? <Skeleton height={30} width='60%' my={2} /> : (
-            <Tooltip label='Instances completed in the last hour' withArrow position='top-start'>
+            <Tooltip label='Instances done in the last hour' withArrow position='top-start'>
               <Text fz={32} fw={600} lh={1.1} w='fit-content'>{lastHour.toLocaleString()}</Text>
             </Tooltip>
           )}

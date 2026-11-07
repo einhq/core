@@ -1,3 +1,5 @@
+export * from './Flow.tsx';
+export * from './FlowBoard.tsx';
 export * from './HealthSummary.tsx';
 export * from './HostMetrics.tsx';
 export * from './InstanceInfo.tsx';
@@ -6,5 +8,5 @@ export * from './RecentErrors.tsx';
 export * from './ServicesHealth.tsx';
 export * from './TierUsage.tsx';
 export * from './UnservableKinds.tsx';
-export * from './WorkKinds.tsx';
+export * from './WorkLines.tsx';
 export * from './WorkSummary.tsx';

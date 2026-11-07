@@ -37,10 +37,10 @@ export function WorkloadBar({ counts, waiting, cancelled, height = 14, legend = 
     value: counts[state] || 0,
   }));
 
-  // First, because Waiting is the leftmost column in `PipelineMatrix` and the bar is meant to
+  // First, because Not started is the leftmost column in `PipelineMatrix` and the bar is meant to
   // read in the same order as the numbers beside it. See the ordering note in palette.ts.
   if (waiting !== undefined) {
-    segments.unshift({ key: 'waiting', label: 'Waiting', color: WAITING_COLOR, value: waiting });
+    segments.unshift({ key: 'waiting', label: 'Not started', color: WAITING_COLOR, value: waiting });
   }
 
   // Last, after completed, as `PipelineMatrix` lists it.

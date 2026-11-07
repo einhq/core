@@ -1,5 +1,10 @@
 /**
- * Workload status colors.
+ * Workload status colors, and the words for them.
+ *
+ * WORDS. Five places work can be, called the same everywhere: Not started (a matched trigger the
+ * engine has not made into an instance; `waiting` here), In line (an instance whose next step
+ * waits for a worker or an earlier step; `queued`), Running, Failed and Done (`completed`). The
+ * keys are the engine's states; the labels are what a reader sees (ein/core#1070).
  *
  * These are status hues, not a categorical series — each one means a state, so
  * they are never reused for anything else and always ship beside a label.
@@ -36,8 +41,8 @@ export const WORKLOAD_COLORS: Record<WorkloadState, string> = {
 };
 
 export const WORKLOAD_LABELS: Record<WorkloadState, string> = {
-  completed: 'Completed',
-  queued: 'Queued',
+  completed: 'Done',
+  queued: 'In line',
   running: 'Running',
   failed: 'Failed',
 };

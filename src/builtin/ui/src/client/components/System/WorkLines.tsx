@@ -7,14 +7,15 @@ type Props = {
 };
 
 /**
- * What the work pools hold, one row per kind of job: how much is left, how fast it comes and goes,
- * when it is done, how long the oldest job has waited — and, for a kind that is not moving, why.
+ * The lines in the work pools, one row each: a line is the `kind` a pooled step stands in, which
+ * workers claim by. How much is in line, how much runs, how fast it comes and goes, when it is
+ * done, how long its oldest has waited — and, for a line that is not moving, why.
  *
- * The pipeline table above counts work at the intake, by pipeline; the steps that take the time
- * run out of these pools, where one pool mixes face detection with video transcodes. A kind
- * resting because EMS could not run it says so here rather than look like a slow one.
+ * The pipeline table above counts work by pipeline; the steps that take the time run out of these
+ * pools, where one pool mixes face detection with video transcodes. A line resting because EMS
+ * could not run it says so here rather than look like a slow one.
  */
-export function WorkKinds({ pools }: Props) {
+export function WorkLines({ pools }: Props) {
   if (!pools) return <Skeleton height={80} />;
   const now = Date.now();
   const kinds = pools
@@ -25,19 +26,20 @@ export function WorkKinds({ pools }: Props) {
 
   return (
     <Card>
-      <Title order={4} mb='sm'>Kinds of work</Title>
+      <Title order={4} mb={4}>Lines</Title>
+      <Text size='xs' c='dimmed' mb='sm'>Pooled steps stand in a line by what they do; a worker takes from the lines it serves.</Text>
       {/* Scrolls on its own on a phone rather than widen the page. */}
       <Table.ScrollContainer minWidth={640}>
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Kind</Table.Th>
-              <Table.Th ta='right'>Left</Table.Th>
+              <Table.Th>Line</Table.Th>
+              <Table.Th ta='right'>In line</Table.Th>
               <Table.Th ta='right'>Running</Table.Th>
               <Table.Th ta='right'>In</Table.Th>
               <Table.Th ta='right'>Out</Table.Th>
-              <Table.Th ta='right'>ETA</Table.Th>
-              <Table.Th ta='right'>Oldest waiting</Table.Th>
+              <Table.Th ta='right'>Finishes in</Table.Th>
+              <Table.Th ta='right'>Oldest in line</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>

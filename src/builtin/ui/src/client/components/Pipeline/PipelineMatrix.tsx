@@ -1,4 +1,5 @@
-import { Box, Card, Group, Skeleton, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { Anchor, Box, Card, Group, Skeleton, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { useState } from 'react';
 import { IconTopologyRing } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import type { PipelineTriggerSummary } from '@ein/api';
@@ -55,7 +56,11 @@ type Props = {
  * number of instances. This is the level at which "what is the system doing"
  * is actually answerable; individual instances live behind the drill-down.
  *
- * "Left" and "ETA" are the numbers that answer "when is this archive finished". They belong
+ * The columns are the five places work can be (palette.ts): Not started, In line, Running, Failed
+ * and Done. A pipeline with nothing in the first four and nothing arriving or finishing is idle,
+ * and the idle ones fold into one row, so the pipelines doing something are the table.
+ *
+ * "Not started" and "Finishes" are the numbers that answer "when is this archive finished". They belong
  * here rather than in a card of their own because this table is already per pipeline — the
  * counts to the left are what a pipeline has done, and these are what it has not started. Split
  * across two cards, a total would read as "finished" while pipelines still had days of work
@@ -63,6 +68,13 @@ type Props = {
  */
 export function PipelineMatrix({ rows, loading, backlogLoading, backlog, deadLettered = 0, triggers }: Props) {
   const navigate = useNavigate();
+  const [showIdle, setShowIdle] = useState(false);
+  const idle = (row: PipelineRow): boolean => {
+    const work = backlog?.[row.pipeline];
+    return (work?.left ?? 0) === 0 && row.queued === 0 && row.running === 0 && row.failed === 0 && !work?.inPerHour && !work?.perHour;
+  };
+  const idleCount = rows.filter(idle).length;
+  const shown = showIdle ? rows : rows.filter((row) => !idle(row));
 
   // A cell whose figure comes from `backlog`, while that is still on its way.
   const pending = <Skeleton height={10} width={36} ml='auto' />;
@@ -114,19 +126,19 @@ export function PipelineMatrix({ rows, loading, backlogLoading, backlog, deadLet
               <Table.Tr>
                 <Table.Th>Pipeline</Table.Th>
                 <Table.Th w='30%'>Workload</Table.Th>
-                <Table.Th ta='right'>Waiting</Table.Th>
-                <Table.Th ta='right'>Queued</Table.Th>
+                <Table.Th ta='right'>Not started</Table.Th>
+                <Table.Th ta='right'>In line</Table.Th>
                 <Table.Th ta='right'>Running</Table.Th>
                 <Table.Th ta='right'>Failed</Table.Th>
-                <Table.Th ta='right'>Completed</Table.Th>
+                <Table.Th ta='right'>Done</Table.Th>
                 <Table.Th ta='right'>Cancelled</Table.Th>
                 <Table.Th ta='right'>In</Table.Th>
                 <Table.Th ta='right'>Out</Table.Th>
-                <Table.Th ta='right'>ETA</Table.Th>
+                <Table.Th ta='right'>Finishes in</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {rows.map((row) => (
+              {shown.map((row) => (
                 <Table.Tr
                   key={row.pipeline}
                   style={{ cursor: 'pointer' }}
@@ -146,7 +158,7 @@ export function PipelineMatrix({ rows, loading, backlogLoading, backlog, deadLet
                   </Table.Td>
                   <Table.Td>
                     {
-                      /* Waiting is in the bar as well as in its own column: without it the bar
+                      /* Not started is in the bar as well as in its own column: without it the bar
                       would show only the instances a pipeline has made, and one with most of its
                       triggers still to turn into instances would draw as a full green bar. With
                       it the bar spans everything known about this pipeline's work. */
@@ -162,7 +174,7 @@ export function PipelineMatrix({ rows, loading, backlogLoading, backlog, deadLet
                   <Table.Td ta='right' style={{ whiteSpace: 'nowrap' }}>
                     {
                       /* Work with no instance yet — a matched trigger the engine has not turned
-                      into one. Distinct from Queued, which has an instance and is waiting on a
+                      into one. Distinct from In line, which has an instance and is waiting on a
                       worker. */
                     }
                     {backlogLoading ? pending : (
@@ -253,6 +265,20 @@ export function PipelineMatrix({ rows, loading, backlogLoading, backlog, deadLet
                   </Table.Td>
                 </Table.Tr>
               ))}
+              {idleCount > 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={11}>
+                    <Group gap='xs'>
+                      <Text size='sm' c='dimmed'>
+                        {idleCount === rows.length ? `All ${idleCount} pipelines idle` : `${idleCount} pipeline${idleCount === 1 ? '' : 's'} idle`}
+                      </Text>
+                      <Anchor component='button' type='button' size='sm' onClick={() => setShowIdle((value) => !value)}>
+                        {showIdle ? 'hide' : 'show'}
+                      </Anchor>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              )}
             </Table.Tbody>
             <Table.Tfoot>
               <Table.Tr>

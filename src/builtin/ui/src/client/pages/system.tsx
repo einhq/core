@@ -1,10 +1,13 @@
 import { Alert, Badge, Container, Group, SimpleGrid, Stack, Tabs, Text, Tooltip } from '@mantine/core';
+import { Fragment } from 'react';
 import { IconAlertTriangle, IconGauge, IconHeartbeat, IconHistory, IconPlugConnectedX, IconStack2, IconTerminal2 } from '@tabler/icons-react';
 import { useSignals } from '@preact/signals-react/runtime';
 import { useSearchParams } from 'react-router-dom';
 import {
   ActiveInstances,
   EntityDetailHeader,
+  FlowArrow,
+  FlowBoard,
   HealthBadge,
   HealthSummary,
   HostMetrics,
@@ -17,7 +20,7 @@ import {
   TablerIcon,
   TierUsage,
   UnservableKinds,
-  WorkKinds,
+  WorkLines,
   WorkSummary,
 } from '@ein/ui/components';
 import type { DiskUsage, HealthAnswer, HostMetrics as Metrics, LogLine, PoolStatAnswer, ServiceEntry, SystemInfo } from '@ein/api';
@@ -238,10 +241,20 @@ export default function SystemPage() {
           <Tabs.Panel value='work'>
             <Stack gap='lg'>
               {
-                /* The table is the section — no heading, because the tab already names it,
-                  and no summary card above it, because its footer carries the sums. What is
-                  executing sits underneath: it is the detail behind the Running column. */
+                /* Where the work is, as one picture: the board first, then the pipeline table
+                  for the detail by pipeline (its footer carries the sums), the lines, and what
+                  is executing — the detail behind the Running column. A module's part of the
+                  board is a `system.flow` panel (ems's lanes and models), after EiN's own. */
               }
+              <FlowBoard rows={rows} notStarted={Object.fromEntries(Object.entries(pipelineBacklog).map(([name, entry]) => [name, entry.left]))} pools={pools}>
+                {panelsOf('system.flow').map((panel) => (
+                  <Fragment key={panel.id}>
+                    <FlowArrow />
+                    <RoutePanel path={panelRoute(panel)} />
+                  </Fragment>
+                ))}
+              </FlowBoard>
+
               <PipelineMatrix
                 rows={rows}
                 loading={!pipeline}
@@ -251,8 +264,8 @@ export default function SystemPage() {
                 triggers={pipelineTriggers}
               />
 
-              {/* Where the time goes: the pools the slow steps run out of, per kind of job. */}
-              <WorkKinds pools={pools} />
+              {/* Where the time goes: the lines the slow steps stand in, in the work pools. */}
+              <WorkLines pools={pools} />
 
               <ActiveInstances active={pipeline?.active} quiet={pipeline?.quiet} quietMs={pipeline?.quietMs} />
             </Stack>
