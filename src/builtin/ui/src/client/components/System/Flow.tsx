@@ -10,7 +10,7 @@ import { WORKLOAD_COLORS } from '../Pipeline/palette.ts';
  */
 
 /** A column's width, which a module's columns take too so the board reads as one row. */
-export const FLOW_COLUMN_WIDTH = 236;
+export const FLOW_COLUMN_WIDTH = 196;
 
 type FlowColumnProps = {
   title: string;

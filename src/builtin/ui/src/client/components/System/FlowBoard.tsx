@@ -83,7 +83,7 @@ export function FlowBoard({ rows, notStarted, pools, children }: Props) {
       </Group>
       {!pools ? <Skeleton height={140} /> : (
         <Box style={{ overflowX: 'auto' }} pb={4}>
-          <Group gap='sm' wrap='nowrap' align='flex-start' w='max-content'>
+          <Group gap='xs' wrap='nowrap' align='flex-start' w='max-content'>
             <FlowColumn title='Not started' count={notStartedTotal} color={WAITING_COLOR} hint='Changes noticed, work not made yet, by pipeline.'>
               {waiting.slice(0, NAMED_PIPELINES).map(([pipeline, left]) => (
                 <FlowItem key={pipeline}>
