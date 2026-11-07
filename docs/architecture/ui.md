@@ -395,6 +395,13 @@ The login form offers **Browse without signing in** while the archive is open. S
 signing out load the page again (`location.replace`), so nothing read for one reader — the
 navigation, the settings, the access ids, what the pages hold — is shown to the next.
 
+The check runs once per load, and the API shell's socket keeps the access it opened with, while
+pictures, downloads and uploads are HTTP requests that carry the cookie. So while someone is signed
+in, `signals/session-check.ts` asks `GET /__session` whether the cookie still signs in — on a move
+between pages, when the tab is shown again, when a picture or a video fails to load, and after the
+socket reconnects, at most once a minute but for the last — which also writes the cookie again. On
+a 401 it loads `/login?next=<the page>` as a new document ([The session cookie](../architecture.md#the-session-cookie)).
+
 A share link lands on `/s/<token>` (`pages/shared-link.tsx`), drawn outside the frame like the
 login page: it runs `share-link open <token> --session` and loads the page of what the link opens
 afresh (`openRoute`), so that page is read as the link, or says the link no longer works and

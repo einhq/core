@@ -144,6 +144,12 @@ type GetSessionOptions = {
    * response a browser will actually keep the cookie from.
    */
   create?: boolean;
+
+  /**
+   * Whether to write the cookie of a session the request presents again, with a fresh lifetime.
+   * Default: when the caller could have created one, neither `create: false` nor `ephemeral`.
+   */
+  refresh?: boolean;
 };
 
 /**
@@ -196,11 +202,11 @@ export async function getSession(
     }
   }
 
-  if (sessionNode && sessionIdent && opts.create !== false && !opts.ephemeral) {
+  if (sessionNode && sessionIdent && (opts.refresh ?? (opts.create !== false && !opts.ephemeral))) {
     // Re-stamp on every navigation, so a session in daily use does not expire
     // one cookie lifetime after it was first minted. Only the document response
-    // does this: it is the one the caller can deliver headers on, it is not
-    // cached, and it costs one header per navigation rather than one per asset.
+    // and `/__session` do this: they are not cached, and they cost one header
+    // per navigation rather than one per asset.
     const { cookieMaxAgeSec } = await sessionLifetimes(config);
     issueCookie(config, headers, responseHeaders, sessionIdent.name, sessionNode.attrs.secret, cookieMaxAgeSec);
   }

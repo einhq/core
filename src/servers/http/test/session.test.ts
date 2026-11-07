@@ -5,7 +5,7 @@
 
 import { PIPELINES_PATH, SESSIONS_PATH } from '../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
-import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, GUEST_GID, GUEST_UID } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
@@ -322,6 +322,39 @@ Deno.test({
         },
       });
       assertEquals(await fetchAs('ein-test=flagged.known') === 200, false);
+    });
+
+    await t.step('/__session answers whether the cookie signs in, and re-stamps a known one', async () => {
+      const before = (await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length;
+      const ask = async (headers: Record<string, string>) => {
+        const res = await fetch(`${baseUrl}/__session`, { headers });
+        await res.arrayBuffer();
+        assertEquals(res.headers.get('cache-control'), 'no-store');
+        return res;
+      };
+
+      const signedIn = await ask({ cookie });
+      assertEquals(signedIn.status, 204);
+      const setCookie = signedIn.headers.get('set-cookie') ?? '';
+      assertEquals(setCookie.includes(cookie.split('=')[1]), true, setCookie);
+      assertEquals(setCookie.includes('Max-Age=86400') && setCookie.includes('Path=/'), true, setCookie);
+
+      // The guest's own session is still its cookie, written again, and not a sign-in.
+      const { cookie: guestCookie } = await harness.createHttpSession({ uid: GUEST_UID, gid: GUEST_GID, gids: [GUEST_GID] });
+      const guest = await ask({ cookie: guestCookie });
+      assertEquals(guest.status, 401);
+      assertEquals((guest.headers.get('set-cookie') ?? '').includes(guestCookie.split('=')[1]), true);
+
+      // No cookie, an ended session or a wrong secret: refused, and nothing minted in its place.
+      const { cookie: endedCookie, sessionPath: endedPath } = await harness.createHttpSession();
+      await vfs.update<SessionAttrs>(ADMIN_ACCESS, endedPath, { attrs: { expired: true } });
+      const refused: Record<string, string>[] = [{}, { cookie: endedCookie }, { cookie: cookie.replace(/\.[^.]*$/, '.wrongsecret') }];
+      for (const headers of refused) {
+        const res = await ask(headers);
+        assertEquals(res.status, 401, JSON.stringify(headers));
+        assertEquals(res.headers.get('set-cookie'), null, JSON.stringify(headers));
+      }
+      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before + 2);
     });
 
     await t.step('malformed cookie falls back to guest access', async () => {

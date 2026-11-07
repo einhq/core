@@ -7,6 +7,7 @@ import { DownloadLog } from './download-log.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
 import { handleGetFile } from './handlers/get-file.ts';
+import { handleGetSession } from './handlers/get-session.ts';
 import { handleGetShell } from './handlers/get-shell.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
 import { handlePostFile } from './handlers/post-file.ts';
@@ -32,6 +33,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
 
       if (url.pathname.startsWith('/__shell')) {
         return await handleGetShell({ ...config, interactiveTerminals }, req, url, info.remoteAddr);
+      } else if (url.pathname === '/__session' && req.method === 'GET') {
+        return await handleGetSession(config, req);
       } else if (url.pathname.startsWith('/file/')) {
         if (req.method === 'GET' || req.method === 'HEAD') {
           return await handleGetFile(config, req, url, { downloads, from: clientAddress(req.headers, info.remoteAddr) });

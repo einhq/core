@@ -39,6 +39,7 @@ import {
 import { pageTitle } from './signals/page-subject.ts';
 import { navArranging } from './signals/nav-arrange.ts';
 import { loadRenditions } from './signals/renditions.ts';
+import { checkSession, watchSession } from './signals/session-check.ts';
 import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
 import { isShareLinkPage, withinRoute } from './lib/share-link.ts';
@@ -205,6 +206,16 @@ function Frame({ children }: Props) {
     if (confined && !routesKnown) return void loadUiManifest();
     navigate(loginUrlFor(location.pathname + location.search + location.hash), { replace: true });
   }, [authChecked, mustSignIn, isLoginPage, confined, routesKnown, navigate]);
+
+  // Someone signed in keeps a cookie that signs them in, or is sent to sign in again: the socket
+  // stays signed in after the cookie the pictures need has gone. Moving between pages is using
+  // the page, as a navigation that loads the document is.
+  useEffect(() => {
+    if (authenticated) return watchSession();
+  }, [authenticated]);
+  useEffect(() => {
+    void checkSession();
+  }, [location.pathname, location.search]);
 
   // Already signed in on the login page: go where the login would have gone.
   useEffect(() => {

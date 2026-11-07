@@ -1451,6 +1451,7 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 | Route                             | Handler                               | Purpose                                                                       |
 | --------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
 | `/__shell` (WS upgrade)           | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                            |
+| `GET /__session`                  | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie    |
 | `GET /file/<path>`                | `get-file`                            | Stream file from VFS (ETag via sha256)                                        |
 | `PUT /file/<path>`                | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME          |
 | `POST /file/<dir>/?name=`         | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`             |
@@ -1610,6 +1611,16 @@ with the socket. The document also re-issues the cookie for a session it already
 `CFG_SESSION_MAX_AGE_SEC` (24 hours by default) and a new session's `expiresSec` is
 `CFG_SESSION_EXPIRES_SEC` (12 hours), read from the settings whenever a cookie is written or a session
 created, so a change applies from the next navigation without restarting the HTTP server.
+
+The shell is a single-page app, so moving between its pages loads no document. It asks
+`GET /__session` instead (`signals/session-check.ts`), at most once a minute while someone is signed in:
+on a move between pages, when the tab is shown again, when a picture or a video fails to load, and
+after the shell's WebSocket reconnects. That re-issues the cookie of the session it presents, like
+the document, and mints none. A 401 means the cookie expired while the tab sat unused, or the session
+ended, while the API shell's socket still holds the access it opened with: the shell then loads
+`/login?next=<the page>` as a new document, which gets the browser a new session to sign in, and the
+sign-in returns to that page. An in-page move to the login page would keep the old socket, still
+signed in, and the login page would send the reader straight back.
 
 Every request that presents the cookie, each asset a page loads among them, reads the session node
 to check it. It writes the session's `lastActivity` only when that is a minute old or more
