@@ -69,8 +69,9 @@ The range of core's module contract the module is written against, as a semver r
 The contract is what a module may use from core: `@ein/client`, `@ein/api`, `@ein/paths` and the
 shell's kit `@ein/ui/*`. `src/client/contract.snapshot` lists every symbol in it, and a test fails
 when the contract changes without the version and the snapshot changing with it: a compatible
-bump for additions, a breaking one for anything removed or changed — and on a breaking bump, every
-module's `coreApi` too. Below 1.0.0 the minor is the breaking part and the patch the compatible one.
+bump for additions, a breaking one for anything changed or for a removal a module in the tree
+names — and on a breaking bump, every module's `coreApi` too. Until the first official release the
+modules in the tree are all there are, so removing a symbol none of them names is a compatible bump. Below 1.0.0 the minor is the breaking part and the patch the compatible one.
 A module whose range the core does not satisfy is refused at `mod setup`; an absent `coreApi` is
 accepted with a warning.
 

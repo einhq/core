@@ -120,7 +120,8 @@ export const MOD_JSON_NAME = 'mod.json';
  * Version of the `@ein/client` contract this core provides.
  *
  * Below 1.0.0, bump the patch for additive changes to `src/client/mod.ts` and the minor for
- * anything a module could be broken by (a caret range `^0.1.0` takes 0.1.x only). Modules
+ * anything a module could be broken by (a caret range `^0.1.0` takes 0.1.x only); removing a symbol
+ * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
 export const MODULE_API_VERSION = '0.12.6';
