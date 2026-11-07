@@ -7,7 +7,7 @@ import type { CmdReturn } from '../../types.ts';
 
 export const pipelineWorker = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    string: ['concurrency', 'pool', 'capacity', 'kind', 'reserve-capacity', 'reserve-kind', 'kind-quantum', 'lease'],
+    string: ['concurrency', 'pool', 'capacity', 'kind', 'reserve-capacity', 'reserve-kind', 'kind-quantum', 'lease', 'name'],
     collect: ['capacity', 'kind', 'reserve-capacity', 'reserve-kind'],
     alias: { c: 'concurrency', p: 'pool' },
   });
@@ -36,6 +36,8 @@ export const pipelineWorker = async (cmd: Command): CmdReturn => {
 
   const worker = new PoolWorker(cmd.sys.vfs, cmd.opts.tty, {
     poolPath,
+    // A service's worker is known by the service's name; `--name` names one started by hand.
+    name: (flags.name as string | undefined) || cmd.env.SERVICE_NAME || undefined,
     capacity,
     kinds: (flags.kind as string[]).filter(Boolean),
     reserveKinds: (flags['reserve-kind'] as string[]).filter(Boolean),
@@ -82,6 +84,7 @@ pipelineWorker.spec = {
       description: 'Batch by kind: drain one kind for this many ms before rotating (default 0, off)',
     },
     { name: 'lease', type: 'number' as const, description: 'Lease duration in ms (default 60000)' },
+    { name: 'name', type: 'string' as const, description: 'What pool-stat and the dashboard call this worker (default: the service it runs as)' },
     { name: 'concurrency', type: 'number' as const, description: 'Upper bound on concurrent jobs (default 1)' },
   ],
 };

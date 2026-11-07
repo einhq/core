@@ -244,10 +244,19 @@ export type PoolWakeAnswer = { ok: true; woken: { pool: string; kind: string }[]
  * `kinds[].unservableSince`, joined by the tracker `metrics-sampler` feeds.
  */
 export type PoolWorkerInfo = {
+  /** The service it runs as (`models`, `media-worker`), when it has a name. */
+  name?: string;
   kinds: string[];
   currentKind?: string;
   kindSince?: number;
   kindQuantumMs: number;
+  /** How many jobs it runs at once at most. */
+  concurrency: number;
+  /** What it offers the pool (`models: 4`, `cpu: 2`), and how much of that its claimed jobs hold now. */
+  capacity: Record<string, number>;
+  inUse: Record<string, number>;
+  /** Its claimed jobs now, by kind. */
+  running: Record<string, number>;
   reserveKinds: string[];
   reserveCapacity: Record<string, number>;
   nextReserveKind?: string;

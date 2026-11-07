@@ -54,6 +54,8 @@ const KIND_BOUNDARY_MAX_MS = 5 * 60_000;
 
 type PoolWorkerOptions = {
   poolPath: string;
+  /** What a reader calls this worker: the service it runs as (`models`, `media-worker`). */
+  name?: string;
   /** Total capacity this worker offers, e.g. `{ vramMb: 15000 }`. */
   capacity?: Record<string, number>;
   /** Only claim these kinds. Empty means anything the capacity allows. */
@@ -90,6 +92,8 @@ type PoolWorkerOptions = {
 export type PoolWorkerState = {
   pool: string;
   owner: string;
+  /** The service it runs as, when it has a name. */
+  name?: string;
   kinds: string[];
   /** The kind holding the worker right now, or undefined before its first claim. */
   currentKind?: string;
@@ -98,6 +102,11 @@ export type PoolWorkerState = {
   /** 0 when the worker has one kind and rotation cannot arise. */
   kindQuantumMs: number;
   concurrency: number;
+  /** What it offers the pool, and how much of that its claimed jobs hold now. */
+  capacity: Record<string, number>;
+  inUse: Record<string, number>;
+  /** Its claimed jobs now, by kind. */
+  running: Record<string, number>;
   reserveKinds: string[];
   reserveCapacity: Record<string, number>;
   nextReserveKind?: string;
@@ -159,6 +168,7 @@ export class PoolWorker {
   /** Capacity not currently committed to a claimed job. */
   private remaining: Record<string, number>;
   private readonly owner: string;
+  private readonly name: string | undefined;
   private readonly poolPath: string;
   private readonly capacity: Record<string, number>;
   private readonly kinds: string[];
@@ -199,6 +209,7 @@ export class PoolWorker {
 
   constructor(private vfs: NodeVFS, private tty: TtyIf, opts: PoolWorkerOptions) {
     this.poolPath = opts.poolPath;
+    this.name = opts.name;
     this.capacity = { ...(opts.capacity ?? {}) };
     this.remaining = { ...this.capacity };
     this.kinds = opts.kinds ?? [];
@@ -241,11 +252,18 @@ export class PoolWorker {
     return {
       pool: this.poolPath,
       owner: this.owner,
+      name: this.name,
       kinds: [...this.kinds],
       currentKind: this.currentKind,
       kindSince: this.currentKind === undefined ? undefined : this.kindSince,
       kindQuantumMs: this.kindQuantumMs,
       concurrency: this.concurrency,
+      capacity: { ...this.capacity },
+      inUse: Object.fromEntries(Object.entries(this.capacity).map(([key, value]) => [key, value - (this.remaining[key] ?? 0)])),
+      running: [...this.inFlight.values()].reduce<Record<string, number>>((byKind, { job }) => {
+        byKind[job.kind] = (byKind[job.kind] ?? 0) + 1;
+        return byKind;
+      }, {}),
       reserveKinds: [...this.reserveKinds],
       reserveCapacity: { ...this.reserveCapacity },
       nextReserveKind: this.reserveKinds[this.reserveCursor],

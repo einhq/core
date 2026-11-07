@@ -134,7 +134,19 @@ Deno.test({
       unservableKinds.observe(
         POOLS_PATH,
         { rates: { byKind: { 'gpu-describe': { ready: 2 }, 'gpu-faces': { ready: 3 } } } },
-        [{ pool, owner: 'test', kinds: ['gpu-faces'], kindQuantumMs: 0, concurrency: 1, reserveKinds: [], reserveCapacity: {}, resting: {} }],
+        [{
+          pool,
+          owner: 'test',
+          kinds: ['gpu-faces'],
+          kindQuantumMs: 0,
+          concurrency: 1,
+          capacity: {},
+          inUse: {},
+          running: {},
+          reserveKinds: [],
+          reserveCapacity: {},
+          resting: {},
+        }],
         since,
       );
 

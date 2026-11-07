@@ -102,11 +102,18 @@ const poolThroughput = (
 const workersOn = (path: string): PoolWorkerInfo[] =>
   poolWorkerStates()
     .filter((worker) => worker.pool === path)
-    .map(({ kinds, currentKind, kindSince, kindQuantumMs, reserveKinds, reserveCapacity, nextReserveKind, accumulatingFor, resting }) => ({
+    .map((
+      { name, kinds, currentKind, kindSince, kindQuantumMs, concurrency, capacity, inUse, running, reserveKinds, reserveCapacity, nextReserveKind, accumulatingFor, resting },
+    ) => ({
+      ...(name ? { name } : {}),
       kinds,
       currentKind,
       kindSince,
       kindQuantumMs,
+      concurrency,
+      capacity,
+      inUse,
+      running,
       reserveKinds,
       reserveCapacity,
       nextReserveKind,
@@ -171,7 +178,8 @@ const writePools = async (cmd: Command, pools: PoolStatAnswer[]): Promise<void> 
     for (const worker of pool.workers) {
       const on = worker.currentKind ? `on ${worker.currentKind}` : 'idle';
       const holding = worker.accumulatingFor ? `  holding capacity for ${worker.accumulatingFor}` : '';
-      await cmd.writeLn(`          worker ${on}  offers ${worker.kinds.join(', ')}${holding}`);
+      const slots = Object.entries(worker.capacity).map(([key, value]) => `${key} ${worker.inUse[key] ?? 0}/${value}`).join(' ');
+      await cmd.writeLn(`          worker ${worker.name ?? ''}${worker.name ? ' ' : ''}${on}${slots ? `  ${slots}` : ''}  offers ${worker.kinds.join(', ')}${holding}`);
     }
   }
 };
