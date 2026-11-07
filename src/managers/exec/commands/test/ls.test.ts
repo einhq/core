@@ -1,4 +1,4 @@
-/** ls: listing, several operands, hidden entries, long format, an empty directory, unknown flags and paging. */
+/** ls: listing, several operands, -d, hidden entries, long format, an empty directory, unknown flags and paging. */
 
 import { assertEquals } from '@std/assert';
 import { assertErrorContains, createTestContext, setupBasicTestDir, type ShellClient } from '../../../../testing/mod.ts';
@@ -121,6 +121,22 @@ Deno.test({
       assertErrorContains(result, "ls: cannot access '/nonexistent'");
       const listed = await client.execString('export JSON_OUTPUT=0\nls /multi/a /nonexistent 2>/tmp/ls-operands.err; true');
       assertEquals(listed, '/multi/a:\ninner\n');
+    });
+
+    await t.step('-d lists each path itself, not what it holds', async () => {
+      assertEquals(await client.execJson<string[]>('ls -d /multi'), ['/multi']);
+      assertEquals(await client.execJson<string[]>('ls -d /multi/b /multi/a'), ['/multi/a', '/multi/b']);
+      assertEquals(await client.execJson<string[]>('cd /multi && ls -d'), ['.']);
+      assertEquals(await client.execJson<string[]>("ls -d '/multi/*'"), ['a', 'b']);
+      assertEquals(await client.execString('export JSON_OUTPUT=0\nls -d /multi /multi/a'), '/multi\n/multi/a\n');
+      const long = await client.execJson<Array<{ name: string }>>('ls -ld /multi/a');
+      assertEquals(long.map((e) => e.name), ['/multi/a']);
+      // A path that is there answers 0 and one that is not 2, so a script can test for it with `ls -d`.
+      assertEquals(await client.execString('export JSON_OUTPUT=0\nls -d /multi >/tmp/ls-d.out 2>&1; echo $?; ls -d /nowhere >/tmp/ls-d.out 2>&1; echo $?'), '0\n2\n');
+      const missing = await client.exec('ls -d /multi /nonexistent');
+      assertEquals(missing.success, false);
+      assertErrorContains(missing, "ls: cannot access '/nonexistent'");
+      assertErrorContains(await client.exec('ls -d --limit 2 /multi'), 'ls: --limit pages a directory');
     });
 
     await t.step('--limit lists a page in name order, and --after the next one', async () => {

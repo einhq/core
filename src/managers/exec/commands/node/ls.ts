@@ -26,7 +26,7 @@ const listPage = async (cmd: Command, path: string, opts: { limit: number; after
   }
 };
 
-type LsFlags = { l: boolean; a: boolean; A: boolean; r: boolean; L: boolean; C: boolean; h: boolean; '1': boolean; after?: string };
+type LsFlags = { l: boolean; a: boolean; A: boolean; r: boolean; L: boolean; C: boolean; d: boolean; h: boolean; '1': boolean; after?: string };
 
 /** The entries `ls` shows for one operand: a directory's children, or those matching a `*` pattern. */
 const listOperand = async (cmd: Command, operand: string, flags: LsFlags, limit: number | undefined) => {
@@ -77,6 +77,17 @@ const listOperand = async (cmd: Command, operand: string, flags: LsFlags, limit:
   }
 
   return entries;
+};
+
+/**
+ * What `ls -d` shows for one operand: the node itself under the name it was given, or for a `*`
+ * pattern the entries it matches.
+ */
+const operandItself = async (cmd: Command, operand: string, flags: LsFlags): Promise<NodeChildEntry[]> => {
+  if (operand.includes('*')) return await listOperand(cmd, operand, flags, undefined);
+  const path = resolve(cmd.cwd, operand);
+  const opts = { readlink: flags.L };
+  return [{ node: await cmd.sys.vfs.get(cmd.access, path, opts), name: operand, childCount: await cmd.sys.vfs.childCount(cmd.access, path, opts) }];
 };
 
 /** The long listing of `entries`, its owners named from `ucache` and `gcache`. */
@@ -154,7 +165,7 @@ const longListing = (cmd: Command, entries: NodeChildEntry[], flags: LsFlags, uc
 export const ls = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, {
-    boolean: ['l', 'a', 'A', 'r', 'L', 'C', 'h', '1'],
+    boolean: ['l', 'a', 'A', 'r', 'L', 'C', 'd', 'h', '1'],
     string: ['limit', 'after'],
     unknown: collectUnknownFlags(unknown),
   });
@@ -162,7 +173,8 @@ export const ls = async (cmd: Command): CmdReturn => {
   if (await reportUnknownFlags(cmd, unknown)) return 1;
 
   const operands = flags._.length > 0 ? flags._.map(String) : ['.'];
-  const several = operands.length > 1;
+  // -d lists the operands themselves, together, so several of them make one listing.
+  const several = operands.length > 1 && !flags.d;
   const hasFilter = operands.some((operand) => operand.includes('*'));
 
   const limit = flags.limit === undefined ? undefined : Number(flags.limit);
@@ -178,6 +190,10 @@ export const ls = async (cmd: Command): CmdReturn => {
     await cmd.writeError(`ls: --limit pages in name order, so it takes no ${hasFilter ? 'pattern' : '-r'}\n`);
     return 1;
   }
+  if (limit !== undefined && flags.d) {
+    await cmd.writeError('ls: --limit pages a directory, which -d does not list\n');
+    return 1;
+  }
   if (limit !== undefined && several) {
     await cmd.writeError('ls: --limit pages one directory, so it takes one path\n');
     return 1;
@@ -187,14 +203,20 @@ export const ls = async (cmd: Command): CmdReturn => {
   // the exit status is 2.
   let status = 0;
   const listings: Array<{ operand: string; entries: NodeChildEntry[] }> = [];
+  const itself: NodeChildEntry[] = [];
   for (const operand of operands) {
     try {
-      listings.push({ operand, entries: await listOperand(cmd, operand, flags, limit) });
+      if (flags.d) itself.push(...await operandItself(cmd, operand, flags));
+      else listings.push({ operand, entries: await listOperand(cmd, operand, flags, limit) });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await cmd.writeError(`ls: cannot access '${operand}': ${message}\n`);
       status = 2;
     }
+  }
+  if (flags.d) {
+    itself.sort((a, b) => flags.r ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
+    listings.push({ operand: '.', entries: itself });
   }
 
   if (cmd.json) {
@@ -267,6 +289,7 @@ ls.spec = {
     { name: 'r', type: 'bool' as const, description: 'reverse order while sorting' },
     { name: 'L', type: 'bool' as const, description: 'do not follow symbolic links' },
     { name: 'C', type: 'bool' as const, description: "include each entry's own child names (extra lookup, JSON output only)" },
+    { name: 'd', type: 'bool' as const, description: 'list each path itself, not what a directory holds' },
     { name: '1', type: 'bool' as const, description: 'list one entry per line, also on a terminal' },
     { name: 'h', type: 'bool' as const, description: 'with -l, print file sizes in units of 1024 (e.g. 1.5 KB)' },
     { name: 'limit', type: 'string' as const, description: "list one page of this many entries, in the store's name order" },
@@ -275,7 +298,8 @@ ls.spec = {
   examples: [
     'ls -l /archive/albums/Exempelalbum_2019/files',
     'ls /archive/people',
+    'ls -d /archive/albums/Exempelalbum_2019 /archive/people',
     'ls -l --limit 200 --after IMG_0412.jpg /home/anna/staging/files/inbox',
   ],
-  returns: "the directory's entries; for several paths, an object of each path's entries.",
+  returns: "the directory's entries; for several paths, an object of each path's entries; with -d, the paths themselves.",
 };
