@@ -36,7 +36,11 @@ Deno.test({
     {
       const handle = await vfs.open(ADMIN_ACCESS, '/opt/fixture-svc/start.sh', { mode: 'w' });
       try {
-        await handle.write(new TextEncoder().encode('echo "fixture stdout"\necho "fixture stderr" >&2\nuuid >> /tmp/fixture-heartbeat\nsleep 3600\n'));
+        await handle.write(
+          new TextEncoder().encode(
+            'echo "fixture stdout"\necho "fixture stderr" >&2\nuuid >> /tmp/fixture-heartbeat\necho "${CFG_FIXTURE_MODE:-unset}" >> /tmp/fixture-mode\nsleep 3600\n',
+          ),
+        );
       } finally {
         await handle.close();
       }
@@ -150,6 +154,16 @@ Deno.test({
       await new Promise((resolve) => setTimeout(resolve, 1200));
       const settledBeats = (await client.execString('cat /tmp/fixture-heartbeat')).trim().split('\n');
       assertEquals(settledBeats.length, 2);
+    });
+
+    await t.step('a restart takes its settings from the files, not from the shell that asks', async () => {
+      // A shell opened while a setting was set still exports it after the setting is cleared.
+      await cmd.shouldSucceed('export CFG_FIXTURE_MODE=cleared; service restart fixture-svc');
+      assertEquals((await client.execString('tail -n 1 /tmp/fixture-mode')).trim(), 'unset');
+
+      await client.exec(`echo "export CFG_FIXTURE_MODE='set'" >> /etc/config`);
+      await cmd.shouldSucceed('service restart fixture-svc');
+      assertEquals((await client.execString('tail -n 1 /tmp/fixture-mode')).trim(), 'set');
     });
 
     await t.step('service stop halts the service', async () => {

@@ -160,9 +160,9 @@ export const shownValue = (entry: ConfigEntry): string => entry.type === 'secret
  * Only services that are actually running are touched: a service someone
  * deliberately stopped must not be brought back to life by a settings change.
  *
- * The restarted shell picks the new value up from `/etc/config` on its own: a
- * shell sources `/etc/bashrc` after the env it is passed, so the caller's stale
- * copy of the value loses to the file. Returns the names restarted and,
+ * The restarted shell picks the value up from the settings files on its own:
+ * the service manager leaves the caller's settings out of the environment it
+ * passes, so a value just cleared is not carried over. Returns the names restarted and,
  * separately, the ones that failed, so the UI can say which.
  */
 export const restartConsumers = async (

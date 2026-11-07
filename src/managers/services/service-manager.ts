@@ -21,6 +21,15 @@ const DEFAULT_STOP_TIMEOUT = 5000;
 const DEFAULT_RESTART_WINDOW = 60000;
 const DEFAULT_MAX_RESTARTS = 3;
 
+/**
+ * The caller's environment without its settings (`CFG_*`).
+ *
+ * A service's shell sources `/etc/bashrc`, which exports every setting from the files that hold
+ * it now. The caller's copies are what those files held when its shell opened: a setting cleared
+ * since is in none of them, so a copy passed on would outlive the clearing.
+ */
+const withoutSettings = (env: Record<string, string>): Record<string, string> => Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('CFG_')));
+
 const encodeLogLine = (line: string): string => JSON.stringify(line.endsWith('\r') ? line.slice(0, -1) : line);
 
 export type ServiceManagerConfig = {
@@ -181,7 +190,7 @@ export class ServiceManager implements ManagerIf {
           SERVICE_NAME: name,
           SERVICE_PATH: servicePath,
           SERVICES_PATH: this.servicesPath,
-          ...env,
+          ...withoutSettings(env),
           ...config.env,
         },
       });
