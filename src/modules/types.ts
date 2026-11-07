@@ -124,7 +124,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.12.6';
+export const MODULE_API_VERSION = '0.12.7';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];

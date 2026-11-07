@@ -175,7 +175,6 @@ export { type StepPhase, stepPhase } from '../lib/step-phase.ts';
 export { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../lib/step-exit.ts';
 /** What a service's `checkCommand` and `gaugeCommand` answer (see `ServiceConfig`). */
 export type { Gauge, HealthCheck } from '../lib/api/system.ts';
-export { withHostPath, withHostPaths } from '../lib/host-path/mod.ts';
 
 /* Domain events */
 export { type DomainEvent, EVENTS_NODE_PATH, EVENTS_ROUTING_KEY } from '../lib/events/mod.ts';
