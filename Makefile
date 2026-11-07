@@ -207,8 +207,8 @@ test-pg: ## Run tests incl. the PostgreSQL tier (needs make db)
 # Only every module's `*.e2e.test.ts`: the rest is the fast tier, which `make test` already runs,
 # and inside this image it would run against the real services ENV_FILE points at.
 #
-# The tier's file root lands under /files-tmp, so a service that mounts the same directory at the
-# same path can read what a test uploads.
+# The tier's file root lands under /files-tmp, the scratch kept beside the image. EMS reaches a
+# test's files through ems-files, where ENV_FILE's CFG_EMS_FILES_ADDRESS says.
 E2E_TESTS = $(sort $(shell find modules -path '*/test/*' -name '*.e2e.test.ts'))
 
 container-test: ## Run the modules' E2E tier inside the EiN image (needs make container-build; ENV_FILE: the services it reaches)

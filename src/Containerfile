@@ -7,8 +7,8 @@
 # media tool and every model — exiftool, ImageMagick, ffmpeg, the CUDA stack, captioning,
 # transcription, embeddings, faces, voices, fingerprints, document text, the renditions and the
 # transcodes — lives in EMS (ein/ems), a service of its own that EiN reaches over HTTP at
-# CFG_EMS_URL and that mounts the same /files, /old, /files-volatile and /files-tmp. See
-# docs/architecture.md, "The ems module".
+# CFG_EMS_URL. EMS mounts none of EiN's files: it reaches each request's through the ems module's
+# ems-files service, on CFG_EMS_FILES_PORT. See docs/architecture.md, "The ems module".
 #
 # Build:
 #   podman build -t ein -f src/Containerfile .

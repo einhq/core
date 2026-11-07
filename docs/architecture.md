@@ -56,7 +56,7 @@ graph TB
     ARCHIVE -->|"@ems/client"| EMSAPI
     EMSAPI --> MODELS
     EMSAPI --> TOOLS
-    FS -.->|"same mounts, same paths"| TOOLS
+    EMSMOD -.->|"ems-files: a request's files over SFTP"| TOOLS
 ```
 
 ---
