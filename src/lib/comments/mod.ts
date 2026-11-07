@@ -18,10 +18,10 @@ export type { CommentEntry } from '../api/comments.ts';
 export const COMMENTS_DIR = 'comments';
 export const COMMENT_MIMETYPE = 'text/markdown';
 
-type CommentAuthor = { username: string; personPath?: string };
+type CommentAuthor = { username: string; name?: string; personPath?: string };
 
 /**
- * The accounts of `uids`, by uid: each one's username and the person it is linked to. A uid with
+ * The accounts of `uids`, by uid: each one's username, full name and the person it is linked to. A uid with
  * no account, or every uid when the users directory cannot be read, is left out.
  */
 export const commentAuthors = async (cmd: VfsCommand, uids: Iterable<number>): Promise<Map<number, CommentAuthor>> => {
@@ -38,7 +38,8 @@ export const commentAuthors = async (cmd: VfsCommand, uids: Iterable<number>): P
     await Promise.all(users.map(async (u) => {
       const personPath = await cmd.sys.vfs.get(ADMIN_ACCESS, `${cmd.env.USERS_PATH}/${u.name}/person`, { follow: false })
         .then((link) => link.props.softlink || undefined, () => undefined);
-      return [u.node.attrs.uid, { username: u.name, ...(personPath ? { personPath } : {}) }] as const;
+      const name = u.node.attrs.name?.trim() || undefined;
+      return [u.node.attrs.uid, { username: u.name, ...(name ? { name } : {}), ...(personPath ? { personPath } : {}) }] as const;
     })),
   );
 };
@@ -86,6 +87,7 @@ export const readComments = async (cmd: VfsCommand, path: string): Promise<Comme
     const author = authors.get(entry.uid);
     if (!author) continue;
     entry.author = author.username;
+    if (author.name) entry.authorName = author.name;
     if (author.personPath) entry.personPath = author.personPath;
   }
 

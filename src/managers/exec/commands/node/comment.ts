@@ -67,6 +67,7 @@ const commentAdd = async (cmd: Command, path: string, body: string): Promise<num
         body,
         uid,
         author: author?.username ?? String(uid),
+        ...(author?.name ? { authorName: author.name } : {}),
         ...(author?.personPath ? { personPath: author.personPath } : {}),
         createdAt: Date.now(),
       } satisfies CommentEntry,

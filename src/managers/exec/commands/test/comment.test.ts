@@ -108,12 +108,13 @@ Deno.test({
       }
     });
 
-    await t.step("a comment carries the person its author's account is linked to, read by another user too", async () => {
+    await t.step("a comment carries its author's full name and linked person, read by another user too", async () => {
       await cmd.shouldSucceed('ln -s /people/anna-andersson /etc/users/anna/person');
+      await cmd.shouldSucceed("user-update anna --name 'Anna Andersson'");
       const carl = await testCtx.server.createShellClient({ username: 'carl', password: 'pw123' });
       try {
         const seen = await carl.execJson<CommentEntry[]>('comment list /scratch/shared/pic.txt');
-        assertEquals(seen.map((c) => [c.author, c.personPath]), [['anna', '/people/anna-andersson']]);
+        assertEquals(seen.map((c) => [c.author, c.authorName, c.personPath]), [['anna', 'Anna Andersson', '/people/anna-andersson']]);
       } finally {
         carl.close();
       }
