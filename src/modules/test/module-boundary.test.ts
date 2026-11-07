@@ -224,6 +224,8 @@ Deno.test('modules do not import core internals', async (t) => {
 
       for (const spec of specifiersIn(await Deno.readTextFile(path))) {
         if (spec.startsWith('.') || spec.startsWith('/')) continue;
+        // The runtime's built-ins resolve wherever Deno runs, and the loader leaves them as they are.
+        if (spec.startsWith('node:')) continue;
         if (isModulePage(path) && LENT.has(spec)) continue;
         const resolution = resolveModuleSpecifier(spec, manifest, lookup);
         if (resolution.kind === 'error') offenders.push(`${relative(REPO_ROOT, path)}: ${resolution.message}`);
