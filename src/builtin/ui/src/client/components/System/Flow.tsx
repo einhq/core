@@ -9,7 +9,11 @@ import { WORKLOAD_COLORS } from '../Pipeline/palette.ts';
  * colored rule under its heading and a count, the arrow between columns, an item, and slots.
  */
 
-/** A column's width, which a module's columns take too so the board reads as one row. */
+/**
+ * A column's narrowest width. Columns share the board's width beyond it, a module's too: a
+ * `system.flow` panel returns its columns and arrows without a row of its own around them, so they
+ * sit in the board's row beside EiN's. A board narrower than its columns scrolls.
+ */
 export const FLOW_COLUMN_WIDTH = 196;
 
 type FlowColumnProps = {
@@ -26,7 +30,7 @@ type FlowColumnProps = {
 /** One column of the flow board. */
 export function FlowColumn({ title, count, color, hint, children }: FlowColumnProps) {
   return (
-    <Stack gap={6} w={FLOW_COLUMN_WIDTH} style={{ flex: `0 0 ${FLOW_COLUMN_WIDTH}px` }}>
+    <Stack gap={6} miw={FLOW_COLUMN_WIDTH} style={{ flex: '1 1 0' }}>
       <Group gap={6} pb={6} wrap='nowrap' style={{ borderBottom: `2px solid ${color}` }}>
         <Text size='sm' fw={600}>{title}</Text>
         {count !== undefined && <Text ml='auto' fw={650} size='lg' style={{ fontVariantNumeric: 'tabular-nums' }}>{count.toLocaleString()}</Text>}
