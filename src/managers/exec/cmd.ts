@@ -306,14 +306,16 @@ export class Cmd implements Command {
     }
   }
 
-  async prompt(prompt?: string, echoMode?: EchoMode, instead?: string) {
+  async prompt(prompt?: string, echoMode?: EchoMode, instead?: string, opts: { terminal?: boolean } = {}) {
     // Without a terminal stdin may be a channel that stays open with no one behind it, such as an
     // ssh exec's, and a read would wait on it for good.
     if (!this.tty) throw new NoTerminalError(instead);
+    // A handle of its own on the terminal's input: the line reader cancels the stream it read.
+    const terminal = opts.terminal ? await this.sys.bufferManager.open(this._opts.tty.getIO().stdin, {}, 'r') : undefined;
     try {
       const rl = new Readline({
-        in: await this.openStdin(),
-        out: this._stdout!,
+        in: terminal ?? await this.openStdin(),
+        out: terminal ? this._stderr! : this._stdout!,
         rows: this.rows,
         cols: this.cols,
         echoMode,
@@ -332,7 +334,8 @@ export class Cmd implements Command {
         throw error;
       }
     } finally {
-      await this.closeStdin();
+      if (terminal) await terminal.close();
+      else await this.closeStdin();
     }
   }
 
@@ -350,8 +353,13 @@ export class Cmd implements Command {
     return { code, stdout, stderr, ...(errorCode === 'EXEC_TIMEOUT' ? { timedOut: true } : {}) };
   }
 
-  async executeInline(script: string): Promise<number> {
-    return this._opts.tty.run(script, this.opts.ctx);
+  async executeInline(script: string, opts: { terminalStdin?: boolean } = {}): Promise<number> {
+    if (!opts.terminalStdin) return this._opts.tty.run(script, this.opts.ctx);
+    if (!this.tty) throw new NoTerminalError();
+    // The shell's descriptor 0 is the terminal's input
+    const ctx = this.opts.ctx.subContext();
+    ctx.redirectStdin('0');
+    return this._opts.tty.run(script, ctx);
   }
 
   async login(username: string, password: string, session?: boolean): Promise<void> {

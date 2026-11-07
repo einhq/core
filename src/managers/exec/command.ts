@@ -61,8 +61,12 @@ export interface Command {
    * Ask on the terminal and read the answer. A command with no terminal (no `tty`) is not asked: it
    * fails at once with `<name>: no terminal to answer on; <instead>`, `instead` saying how to give
    * the answer without one (`add --force`).
+   *
+   * The answer is read from stdin and the question written to stdout; with `terminal`, both go to
+   * the terminal itself, the question on stderr, as a process's `/dev/tty` does: for a command whose
+   * stdin is the data it works through.
    */
-  prompt(prompt?: string, echoMode?: EchoMode, instead?: string): Promise<string>;
+  prompt(prompt?: string, echoMode?: EchoMode, instead?: string, opts?: { terminal?: boolean }): Promise<string>;
   write(data: string): Promise<void>;
   writeLn(data: string): Promise<void>;
   writeJSON(data: any, pretty?: boolean): Promise<void>;
@@ -79,7 +83,11 @@ export interface Command {
 
   /** Run a script and capture its output; past `timeoutMs` it is stopped, with `timedOut` set. */
   execute(script: string, opts?: { timeoutMs?: number }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
-  executeInline(script: string): Promise<number>;
+  /**
+   * Run a script in this command's context, its output the command's. Its stdin is the command's,
+   * or with `terminalStdin` the terminal's input; without a terminal (no `tty`) that is refused.
+   */
+  executeInline(script: string, opts?: { terminalStdin?: boolean }): Promise<number>;
   login(username: string, password: string, session?: boolean): Promise<void>;
   logout(session?: boolean): Promise<void>;
   /** Act as a share link's principal from now on, in this shell and with `session` in its session. */

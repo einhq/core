@@ -30,7 +30,7 @@
   },
   "imports": {
     /* EiN packages */
-    "@ein/bash-executor": "jsr:@ein/bash-executor@^3.0.0",
+    "@ein/bash-executor": "jsr:@ein/bash-executor@^3.0.1",
 
     /* JSR */
     "@std/yaml": "jsr:@std/yaml@^1.0.11",

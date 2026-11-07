@@ -1,4 +1,4 @@
-/** xargs: GNU's item splitting and quoting, batches, -I, the commands' stdin, and exit statuses. */
+/** xargs: GNU's item splitting and quoting, batches, -I, -P, -x, the commands' stdin, and exit statuses. */
 
 import { assertEquals, assertMatch } from '@std/assert';
 import { assertErrorContains, createTestContext, type ShellClient } from '../../../../testing/mod.ts';
@@ -43,6 +43,35 @@ Deno.test({
       assertErrorContains(await client.exec('echo toolongitem | xargs -s 10 echo'), 'xargs: argument line too long');
     });
 
+    await t.step('-x with -n, and -L always, stop where a run cannot take its items', async () => {
+      assertEquals(await text('printf "a b c d\\n" | xargs -n 3 -s 9 echo'), 'a b\nc d\n');
+      assertErrorContains(await client.exec('printf "a b c d\\n" | xargs -x -n 3 -s 9 echo'), 'xargs: argument list too long');
+      assertErrorContains(await client.exec('printf "a b\\nc d\\n" | xargs -L 1 -s 8 echo'), 'xargs: argument list too long');
+      assertEquals(await text('printf "a b\\nc d\\n" | xargs -L 1 -s 9 echo'), 'a b\nc d\n');
+      // Without -n or -L there is no count to keep
+      assertEquals(await text('printf "a b c d\\n" | xargs -x -s 9 echo'), 'a b\nc d\n');
+    });
+
+    await t.step('-P runs commands at once, each with its own run of the shell', async () => {
+      const slow = 'f() { sleep "0.$1"; echo "$1"; }; ';
+      assertEquals(await text(`${slow}printf '3\\n1\\n' | xargs -P 2 -n1 f`), '1\n3\n');
+      assertEquals(await text(`${slow}printf '3\\n1\\n' | xargs -n1 f`), '3\n1\n');
+      assertEquals(await text(`${slow}printf '3\\n1\\n' | xargs --max-procs=0 -I {} f {}`), '1\n3\n');
+      // The script around them still has its own source: a function it defines afterwards is whole
+      assertEquals(
+        await text(`${slow}printf '1\\n2\\n' | xargs -P 2 -n1 f; g() { echo after; }; declare -f g`),
+        '1\n2\ng () \n{ \n    echo after\n}\n',
+      );
+      assertEquals(await text(`printf 'a b c\\n' | xargs -P 3 -n1 false; echo "st=$?"`), 'st=123\n');
+      assertErrorContains(await client.exec('echo a | xargs -P x echo'), 'xargs: invalid number "x" for -P option');
+      assertErrorContains(await client.exec('echo a | xargs -P -1 echo'), 'xargs: value -1 for -P option should be >= 0');
+    });
+
+    await t.step('-p and -o need a terminal', async () => {
+      assertErrorContains(await client.exec('echo a | xargs -p echo'), 'xargs: -p: no terminal to read from');
+      assertErrorContains(await client.exec('echo a | xargs --open-tty echo'), 'xargs: -o: no terminal to read from');
+    });
+
     await t.step('-I runs once per line, the whole line replacing the string', async () => {
       assertEquals(await text("printf '  a b\\nc\\n\\n' | xargs -I {} echo '[{}]' {}"), '[a b] a b\n[c] c\n');
       assertEquals(await text("printf 'x\\n' | xargs -i echo '<{}>'"), '<x>\n');
@@ -82,7 +111,7 @@ Deno.test({
     });
 
     await t.step('an option it does not know is refused', async () => {
-      assertErrorContains(await client.exec('echo a | xargs -P 4 echo'), "xargs: invalid option -- 'P'");
+      assertErrorContains(await client.exec('echo a | xargs -Q echo'), "xargs: invalid option -- 'Q'");
       assertErrorContains(await client.exec('echo a | xargs --bogus echo'), "xargs: unrecognized option '--bogus'");
       assertErrorContains(await client.exec('echo a | xargs -n 0 echo'), 'xargs: invalid number "0" for -n option');
     });
