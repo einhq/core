@@ -173,7 +173,6 @@ async function main() {
     // the durable root, so a single-disk install has one root.
     EXTERNAL_VOLATILE_FILE_ROOT_PATH: Deno.env.get('VOLATILE_FILE_ROOT_PATH') || Deno.env.get('FILE_ROOT_PATH') ||
       resolve(Deno.cwd(), './files'),
-    EXTERNAL_FILE_TMP_PATH: Deno.env.get('FILE_TMP_PATH') || '/tmp',
     EXTERNAL_DEV_MODULES_PATH: Deno.env.get('DEV_MODULES_PATH') || resolve(Deno.cwd(), './modules'),
     EXTERNAL_MODULE_INSTALL_PATH: moduleInstallPath,
     INSTALL_MODULES: Deno.env.get('INSTALL_MODULES') ?? '',

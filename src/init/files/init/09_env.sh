@@ -32,11 +32,6 @@ export EIN_FILE_ROOT_PATH=\"$EXTERNAL_FILE_ROOT_PATH\""
 export EIN_VOLATILE_FILE_ROOT_PATH=\"$EXTERNAL_VOLATILE_FILE_ROOT_PATH\""
   fi
 
-  if [ -n "$EXTERNAL_FILE_TMP_PATH" ]; then
-    LAYOUT_TEXT="$LAYOUT_TEXT
-export EIN_FILE_TMP_PATH=\"$EXTERNAL_FILE_TMP_PATH\""
-  fi
-
   if [ ! -e "$LAYOUT" ] || [ "$(cat "$LAYOUT")" != "$LAYOUT_TEXT" ]; then
     echo "$LAYOUT_TEXT" > "$LAYOUT"
   fi

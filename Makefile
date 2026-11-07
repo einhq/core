@@ -17,9 +17,6 @@
 # VOLATILE_FILE_ROOT_PATH on an existing deployment strands already-written renditions.
 FILE_ROOT_PATH          ?= ./files
 VOLATILE_FILE_ROOT_PATH ?= ./files-volatile
-# Scratch for staged writes. Defaults to the container's /tmp when unset, i.e. the writable
-# layer — fine for small files, but it is on the wrong disk and vanishes on --replace.
-FILE_TMP_PATH           ?= ./files-tmp
 # Timezone the container renders and buckets in. Every timestamp is *stored* as an instant,
 # so this changes what is displayed and which year a birthtime aggregate counts a file
 # towards — not what any of it means. It reaches PostgreSQL's session TimeZone too, via
@@ -143,7 +140,7 @@ container-build: ## Build the EiN container image
 # continuations is handed to the SHELL, not read by make, and comments out the rest of the
 # command.
 container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: its modules; MODULE_INSTALL_PATH: what mod install installs)
-	@mkdir -p $(FILE_ROOT_PATH) $(VOLATILE_FILE_ROOT_PATH) $(FILE_TMP_PATH) $(MODULE_INSTALL_PATH)
+	@mkdir -p $(FILE_ROOT_PATH) $(VOLATILE_FILE_ROOT_PATH) $(MODULE_INSTALL_PATH)
 	podman run --replace -d \
 		--name $(CONTAINER_NAME) \
 		--restart $(CONTAINER_RESTART) \
@@ -155,7 +152,6 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		-e CFG_SSH_PORT=$(SSH_PORT) \
 		-e FILE_ROOT_PATH=/files \
 		-e VOLATILE_FILE_ROOT_PATH=/files-volatile \
-		-e FILE_TMP_PATH=/files-tmp \
 		-e DEV_MODULES_PATH=/modules-dev \
 		-e MODULE_INSTALL_PATH=/modules-installed \
 		-e TZ=$(TZ) \
@@ -166,7 +162,6 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 		$(if $(LOG_MODULES),-e LOG_MODULES=$(LOG_MODULES),) \
 		-v $(FILE_ROOT_PATH):/files \
 		-v $(VOLATILE_FILE_ROOT_PATH):/files-volatile \
-		-v $(FILE_TMP_PATH):/files-tmp \
 		-v $(OLD_PATH):/old \
 		-v $(MODULES_PATH):/modules-dev:ro \
 		-v $(MODULE_INSTALL_PATH):/modules-installed \
@@ -207,19 +202,20 @@ test-pg: ## Run tests incl. the PostgreSQL tier (needs make db)
 # Only every module's `*.e2e.test.ts`: the rest is the fast tier, which `make test` already runs,
 # and inside this image it would run against the real services ENV_FILE points at.
 #
-# The tier's file root lands under /files-tmp, the scratch kept beside the image. EMS reaches a
+# The tier's file root lands under TEST_FILE_ROOT_PATH, mounted at /files-test. EMS reaches a
 # test's files through ems-files, where ENV_FILE's CFG_EMS_FILES_ADDRESS says.
+TEST_FILE_ROOT_PATH ?= ./files-test
 E2E_TESTS = $(sort $(shell find modules -path '*/test/*' -name '*.e2e.test.ts'))
 
 container-test: ## Run the modules' E2E tier inside the EiN image (needs make container-build; ENV_FILE: the services it reaches)
-	@mkdir -p $(FILE_TMP_PATH)
+	@mkdir -p $(TEST_FILE_ROOT_PATH)
 	podman run --rm \
 		--memory $(CONTAINER_MEMORY) \
 		--network=host \
 		-e EIN_TEST_CONTAINER=1 \
-		-e EIN_TEST_FILE_ROOT=/files-tmp \
+		-e EIN_TEST_FILE_ROOT=/files-test \
 		$(if $(ENV_FILE),--env-file $(ENV_FILE),) \
-		-v $(FILE_TMP_PATH):/files-tmp \
+		-v $(TEST_FILE_ROOT_PATH):/files-test \
 		-v $(PWD):/work:ro \
 		-w /work \
 		--entrypoint deno \

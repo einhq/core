@@ -35,7 +35,7 @@ coverage
 .claude
 /files
 /files-volatile
-/files-tmp
+/files-test
 /modules-installed
 ssh_host_key*
 

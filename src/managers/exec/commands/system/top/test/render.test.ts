@@ -168,9 +168,9 @@ Deno.test('top frame', async (t) => {
   await t.step('gives tiers on one filesystem one meter, named for all of them', () => {
     const data = sample();
     const [disk] = data.disk!.tiers;
-    data.disk!.tiers = [disk, { ...disk, tier: 'tmp', path: '/tmp' }];
+    data.disk!.tiers = [disk, { ...disk, tier: 'volatile', path: '/files-volatile' }];
     const text = renderTop(data, view(), { rows: 50, cols: 160 }, { keys: true, now: NOW }).rows.map(toText).join('\n');
-    assert(text.includes('disk/tmp '), text);
+    assert(text.includes('disk/volatile '), text);
     assertEquals(text.split('900 GB free').length - 1, 1, 'one number, said once');
   });
 

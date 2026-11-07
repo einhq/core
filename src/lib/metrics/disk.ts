@@ -15,8 +15,7 @@
 import type { FileTier } from '../../registries/file/types.ts';
 
 export type DiskSample = {
-  /** Tier name, or `tmp` for the scratch root, which is not a storage tier. */
-  tier: FileTier | 'tmp';
+  tier: FileTier;
   path: string;
   device: string;
   totalBytes: number;
@@ -24,7 +23,7 @@ export type DiskSample = {
 };
 
 /** Tier roots as the boot mount sees them, in display order. */
-export type TierRoots = { tier: FileTier | 'tmp'; path: string }[];
+export type TierRoots = { tier: FileTier; path: string }[];
 
 export const sampleDisk = async (roots: TierRoots): Promise<DiskSample[]> => {
   const wanted = roots.filter((root) => root.path);

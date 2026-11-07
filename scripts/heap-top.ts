@@ -5,7 +5,7 @@
  * of the whole file needs more heap than the process being debugged had — the usual reason
  * a leak hunt stalls at "the snapshot is too big to open".
  *
- *   deno run -A scripts/heap-top.ts /files-tmp/heap-1.heapsnapshot
+ *   deno run -A scripts/heap-top.ts /files-volatile/heap/t0.heapsnapshot
  *   deno run -A scripts/heap-top.ts --json a.heapsnapshot > a.json   # for diffing
  *   deno run -A scripts/heap-top.ts --diff a.json b.heapsnapshot     # what grew between them
  *

@@ -52,12 +52,6 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     description: 'Host directory for content that can be made again — thumbnails, crops, transcodes — so it can live on a faster or cheaper disk.',
   },
   {
-    key: 'FILE_TMP_PATH',
-    kind: 'deployment',
-    default: '/tmp',
-    description: 'Host directory for temporary files while content is written.',
-  },
-  {
     key: 'DOCS_PATH',
     kind: 'deployment',
     default: './guide',
@@ -177,10 +171,8 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     description: 'Where file content is stored on the host, as FILE_ROOT_PATH gave it: what the dashboard reports disk use for.',
   },
   { key: 'EIN_VOLATILE_FILE_ROOT_PATH', kind: 'system', description: 'The same for content that can be made again.' },
-  { key: 'EIN_FILE_TMP_PATH', kind: 'system', description: 'The same for temporary files.' },
   { key: 'EXTERNAL_FILE_ROOT_PATH', kind: 'system', description: 'FILE_ROOT_PATH as boot received it, for the init scripts.' },
   { key: 'EXTERNAL_VOLATILE_FILE_ROOT_PATH', kind: 'system', description: 'VOLATILE_FILE_ROOT_PATH as boot received it.' },
-  { key: 'EXTERNAL_FILE_TMP_PATH', kind: 'system', description: 'FILE_TMP_PATH as boot received it.' },
   { key: 'EXTERNAL_DOCS_PATH', kind: 'system', description: 'DOCS_PATH as boot received it: what is mounted at /usr/docs/guide.' },
   { key: 'EXTERNAL_DEV_MODULES_PATH', kind: 'system', description: 'DEV_MODULES_PATH as boot received it.' },
   { key: 'EXTERNAL_MODULE_INSTALL_PATH', kind: 'system', description: 'MODULE_INSTALL_PATH as boot received it.' },

@@ -4,7 +4,7 @@
  * `heap-top.ts` says what a heap is made of and what grew; this says who is keeping it. That
  * is the difference between "4,498 Pipes leaked" and "4,498 Pipes are in BufferManager.pipes".
  *
- *   deno run -A scripts/heap-retainers.ts --class Pipe /files-tmp/heap/t1.heapsnapshot
+ *   deno run -A scripts/heap-retainers.ts --class Pipe /files-volatile/heap/t1.heapsnapshot
  *   deno run -A scripts/heap-retainers.ts --class Cmd --depth 4 t1.heapsnapshot
  *
  * Output is the immediate retainers of the class, aggregated by retaining class and the edge

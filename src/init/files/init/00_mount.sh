@@ -7,12 +7,7 @@ mkdir -p "$BIN_PATH"
 mount "$BIN_PATH" command
 
 mkdir -p "$TEMP_PATH"
-# Its files spill to the deployment's temporary folder; without one they stay in memory.
-if [ -n "$EXTERNAL_FILE_TMP_PATH" ]; then
-  mount "$TEMP_PATH" memory "filesPath=$EXTERNAL_FILE_TMP_PATH,mode=777"
-else
-  mount "$TEMP_PATH" memory "mode=777"
-fi
+mount "$TEMP_PATH" memory "mode=777"
 
 mkdir -p $VAR_DIRS
 

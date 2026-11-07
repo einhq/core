@@ -65,15 +65,12 @@ const logger = createLogger('metrics-sampler');
 
 /**
  * Tier roots, as boot publishes them into /etc/layout: a service shell inherits
- * nothing from this process. `tmp` is not a storage tier, but it is a directory
- * that fills up and takes the instance down with it, so it is measured
- * alongside them.
+ * nothing from this process.
  */
 const tierRoots = (cmd: Command): TierRoots =>
   [
     { tier: 'disk' as const, path: cmd.env.EIN_FILE_ROOT_PATH ?? '' },
     { tier: 'volatile' as const, path: cmd.env.EIN_VOLATILE_FILE_ROOT_PATH ?? '' },
-    { tier: 'tmp' as const, path: cmd.env.EIN_FILE_TMP_PATH ?? '' },
   ].filter((root, index, all) =>
     // The volatile tier falls back to the disk root when unset, and df would
     // then report the same filesystem twice under two tier names.

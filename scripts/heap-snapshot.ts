@@ -8,7 +8,7 @@
  *
  * Then, from inside the same network namespace (the container itself, given --network=host):
  *
- *   deno run -A scripts/heap-snapshot.ts --out /files-tmp/heap-1.heapsnapshot
+ *   deno run -A scripts/heap-snapshot.ts --out /files-volatile/heap/t0.heapsnapshot
  *
  * Snapshots are written streaming, chunk by chunk, because they are larger than the heap
  * they describe — the point is to avoid a second process that also cannot hold it.
