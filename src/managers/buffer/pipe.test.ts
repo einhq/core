@@ -152,3 +152,33 @@ Deno.test('a slow reader gets every byte of a write larger than capacity', async
 
   assertEquals(new Uint8Array(chunks.flatMap((c) => [...c])), source);
 });
+
+Deno.test('an end-of-file mark ends one read and leaves the pipe open', async () => {
+  const pipe = new Pipe(1024);
+  await pipe.write(bytes(3));
+  pipe.markEOF();
+  await pipe.write(bytes(2, 3));
+
+  assertEquals(await pipe.read(1024), bytes(3));
+  assertEquals((await pipe.read(1024)).length, 0);
+  assertEquals(await pipe.read(1024), bytes(2, 3));
+  assertEquals(pipe.closed, false);
+});
+
+Deno.test('an end-of-file mark wakes a waiting reader', async () => {
+  const pipe = new Pipe(1024);
+  const waiting = pipe.read(1024);
+  await Promise.resolve();
+  pipe.markEOF();
+
+  assertEquals((await waiting).length, 0);
+});
+
+Deno.test('dropped end-of-file marks are not seen', async () => {
+  const pipe = new Pipe(1024);
+  pipe.markEOF();
+  pipe.dropEOFMarks();
+  await pipe.write(bytes(1));
+
+  assertEquals(await pipe.read(1024), bytes(1));
+});

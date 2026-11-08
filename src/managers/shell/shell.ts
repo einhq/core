@@ -597,11 +597,8 @@ export class Shell implements TtyIf {
       onInput: () => {
         this.activeAt = Date.now();
       },
-      onSignal: (signal) => {
-        if (signal === 'interrupt') {
-          this.config.cem.interrupt(this.name);
-        }
-        // EOF is handled by the read loop ending
+      onInterrupt: () => {
+        this.config.cem.interrupt(this.name);
       },
     });
     await this.inputMonitor.start();

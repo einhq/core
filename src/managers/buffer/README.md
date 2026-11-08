@@ -11,6 +11,10 @@ In-memory `Map<string, Pipe>`. Data is lost on restart.
 - **Pipe**: Circular buffer with configurable capacity (default 64KB)
 - **Backpressure**: Writers block when the buffer is full, readers block when empty
 - **EOF**: Closing a pipe signals EOF to readers; they receive empty bytes when the buffer drains
+- **End-of-file mark**: `markEOF()` ends one read without closing the pipe: the read that reaches
+  the mark gets empty bytes once, and later reads go on with what is written next, as a
+  terminal's Ctrl-D does. The shell sets one on its stdin for Ctrl-D while a command runs, and
+  drops those no read reached (`dropEOFMarks()`) when the prompt takes the terminal back
 - **Broken pipe**: `closeRead(id)` says nothing reads the pipe any more. What it holds is dropped,
   and a write to it, waiting or to come, throws bash-executor's `BrokenPipeError`. The shell
   calls it on a pipeline stage's input once the stage ends; a command that then writes gets

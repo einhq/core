@@ -4,6 +4,8 @@
  * - async read/write with backpressure
  * - ordering guaranteed
  * - close/EOF signaling
+ * - end-of-file marks: a read that reaches one returns EOF once, and the pipe
+ *   stays open for the next reader, as a terminal's Ctrl-D ends one read
  * - a write to a pipe nothing reads any more fails, as SIGPIPE ends a writer
  *
  * `capacity` is a ceiling, not an allocation. The backing store starts empty
@@ -29,6 +31,10 @@ export class Pipe {
   private _unread = false;
   private _size = 0;
   private _capacity = 0;
+  /** Bytes ever read, and the counts of bytes written when each pending end-of-file mark was set. */
+  private consumed = 0;
+  private written = 0;
+  private eofMarks: number[] = [];
 
   private writeWaiters: Array<() => void> = [];
   private readWaiters: Array<() => void> = [];
@@ -141,12 +147,31 @@ export class Pipe {
   }
 
   /**
+   * Mark end of file after what has been written so far, leaving the pipe open: the read that
+   * reaches the mark returns what comes before it, the next returns EOF, and reads after that go
+   * on with what is written next.
+   */
+  markEOF(): void {
+    this.eofMarks.push(this.written);
+
+    this.readWaiters.forEach((w) => w());
+    this.readWaiters = [];
+  }
+
+  /** Drop the end-of-file marks no read has reached yet. */
+  dropEOFMarks(): void {
+    this.eofMarks = [];
+  }
+
+  /**
    * Close the pipe for reading: what is in it is dropped, and a write, waiting
    * or to come, throws a `BrokenPipeError`.
    */
   closeRead(): void {
     this._unread = true;
+    this.consumed += this._size;
     this._size = 0;
+    this.eofMarks = [];
     this.release();
 
     this.writeWaiters.forEach((w) => w());
@@ -215,6 +240,7 @@ export class Pipe {
 
       this.writePos = (this.writePos + toWrite) % allocated;
       this._size += toWrite;
+      this.written += toWrite;
       offset += toWrite;
 
       this.readWaiters.forEach((w) => w());
@@ -252,17 +278,22 @@ export class Pipe {
     });
   }
 
-  /** Read up to size; waits if empty. Returns empty on EOF. */
+  /** Read up to size, stopping at an end-of-file mark; waits if empty. Returns empty on EOF. */
   async read(size: number, signal?: AbortSignal): Promise<Uint8Array> {
     if (this._capacity === 0) {
       return new Uint8Array(0);
     }
 
-    if (this._closed && this._size === 0) {
-      return new Uint8Array(0);
-    }
+    while (true) {
+      if (this.eofMarks[0] === this.consumed) {
+        this.eofMarks.shift();
+        return new Uint8Array(0);
+      }
 
-    while (this._size === 0) {
+      if (this._size > 0) {
+        break;
+      }
+
       if (this._closed) {
         return new Uint8Array(0);
       }
@@ -271,7 +302,7 @@ export class Pipe {
     }
 
     const allocated = this.buffer.length;
-    const toRead = Math.min(size, this._size);
+    const toRead = Math.min(size, this._size, (this.eofMarks[0] ?? Infinity) - this.consumed);
     const end = this.readPos + toRead;
     const out = new Uint8Array(toRead);
 
@@ -286,6 +317,7 @@ export class Pipe {
 
     this.readPos = (this.readPos + toRead) % allocated;
     this._size -= toRead;
+    this.consumed += toRead;
 
     // Nothing more can arrive and nothing is left: give the bytes back rather
     // than hold them until whoever owns the pipe gets around to deleting it.

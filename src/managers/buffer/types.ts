@@ -1,5 +1,6 @@
 import type { ManagerIf } from '../types.ts';
-import type { ResourceHandleIf, ResourceMode, ResourceOptions } from '../../registries/types.ts';
+import type { ResourceMode, ResourceOptions } from '../../registries/types.ts';
+import type { BufferHandle } from './buffer-handle.ts';
 
 export type BufferStat = {
   capacity: number;
@@ -12,7 +13,7 @@ export type BufferResourceOptions = ResourceOptions & {
 
 export interface BufferManagerIf extends ManagerIf {
   touch(id: string, opts: BufferResourceOptions): Promise<boolean>;
-  open(id: string, opts: BufferResourceOptions, mode?: ResourceMode): Promise<ResourceHandleIf<BufferResourceOptions, BufferStat>>;
+  open(id: string, opts: BufferResourceOptions, mode?: ResourceMode): Promise<BufferHandle>;
   exists(id: string): Promise<boolean>;
   stat(id: string): Promise<BufferStat>;
   delete(id: string): Promise<boolean>;

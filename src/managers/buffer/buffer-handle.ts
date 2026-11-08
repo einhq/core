@@ -24,6 +24,16 @@ export class BufferHandle extends AbstractResourceHandle<BufferResourceOptions, 
     this.pipe.close();
   }
 
+  /** Mark end of file after what is written so far; one read returns EOF there. See {@link Pipe.markEOF}. */
+  markEOF(): void {
+    this.pipe.markEOF();
+  }
+
+  /** Drop the end-of-file marks no read has reached yet. */
+  dropEOFMarks(): void {
+    this.pipe.dropEOFMarks();
+  }
+
   /** Write bytes. Waits while the pipe is full. Throws if closed. */
   async write(data: Uint8Array): Promise<number> {
     this.assertNotClosed();

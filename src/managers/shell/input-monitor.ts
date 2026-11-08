@@ -1,20 +1,24 @@
 /**
  * Reads raw stdin and writes what commands are to read to filtered stdin: everything in raw
- * mode; in cooked mode, all but Ctrl-C and Ctrl-D, which become `onSignal` calls, with CR turned
- * into LF as a terminal's ICRNL does, so Enter ends a line. Every chunk that arrives is also an
- * `onInput` call.
+ * mode; in cooked mode, all but Ctrl-C and Ctrl-D, with CR turned into LF as a terminal's ICRNL
+ * does, so Enter ends a line. Ctrl-C becomes an `onInterrupt` call. Ctrl-D marks end of file on
+ * filtered stdin, so the command reading the terminal sees its input end, as a terminal's VEOF
+ * does; typed bytes go on at once, so nothing is pending when it comes. Marks no read reached are
+ * dropped when the prompt takes the terminal back (raw mode), where an empty read would end the
+ * shell. Every chunk that arrives is also an `onInput` call.
  */
 
 import { ResourceHandleIf } from '../../registries/types.ts';
+import type { BufferHandle } from '../buffer/buffer-handle.ts';
 import { Action, identifyActions } from './readline/action.ts';
 
 export type TerminalMode = 'raw' | 'cooked';
 
 type InputMonitorConfig = {
   rawStdin: ResourceHandleIf;
-  filteredStdin: ResourceHandleIf;
+  filteredStdin: Pick<BufferHandle, 'write' | 'markEOF' | 'dropEOFMarks'>;
   onInput?: () => void;
-  onSignal: (signal: 'interrupt' | 'eof') => void;
+  onInterrupt: () => void;
 };
 
 /** The bytes an action was read from, to forward in cooked mode. */
@@ -22,10 +26,6 @@ function reconstructBytes(action: Action): string {
   switch (action.type) {
     case 'insert':
       return action.data!;
-    case 'interrupt':
-      return '\x03';
-    case 'exit':
-      return '\x04';
     case 'lf':
       return '\x0a';
     case 'cr':
@@ -94,6 +94,10 @@ export class InputMonitor {
 
   setMode(mode: TerminalMode): void {
     this.mode = mode;
+
+    if (mode === 'raw') {
+      this.config.filteredStdin.dropEOFMarks();
+    }
   }
 
   private async readLoop(): Promise<void> {
@@ -102,7 +106,6 @@ export class InputMonitor {
         const { done, value } = await this.reader.read();
 
         if (done) {
-          this.config.onSignal('eof');
           break;
         }
 
@@ -134,14 +137,23 @@ export class InputMonitor {
 
     for (const action of actions) {
       if (action.type === 'interrupt') {
-        this.config.onSignal('interrupt');
+        this.config.onInterrupt();
       } else if (action.type === 'exit') {
-        this.config.onSignal('eof');
+        await this.flush(filtered);
+        filtered = '';
+        // The prompt may have taken the terminal back while the write waited.
+        if (this.mode === 'cooked') {
+          this.config.filteredStdin.markEOF();
+        }
       } else {
         filtered += reconstructBytes(action);
       }
     }
 
+    await this.flush(filtered);
+  }
+
+  private async flush(filtered: string): Promise<void> {
     if (filtered.length > 0) {
       await this.config.filteredStdin.write(this.encoder.encode(filtered));
     }
