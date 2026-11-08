@@ -67,7 +67,7 @@ export const modInfo = async (cmd: Command): CmdReturn => {
     if (manifest.license) {
       await cmd.write(`License:     ${manifest.license}\n`);
     }
-    await cmd.write(`Core API:    ${manifest.coreApi ?? `(undeclared, assumed ${MODULE_API_VERSION})`}\n`);
+    await cmd.write(`Core API:    ${manifest.coreApi ?? 'undeclared'} (this core provides ${MODULE_API_VERSION})\n`);
     await cmd.write(`For:         ${groups.length > 0 ? groups.join(', ') : 'everyone'}\n`);
 
     const deps = Object.entries(manifest.dependencies ?? {});

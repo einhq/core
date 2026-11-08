@@ -64,8 +64,8 @@ const readLines = async (handle: ResourceHandleIf): Promise<LogLine[]> => {
  * given.
  *
  * With a limit, a log node is read from its end, in windows that grow until one holds enough
- * matching lines or the whole log: the system log holds days of lines, and a dashboard asking
- * every ten seconds for the last ten problems must not read all of them each time.
+ * matching lines or the whole log: the system log keeps every line since EiN started, and a
+ * dashboard asking every ten seconds for the last ten problems must not read all of them each time.
  */
 export const readLogLines = async (cmd: Command, path: string, opts: { minLevel?: number; limit?: number } = {}): Promise<LogLine[]> => {
   const minLevel = opts.minLevel ?? 0;

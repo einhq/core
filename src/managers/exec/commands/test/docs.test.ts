@@ -89,6 +89,9 @@ Deno.test({ name: 'docs', sanitizeResources: false, sanitizeOps: false }, async 
     await t.step('text output', async () => {
       const text = `${(await client.exec('JSON_OUTPUT=0 docs node-types')).data}`;
       assert(text.includes('sailboat'), text);
+      // Core's own type names core; one described nowhere names no module.
+      assert(/^directory +\d+  core  /m.test(text), text);
+      assert(/^kayak +1  -$/m.test(text), text);
     });
   } finally {
     await client.exec(`rm -r ${dir}`);

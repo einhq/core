@@ -108,7 +108,7 @@ export type ModuleManifest = {
      * Which route opens a node of a type, for the shell's links to nodes it finds but does not
      * know (search results, the header's completions, the node explorer's Open):
      * `{ "person": "/people/{name}", "album": "/albums/{path}" }`, `{name}` the node's last path
-     * segment and `{path}` its whole path, both URI-encoded. A type no module names is not linked.
+     * segment, `{parent}` the one before it and `{path}` its whole path, all URI-encoded. A type no module names is not linked.
      */
     open?: Record<string, string>;
   };

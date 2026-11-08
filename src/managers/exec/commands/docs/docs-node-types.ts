@@ -35,8 +35,10 @@ export const docsNodeTypes = async (cmd: Command): CmdReturn => {
     if (cmd.json) {
       await cmd.writeJSON(result);
     } else {
+      // Core's own descriptions carry no owner; a type described nowhere has no description.
       for (const entry of result) {
-        await cmd.writeLn(`${entry.type.padEnd(12)} ${String(entry.count).padStart(9)}  ${entry.owner ?? 'core'}${entry.description ? `  ${entry.description}` : ''}`);
+        const owner = entry.description === undefined ? '-' : entry.owner ?? 'core';
+        await cmd.writeLn(`${entry.type.padEnd(12)} ${String(entry.count).padStart(9)}  ${owner}${entry.description ? `  ${entry.description}` : ''}`);
       }
     }
     return 0;

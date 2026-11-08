@@ -253,7 +253,7 @@ function GroupsSection({ user, users, groups, signedInNow, run }: SectionProps &
 
       <Select
         label='Primary group'
-        description='Files they create belong to this group, unless they are created as shared.'
+        description='A group they are always in. What they create takes the group of its folder; this one is used where nothing else names a group.'
         maw={360}
         searchable
         allowDeselect={false}

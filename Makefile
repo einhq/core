@@ -196,7 +196,7 @@ bundle-ui-watch: ## Bundle UI with watch
 test: ## Run tests (fast in-memory tier)
 	deno task test
 
-test-pg: ## Run tests incl. the PostgreSQL tier (needs make db)
+test-pg: ## Run tests incl. the PostgreSQL tier (needs PostgreSQL at POSTGRES_URL)
 	EIN_TEST_PG=$(POSTGRES_URL) deno task test
 
 # Only every module's `*.e2e.test.ts`: the rest is the fast tier, which `make test` already runs,
