@@ -30,6 +30,7 @@ import { userResolve } from './auth/user-resolve.ts';
 import { userSetPrimaryGroup } from './auth/user-set-primary-group.ts';
 import { userUpdate } from './auth/user-update.ts';
 import { userWhoami } from './auth/user-whoami.ts';
+import { runas } from './auth/runas.ts';
 import { user } from './auth/user.ts';
 import { config } from './config/config.ts';
 import { configGet } from './config/config-get.ts';
@@ -222,6 +223,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   userSetPrimaryGroup,
   userUpdate,
   userWhoami,
+  runas,
 
   // Group management
   group,
