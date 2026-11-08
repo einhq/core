@@ -61,7 +61,10 @@ export function WorkLines({ pools }: Props) {
                   <Group gap={4} justify='flex-end' wrap='nowrap'>
                     {kind.unservableSince !== undefined && <Badge size='xs' color='red' variant='light'>no worker</Badge>}
                     {kind.restingUntil !== undefined && (
-                      <Tooltip label={`next try in ${formatDuration(kind.restingUntil - now)}`} withArrow>
+                      <Tooltip
+                        label={`next try in ${formatDuration(kind.restingUntil - now)}${kind.restingIn?.length ? `; resting in ${kind.restingIn.join(', ')}` : ''}`}
+                        withArrow
+                      >
                         <Badge size='xs' color='yellow' variant='light'>waiting for EMS</Badge>
                       </Tooltip>
                     )}

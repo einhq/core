@@ -184,10 +184,12 @@ export type PoolKindThroughput = {
   /** When the oldest of its ready jobs was added: how long the back of its line has waited. */
   oldestReadyAt?: number;
   /**
-   * Set while a worker rests the kind after several steps of it in a row could not run (exit 75):
-   * when it is tried again. Nothing failed; the kind waits for EMS.
+   * Set while every worker that offers the kind rests it after steps of it could not run (exit
+   * 75): when it is tried again. Nothing failed; the kind waits for EMS.
    */
   restingUntil?: number;
+  /** With `restingUntil`: the workers resting it, by name (`models`, `models@laptop`). */
+  restingIn?: string[];
 };
 
 /** A pool's counts now and how fast it moves, from the sampler's series. */

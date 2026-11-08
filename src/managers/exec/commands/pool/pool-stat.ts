@@ -35,6 +35,18 @@ const perHour = (perMs: number | undefined) => perMs === undefined ? undefined :
  * `window` is the `pools` series over the rate window, read once by the caller when it asks about
  * several pools.
  */
+/**
+ * Whether `kind` rests: while every worker that offers it rests it, until the first of them tries
+ * it again, and which workers those are. One worker resting it while another takes it is no wait.
+ */
+export const kindRest = (workers: Pick<PoolWorkerInfo, 'name' | 'kinds' | 'resting'>[], kind: string): Pick<PoolKindThroughput, 'restingUntil' | 'restingIn'> => {
+  const offering = workers.filter((worker) => worker.kinds.length === 0 || worker.kinds.includes(kind));
+  const rests = offering.map((worker) => worker.resting[kind]);
+  if (offering.length === 0 || rests.some((rest) => rest === undefined)) return {};
+  const names = offering.flatMap((worker) => worker.name ? [worker.name] : []);
+  return { restingUntil: Math.min(...rests.map((rest) => rest!.until)), ...(names.length ? { restingIn: names } : {}) };
+};
+
 const poolThroughput = (
   name: string,
   path: string,
@@ -43,14 +55,6 @@ const poolThroughput = (
   workers: PoolWorkerInfo[] = [],
 ): PoolThroughput => {
   const unservable = new Map(unservableKinds.unservable().map((entry) => [`${entry.pool}\0${entry.kind}`, entry.since]));
-  // A kind several workers offer rests until the last of them tries it again.
-  const resting = new Map<string, { until: number }>();
-  for (const worker of workers) {
-    for (const [kind, rest] of Object.entries(worker.resting)) {
-      const known = resting.get(kind);
-      if (!known || rest.until > known.until) resting.set(kind, rest);
-    }
-  }
 
   const kinds: PoolKindThroughput[] = [];
   for (const [kind, counts] of Object.entries(stat.byKind ?? {})) {
@@ -71,7 +75,7 @@ const poolThroughput = (
       etaMs: unservableSince === undefined ? eta(counts.ready + counts.claimed, kindPerMs) : undefined,
       unservableSince,
       oldestReadyAt: stat.oldestReadyAt?.[kind],
-      restingUntil: resting.get(kind)?.until,
+      ...kindRest(workers, kind),
     });
   }
 
