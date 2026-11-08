@@ -43,6 +43,7 @@ import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.
 import { type AuditInput, type AuditOp, type AuditPurge, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
+import { NODE_TYPE_LOG } from './types/log.ts';
 import { DeviceWriteHandle } from './device-write-handle.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
@@ -110,6 +111,9 @@ import type { IndexDecl } from '../lib/contributions/types.ts';
 
 /** Admin passes every check `verifyAccess` makes, so reachability need not be computed for it. */
 const bypassesAccess = isAdmin;
+
+/** A device's endpoint: right under a device in `/dev`. */
+const DEVICE_ENDPOINT_RE = /^\/dev\/[^/]+\/[^/.][^/]*$/;
 
 /**
  * How many files a `writeTree` node by node writes at once. A file is a handful of VFS calls, each
@@ -4985,7 +4989,11 @@ export class LocalNodeVFS implements NodeVFS {
         throw new NodeAccessDeniedError(entry.vfsAbsPath, 'report a control state');
       }
 
-      const handle = await reg.open(id, this.tierOpts(node) as any, mode);
+      // A device's log or track keeps its history: writing one appends to it, `>` as `>>`.
+      const endpoint = (node.type === NODE_TYPE_LOG || node.type === 'track') && DEVICE_ENDPOINT_RE.test(entry.vfsAbsPath);
+      const opened = endpoint && mode.includes('w') ? mode.replace('w', 'a') as ResourceMode : mode;
+
+      const handle = await reg.open(id, this.tierOpts(node) as any, opened);
 
       // Track size on writable file handles: persist attrs.size on flush so
       // an 'updated' event fires and followers (tail -f) can subscribe, not poll.

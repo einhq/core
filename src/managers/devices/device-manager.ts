@@ -10,10 +10,9 @@
  */
 
 import { basename, dirname, join } from '@std/path';
-import { ADMIN_ACCESS, DEVICES_GROUPNAME, USERS_GID } from '../../lib/access/constants.ts';
+import { ADMIN_ACCESS, USERS_GID } from '../../lib/access/constants.ts';
 import type { Access } from '../../lib/access/types.ts';
 import { type DeviceAttrs, type DeviceFix, type DeviceMessage, deviceRoutingKey, type DeviceValue, type EndpointAttrs, type EndpointType } from '../../lib/api/devices.ts';
-import { groupGid } from '../../lib/auth/member-gids.ts';
 import { createLogger } from '../logger/mod.ts';
 import { readTail } from '../../lib/metrics/read.ts';
 import { DEV_PATH, DEV_RESERVED_NAMES, devicePath, USERS_PATH } from '../../lib/paths.ts';
@@ -192,10 +191,10 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       if (changed) await this.sys.vfs.update(access, path, { attrs: changed });
       return path;
     }
-    const gid = await groupGid(this.sys.vfs, DEVICES_GROUPNAME);
+    // Everyone signed in reads a device (the users group), not a visitor; its owner changes it.
     await this.sys.vfs.create<DeviceNodeAttrs>(access, NODE_TYPE_DEVICE, DEV_PATH, name, {
       attrs: { ...attrs, label: attrs.label || name },
-      props: { mode: 0o775, ...(gid !== undefined ? { gid } : {}) },
+      props: { mode: 0o750, gid: USERS_GID },
     });
     return path;
   }
@@ -216,17 +215,18 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       this.endpoints.set(`${device}/${name}`, { path, type, attrs: { ...existing.attrs, ...rest } as EndpointAttrs, readAt: Date.now() });
       return path;
     }
-    // An endpoint is its device's owner's, and its group's but for a control, which the users
-    // group switches: a person who made a device edits its track. Only the administrator gives a
-    // node to another, which a driver's service is.
+    // An endpoint is its device's owner's, so a person who made a device edits its track; everyone
+    // signed in reads it, and switches a control (the users group), a visitor neither. Only the
+    // administrator gives a node to another, which a driver's service is. A log's or control's
+    // entries are `{ value }`, a bare one written by hand too.
     const control = type === NODE_TYPE_CONTROL;
     const owner = (await this.sys.vfs.get(ADMIN_ACCESS, parent)).props;
     await this.sys.vfs.create(access, type, parent, name, {
-      attrs: { ...attrs },
+      attrs: { ...attrs, ...(type === 'track' ? {} : { valueField: 'value' }) },
       props: {
-        mode: mode ?? (control ? 0o664 : 0o644),
+        mode: mode ?? (control ? 0o660 : 0o640),
         ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
-        gid: control ? USERS_GID : owner.gid,
+        gid: USERS_GID,
       },
     });
     this.endpoints.set(`${device}/${name}`, { path, type, attrs, readAt: Date.now() });

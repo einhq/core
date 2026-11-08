@@ -1202,9 +1202,13 @@ appended by its driver (opened `a`, the administrator's alone) and kept in the l
 tables under the control's id, so `cat`, `tail -f` and `log-read` read a control as a log. A driver
 appends what it reads with `append`, through the VFS (so a track's change reaches whoever follows
 it), throttled as `throttle.ts` says, and publishes it on `dev.<device>.<endpoint>` (`DeviceMessage`)
-for queues and rules; `dev.<device>` carries a device coming or going. `/dev` is the `devices`
-group's (`1775`, so core's `null` and event routers stay the administrator's): its members make,
-name and forget devices (`device-create`, `device-label`, `device-forget`).
+for queues and rules; `dev.<device>` carries a device coming or going. A device and its endpoints are
+read by everyone signed in (the `users` group), not a visitor, and a control written by them; an
+endpoint is its device's owner's, so whoever made a device edits its track. A log or track endpoint
+is only appended to (`>` as `>>`), and a bare value written to a log is kept as `{ value }` (the
+log's `valueField`). `/dev` stays the administrator's, so nothing in it is removed by anyone else:
+the `devices` group's members make, name and forget devices through the commands, which act for them
+(`device-create`, `device-label`, `device-forget`).
 
 **Relations** (spec 6.1) are pairs of softlinks under each node's `relations/` directory,
 created by `relate <a> <b> <label> [--reverse <label>]`. Each link carries

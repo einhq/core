@@ -36,10 +36,10 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     const anna = await signIn('anna');
     const bo = await signIn('bo');
 
-    await t.step("/dev is the devices group's to add to, and only its members make devices", async () => {
-      const dev = await admin.execJson<{ props: { gid: number; mode: number } }>('stat /dev');
-      const group = await admin.execJson<{ gid: number }>('group-info devices');
-      assertEquals([dev.props.gid, dev.props.mode & 0o7777], [group.gid, 0o1775]);
+    await t.step("/dev is the administrator's; only the devices group's members make devices, through device-create", async () => {
+      const dev = await admin.execJson<{ props: { uid: number; mode: number } }>('stat /dev');
+      assertEquals([dev.props.uid, dev.props.mode & 0o7777], [0, 0o755]);
+      await testCommands(anna).shouldFailWith('rm /dev/null', 'denied');
       await testCommands(bo).shouldFailWith("device-create 'Bo phone' --driver tracker", 'devices');
       await testCommands(anna).shouldFailWith('device-create null', "core's own");
     });
@@ -47,6 +47,10 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     await t.step("a phone posts its position with its device's key, and nothing else does", async () => {
       const created = await anna.execJson<DeviceCreated>("device-create 'Ruby phone' --driver tracker --class phone");
       assertEquals(created, { device: 'ruby-phone', path: '/dev/ruby-phone' });
+      // Hers, read by everyone signed in and no visitor.
+      const phone = await admin.execJson<{ props: { uid: number; gid: number; mode: number } }>('stat /dev/ruby-phone');
+      const [annaUid, users] = [(await admin.execJson<{ uid: number }>('user-info anna')).uid, (await admin.execJson<{ gid: number }>('group-info users')).gid];
+      assertEquals([phone.props.uid, phone.props.gid, phone.props.mode & 0o777], [annaUid, users, 0o750]);
       const key = await anna.execJson<DeviceKeyAnswer>('device-key ruby-phone --new --origin https://ein.example');
       assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone?key='), key.qrText?.endsWith('&id=ruby-phone'), key.qrSvg?.startsWith('<svg')], [
         true,
@@ -111,6 +115,9 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
 
       const lamp = (await bo.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'lamp');
       assertEquals(lamp?.main, { endpoint: 'power', label: 'Power', value: 41.8, unit: 'W' });
+      // A value written by hand is appended, `>` as `>>`, and kept as `{ value }`.
+      await admin.execString('echo 40.5 > /dev/lamp/power');
+      assertEquals((await bo.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
       const queued = await admin.execString('queue-peek /home/admin/lamp');
       assertStringIncludes(queued, '"endpoint":"power"');
       assertEquals((await anna.execJson<DeviceHistory>('device-history lamp/button')).readings.length, 2);

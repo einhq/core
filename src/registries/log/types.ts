@@ -5,6 +5,11 @@ export type { LogStat } from '../../lib/api/streams.ts';
 export type LogResourceOptions = ResourceOptions & {
   retention?: string;
   routingKeys?: string[];
+  /**
+   * A line written that is not a JSON object is kept as `{ [valueField]: it }`, a number or `true` as
+   * such and anything else as text: a device's endpoint takes `echo 21.4 >> …/temperature`.
+   */
+  valueField?: string;
 };
 
 /** Retention policy for log entries. Duration strings are passed to TimescaleDB as intervals. Count strings (e.g. '100 entries') cap the number of entries per log. */

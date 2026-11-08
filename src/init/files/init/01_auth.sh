@@ -15,10 +15,11 @@ user-exists "$GUEST_USERNAME" || user-create "$GUEST_USERNAME" --uid "$GUEST_UID
 
 group-is-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || group-add-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || true
 
-# The devices: the devices group's to add to, while core's own nodes there stay the administrator's
-# (sticky, as /tmp is). Set on every boot, whatever an existing /dev has.
-chown "$ADMIN_USERNAME:$DEVICES_GROUPNAME" /dev
-chmod 1775 /dev
+# /dev is the administrator's, so nothing of core's there (null, the event routers) nor another's
+# device is removed by anyone else: the devices group's members make and forget devices through
+# device-create and device-forget, which act for them. Set on every boot, whatever /dev has.
+chown "$ADMIN_USERNAME:$ADMIN_GROUPNAME" /dev
+chmod 755 /dev
 
 # Everyone signed in shares the home of `users`, the household's. Made once, as the attr on the
 # homes' directory records: an administrator who takes it away (group-home --off) does not get it

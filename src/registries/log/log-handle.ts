@@ -102,9 +102,22 @@ export class LogHandle extends AbstractResourceHandle<LogResourceOptions, LogSta
     const lines = text.split('\n').filter(Boolean);
 
     for (const line of lines) {
-      this.lastId = await this.io.append(JSON.parse(line));
+      this.lastId = await this.io.append(this.entryOf(line));
     }
 
     return lines.length;
+  }
+
+  /** A line as the log keeps it: its JSON, or with `valueField` what is no JSON object wrapped in one. */
+  private entryOf(line: string): unknown {
+    const field = this.options.valueField;
+    if (!field) return JSON.parse(line);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return { [field]: line.trim() };
+    }
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : { [field]: parsed };
   }
 }
