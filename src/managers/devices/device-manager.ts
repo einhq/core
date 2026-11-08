@@ -216,7 +216,8 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       return path;
     }
     // An endpoint is its device's owner's, so a person who made a device edits its track; everyone
-    // signed in reads it, and switches a control (the users group), a visitor neither. Only the
+    // signed in reads it, and switches a control (the users group), a visitor neither. A track is
+    // also passed through, for what archive keeps under it (its homes, its trips). Only the
     // administrator gives a node to another, which a driver's service is. A log's or control's
     // entries are `{ value }`, a bare one written by hand too.
     const control = type === NODE_TYPE_CONTROL;
@@ -224,7 +225,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     await this.sys.vfs.create(access, type, parent, name, {
       attrs: { ...attrs, ...(type === 'track' ? {} : { valueField: 'value' }) },
       props: {
-        mode: mode ?? (control ? 0o660 : 0o640),
+        mode: mode ?? (control ? 0o660 : type === 'track' ? 0o750 : 0o640),
         ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
         gid: USERS_GID,
       },
