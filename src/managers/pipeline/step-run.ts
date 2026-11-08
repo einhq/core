@@ -37,9 +37,17 @@ type StepRunResult = { code: number; stdout: string; stderr: string };
 export async function runStep(
   tty: TtyIf,
   command: string,
-  opts: { signal?: AbortSignal; graceMs?: number; onOutput?: () => void; onProgress?: (fraction: number) => void; attribution?: Attribution } = {},
+  opts: {
+    signal?: AbortSignal;
+    graceMs?: number;
+    onOutput?: () => void;
+    onProgress?: (fraction: number) => void;
+    attribution?: Attribution;
+    /** Variables the step's command runs with, beside the shell's. */
+    env?: Record<string, string>;
+  } = {},
 ): Promise<StepRunResult> {
-  const { signal, graceMs = STEP_KILL_GRACE_MS, onOutput, onProgress, attribution } = opts;
+  const { signal, graceMs = STEP_KILL_GRACE_MS, onOutput, onProgress, attribution, env } = opts;
   let timer: number | undefined;
   let onHangUp: (() => void) | undefined;
 
@@ -57,7 +65,7 @@ export async function runStep(
   });
 
   try {
-    const result = await Promise.race([tty.runAndCapture(command, undefined, { signal, onOutput, onProgress, attribution }), abandon]);
+    const result = await Promise.race([tty.runAndCapture(command, undefined, { signal, onOutput, onProgress, attribution, ...(env ? { env } : {}) }), abandon]);
     return { code: result.code, stdout: result.stdout, stderr: result.stderr };
   } finally {
     if (timer !== undefined) clearTimeout(timer);

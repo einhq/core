@@ -79,6 +79,14 @@ type PoolWorkerOptions = {
    */
   kindQuantumMs?: number;
   leaseMs?: number;
+  /** Variables every step this worker runs gets, such as which instance of a service it calls. */
+  env?: Record<string, string>;
+  /**
+   * A step that could not run yet (`STEP_EXIT_TEMPORARY`) hands its job straight back, for another
+   * worker of the pool to take at once, and rests its kind here: for a worker beside others that
+   * can do the same work, where a refusal says this worker's service is the one that cannot.
+   */
+  passOn?: boolean;
 };
 
 /**
@@ -181,6 +189,8 @@ export class PoolWorker {
   private accumulatingFor: string | undefined;
   private readonly concurrency: number;
   private readonly kindQuantumMs: number;
+  private readonly env: Record<string, string> | undefined;
+  private readonly passOn: boolean;
   /** Kind currently being drained, and when this batch started. */
   private currentKind: string | undefined;
   private kindSince = 0;
@@ -219,6 +229,8 @@ export class PoolWorker {
     this.concurrency = Math.max(1, opts.concurrency ?? 1);
     // Batching needs at least two kinds to rotate between; with one it is a no-op either way.
     this.kindQuantumMs = this.kinds.length > 1 ? Math.max(0, opts.kindQuantumMs ?? 0) : 0;
+    this.env = opts.env && Object.keys(opts.env).length > 0 ? opts.env : undefined;
+    this.passOn = opts.passOn === true;
     this.leaseMs = opts.leaseMs ?? 60_000;
     this.owner = `${Deno.hostname()}:${Deno.pid}:${crypto.randomUUID().slice(0, 8)}`;
   }
@@ -891,10 +903,12 @@ export class PoolWorker {
       // kind's other jobs go first — however long the service takes, nothing is failed for it.
       // Enough jobs refused for the first time in a row rest the whole kind (`TEMPORARY_REST_AFTER`).
       if (code === STEP_EXIT_TEMPORARY) {
-        const { delayMs, again } = this.pauseJob(job);
+        let { delayMs, again } = this.pauseJob(job);
         const refusals = (this.refusals.get(job.kind) ?? 0) + (again ? 0 : 1);
-        const restMs = refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
+        const restMs = this.passOn || refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
         this.refusals.set(job.kind, restMs === undefined ? refusals : 0);
+        // Passed on: claimable at once by the pool's other workers, while this one rests the kind.
+        if (this.passOn) delayMs = 0;
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
           attrs: { status: 'waiting', startedAt: undefined, waitingSince: Date.now(), attempts: job.attempts - 1, exitCode: code, error: detail },
         });
@@ -1136,7 +1150,7 @@ export class PoolWorker {
   ): Promise<{ code: number; stdout: string; stderr: string }> {
     const output = markOutput(this.vfs, stepPath);
     try {
-      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, onProgress: output.onProgress, attribution });
+      return await runStep(this.tty, command, { signal, onOutput: output.onOutput, onProgress: output.onProgress, attribution, env: this.env });
     } finally {
       output.stop();
     }

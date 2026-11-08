@@ -480,9 +480,17 @@ instance at that time (re-armed by recovery after a restart). On 65 it fails at 
 `cause: 'input'`, as a pooled step does.
 
 The bins that call EMS end with `stepExitCode(error)` from `@ems/client`, which maps EMS's answer:
-`busy`, `model_unavailable`, `deadline_exceeded` and an unreachable EMS are temporary;
+`busy`, `model_unavailable`, `deadline_exceeded`, `files_unavailable`, `op_not_served` (an instance
+that does not serve the op) and an unreachable EMS are temporary;
 `undecodable`, `unsupported` and `not_found` with `permanent` are the input's;
 anything else is 1.
+
+**A worker beside others passes a refused job on.** With `--pass-on`, a step's 75 hands its job
+back with no pause, for the pool's other workers to take at once, and rests the kind in this worker
+straight away: it is how a worker for a second EMS gives way to the first when its own cannot do
+the work. `--env NAME=value` sets a variable for every step a worker runs (which EMS instance its
+steps call), and `--while <command>` stops the worker, handing back what it holds, once the command
+fails (asked every `--while-every` seconds), for a service loop that starts it again when it should.
 
 **A batching worker holds a kind boundary for five minutes at most.** With `--kind-quantum`, a
 worker leaving a kind keeps its free slots idle while the old kind's commands finish, so two large

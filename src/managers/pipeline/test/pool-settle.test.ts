@@ -219,7 +219,12 @@ Deno.test('a step whose service could not do it yet waits again without spending
  * instance. `exitOf` says how a command's run ends; it is read on every run. The jobs at
  * `refusedBefore` start out as handed back once already by this worker, as if their pause had run.
  */
-async function kindWorker(commands: string[], exitOf: (command: string) => number, refusedBefore: number[] = []) {
+async function kindWorker(
+  commands: string[],
+  exitOf: (command: string) => number,
+  refusedBefore: number[] = [],
+  opts: { passOn?: boolean; env?: Record<string, string> } = {},
+) {
   const reg = new MemoryPoolRegistry();
   await reg.init();
   await reg.touch(POOL_ID, { leaseMs: 60_000, backoffMs: 50 });
@@ -240,13 +245,15 @@ async function kindWorker(commands: string[], exitOf: (command: string) => numbe
     jobs.push({ id: added.id, stepPath });
   }
 
+  const envs: RunAndCaptureOptions['env'][] = [];
   const tty = {
-    runAndCapture: (line: string) => {
+    runAndCapture: (line: string, _ctx?: unknown, captureOpts: RunAndCaptureOptions = {}) => {
+      envs.push(captureOpts.env);
       const command = commands.find((c) => line.includes(`step-${c}`)) ?? '';
       return Promise.resolve({ code: exitOf(command), stdout: '', stderr: '' });
     },
   } as unknown as TtyIf;
-  const worker = new PoolWorker(vfs as unknown as NodeVFS, tty, { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1 });
+  const worker = new PoolWorker(vfs as unknown as NodeVFS, tty, { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1, ...opts });
   const jobPauses = (worker as unknown as { jobPauses: Map<PoolJobId, { ms: number; at: number }> }).jobPauses;
   for (const i of refusedBefore) jobPauses.set(jobs[i].id, { ms: 30_000, at: Date.now() - 30_000 });
   await worker.start();
@@ -263,8 +270,30 @@ async function kindWorker(commands: string[], exitOf: (command: string) => numbe
     await worker.stop();
     await reg.dispose();
   };
-  return { reg, worker, jobs, step, until, dispose };
+  return { reg, worker, jobs, step, until, dispose, envs };
 }
+
+Deno.test('a worker that passes on hands a refused job straight back and rests its kind at once', async () => {
+  const { reg, worker, jobs, step, until, dispose, envs } = await kindWorker(
+    ['p0', 'p1'],
+    () => STEP_EXIT_TEMPORARY,
+    [],
+    { passOn: true, env: { CFG_EMS_INSTANCE: 'laptop' } },
+  );
+  try {
+    await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
+    // The first refusal rests the kind, so the second job is never claimed here; the refused one is
+    // claimable at once by another worker, its attempt given back.
+    const refused = (await reg.get(POOL_ID, jobs[0].id))!;
+    assertEquals([refused.state, refused.attempts], ['ready', 0]);
+    assert(refused.availableAt.getTime() <= Date.now());
+    assertEquals(step(0).status, 'waiting');
+    assertEquals(step(1).status, 'waiting');
+    assertEquals(envs, [{ CFG_EMS_INSTANCE: 'laptop' }]);
+  } finally {
+    await dispose();
+  }
+});
 
 Deno.test("a refused job waits its own pause while the kind's other jobs run", async () => {
   const before = Date.now();
