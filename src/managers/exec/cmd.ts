@@ -202,6 +202,10 @@ export class Cmd implements Command {
     return this._env.TERM === '1';
   }
 
+  get hasTerminal() {
+    return this._opts.tty.launchEnv.TERM === '1';
+  }
+
   get launchEnv() {
     return this._opts.tty.launchEnv;
   }
@@ -309,7 +313,7 @@ export class Cmd implements Command {
   async prompt(prompt?: string, echoMode?: EchoMode, instead?: string, opts: { terminal?: boolean } = {}) {
     // Without a terminal stdin may be a channel that stays open with no one behind it, such as an
     // ssh exec's, and a read would wait on it for good.
-    if (!this.tty) throw new NoTerminalError(instead);
+    if (!(opts.terminal ? this.hasTerminal : this.tty)) throw new NoTerminalError(instead);
     // A handle of its own on the terminal's input: the line reader cancels the stream it read.
     const terminal = opts.terminal ? await this.sys.bufferManager.open(this._opts.tty.getIO().stdin, {}, 'r') : undefined;
     try {
@@ -355,7 +359,7 @@ export class Cmd implements Command {
 
   async executeInline(script: string, opts: { terminalStdin?: boolean } = {}): Promise<number> {
     if (!opts.terminalStdin) return this._opts.tty.run(script, this.opts.ctx);
-    if (!this.tty) throw new NoTerminalError();
+    if (!this.hasTerminal) throw new NoTerminalError();
     // The shell's descriptor 0 is the terminal's input
     const ctx = this.opts.ctx.subContext();
     ctx.redirectStdin('0');

@@ -318,7 +318,7 @@ export const xargs = async (cmd: Command): CmdReturn => {
     return 1;
   }
   for (const [needs, flag] of [[opts.interactive, 'p'], [opts.openTty, 'o']] as const) {
-    if (needs && !cmd.tty) {
+    if (needs && !cmd.hasTerminal) {
       await cmd.writeError(`xargs: -${flag}: no terminal to read from\n`);
       return 1;
     }

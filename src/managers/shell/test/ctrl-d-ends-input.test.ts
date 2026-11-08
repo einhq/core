@@ -119,6 +119,13 @@ Deno.test({
       assertStringIncludes(await read(), 'P\nQ\n<xargs 0>');
     });
 
+    await t.step('xargs -o into a pipe: its command still reads the terminal', async () => {
+      await type('printf "5\\n" | xargs -o -n 1 head -n | sed "s/^/<piped /;s/$/>/"\r');
+      await type('R\r');
+      await type(CTRL_D);
+      assertStringIncludes(await read(), '<piped R>');
+    });
+
     await t.step('a Ctrl-D nothing read is dropped at the prompt', async () => {
       await type('sleep 0.3\r');
       await type(CTRL_D);

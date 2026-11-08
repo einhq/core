@@ -1,6 +1,7 @@
 /**
  * xargs at a terminal: -p asks on it before each run and reads the answer from it, not from the
- * items on stdin; -o gives each command the terminal as its stdin.
+ * items on stdin; -o gives each command the terminal as its stdin. Both do so when xargs writes
+ * into a pipe too.
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert';
@@ -54,6 +55,18 @@ Deno.test({
       await type('typed\r');
       assertEquals(await shell.run("printf 'x\\n' | xargs -o -I {} head -n1"), 0);
       assertStringIncludes(await readUntil(stdout, 'typed'), 'typed');
+    });
+
+    await t.step('both read the terminal when xargs writes into a pipe', async () => {
+      const asking = shell.run("printf 'a\\n' | xargs -p -n1 echo asked | tr a-z A-Z");
+      assertStringIncludes(await readUntil(stderr, 'echo asked a ?...'), 'echo asked a ?...');
+      await type('y\r');
+      assertEquals(await asking, 0);
+      assertStringIncludes(await readUntil(stdout, 'ASKED A\n'), 'ASKED A\n');
+
+      await type('piped\r');
+      assertEquals(await shell.run("printf 'x\\n' | xargs -o -I {} head -n1 | tr a-z A-Z"), 0);
+      assertStringIncludes(await readUntil(stdout, 'PIPED'), 'PIPED');
     });
   } finally {
     await shell.close();

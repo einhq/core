@@ -25,7 +25,10 @@ export interface Command {
   readonly parentId?: string;
   readonly access: Access;
   readonly name: string;
+  /** Whether this command writes to the terminal: a stage writing into a pipe does not. */
   readonly tty: boolean;
+  /** Whether the shell has a terminal to read from, wherever this command's output goes. */
+  readonly hasTerminal: boolean;
   readonly json: boolean;
   readonly args: string[];
   readonly stdinId: string;
