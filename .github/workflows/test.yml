@@ -9,9 +9,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.9.6
+      # From deno's own server, then GitHub's releases, each retried: one source answering 504
+      # does not fail the run.
+      - name: Install Deno
+        run: |
+          zip=deno-x86_64-unknown-linux-gnu.zip
+          for url in https://dl.deno.land/release/v2.9.6/$zip https://github.com/denoland/deno/releases/download/v2.9.6/$zip; do
+            curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/deno.zip" "$url" && break
+          done
+          unzip -q -o "$RUNNER_TEMP/deno.zip" -d "$HOME/.deno/bin"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
       - name: Format
         run: deno fmt --check
       - name: Lint
