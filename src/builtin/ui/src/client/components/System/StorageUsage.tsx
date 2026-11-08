@@ -1,7 +1,7 @@
 import { Box, Card, Group, SimpleGrid, Skeleton, Stack, Text, Title, Tooltip } from '@mantine/core';
 import { IconDatabase, IconDeviceFloppy } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { TRACK_COLOR, utilizationColor } from '../Pipeline/mod.ts';
+import { utilizationColor } from '../Pipeline/mod.ts';
 import { SLICES } from '../Chart/plots.tsx';
 import { formatBytes } from '../../lib/format.ts';
 import type { DatabaseTable, StorageTier } from '@ein/api';
@@ -15,6 +15,8 @@ type Slice = { key: string; label: string; value: number; color: string; other?:
 const PIE = 112;
 /** What the named tables leave of the database: the rest of Okabe–Ito's grey. */
 const OTHER_COLOR = '#999999';
+/** A tier's free space: a neutral that still shows against the card, which the bars' track does not. */
+const FREE_COLOR = 'var(--mantine-color-default-border)';
 
 /** A pie of the slices' shares of their sum, each slice naming itself on hover. */
 function Pie({ slices }: { slices: Slice[] }) {
@@ -26,7 +28,7 @@ function Pie({ slices }: { slices: Slice[] }) {
   let start = 0;
   return (
     <svg width={PIE} height={PIE} style={{ display: 'block', flexShrink: 0 }} role='img'>
-      {total === 0 ? <circle cx={c} cy={c} r={r} fill={TRACK_COLOR} /> : slices.map((slice) => {
+      {total === 0 ? <circle cx={c} cy={c} r={r} fill={FREE_COLOR} /> : slices.map((slice) => {
         const turn = Math.max(0, slice.value) / total;
         const from = start;
         start += turn;
@@ -77,7 +79,7 @@ function TierCard({ tier, shared }: { tier: StorageTier; shared: boolean }) {
         <Pie
           slices={[
             { key: 'used', label: 'Used', color: utilizationColor(tier.usedPercent), value: used },
-            { key: 'free', label: 'Free', color: TRACK_COLOR, value: tier.freeBytes },
+            { key: 'free', label: 'Free', color: FREE_COLOR, value: tier.freeBytes },
           ]}
         />
         <Stack gap={2} style={{ minWidth: 0 }}>
