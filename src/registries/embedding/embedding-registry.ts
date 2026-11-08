@@ -39,11 +39,13 @@ const NEW_TYPE_STORAGE: Storage = 'halfvec';
 /**
  * How often the types a person has searched are read into PostgreSQL's cache again. A search
  * with a new vector reads a few hundred scattered pages of the HNSW index and of the vectors' TOAST,
- * each a random read when the pipeline's writes have pushed them out. Loading them again costs
- * tens of milliseconds while they are cached, about a second for a type that is not, and raises
- * each page's usage count so the buffer sweep passes it over.
+ * each a random read when the pipeline's work has pushed them out. A load costs about 100 ms while
+ * they are cached and a second or so for a type that is not. It raises each cached page's usage
+ * count by one, and a page it reads starts at one, while the buffer sweep lowers every count by one
+ * a pass: on fry under a crawl, with 40% of the pool at the maximum, a 5-minute interval left a
+ * quarter of the picture index evicted in ten minutes, so it runs every minute.
  */
-const WARM_INTERVAL_MS = 5 * 60_000;
+const WARM_INTERVAL_MS = 60_000;
 /** The first load waits this long after a type's first search, rather than reading under it. */
 const FIRST_WARM_DELAY_MS = 30_000;
 
@@ -348,7 +350,7 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
   }
 
   /**
-   * Reads each kept type's table, the TOAST holding its vectors and its HNSW index into shared
+   * Reads each kept type's table, the TOAST holding its vectors, its index and the HNSW index into shared
    * buffers with `pg_prewarm`. A database without the extension turns this off for the process.
    */
   private async warm(): Promise<void> {
@@ -369,6 +371,10 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
             SELECT to_regclass($1) AS rel
             UNION ALL
             SELECT reltoastrelid::regclass FROM pg_class WHERE oid = to_regclass($1) AND reltoastrelid <> 0
+            UNION ALL
+            SELECT i.indexrelid::regclass
+              FROM pg_class t JOIN pg_index i ON i.indrelid = t.reltoastrelid
+             WHERE t.oid = to_regclass($1)
             UNION ALL
             SELECT i.indexrelid::regclass
               FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_am am ON am.oid = c.relam
