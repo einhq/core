@@ -7,7 +7,8 @@
  */
 
 import type { Pool } from 'pg';
-import { createExtension } from '../../lib/pg/mod.ts';
+import { createExtension, currentWorkClass, runAsBackground } from '../../lib/pg/mod.ts';
+import { createLogger } from '../../managers/logger/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { EmbeddingHandle } from './embedding-handle.ts';
 import { EmbeddingAsyncIO, EmbeddingRegistryIf, EmbeddingResourceOptions, EmbeddingStat, SimilarityMatch, SimilarPair } from './types.ts';
@@ -16,6 +17,8 @@ import { EmbeddingAsyncIO, EmbeddingRegistryIf, EmbeddingResourceOptions, Embedd
 type EmbeddingRegistryConfig = {
   pool: Pool;
   name: string;
+  /** When searched types are read into the database cache: `WARM_INTERVAL_MS` and `FIRST_WARM_DELAY_MS` unless set. */
+  warm?: { firstDelayMs: number; intervalMs: number };
 };
 
 const MIN_HNSW_EF_SEARCH = 64;
@@ -33,6 +36,19 @@ const MIN_HNSW_MAX_SCAN_TUPLES = 20_000;
 type Storage = 'vector' | 'halfvec';
 const NEW_TYPE_STORAGE: Storage = 'halfvec';
 
+/**
+ * How often the types a person has searched are read into PostgreSQL's cache again. A search
+ * with a new vector reads a few hundred scattered pages of the HNSW index and of the vectors' TOAST,
+ * each a random read when the pipeline's writes have pushed them out. Loading them again costs
+ * tens of milliseconds while they are cached, about a second for a type that is not, and raises
+ * each page's usage count so the buffer sweep passes it over.
+ */
+const WARM_INTERVAL_MS = 5 * 60_000;
+/** The first load waits this long after a type's first search, rather than reading under it. */
+const FIRST_WARM_DELAY_MS = 30_000;
+
+const logger = createLogger('embedding');
+
 export class EmbeddingRegistry implements EmbeddingRegistryIf {
   private tablePrefix: string;
   private pool: Pool;
@@ -40,6 +56,11 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
   private registering = new Map<string, Promise<void>>();
   private storage = new Map<string, Storage>();
   private initialized = false;
+  /** Types an interactive `findSimilar` has asked about, kept in PostgreSQL's cache by `warm`. */
+  private warmTypes = new Set<string>();
+  private warmTimer: ReturnType<typeof setTimeout> | undefined;
+  private warming: Promise<void> | undefined;
+  private warmDisabled = false;
 
   constructor(private config: EmbeddingRegistryConfig) {
     const name = `${config.name}_embeddings`;
@@ -77,7 +98,11 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
   }
 
   /** Release any resources held by the registry. */
-  async dispose(): Promise<void> {}
+  async dispose(): Promise<void> {
+    this.warmDisabled = true;
+    clearTimeout(this.warmTimer);
+    await this.warming;
+  }
 
   /** Create an embedding entry if it does not already exist. Returns true if created. */
   async touch(id: string, opts: EmbeddingResourceOptions): Promise<boolean> {
@@ -228,6 +253,7 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
     const maxDistance = 1 - threshold;
     const vectorsTable = this.getVectorsTable(embeddingType);
     const storage = await this.storageOf(embeddingType);
+    if (currentWorkClass() === 'interactive') this.keepWarm(embeddingType);
     if (within) return await this.rankWithin(vectorsTable, storage, embedding, limit, maxDistance, within);
     const client = await this.pool.connect();
 
@@ -300,6 +326,62 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
       return result.rows.map((row) => ({ id: row.id, similarity: 1 - row.dist }));
     } finally {
       client.release();
+    }
+  }
+
+  /** Keeps a type a person searches in PostgreSQL's cache from now on. */
+  private keepWarm(type: string): void {
+    if (this.warmDisabled || this.warmTypes.has(type)) return;
+    this.warmTypes.add(type);
+    if (this.warmTimer === undefined) this.scheduleWarm(this.config.warm?.firstDelayMs ?? FIRST_WARM_DELAY_MS);
+  }
+
+  private scheduleWarm(delay: number): void {
+    const timer = setTimeout(() => {
+      this.warming = runAsBackground(() => this.warm()).finally(() => {
+        this.warming = undefined;
+        if (!this.warmDisabled) this.scheduleWarm(this.config.warm?.intervalMs ?? WARM_INTERVAL_MS);
+      });
+    }, delay);
+    Deno.unrefTimer(timer);
+    this.warmTimer = timer;
+  }
+
+  /**
+   * Reads each kept type's table, the TOAST holding its vectors and its HNSW index into shared
+   * buffers with `pg_prewarm`. A database without the extension turns this off for the process.
+   */
+  private async warm(): Promise<void> {
+    try {
+      await createExtension(this.pool, 'pg_prewarm');
+    } catch (err) {
+      this.warmDisabled = true;
+      logger.warn(`vectors are not kept in the database cache: ${err instanceof Error ? err.message : err}`);
+      return;
+    }
+    for (const type of this.warmTypes) {
+      if (this.warmDisabled) return;
+      const started = performance.now();
+      try {
+        const result = await this.pool.query<{ blocks: string }>(
+          `
+          SELECT coalesce(sum(pg_prewarm(rel)), 0) AS blocks FROM (
+            SELECT to_regclass($1) AS rel
+            UNION ALL
+            SELECT reltoastrelid::regclass FROM pg_class WHERE oid = to_regclass($1) AND reltoastrelid <> 0
+            UNION ALL
+            SELECT i.indexrelid::regclass
+              FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_am am ON am.oid = c.relam
+             WHERE i.indrelid = to_regclass($1) AND am.amname = 'hnsw'
+          ) rels
+          WHERE rel IS NOT NULL
+          `,
+          [this.getVectorsTable(type)],
+        );
+        logger.debug(`warmed ${type}: ${result.rows[0]?.blocks ?? 0} blocks in ${Math.round(performance.now() - started)} ms`);
+      } catch (err) {
+        logger.warn(`warming ${type} failed: ${err instanceof Error ? err.message : err}`);
+      }
     }
   }
 

@@ -3,7 +3,8 @@
  * Gated by EIN_TEST_PG.
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import { runAsBackground } from '../../../lib/pg/mod.ts';
 import { PG_URL, pgTestContext } from '../../../testing/gates.ts';
 import { EmbeddingRegistry } from '../mod.ts';
 import { embeddingConformanceTests } from './embedding-conformance.ts';
@@ -111,6 +112,53 @@ Deno.test({
       assertEquals(within.map((match) => match.id), ['wide-c']);
       const read = await registry.getVectors('wide', ['wide-a']);
       assertEquals(JSON.parse(new TextDecoder().decode(read.get('wide-a')!))[0], 1);
+    } finally {
+      await registry.dispose();
+      await ctx.teardown();
+    }
+  },
+});
+
+Deno.test({
+  name: 'EmbeddingRegistry (pgvector) keeps a type searched interactively in the database cache',
+  ignore: !PG_URL,
+  sanitizeResources: false,
+  sanitizeOps: false,
+  async fn() {
+    const ctx = pgTestContext();
+    // Every statement the registry sends, to see which tables it warms.
+    const sent: string[] = [];
+    const pool = new Proxy(ctx.pool, {
+      get(target, prop) {
+        if (prop !== 'query') return Reflect.get(target, prop, target);
+        return (sql: string, values?: unknown[]) => {
+          if (sql.includes('pg_prewarm(')) sent.push(String(values?.[0]));
+          return target.query(sql, values);
+        };
+      },
+    });
+    const registry = new EmbeddingRegistry({ name: ctx.prefix, pool, warm: { firstDelayMs: 0, intervalMs: 50 } });
+    await registry.init();
+    try {
+      for (const type of ['asked', 'crawled']) {
+        const handle = await registry.open(`${type}-1`, { embeddingType: type, capacity: 3 }, 'w');
+        await handle.write(new TextEncoder().encode('[1,0,0]'));
+        await handle.close();
+      }
+      const query = new TextEncoder().encode('[1,0,0]');
+      await runAsBackground(() => registry.findSimilar('crawled', query, 1));
+      await registry.findSimilar('asked', query, 1);
+
+      const table = `${ctx.prefix}_embeddings_asked_data`;
+      const deadline = Date.now() + 5000;
+      while (sent.filter((name) => name === table).length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+      assert(sent.filter((name) => name === table).length >= 2, `warmed: ${sent.join(', ')}`);
+      assertEquals(sent.filter((name) => name !== table), []);
+
+      await registry.dispose();
+      const after = sent.length;
+      await new Promise((r) => setTimeout(r, 150));
+      assertEquals(sent.length, after);
     } finally {
       await registry.dispose();
       await ctx.teardown();
