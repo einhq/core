@@ -77,8 +77,11 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       assertEquals([wrong.status, elsewhere.status], [403, 403]);
     });
 
-    await t.step('a GPX file written to a tracker device fills its track; a device with no driver refuses one', async () => {
+    await t.step("a GPX file written to a tracker device fills its track, its owner's; a device with no driver refuses one", async () => {
       await admin.execString(`echo '${GPX}' > /tmp/walk.gpx`);
+      // The track of a device she made is hers, made though it was by the driver.
+      const track = await admin.execJson<{ props: { uid: number } }>('stat /dev/old-logger/position');
+      assertEquals(track.props.uid, (await admin.execJson<{ uid: number }>('user-info anna')).uid);
       await anna.execString('cat /tmp/walk.gpx > /dev/old-logger');
       const history = await anna.execJson<DeviceHistory>('device-history old-logger/position');
       assertEquals(history.fixes?.map((fix) => [fix.at, fix.lat]), [['2024-06-01T10:00:00.000Z', 57.7], ['2024-06-01T10:05:00.000Z', 57.71]]);

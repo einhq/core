@@ -34,10 +34,10 @@ Deno.test({
         { type: 'person', root: '/archive/people' },
         { type: 'location', root: '/archive/locations' },
         { type: 'album', root: '/archive/albums' },
-        { type: 'device', root: '/archive/devices' },
+        { type: 'camera', root: '/archive/cameras' },
       ],
     });
-    await cmd.shouldSucceed(`mkdir -p /archive/people && mkdir -p /archive/locations && mkdir -p /archive/albums && mkdir -p /archive/devices`);
+    await cmd.shouldSucceed(`mkdir -p /archive/people && mkdir -p /archive/locations && mkdir -p /archive/albums && mkdir -p /archive/cameras`);
 
     await vfs.create(ADMIN_ACCESS, 'person', '/archive/people', 'Erik_J_Strand', { attrs: { name: 'Erik J Strand-Berg' } });
     await vfs.create(ADMIN_ACCESS, 'person', '/archive/people', 'anna', { attrs: { name: 'Anna Lindberg' } });

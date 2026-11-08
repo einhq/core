@@ -21,6 +21,7 @@ import { readTrackerRequest } from '../../lib/track/tracker-protocols.ts';
 import { LogHandle } from '../../registries/log/log-handle.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
 import { assertAccess } from '../../vfs/assert-access.ts';
+import { isAdmin } from '../../lib/access/verify-access.ts';
 import { NodeNotFoundError } from '../../vfs/errors.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { DeviceSink } from '../../vfs/types.ts';
@@ -215,10 +216,18 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       this.endpoints.set(`${device}/${name}`, { path, type, attrs: { ...existing.attrs, ...rest } as EndpointAttrs, readAt: Date.now() });
       return path;
     }
+    // An endpoint is its device's owner's, and its group's but for a control, which the users
+    // group switches: a person who made a device edits its track. Only the administrator gives a
+    // node to another, which a driver's service is.
     const control = type === NODE_TYPE_CONTROL;
+    const owner = (await this.sys.vfs.get(ADMIN_ACCESS, parent)).props;
     await this.sys.vfs.create(access, type, parent, name, {
       attrs: { ...attrs },
-      props: { mode: mode ?? (control ? 0o664 : 0o644), ...(control ? { gid: USERS_GID } : {}) },
+      props: {
+        mode: mode ?? (control ? 0o664 : 0o644),
+        ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
+        gid: control ? USERS_GID : owner.gid,
+      },
     });
     this.endpoints.set(`${device}/${name}`, { path, type, attrs, readAt: Date.now() });
     return path;

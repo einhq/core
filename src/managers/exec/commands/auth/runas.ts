@@ -22,7 +22,7 @@ const uidOf = async (cmd: Command, who: string): Promise<number | undefined> => 
  * runs in a shell of its own, on a session of that account's made for it and removed after, so
  * what it writes is that account's and its settings are its own. Administrators only.
  *
- *   runas anna 'device-set hall-lamp/switch-0 on'
+ *   runas anna 'echo on > /dev/hall-lamp/switch-0'
  *   runas 1004 ls -la /home/anna
  */
 export const runas = async (cmd: Command): CmdReturn => {
