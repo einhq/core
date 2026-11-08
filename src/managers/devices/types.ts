@@ -52,6 +52,8 @@ export type Driver = {
   write?(command: DriverWrite): Promise<void>;
   /** One of its devices is being forgotten: let go of what would make it again. */
   forget?(device: string): Promise<void>;
+  /** A person made one of its devices (`device-create`): give it the endpoints it has from the start. */
+  setup?(device: string): Promise<void>;
 };
 
 /** How `append` takes a value: when it was read, and whether the device replayed it. */

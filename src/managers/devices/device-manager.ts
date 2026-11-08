@@ -369,6 +369,9 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
  */
 const trackerDriver = (devices: DeviceManager): Driver => ({
   description: 'A phone, GPS tracker or logger: its position, posted as it goes or as GPX files',
+  async setup(device) {
+    await devices.ensureEndpoint(ADMIN_ACCESS, device, 'position', 'track', { label: 'Position' });
+  },
   async input(raw) {
     const body = new TextDecoder().decode(raw.bytes);
     const fixes = readTrackerRequest(new URL(`http://device/?${raw.query ?? ''}`), raw.contentType ?? '', body);

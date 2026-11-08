@@ -47,6 +47,7 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
       ...(Object.keys(config).length > 0 ? { config } : {}),
     };
     const path = await manager.ensureDevice(cmd.access, device, attrs);
+    if (flags.driver) await manager.driver(flags.driver)?.setup?.(device);
     const created: DeviceCreated = { device, path };
     if (cmd.json) await cmd.writeJSON(created satisfies DeviceCreated);
     else await cmd.writeLn(path);
