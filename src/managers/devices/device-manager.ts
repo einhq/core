@@ -69,7 +69,10 @@ const changedAttrs = (current: Record<string, unknown>, wanted: Record<string, u
   return Object.keys(changed).length > 0 ? changed : undefined;
 };
 
-type Endpoint = { path: string; type: EndpointType; attrs: EndpointAttrs };
+type Endpoint = { path: string; type: EndpointType; attrs: EndpointAttrs; readAt: number };
+
+/** How long an endpoint's attrs are taken as read: a changed `minInterval` counts from then on. */
+const ENDPOINT_TTL_MS = 60_000;
 type Pending = { timer: ReturnType<typeof setTimeout>; value: DeviceValue; at: Date; retained?: boolean; access: Access };
 
 export class DeviceManager implements DeviceSink, ModuleDevices {
@@ -174,7 +177,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
 
   // ===== What drivers write =====
 
-  async ensureDevice(access: Access, name: string, attrs: DeviceAttrs): Promise<string> {
+  async ensureDevice(access: Access, name: string, attrs: Partial<DeviceAttrs>): Promise<string> {
     assertName('device', name);
     const path = devicePath(name);
     const existing = await this.sys.vfs.get<DeviceNodeAttrs>(access, path).catch((error) => {
@@ -183,13 +186,14 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     });
     if (existing) {
       if (existing.type !== NODE_TYPE_DEVICE) throw new DeviceError(`${path} is a ${existing.type}, not a device`);
-      const changed = changedAttrs(existing.attrs, attrs);
+      const { label: _label, ...rest } = attrs;
+      const changed = changedAttrs(existing.attrs, rest);
       if (changed) await this.sys.vfs.update(access, path, { attrs: changed });
       return path;
     }
     const gid = await groupGid(this.sys.vfs, DEVICES_GROUPNAME);
     await this.sys.vfs.create<DeviceNodeAttrs>(access, NODE_TYPE_DEVICE, DEV_PATH, name, {
-      attrs: { ...attrs },
+      attrs: { ...attrs, label: attrs.label || name },
       props: { mode: 0o775, ...(gid !== undefined ? { gid } : {}) },
     });
     return path;
@@ -204,10 +208,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       throw error;
     });
     if (existing) {
-      if (existing.type !== type) throw new DeviceError(`${path} is a ${existing.type}, not a ${type}`);
-      const changed = changedAttrs(existing.attrs, attrs);
+      if (existing.type !== type) throw new DeviceError(`${path} is a ${existing.type}, not a ${type}: remove it first`);
+      const { label: _label, ...rest } = attrs;
+      const changed = changedAttrs(existing.attrs, rest);
       if (changed) await this.sys.vfs.update(access, path, { attrs: changed });
-      this.endpoints.set(`${device}/${name}`, { path, type, attrs: { ...existing.attrs, ...attrs } as EndpointAttrs });
+      this.endpoints.set(`${device}/${name}`, { path, type, attrs: { ...existing.attrs, ...rest } as EndpointAttrs, readAt: Date.now() });
       return path;
     }
     const control = type === NODE_TYPE_CONTROL;
@@ -215,8 +220,17 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       attrs: { ...attrs },
       props: { mode: mode ?? (control ? 0o664 : 0o644), ...(control ? { gid: USERS_GID } : {}) },
     });
-    this.endpoints.set(`${device}/${name}`, { path, type, attrs });
+    this.endpoints.set(`${device}/${name}`, { path, type, attrs, readAt: Date.now() });
     return path;
+  }
+
+  async removeEndpoint(access: Access, device: string, endpoint: string): Promise<void> {
+    assertName('endpoint', endpoint);
+    const key = `${device}/${endpoint}`;
+    await this.sys.vfs.unlink(access, join(devicePath(device), endpoint), devicePath(device), { recursive: true });
+    this.endpoints.delete(key);
+    this.published.delete(key);
+    this.dropPending(key);
   }
 
   async append(access: Access, device: string, endpoint: string, value: DeviceValue | DeviceFix, opts: AppendOptions = {}): Promise<boolean> {
@@ -304,11 +318,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   private async endpointOf(access: Access, device: string, endpoint: string): Promise<Endpoint> {
     const key = `${device}/${endpoint}`;
     const known = this.endpoints.get(key);
-    if (known) return known;
+    if (known && Date.now() - known.readAt < ENDPOINT_TTL_MS) return known;
     const path = join(devicePath(device), endpoint);
     const node = await this.sys.vfs.get(access, path);
     if (node.type !== NODE_TYPE_LOG && node.type !== 'track' && node.type !== NODE_TYPE_CONTROL) throw new DeviceError(`${path} is a ${node.type}, not an endpoint`);
-    const ep: Endpoint = { path, type: node.type as EndpointType, attrs: node.attrs as EndpointAttrs };
+    const ep: Endpoint = { path, type: node.type as EndpointType, attrs: node.attrs as EndpointAttrs, readAt: Date.now() };
     this.endpoints.set(key, ep);
     return ep;
   }

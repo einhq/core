@@ -66,6 +66,8 @@ export type EndpointAttrs = {
   events?: boolean;
   /** Shortest time between two published readings, in seconds. */
   minInterval?: number;
+  /** How long a log's or control's entries are kept: `30 day`, `forever` (the log registry's retention). */
+  retention?: string;
   /** A control's: what it takes. */
   schema?: ControlSchema;
   /** A control's: the last value someone wrote, which the device has yet to report. */

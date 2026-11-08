@@ -66,14 +66,20 @@ export type AppendOptions = { at?: Date; retained?: boolean };
 export interface ModuleDevices {
   /** Register `driver` as `name`, in place of one registered before; the answer unregisters it. */
   registerDriver(name: string, driver: Driver): () => void;
-  /** The device `name` (`/dev/<name>`), made when it is missing, its attrs set where they differ. Answers its path. */
-  ensureDevice(access: Access, name: string, attrs: DeviceAttrs): Promise<string>;
   /**
-   * The device's endpoint `name` of `type`, made when it is missing, its attrs set where they
-   * differ. `mode` is its mode when made: a reading `0644` unless said, a control `0664` for the
-   * users group. Answers its path.
+   * The device `name` (`/dev/<name>`), made when it is missing (its label the name when none is
+   * given), the attrs given set where they differ. A label is the device's from then on, a person's
+   * to change (`device-label`): one given for a device already there is left. Answers its path.
+   */
+  ensureDevice(access: Access, name: string, attrs: Partial<DeviceAttrs>): Promise<string>;
+  /**
+   * The device's endpoint `name` of `type`, made when it is missing, the attrs given set where they
+   * differ, a label only when it is made, as a device's. `mode` is its mode when made: a reading
+   * `0644` unless said, a control `0664` for the users group. Answers its path.
    */
   ensureEndpoint(access: Access, device: string, name: string, type: EndpointType, attrs: EndpointAttrs, mode?: number): Promise<string>;
+  /** Remove one endpoint of a device and its history: one the device no longer has, or one of another type now. */
+  removeEndpoint(access: Access, device: string, endpoint: string): Promise<void>;
   /**
    * A value read from the device, for a log or a control, or a fix for a track: appended to the
    * endpoint and published on its key, unless it repeats the last one or a number comes before the
