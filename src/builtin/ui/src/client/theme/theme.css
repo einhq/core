@@ -1556,9 +1556,15 @@ html::-webkit-scrollbar {
 }
 
 /* A modal's scroll lock puts `overflow: hidden` on body, which with `html` scrolling does not
- * reach the viewport; while a lock is on, `html` stops scrolling too. */
+ * reach the viewport; while a lock is on, `html` stops scrolling instead. Body keeps `visible`:
+ * hidden, it would be the scroll container the page's sticky headers stick to, one that never
+ * scrolls, and they would drop to their place in the page, out of sight, as the modal opens. */
 html:has(> body[data-scroll-locked]) {
   overflow-y: hidden;
+}
+
+html body[data-scroll-locked] {
+  overflow: visible !important;
 }
 
 /* The app's scrollbar (`bindScrollbar`): a thumb in a track that takes no width, so nothing moves
