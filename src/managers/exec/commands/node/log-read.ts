@@ -27,7 +27,7 @@ const parseMoment = (value: string | undefined, what: string): Date | undefined 
  * interval, as a chart wants it. As text, one `<time>\t<JSON>` line each, the form `cat -t` prints.
  *
  *   log-read <log> [--since 24h] [--until <time>] [-n 1000]
- *   log-read <log> --since 7d --bucket 1h [--field value] [--agg avg] [--tz Europe/Stockholm]
+ *   log-read <log> --since 7d --bucket 1h [--field usedBytes] [--agg max] [--tz Europe/Stockholm]
  */
 export const logRead = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -115,13 +115,13 @@ logRead.spec = {
     { name: 'until', type: 'string' as const, description: 'before this time, as --since takes it' },
     { name: 'n', type: 'string' as const, description: `at most this many entries or intervals, the latest (${DEFAULT_LIMIT} when not given)` },
     { name: 'bucket', type: 'string' as const, description: 'sum the entries up per interval of this length: 5m, 1h, 1d' },
-    { name: 'field', type: 'string' as const, description: 'with --bucket, the field to sum up, dotted (value, temperature.value); the entry itself when not given' },
+    { name: 'field', type: 'string' as const, description: 'with --bucket, the field to sum up, dotted (usedBytes, host.availableBytes); the entry itself when not given' },
     { name: 'agg', type: 'string' as const, description: `with --bucket, how: ${AGGREGATES.join(', ')} (avg when not given)` },
     { name: 'tz', type: 'string' as const, description: "with --bucket, the time zone a day or an hour is counted in (the system's when not given)" },
   ],
   examples: [
     'log-read /var/logs/metrics/cpu --since 1h',
-    'log-read /archive/devices/hall-sensor/temperature/history --since 7d --bucket 1h --field value',
+    'log-read /var/logs/metrics/memory --since 7d --bucket 1h --field usedBytes --agg max',
   ],
   returns: 'LogReadEntries { entries: [{at, data}] }, or with --bucket LogReadBuckets { buckets: [{at, value, count}] }',
 };
