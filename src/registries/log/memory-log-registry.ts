@@ -2,7 +2,8 @@ import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/rou
 import { routingKeysMatch } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode, ResourceSeekMode } from '../types.ts';
 import { LogHandle } from './log-handle.ts';
-import { LogEntry, LogEntryId, LogIO, LogRegistryIf, LogResourceOptions, LogStat, ParsedRetention, parseRetention } from './types.ts';
+import { bucketsOf, rangeOf } from './buckets.ts';
+import { LogBucket, LogBucketQuery, LogEntry, LogEntryId, LogIO, LogRange, LogRegistryIf, LogResourceOptions, LogStat, ParsedRetention, parseRetention } from './types.ts';
 
 type MemoryLogRegistryConfig = {
   router: RouterManagerIf;
@@ -95,6 +96,8 @@ export class MemoryLogRegistry implements LogRegistryIf {
       seek: async (offset: number, whence: ResourceSeekMode, startId?: LogEntryId): Promise<LogEntryId> => {
         return this.seek(id, offset, whence, startId);
       },
+      readRange: async (range: LogRange): Promise<LogEntry[]> => rangeOf(this.entriesOf(id), range),
+      readBuckets: async (query: LogBucketQuery): Promise<LogBucket[]> => bucketsOf(this.entriesOf(id), query),
     };
 
     const rh = new LogHandle(id, opts, mode || 'r', this, io);
@@ -157,6 +160,12 @@ export class MemoryLogRegistry implements LogRegistryIf {
 
   async count(_id?: string): Promise<number> {
     return this.logs.size;
+  }
+
+  private entriesOf(id: string): LogEntry[] {
+    const logEntries = this.entries.get(id);
+    if (!logEntries) throw new Error(`no log found: ${id}`);
+    return logEntries;
   }
 
   private append(id: string, data: unknown, createdAt?: Date): LogEntryId {

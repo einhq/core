@@ -67,3 +67,9 @@ export type QueueDead = { items: Wire<QueueDeadEntry>[] } | { ok: true; settled:
 
 /** `queue-peek`: what a reader would get next, without taking it. */
 export type QueuePeek = { items: Wire<QueuePeekEntry>[] };
+
+/** `log-read`: a log's entries written in a time range, oldest first. */
+export type LogReadEntries = { entries: { at: string; data: unknown }[] };
+
+/** `log-read --bucket`: a time range summed up per interval, oldest first; an empty interval is left out. */
+export type LogReadBuckets = { buckets: { at: string; value: number | null; count: number }[] };

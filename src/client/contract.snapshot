@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.12.13
+MODULE_API_VERSION 0.12.14
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -835,6 +835,7 @@ src/client/mod.ts ArgCompleteType d91fb6b71d55
 src/client/mod.ts AttrCondition 53ce0a8389d4
 src/client/mod.ts AttrPathRef 6eddb394065c
 src/client/mod.ts AttrRef 37e9a696d3eb
+src/client/mod.ts BucketSample 5a15b6eafb32 at=8cd35eed1400,count=56355d434a33,value=15597e943851
 src/client/mod.ts COVER_LINK_NAME f14ec0158712
 src/client/mod.ts CaptureTimeParts 21e2eb1171bf day=7908a498e835,hour=48280196a71c,minute=05cfcf654183,month=9e2a78a7ccbb,offset=65e81354bda9,precision=35321eec9e0f,second=38eb9bc66836,year=e5b25b3a5c65
 src/client/mod.ts CatalogueEntry 1131b339301c dir=71747dad87c2,fingerprint=3fdf3c8b7bd6,name=6d0c36381511,spec=0c214b035dc8
@@ -863,6 +864,8 @@ src/client/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f74
 src/client/mod.ts Input 7b7dfe147075 chunks=387d7ad0ad4e,lines=b31929aad402,name=d4da142d5ba2,text=df74e68b57a9
 src/client/mod.ts Judgement eb537fde8dc3 effect=057630f2fbb1,reasons=69aa95bb8342
 src/client/mod.ts LinkEntry cca211d338b1 absPath=dacfc3a9d12c,id=3058e564a5ab,node=3c5dbf59998b,parentId=63a1e1fa937e,target=d9c423f5ed28
+src/client/mod.ts LogAggregate b21795ccfd3a
+src/client/mod.ts LogBucketQuery eb7b270ae4dd
 src/client/mod.ts Mode 701cc16d35f7
 src/client/mod.ts ModuleSystemCore 5a38c108bc5a vfs=3ccbfd2800f5
 src/client/mod.ts NOT_DERIVED 970a00e02a5b
@@ -905,6 +908,7 @@ src/client/mod.ts ResourceHandleIf 3398c066e06e close=d0c1e69520d4,closed=f3e932
 src/client/mod.ts STEP_EXIT_INPUT 308c196c61c7
 src/client/mod.ts STEP_EXIT_TEMPORARY 11fa2eef04a3
 src/client/mod.ts SYSTEM_TIME_ZONE 629098147f14
+src/client/mod.ts Sample 55fcc1b2606a
 src/client/mod.ts SetCoverOptions 4a9e77d13ae1 attrs=fcce3e31f70a,gid=d77381bee212,uid=6ba1ab75bf01
 src/client/mod.ts SettingsContext 1b8e155c4a33 env=e4f7cd5b572a,sys=e2282d64ff3b
 src/client/mod.ts SharePreference b9087065ef2a
@@ -947,7 +951,9 @@ src/client/mod.ts parseCaptureTime 2c0bd41e9df1
 src/client/mod.ts pointInPolygon a97e58cc3aec 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,2|5491a649ee2a=5491a649ee2a,@signature=8591dd6d80d5
 src/client/mod.ts processingAt 07233032a7dd 0|508a730f01d8=508a730f01d8,1|336e2b46aff6=336e2b46aff6,@signature=f981bd00b088
 src/client/mod.ts processingRoots db9f5786a786 0|99facbb459eb=99facbb459eb,@signature=6ff0bc666394
+src/client/mod.ts readBuckets 166ee2f91553 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|c6b4cec3b2e9=c6b4cec3b2e9,@signature=912caad308a9
 src/client/mod.ts readComments 32bd81f0ff14 0|8dcbaff60bef=8dcbaff60bef,1|336e2b46aff6=336e2b46aff6,@signature=bfaae59ae325
+src/client/mod.ts readRange 3ec302a9e182 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|5ddaba732c83=5ddaba732c83,@signature=58c967630f78
 src/client/mod.ts readRenditionTable 090c370c8fff 0|f564a7144c6e=f564a7144c6e,@signature=a28e35f2a1f8
 src/client/mod.ts readSettings 1f20f42ca86e 0|d78cb581f075=d78cb581f075,1|175dd1db44d3=175dd1db44d3,2|619766deeb64=619766deeb64,@signature=b772afb160d7
 src/client/mod.ts readTail 723b012f72f5 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=0451835f9428
@@ -1045,6 +1051,8 @@ src/lib/api/mod.ts LayoutIndexRow d5c143b5de14
 src/lib/api/mod.ts LayoutMediaKind fc936da363c1
 src/lib/api/mod.ts ListedCommand 2ef83be47754 module=a18fa72ffaa2,name=6d0c36381511,spec=0c214b035dc8
 src/lib/api/mod.ts LogLine 4eba4fe221cb extra=60751f7008e8,level=1fb3f1f81f7c,message=ef0bf4d895db,name=6d0c36381511,timestamp=8b43ca55f2d3
+src/lib/api/mod.ts LogReadBuckets 6127f33fe888 buckets=541165507516
+src/lib/api/mod.ts LogReadEntries 89d70c2bcaa8 entries=713866c82c89
 src/lib/api/mod.ts LogStat 154da2a900f6 retention=35412828e732,routingKeys=11a47683d8fc,size=5d025bf53508
 src/lib/api/mod.ts MembershipChanged 74e9ebd9fa69 action=57ec527970ff,group=fa0113d0351a,user=f5dd46b51dfb
 src/lib/api/mod.ts MetricPoint 148c3764d23d at=8cd35eed1400,value=8dd8911155c9

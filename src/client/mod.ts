@@ -223,8 +223,11 @@ export type { GeoBounds, PositionData, PositionFilter, PositionPoint, WithinMatc
 // What the track registry knows about a track without reading its points (`NodeVFS.trackSummaries`).
 export type { TrackSummary } from '../registries/track/types.ts';
 
-// The latest samples of a metrics series: core's own, or one a module's service keeps.
-export { readTail } from '../lib/metrics/read.ts';
+// A series out of a log: the latest samples of a metrics series, core's own or one a module's
+// service keeps, or any log's entries by time, as they are or summed up per interval.
+export { readBuckets, readRange, readTail } from '../lib/metrics/read.ts';
+export type { BucketSample, Sample } from '../lib/metrics/sample.ts';
+export type { LogAggregate, LogBucketQuery } from '../registries/log/types.ts';
 export { seriesPath } from '../lib/metrics/series.ts';
 // The pool matched triggers wait in before they are instances: in core's `pools` series, the work
 // not started yet, as against the work pools' work in line for a worker.

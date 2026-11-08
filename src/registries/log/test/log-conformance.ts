@@ -7,7 +7,7 @@ import { assertEquals, assertRejects } from '@std/assert';
 import type { RouterManagerIf } from '../../../managers/router/mod.ts';
 import { ResourceSeekMode } from '../../types.ts';
 import { LogHandle } from '../log-handle.ts';
-import type { LogRegistryIf } from '../types.ts';
+import type { LogAggregate, LogRegistryIf } from '../types.ts';
 import { waitFor } from '../../test/relay-wait.ts';
 
 export type LogSetup = {
@@ -243,6 +243,61 @@ export function logConformanceTests(name: string, setup: () => Promise<LogSetup>
         }
 
         assertEquals(await registry.delete('series'), true);
+      });
+
+      await t.step("a range read and a bucketed read go by the entries' time", async (s) => {
+        await registry.touch('readings', { retention: 'forever', routingKeys: [] });
+        // A Monday, so a week's interval starts on it.
+        const base = Date.UTC(2026, 0, 5);
+        const at = (minutes: number) => new Date(base + minutes * 60_000);
+        const writer = await registry.open('readings', {}, 'a') as LogHandle;
+        try {
+          await writer.appendAt({ value: 10, on: true }, at(0));
+          await writer.appendAt({ value: 20, on: false }, at(30));
+          await writer.appendAt({ value: 40, on: true }, at(90));
+          await writer.appendAt({ value: 'n/a' }, at(100));
+          // Written last, but from before most: it is read by its time, not its order.
+          await writer.appendAt({ value: 15, on: true }, at(10));
+        } finally {
+          await writer.close();
+        }
+        const reader = await registry.open('readings', {}, 'r') as LogHandle;
+        const values = (entries: { data: unknown }[]) => entries.map((entry) => (entry.data as { value: unknown }).value);
+        const round = (value: number | null) => value === null ? null : Math.round(value * 1000) / 1000;
+        const hourly = async (aggregate: LogAggregate, field = ['value']) =>
+          (await reader.readBuckets({ bucketSeconds: 3600, aggregate, field })).map((bucket) => [bucket.at.getTime(), round(bucket.value), bucket.count]);
+        try {
+          await s.step('a range, by time; with a limit, its latest entries', async () => {
+            assertEquals(values(await reader.readRange({})), [10, 15, 20, 40, 'n/a']);
+            assertEquals(values(await reader.readRange({ since: at(10), until: at(90) })), [15, 20]);
+            assertEquals(values(await reader.readRange({ limit: 2 })), [40, 'n/a']);
+            assertEquals(values(await reader.readRange({ since: at(200) })), []);
+          });
+
+          await s.step('each aggregate per hour; a value that is not a number is counted, not summed up', async () => {
+            assertEquals(await hourly('avg'), [[at(0).getTime(), 15, 3], [at(60).getTime(), 40, 2]]);
+            assertEquals((await hourly('min')).map((row) => row[1]), [10, 40]);
+            assertEquals((await hourly('max')).map((row) => row[1]), [20, 40]);
+            assertEquals((await hourly('sum')).map((row) => row[1]), [45, 40]);
+            assertEquals((await hourly('count')).map((row) => row[1]), [3, 2]);
+            assertEquals((await hourly('first')).map((row) => row[1]), [10, 40]);
+            assertEquals((await hourly('last')).map((row) => row[1]), [20, 40]);
+          });
+
+          await s.step('true and false are 1 and 0', async () => {
+            assertEquals((await hourly('avg', ['on'])).map((row) => row[1]), [0.667, 1]);
+          });
+
+          await s.step('a day is a calendar day in the time zone asked; a week starts on a Monday', async () => {
+            const days = await reader.readBuckets({ bucketSeconds: 86_400, aggregate: 'count', timeZone: 'Europe/Stockholm' });
+            assertEquals(days.map((bucket) => [bucket.at.toISOString(), bucket.value]), [['2026-01-04T23:00:00.000Z', 5]]);
+            const weeks = await reader.readBuckets({ bucketSeconds: 7 * 86_400, aggregate: 'count' });
+            assertEquals(weeks.map((bucket) => bucket.at.toISOString()), ['2026-01-05T00:00:00.000Z']);
+          });
+        } finally {
+          await reader.close();
+        }
+        assertEquals(await registry.delete('readings'), true);
       });
 
       await t.step('w mode truncates the log', async () => {

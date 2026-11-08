@@ -20,6 +20,7 @@ Expired data goes by TimescaleDB dropping whole chunks, one retention job per cl
 - **Routing keys**: Logs can subscribe to routing keys. When a relay event arrives matching a key, the payload is automatically appended to all subscribed logs. A key may be a wildcard pattern (`system.vfs.*.created`, `media.#`) — see `src/registries/routing-key-match.ts`.
 - **Blocking reads**: When opened with an AbortSignal, `read()` blocks until this registry next appends to the log. Appends do not `pg_notify`: a commit that notifies is not group-committed, which limits every writer at once.
 - **Cursor-based reading**: Entry ids come from one sequence shared by all of the registry's logs, so they increase within each log; reads track position via `lastId`, allowing sequential consumption without duplicates.
+- **Reading by time**: `readRange` answers the entries written in `[since, until)` by their `created_at` (a backdated entry among them by its time, not its id), the latest `limit` of them; `readBuckets` sums a range up per interval (`time_bucket`, counted from Monday 2000-01-03 in a time zone) with avg, min, max, sum, count, first or last over a number or a boolean the entry holds. Neither moves the cursor. `log-read` is the command, and `readRange` / `readBuckets` in `@ein/client` are the module's way. The memory registry answers both the same way (`buckets.ts`); the conformance suite holds both to it.
 
 ## SQL Schema
 
@@ -43,7 +44,7 @@ CREATE TABLE {prefix}_e_{class} (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   data       JSONB
 );
--- + index on (log_key, id); hypertable on created_at without its default time index
+-- + indexes on (log_key, id) and (log_key, created_at); hypertable on created_at without its default time index
 ```
 
 ## Usage

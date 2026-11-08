@@ -64,6 +64,34 @@ export interface LogEntry {
   data: unknown;
 }
 
+/** The entries of a log written in `[since, until)`, by their time; either end open when left out. */
+export type LogRange = {
+  since?: Date;
+  until?: Date;
+  /** At most this many, the latest of them. */
+  limit?: number;
+};
+
+/** How a bucketed read sums up the values in each interval. */
+export type LogAggregate = 'avg' | 'min' | 'max' | 'sum' | 'count' | 'first' | 'last';
+
+/**
+ * A log's entries in `[since, until)` gathered into intervals of `bucketSeconds`, each summed up
+ * by `aggregate` over one value: the entry itself, or the field `field` names (`['value']`). A
+ * number is itself and true and false are 1 and 0; any other value is counted but not summed up.
+ * Intervals are counted from Monday 2000-01-03 in `timeZone` (UTC when unset), as TimescaleDB's
+ * `time_bucket` counts them: a day is a calendar day there, and a week starts on a Monday.
+ */
+export type LogBucketQuery = Omit<LogRange, 'limit'> & {
+  bucketSeconds: number;
+  aggregate: LogAggregate;
+  field?: string[];
+  timeZone?: string;
+};
+
+/** One interval of a bucketed read: where it starts, its value, and how many entries it holds. */
+export type LogBucket = { at: Date; value: number | null; count: number };
+
 /** Low-level I/O operations for reading and writing log entries. */
 export interface LogIO {
   /** Append a data payload to the log, returning the new entry's id. `createdAt` backdates the entry (defaults to now) — used by imports of historical series. */
@@ -72,6 +100,10 @@ export interface LogIO {
   read(limit: number, startId?: LogEntryId, signal?: AbortSignal): Promise<LogEntry[] | null>;
   /** Seek to a position in the log, returning the entry id at that position. */
   seek(offset: number, whence: ResourceSeekMode, startId?: LogEntryId): Promise<LogEntryId>;
+  /** The entries written in a time range, oldest first; with a limit, the latest that many. */
+  readRange(range: LogRange): Promise<LogEntry[]>;
+  /** The entries of a time range in intervals, oldest first; an interval with no entry is left out. */
+  readBuckets(query: LogBucketQuery): Promise<LogBucket[]>;
 }
 
 /** Registry interface for managing named logs backed by a storage engine. */

@@ -5,7 +5,31 @@ import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingKeysMatch, routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode, ResourceSeekMode } from '../types.ts';
 import { LogHandle } from './log-handle.ts';
-import { LogEntry, LogEntryId, LogIO, LogRegistryIf, LogResourceOptions, LogStat, ParsedRetention, parseRetention } from './types.ts';
+import {
+  LogAggregate,
+  LogBucket,
+  LogBucketQuery,
+  LogEntry,
+  LogEntryId,
+  LogIO,
+  LogRange,
+  LogRegistryIf,
+  LogResourceOptions,
+  LogStat,
+  ParsedRetention,
+  parseRetention,
+} from './types.ts';
+
+/** Each aggregate of a bucketed read over its value `x`; `first` and `last` by time, of the entries that have one. */
+const AGGREGATES: Record<LogAggregate, string> = {
+  avg: 'avg(x)',
+  min: 'min(x)',
+  max: 'max(x)',
+  sum: 'sum(x)',
+  count: 'count(*)',
+  first: 'first(x, created_at) FILTER (WHERE x IS NOT NULL)',
+  last: 'last(x, created_at) FILTER (WHERE x IS NOT NULL)',
+};
 
 type PgLogRegistryConfig = {
   pool: Pool;
@@ -333,6 +357,8 @@ export class PgLogRegistry implements LogRegistryIf {
       seek: async (offset: number, whence: ResourceSeekMode, startId?: LogEntryId): Promise<LogEntryId> => {
         return await this.seek(id, offset, whence, startId);
       },
+      readRange: async (range: LogRange): Promise<LogEntry[]> => await this.readRange(id, range),
+      readBuckets: async (query: LogBucketQuery): Promise<LogBucket[]> => await this.readBuckets(id, query),
     };
 
     const rh = new LogHandle(id, opts, mode || 'r', this, io);
@@ -666,6 +692,67 @@ export class PgLogRegistry implements LogRegistryIf {
     return res.rows.map((r) => ({ id: r.id, data: r.data, createdAt: r.created_at }));
   }
 
+  /** `created_at` conditions for a range, numbering their parameters after those in `params`. */
+  private timeConditions(range: Omit<LogRange, 'limit'>, params: unknown[]): string {
+    let conditions = '';
+    if (range.since) {
+      params.push(range.since);
+      conditions += ` AND created_at >= $${params.length}`;
+    }
+    if (range.until) {
+      params.push(range.until);
+      conditions += ` AND created_at < $${params.length}`;
+    }
+    return conditions;
+  }
+
+  private async readRange(id: string, range: LogRange): Promise<LogEntry[]> {
+    const { key, cls } = await this.resolve(id);
+    const params: unknown[] = [key];
+    const conditions = this.timeConditions(range, params);
+    let limit = '';
+    if (range.limit !== undefined) {
+      params.push(range.limit);
+      limit = `LIMIT $${params.length}`;
+    }
+    const res = await this.query<{ id: LogEntryId; data: unknown; created_at: Date }>(
+      `SELECT id, data, created_at FROM ${cls.table} WHERE log_key = $1${conditions} ORDER BY created_at DESC, id DESC ${limit}`,
+      params,
+    );
+    return res.rows.reverse().map((r) => ({ id: Number(r.id), data: r.data, createdAt: r.created_at }));
+  }
+
+  private async readBuckets(id: string, query: LogBucketQuery): Promise<LogBucket[]> {
+    if (!(query.bucketSeconds > 0) || !Number.isFinite(query.bucketSeconds)) throw new Error(`invalid bucket: ${query.bucketSeconds} seconds`);
+    const aggregate = AGGREGATES[query.aggregate];
+    if (!aggregate) throw new Error(`invalid aggregate: ${query.aggregate}`);
+    const { key, cls } = await this.resolve(id);
+    const params: unknown[] = [key, query.field ?? [], query.bucketSeconds];
+    const conditions = this.timeConditions(query, params);
+    let bucket = 'time_bucket(make_interval(secs => $3::float8), created_at)';
+    if (query.timeZone && query.timeZone !== 'UTC') {
+      params.push(query.timeZone);
+      bucket = `time_bucket(make_interval(secs => $3::float8), created_at, $${params.length})`;
+    }
+    const res = await this.query<{ at: Date; value: number | string | null; count: string }>(
+      `
+      WITH v AS (
+        SELECT created_at,
+          CASE jsonb_typeof(data #> $2::text[])
+            WHEN 'number' THEN (data #>> $2::text[])::float8
+            WHEN 'boolean' THEN CASE WHEN data #> $2::text[] = 'true'::jsonb THEN 1 ELSE 0 END
+          END AS x
+        FROM ${cls.table}
+        WHERE log_key = $1${conditions}
+      )
+      SELECT ${bucket} AS at, ${aggregate} AS value, count(*) AS count
+      FROM v GROUP BY 1 ORDER BY 1
+      `,
+      params,
+    );
+    return res.rows.map((r) => ({ at: r.at, value: r.value === null ? null : Number(r.value), count: Number(r.count) }));
+  }
+
   private async read(id: string, limit: number, startId?: LogEntryId, signal?: AbortSignal): Promise<LogEntry[] | null> {
     const entries = await this.fetch(id, limit, startId);
 
@@ -818,6 +905,7 @@ export class PgLogRegistry implements LogRegistryIf {
           PRIMARY KEY (log_key, id)
         )
       `);
+      await this.query(`CREATE INDEX IF NOT EXISTS ${t}_log_time ON ${t} (log_key, created_at)`);
       return;
     }
 
@@ -832,13 +920,14 @@ export class PgLogRegistry implements LogRegistryIf {
       )
     `);
 
-    // Without the default index on created_at: nothing reads by time alone, and it would be the
-    // larger part of the table's indexes.
+    // Without the default index on created_at alone: what reads by time reads one log's, by
+    // (log_key, created_at) below.
     await this.query(
       `SELECT create_hypertable($1::regclass, 'created_at', chunk_time_interval => make_interval(secs => $2), create_default_indexes => false, if_not_exists => true)`,
       [t, cls.chunk],
     );
     await this.query(`CREATE INDEX IF NOT EXISTS ${t}_log_id ON ${t} (log_key, id)`);
+    await this.query(`CREATE INDEX IF NOT EXISTS ${t}_log_time ON ${t} (log_key, created_at)`);
 
     if (cls.dropAfter !== undefined) {
       await this.query(

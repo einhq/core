@@ -1,5 +1,5 @@
 import { AbstractResourceHandle, modeFlags, RegistryIf, ResourceHandleIf, ResourceMode, ResourceSeekMode } from '../types.ts';
-import { LogEntry, LogEntryId, LogIO, LogResourceOptions, LogStat } from './types.ts';
+import { LogBucket, LogBucketQuery, LogEntry, LogEntryId, LogIO, LogRange, LogResourceOptions, LogStat } from './types.ts';
 
 export class LogHandle extends AbstractResourceHandle<LogResourceOptions, LogStat> implements ResourceHandleIf<LogResourceOptions, LogStat> {
   private lastId: LogEntryId | undefined = undefined;
@@ -69,6 +69,20 @@ export class LogHandle extends AbstractResourceHandle<LogResourceOptions, LogSta
     if (!entries || entries.length === 0) return [];
     this.lastId = entries[entries.length - 1].id;
     return entries;
+  }
+
+  /** The entries written in a time range, oldest first, by their time; the cursor stays where it is. */
+  async readRange(range: LogRange): Promise<LogEntry[]> {
+    this.assertNotClosed();
+    this.assertCanRead();
+    return await this.io.readRange(range);
+  }
+
+  /** The entries of a time range summed up per interval (`LogBucketQuery`); the cursor stays where it is. */
+  async readBuckets(query: LogBucketQuery): Promise<LogBucket[]> {
+    this.assertNotClosed();
+    this.assertCanRead();
+    return await this.io.readBuckets(query);
   }
 
   /** Append a single entry at an explicit timestamp (backdating). Used to import historical series. */

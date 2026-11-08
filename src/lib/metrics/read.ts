@@ -1,17 +1,17 @@
 /**
- * Reading a metrics series back out of its log.
+ * Reading a series back out of a log: a metrics series, or any log of readings.
  *
- * The log registry has two readers and only one of them is usable here:
- * `read()` returns the entry payloads as NDJSON and drops `createdAt`, while
- * `readEntries()` keeps it. A time series without timestamps is a list, so
- * everything below goes through `readEntries`.
+ * The log registry's `read()` returns the entry payloads as NDJSON and drops `createdAt`. A time
+ * series without timestamps is a list, so everything below goes through the handle's readers that
+ * keep it: `readEntries` for the latest entries, `readRange` and `readBuckets` by time.
  */
 
 import { ResourceSeekMode } from '../../registries/types.ts';
 import type { LogHandle } from '../../registries/log/log-handle.ts';
 import type { Access } from '../access/mod.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
-import type { Sample } from './sample.ts';
+import type { LogBucketQuery } from '../../registries/log/types.ts';
+import type { BucketSample, Sample } from './sample.ts';
 
 /**
  * The last `limit` entries of a log, oldest first.
@@ -56,6 +56,52 @@ export const readTail = async <T>(
   } catch {
     // A truncated or unreadable series must not take the dashboard with it.
     return [];
+  } finally {
+    await handle.close();
+  }
+};
+
+/** The log at `path` opened to read, or undefined when there is none or it is not a log. */
+const openLog = async (vfs: ModuleVFS, access: Access, path: string): Promise<LogHandle | undefined> => {
+  let handle: LogHandle;
+  try {
+    handle = await vfs.open(access, path, { mode: 'r' }) as unknown as LogHandle;
+  } catch {
+    return undefined;
+  }
+  if (typeof handle.readRange === 'function') return handle;
+  await handle.close();
+  return undefined;
+};
+
+/**
+ * The entries of a log written in `[since, until)`, oldest first; with `limit`, the latest that many.
+ * An empty series when the log does not exist; the store's error when it cannot be read.
+ */
+export const readRange = async <T>(
+  vfs: ModuleVFS,
+  access: Access,
+  path: string,
+  range: { since?: Date; until?: Date; limit?: number },
+): Promise<Sample<T>[]> => {
+  const handle = await openLog(vfs, access, path);
+  if (!handle) return [];
+  try {
+    return (await handle.readRange(range)).map((entry) => ({ at: entry.createdAt.getTime(), value: entry.data as T }));
+  } finally {
+    await handle.close();
+  }
+};
+
+/**
+ * A log's entries in `[since, until)` summed up per interval, oldest first (`LogBucketQuery` says
+ * how). An empty series when the log does not exist; the store's error when it cannot be read.
+ */
+export const readBuckets = async (vfs: ModuleVFS, access: Access, path: string, query: LogBucketQuery): Promise<BucketSample[]> => {
+  const handle = await openLog(vfs, access, path);
+  if (!handle) return [];
+  try {
+    return (await handle.readBuckets(query)).map((bucket) => ({ at: bucket.at.getTime(), value: bucket.value, count: bucket.count }));
   } finally {
     await handle.close();
   }
