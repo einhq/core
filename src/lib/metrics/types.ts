@@ -9,6 +9,7 @@
 
 import type { CpuSample, MemorySample } from './host.ts';
 import type { DiskSample } from './disk.ts';
+import type { FileTier } from '../../registries/file/types.ts';
 import type { RuntimeSample } from './runtime.ts';
 
 export type CpuEntry = CpuSample;
@@ -62,6 +63,12 @@ export type NodesEntry = {
   byType: Record<string, number>;
   /** File nodes carrying `sourceId` — derivatives, and never candidates for indexing. */
   derivedFiles?: number;
+  /**
+   * The bytes of the file nodes each storage tier holds, by their `size` attrs and the tier
+   * `tierOf` routes them to. What the attrs say, not what the disk does: a file whose bytes are a
+   * symlink to another disk counts in full.
+   */
+  tierBytes?: Partial<Record<FileTier, number>>;
   /**
    * How much of the library the entry-point pipeline has taken in, when one
    * declares how to measure itself (`options.entryPoint.kinds` / `.marker`).

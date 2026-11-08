@@ -55,6 +55,7 @@ import {
 } from '../../../../lib/metrics/mod.ts';
 import { type AttrCondition, attrRefOf } from '../../../../vfs/query.ts';
 import type { NodeVFS } from '../../../../vfs/mod.ts';
+import type { FileTier } from '../../../../registries/file/types.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
 import type { LogHandle } from '../../../../registries/log/log-handle.ts';
@@ -306,10 +307,34 @@ const sampleGrowth = async (
 };
 
 /**
- * The whole tree counted by type, how many file nodes are derivatives, and how
- * far the entry-point pipeline has got.
+ * The bytes of the file nodes per storage tier, by the rule `tierOf` routes them with: an explicit
+ * `tier` attr, else a derivative that is not frozen is volatile, and everything else is on disk.
+ * An attr group counts only the nodes that have the attr, so the explicit tiers are one query and
+ * the rest are split by two totals.
+ */
+export const sampleTierBytes = async (vfs: NodeVFS): Promise<NonNullable<NodesEntry['tierBytes']>> => {
+  const total = async (where: AttrCondition[]) => (await vfs.aggregate(ADMIN_ACCESS, { types: ['file'], where, group: [{ column: 'type' }], sum: 'size' }))[0]?.sum ?? 0;
+
+  const routed: AttrCondition = { ref: 'tier', op: 'missing' };
+  const [explicit, implicit, volatile] = await Promise.all([
+    vfs.aggregate(ADMIN_ACCESS, { types: ['file'], group: [{ ref: 'tier' }], sum: 'size' }),
+    total([routed]),
+    total([routed, { ref: 'sourceId', op: 'exists' }, { ref: 'frozen', op: 'ne', value: true }]),
+  ]);
+
+  const bytes: NonNullable<NodesEntry['tierBytes']> = { disk: implicit - volatile, volatile };
+  for (const bucket of explicit) {
+    const tier = bucket.key[0] as FileTier;
+    bytes[tier] = (bytes[tier] ?? 0) + (bucket.sum ?? 0);
+  }
+  return bytes;
+};
+
+/**
+ * The whole tree counted by type, how many file nodes are derivatives, how
+ * many bytes each storage tier holds, and how far the entry-point pipeline has got.
  *
- * The census is a GROUP BY on an indexed column; the other two are not indexed
+ * The census is a GROUP BY on an indexed column; the others are not indexed
  * at all and scan the attrs table. All three belong here rather than in the
  * command that renders them — this runs on a quarter-hour, the dashboard polls
  * every ten seconds, and the difference is what keeps an unindexed scan off the
@@ -339,6 +364,13 @@ const sampleNodes = async (cmd: Command): Promise<NodesEntry | undefined> => {
       // The census is still worth having without it.
     }
 
+    let tierBytes: NodesEntry['tierBytes'];
+    try {
+      tierBytes = await sampleTierBytes(cmd.sys.vfs);
+    } catch {
+      // The census is still worth having without it.
+    }
+
     let coverage: NodesEntry['coverage'];
     let growth: NodesEntry['growth'];
     let growthMonths: NodesEntry['growthMonths'];
@@ -358,7 +390,7 @@ const sampleNodes = async (cmd: Command): Promise<NodesEntry | undefined> => {
       // No entry point, or it declares no coverage — the crawl card hides.
     }
 
-    return { byType, derivedFiles, coverage, growth, growthMonths };
+    return { byType, derivedFiles, tierBytes, coverage, growth, growthMonths };
   } catch {
     return undefined;
   }

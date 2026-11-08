@@ -1,14 +1,14 @@
 /**
- * df — free space per storage tier, how fast it is going, and the database's size and its largest
- * tables.
+ * df — free space per storage tier, how much of it the tier's own files take, how fast it is
+ * going, and the database's size and its largest tables.
  *
  * The projection is the reason this exists beside a plain free-space figure: a crawl that writes
  * derivatives faster than anyone checks on it fills a disk that reads "3% used" today. Read from
- * `metrics-sampler`'s `disk` series, which carries the history the trend needs; the database's
- * figures are live, from `pg_database_size` and `pg_total_relation_size`.
+ * `metrics-sampler`'s `disk` series, which carries the history the trend needs, and its `nodes`
+ * census, which sums each tier's files; the database's figures are live, from `pg_database_size` and `pg_total_relation_size`.
  */
 
-import { type DiskEntry, percent, rate, within } from '../../../../lib/metrics/mod.ts';
+import { type DiskEntry, type NodesEntry, percent, rate, within } from '../../../../lib/metrics/mod.ts';
 import type { DatabaseTable, DiskUsage, StorageTier } from '../../../../lib/api/system.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -53,10 +53,12 @@ const databaseUsage = async (cmd: Command): Promise<{ bytes?: number; tables?: D
 };
 
 export const readDiskUsage = async (cmd: Command): Promise<DiskUsage> => {
-  const [diskAll, database] = await Promise.all([
+  const [diskAll, nodes, database] = await Promise.all([
     readSeries<DiskEntry>(cmd, 'disk', 700), // 15min -> ~7.3d, the growth trend
+    readSeries<NodesEntry>(cmd, 'nodes', 1),
     databaseUsage(cmd),
   ]);
+  const tierBytes = latest(nodes)?.tierBytes;
   const diskWindow = within(diskAll, DISK_WINDOW_MS);
 
   const tiers: StorageTier[] = [];
@@ -72,6 +74,7 @@ export const readDiskUsage = async (cmd: Command): Promise<DiskUsage> => {
     tiers.push({
       ...disk,
       usedPercent: percent(disk.totalBytes - disk.freeBytes, disk.totalBytes),
+      filesBytes: tierBytes?.[disk.tier],
       bytesPerDay: usedPerMs === undefined ? undefined : Math.round(usedPerMs * DAY),
       daysUntilFull: usedPerMs === undefined || usedPerMs <= 0 ? undefined : Math.round(disk.freeBytes / usedPerMs / DAY),
     });
@@ -82,8 +85,9 @@ export const readDiskUsage = async (cmd: Command): Promise<DiskUsage> => {
 
 const writeTiers = async (cmd: Command, tiers: StorageTier[]): Promise<void> => {
   for (const tier of tiers) {
+    const files = tier.filesBytes !== undefined ? `  ${fmtBytes(tier.filesBytes)} its files` : '';
     const until = tier.daysUntilFull !== undefined ? `  full in ~${tier.daysUntilFull}d` : '';
-    await cmd.writeLn(`tier    ${tier.tier.padEnd(9)} ${fmtPct(tier.usedPercent)} used  ${fmtBytes(tier.freeBytes)} free${until}`);
+    await cmd.writeLn(`tier    ${tier.tier.padEnd(9)} ${fmtPct(tier.usedPercent)} used  ${fmtBytes(tier.freeBytes)} free${files}${until}`);
   }
 };
 
@@ -105,6 +109,6 @@ export const df = async (cmd: Command): CmdReturn => {
 df.spec = {
   name: 'df',
   effect: 'read' as const,
-  description: 'Free space per storage tier, its growth per day and when it fills, and the database size and its largest tables',
+  description: 'Free space per storage tier, the size of its files, its growth per day and when it fills, and the database size and its largest tables',
   args: [],
 };

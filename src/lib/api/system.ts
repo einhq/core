@@ -28,6 +28,11 @@ export type StorageTier = {
   totalBytes: number;
   freeBytes: number;
   usedPercent?: number;
+  /**
+   * The bytes of the files in this tier, by their `size` attrs as the last node census found them;
+   * the rest of the filesystem's used bytes are anything else on it. Absent before the first census.
+   */
+  filesBytes?: number;
   /** Negative means the tier is draining. Undefined when there is no trend yet. */
   bytesPerDay?: number;
   daysUntilFull?: number;

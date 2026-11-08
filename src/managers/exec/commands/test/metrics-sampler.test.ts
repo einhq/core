@@ -3,7 +3,7 @@ import { deferred } from '../../../../lib/async/deferred.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { createMemoryTestVfs } from '../../../../testing/memory-vfs.ts';
 import { RouterManager } from '../../../router/mod.ts';
-import { sampleCandidates, startDueSeries } from '../system/metrics-sampler.ts';
+import { sampleCandidates, sampleTierBytes, startDueSeries } from '../system/metrics-sampler.ts';
 
 const SERIES = [
   { name: 'pools', intervalMs: 15_000 },
@@ -79,6 +79,31 @@ Deno.test('sampleCandidates: the files the entry point exempts are left out of t
     }]);
     assertEquals(await sampleCandidates(vfs, { kinds: ['photo', 'video'] }), 4);
     assertEquals(await sampleCandidates(vfs, { kinds: ['photo', 'video'], exempt: 'duplicate.deferred' }), 2);
+  } finally {
+    await vfs.dispose();
+    await routerManager.dispose();
+  }
+});
+
+Deno.test('sampleTierBytes: each file counts in the tier tierOf routes it to', async () => {
+  const routerManager = new RouterManager();
+  await routerManager.init();
+  const { vfs } = await createMemoryTestVfs(routerManager);
+  try {
+    const file = (name: string, size: number, attrs: Record<string, unknown> = {}) => ({ type: 'file' as const, name, attrs: { size, ...attrs } });
+    await vfs.createTree(ADMIN_ACCESS, '/', [{
+      type: 'directory',
+      name: 'pile',
+      props: { mode: 0o755 },
+      children: [
+        file('original.jpg', 1000),
+        file('thumb.webp', 20, { sourceId: 'x' }),
+        file('raw.dng', 300, { sourceId: 'x', frozen: true }),
+        file('pinned.webp', 4000, { sourceId: 'x', tier: 'disk' }),
+        file('comment.json', 5, { tier: 'db' }),
+      ],
+    }]);
+    assertEquals(await sampleTierBytes(vfs), { disk: 5300, volatile: 20, db: 5 });
   } finally {
     await vfs.dispose();
     await routerManager.dispose();

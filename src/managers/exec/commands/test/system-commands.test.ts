@@ -97,6 +97,14 @@ Deno.test({
       assertEquals(disk.tiers.length, 1);
       assertEquals(disk.tiers[0].usedPercent, 52);
       assertEquals(disk.tiers[0].daysUntilFull, 2);
+      assertEquals(disk.tiers[0].filesBytes, undefined);
+    });
+
+    await t.step("df gives each tier its files' bytes from the node census", async () => {
+      await cmd.shouldSucceed(`log-append ${seriesPath('nodes')} --data '{"byType":{"file":3},"tierBytes":{"disk":4096,"volatile":512}}'`);
+
+      const disk = await client.execJson<DiskUsage>('df');
+      assertEquals(disk.tiers[0].filesBytes, 4096);
     });
 
     const pool = `${POOLS_PATH}/rates`;

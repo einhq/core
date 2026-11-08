@@ -47,6 +47,19 @@ function Pie({ slices }: { slices: Slice[] }) {
   );
 }
 
+/** A slice's swatch, its name, and its size: `value` when the figure to show is not the one drawn. */
+function LegendRow({ slice, value = slice.value }: { slice: Slice; value?: number }) {
+  return (
+    <Group gap={6} wrap='nowrap'>
+      <Box w={8} h={8} style={{ flexShrink: 0, borderRadius: 2, background: slice.color }} />
+      <Text size='xs' ff={slice.other ? undefined : 'monospace'} c={slice.other ? 'dimmed' : undefined} truncate title={slice.label} style={{ flex: 1 }}>
+        {slice.label}
+      </Text>
+      <Text size='xs' c='dimmed' style={{ whiteSpace: 'nowrap' }}>{formatBytes(value)}</Text>
+    </Group>
+  );
+}
+
 /** A card's heading: an icon, a title, and what it is of in small print. */
 function Heading({ icon, title, detail }: { icon: ReactNode; title: string; detail?: ReactNode }) {
   return (
@@ -59,7 +72,8 @@ function Heading({ icon, title, detail }: { icon: ReactNode; title: string; deta
 }
 
 /**
- * One storage tier: used against free, and how long the free lasts.
+ * One storage tier: its files and whatever else uses the filesystem, against free, and how long
+ * the free lasts.
  *
  * The projection is the reason this card exists: a crawl that writes derivatives faster than
  * anyone checks on it is how a 1.8 TB disk fills, and "3% used" is reassuring right up until the
@@ -68,6 +82,14 @@ function Heading({ icon, title, detail }: { icon: ReactNode; title: string; deta
  */
 function TierCard({ tier, shared }: { tier: StorageTier; shared: boolean }) {
   const used = tier.totalBytes - tier.freeBytes;
+  const usedColor = utilizationColor(tier.usedPercent);
+  // The files are sized by their attrs, so they can claim more than the disk has used — a file whose
+  // bytes are a symlink to another disk counts in full. The pie gives them at most what is used.
+  const files = tier.filesBytes === undefined ? undefined : Math.min(tier.filesBytes, used);
+  const parts: Slice[] = files === undefined ? [{ key: 'used', label: 'Used', color: usedColor, value: used }] : [
+    { key: 'files', label: `${tier.tier} files`, color: usedColor, value: files },
+    { key: 'other', label: 'other', color: OTHER_COLOR, value: used - files, other: true },
+  ];
   return (
     <Card>
       <Heading
@@ -76,15 +98,16 @@ function TierCard({ tier, shared }: { tier: StorageTier; shared: boolean }) {
         detail={<Text size='xs' c='dimmed' ff='monospace' truncate>{tier.path}</Text>}
       />
       <Group gap='lg' wrap='nowrap'>
-        <Pie
-          slices={[
-            { key: 'used', label: 'Used', color: utilizationColor(tier.usedPercent), value: used },
-            { key: 'free', label: 'Free', color: FREE_COLOR, value: tier.freeBytes },
-          ]}
-        />
-        <Stack gap={2} style={{ minWidth: 0 }}>
+        <Pie slices={[...parts, { key: 'free', label: 'Free', color: FREE_COLOR, value: tier.freeBytes }]} />
+        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
           <Text size='xl' fw={700} style={{ whiteSpace: 'nowrap' }}>{formatBytes(tier.freeBytes)} free</Text>
           <Text size='sm' c='dimmed'>{Math.round(tier.usedPercent ?? 0)}% of {formatBytes(tier.totalBytes)} used</Text>
+          {tier.filesBytes !== undefined && (
+            <>
+              <LegendRow slice={parts[0]} value={tier.filesBytes} />
+              <LegendRow slice={parts[1]} />
+            </>
+          )}
           {tier.bytesPerDay !== undefined && tier.bytesPerDay > 0 && <Text size='xs' c='dimmed'>+{formatBytes(tier.bytesPerDay)}/day</Text>}
           {tier.daysUntilFull !== undefined && (
             <Text size='xs' c={tier.daysUntilFull < 14 ? 'red' : 'dimmed'} fw={tier.daysUntilFull < 14 ? 600 : 400}>
@@ -125,15 +148,7 @@ function DatabaseCard({ bytes, tables }: { bytes: number; tables: DatabaseTable[
         <Pie slices={slices} />
         <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
           <Text size='xl' fw={700}>{formatBytes(bytes)}</Text>
-          {slices.map((slice) => (
-            <Group key={slice.key} gap={6} wrap='nowrap'>
-              <Box w={8} h={8} style={{ flexShrink: 0, borderRadius: 2, background: slice.color }} />
-              <Text size='xs' ff={slice.other ? undefined : 'monospace'} c={slice.other ? 'dimmed' : undefined} truncate title={slice.label} style={{ flex: 1 }}>
-                {slice.label}
-              </Text>
-              <Text size='xs' c='dimmed' style={{ whiteSpace: 'nowrap' }}>{formatBytes(slice.value)}</Text>
-            </Group>
-          ))}
+          {slices.map((slice) => <LegendRow key={slice.key} slice={slice} />)}
         </Stack>
       </Group>
     </Card>
