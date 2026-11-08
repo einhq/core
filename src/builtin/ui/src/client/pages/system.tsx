@@ -11,14 +11,13 @@ import {
   HealthBadge,
   HealthSummary,
   HostMetrics,
-  InstanceInfo,
   LogTail,
   PipelineMatrix,
   RecentErrors,
   RoutePanel,
   ServicesHealth,
+  StorageUsage,
   TablerIcon,
-  TierUsage,
   UnservableKinds,
   WorkLines,
   WorkSummary,
@@ -27,6 +26,7 @@ import type { DiskUsage, HealthAnswer, HostMetrics as Metrics, LogLine, PoolStat
 import { usePipelineOverview, usePipelines, usePolledCommand } from '@ein/ui/hooks';
 import { panelRoute, panelsOf, shellClientConnected } from '@ein/ui/signals';
 import { ActivityLog } from '../components/Activity/ActivityLog.tsx';
+import { formatUptime } from '../lib/format.ts';
 
 /** Must match pipeline-overview's BUCKET_MS and window. */
 const BUCKET_MS = 1_000_000;
@@ -52,8 +52,8 @@ const isTab = (value: string | null): value is SystemTab =>
  * each, and there is no page-wide loader: every card draws its own placeholder
  * until the answer it depends on is in, so the CPU tile does not wait on the
  * slowest thing on the page — a cold service probe, or a pipeline count. A command is polled only
- * while a tab showing it is open, except `health`, `host-metrics` and `pool-stat`: the
- * header badges and the unservable alarm qualify every tab.
+ * while a tab showing it is open, except `health`, `host-metrics`, `pool-stat` and `system-info`:
+ * the header's badges and uptime and the unservable alarm qualify every tab.
  *
  * Tabs, ordered by how quickly a problem needs to be seen: the machine's vital
  * signs and what the work is doing first, then the work in detail, then the
@@ -70,7 +70,7 @@ export default function SystemPage() {
   const { data: pools, error: poolsError } = usePolledCommand<PoolStatAnswer[]>('pool-stat');
   const { data: health } = usePolledCommand<HealthAnswer>('health');
   const { data: disk, error: diskError } = usePolledCommand<DiskUsage>('df', tab === 'overview');
-  const { data: info, error: infoError } = usePolledCommand<SystemInfo>('system-info', tab === 'overview');
+  const { data: info } = usePolledCommand<SystemInfo>('system-info');
   const { data: services, error: servicesError, refetch: refetchServices } = usePolledCommand<ServiceEntry[]>('service-list --detail', tab === 'services');
   const { data: problems, error: problemsError } = usePolledCommand<LogLine[]>('dmesg --level warn -n 10', tab === 'log');
   // Definitions, fetched once rather than polled — a trigger changes only when someone edits a
@@ -138,7 +138,7 @@ export default function SystemPage() {
   };
 
   // Hidden tabs are not fetched, so their errors would only be stale ones.
-  const error = pipelineError ?? hostError ?? poolsError ?? (tab === 'overview' ? diskError ?? infoError : null) ??
+  const error = pipelineError ?? hostError ?? poolsError ?? (tab === 'overview' ? diskError : null) ??
     (tab === 'services' ? servicesError : null) ?? (tab === 'log' ? problemsError : null);
 
   // The tab lives in the URL so a view can be linked to directly.
@@ -155,7 +155,7 @@ export default function SystemPage() {
         eyebrow={
           <Group gap='xs'>
             {
-              /* All three qualify every tab, so they sit in the header, above its title. The
+              /* All four qualify every tab, so they sit in the header, above its title. The
                 pipeline half has no polling, so a dead socket is a frozen page and nothing else
                 would say so. */
             }
@@ -170,6 +170,7 @@ export default function SystemPage() {
                 <Badge color='blue' variant='filled'>warming up</Badge>
               </Tooltip>
             )}
+            {info && <Text size='sm' c='gray.2'>up {formatUptime(info.uptimeMs)}</Text>}
           </Group>
         }
         title='System dashboard'
@@ -233,8 +234,7 @@ export default function SystemPage() {
                 windowMs={WINDOW_MS}
               />
 
-              <TierUsage tiers={disk?.tiers} databaseBytes={disk?.databaseBytes} />
-              <InstanceInfo instance={info ?? undefined} databaseBytes={disk?.databaseBytes} />
+              <StorageUsage tiers={disk?.tiers} databaseBytes={disk?.databaseBytes} databaseTables={disk?.databaseTables} />
             </Stack>
           </Tabs.Panel>
 

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.12.11
+MODULE_API_VERSION 0.12.12
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -82,7 +82,6 @@ src/builtin/ui/src/client/components/mod.ts HealthSummary f2d6feab4e02 @signatur
 src/builtin/ui/src/client/components/mod.ts HighlightedCode 07adaf1f68d0 @signature=3416dab119ae,code=0d1e308aad30,inline=0d2a5875f6fe,language=20050587fd75
 src/builtin/ui/src/client/components/mod.ts HighlightedCodeProps ed85bdb8f111 code=622b1f0085a6,inline=4a6a98dcebd7,language=b0c414866cff
 src/builtin/ui/src/client/components/mod.ts HostMetrics 2178b6604da8 @signature=4816e57e7841,cpu=f9b43c68be00,loading=248c243176bd,memory=432760540705
-src/builtin/ui/src/client/components/mod.ts InstanceInfo fcc48ebec449 @signature=4816e57e7841,databaseBytes=8f936a90a5f4,instance=ac6f0061495a
 src/builtin/ui/src/client/components/mod.ts InterpretedFilter 5dd0783a42ac @signature=34b9e7273a2b,color=b015d6237c62,details=9dca06d25d84,note=4e52f48978b6,size=cb7a277af2d3
 src/builtin/ui/src/client/components/mod.ts InterpretedFilterProps 1bef5d2b7c1c color=1238f431f506,details=a4c00cfa9b62,note=384318ea4daa,size=7a7659d77da5
 src/builtin/ui/src/client/components/mod.ts LabelFacets 9378bf5885fa @signature=0296841d6ffa,chosen=008785529899,labels=b28629cde56d,onChoose=439f3fe0f95f,total=eb57c5e83067
@@ -180,6 +179,7 @@ src/builtin/ui/src/client/components/mod.ts SharingChip 4277eb856778 @signature=
 src/builtin/ui/src/client/components/mod.ts Sparkline cfe21c20b87d @signature=4816e57e7841,bucketMs=ec20a13b1423,buckets=10fafda9933a,height=3a8cb7c42830,windowMs=cd6fee3bf365
 src/builtin/ui/src/client/components/mod.ts StackedBar 27b56c6a0fe1 @signature=4816e57e7841,describe=dfc97a2af323,emptyLabel=948c20bd87a6,height=3a8cb7c42830,legend=66fcdcddbd7c,segments=f0ee19026732
 src/builtin/ui/src/client/components/mod.ts StatTile c372b45055bc @signature=4816e57e7841,accent=dfdd0450a0d5,hint=12882127d7f4,icon=e19ec288ae0e,label=52f9b8b83044,series=c07a2a3ef5d6,seriesMax=a5efef0b5bcb,seriesUnit=6bd71add3bb0,tooltip=a7800f01ea23,value=9c19b817e1d4
+src/builtin/ui/src/client/components/mod.ts StorageUsage 97e3df194cdc @signature=4816e57e7841,databaseBytes=8f936a90a5f4,databaseTables=13cdd8c4fd68,tiers=b9fbeec90bb0
 src/builtin/ui/src/client/components/mod.ts SurfaceRouter a5335030f3f1 @signature=2448b4a486a9,kind=9ad24a8ea093,onClose=1b9fe590abbb,path=aa6112178522,placeholders=92642b457896
 src/builtin/ui/src/client/components/mod.ts TRACK_COLOR 8df5f5fc1e67
 src/builtin/ui/src/client/components/mod.ts TablerIcon 3111c7cf2d95 @signature=2c9a3dc64cff,className=757c8b67b7a0,color=501eb658075f,name=f4920a31bbd9,size=cb7a277af2d3,stroke=77c05a11394f,style=ba4b35eb385f
@@ -187,7 +187,6 @@ src/builtin/ui/src/client/components/mod.ts TablerIconProps ee9844c8f0fd classNa
 src/builtin/ui/src/client/components/mod.ts Terminal d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts TerminalInstance 66e4375697f3 @signature=4816e57e7841,initialCommand=963deed0698f,isActive=7c08a1c023b9,tabId=7df15f6cac70
 src/builtin/ui/src/client/components/mod.ts TerminalTabs d2adf16b4e60
-src/builtin/ui/src/client/components/mod.ts TierUsage e3d6b3c3bb24 @signature=4816e57e7841,databaseBytes=8f936a90a5f4,tiers=b9fbeec90bb0
 src/builtin/ui/src/client/components/mod.ts TriggerPopover ca4decd63df7 @signature=4816e57e7841,triggers=ce0822ece2f6
 src/builtin/ui/src/client/components/mod.ts UTILIZATION_BANDS fe84a3cb2fa1
 src/builtin/ui/src/client/components/mod.ts UnservableKinds 6f01af1adcf1 @signature=4816e57e7841,definitions=1145648cf49f,pools=4a18c9a2bdfc
@@ -1002,7 +1001,8 @@ src/lib/api/mod.ts ConfigType 5e5e4e18b677
 src/lib/api/mod.ts ContainerListing 21d4642769fa members=71968da5e5fb,truncated=ee81b8046300
 src/lib/api/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797ebe,memberPath=c769fc41a1c3,path=3fd20668ef6e,stackCount=a48b3d338e26
 src/lib/api/mod.ts CrawlCoverage dd91f9013e82 candidates=b2ccc562f3d9,covered=e7fd72745b72,etaMs=4335b7111c73,kinds=47ee7f719d18,perHour=44ea6a464925,pipeline=4d16cdec526e,remaining=9e09cd4b5df6
-src/lib/api/mod.ts DiskUsage 35fc04594709 databaseBytes=bff663e7d28e,tiers=c8838ac64ea4
+src/lib/api/mod.ts DatabaseTable 61fba3aa4efc bytes=23e3d4379f17,name=6d0c36381511
+src/lib/api/mod.ts DiskUsage 292a0300a59e databaseBytes=bff663e7d28e,databaseTables=6fd7389b642a,tiers=c8838ac64ea4
 src/lib/api/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
 src/lib/api/mod.ts EXCEPTIONS_SHOWN 3c2047348dcc
 src/lib/api/mod.ts EffectiveEntry 877def9811c9 level=81cfde6ff39f,path=3fd20668ef6e,title=22df3e6ba489,username=02356e67b2c7,via=69ed95e6d00f,viaGroup=a985c7946614

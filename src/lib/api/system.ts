@@ -33,8 +33,11 @@ export type StorageTier = {
   daysUntilFull?: number;
 };
 
-/** `df`: free space per storage tier and how fast it is going, and the database's size. */
-export type DiskUsage = { tiers: StorageTier[]; databaseBytes?: number };
+/** One of the database's largest tables, with its indexes and TOAST. */
+export type DatabaseTable = { name: string; bytes: number };
+
+/** `df`: free space per storage tier and how fast it is going, and the database's size and its largest tables, largest first. */
+export type DiskUsage = { tiers: StorageTier[]; databaseBytes?: number; databaseTables?: DatabaseTable[] };
 
 /** `system-info`: which instance this is, and what it runs. */
 export type SystemInfo = {
