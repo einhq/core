@@ -126,7 +126,7 @@ resolves the layers for the reader and the shell loads its answer before it draw
 ```json
 {
   "sections": [{ "id": "browse", "label": "Browse", "order": 30 }],
-  "sidebar": [{ "id": "archive.devices", "section": "browse", "label": "Devices", "icon": "device-camera-phone", "to": "/devices", "order": 50 }],
+  "sidebar": [{ "id": "archive.cameras", "section": "browse", "label": "Cameras", "icon": "device-camera-phone", "to": "/cameras", "order": 50 }],
   "topbar": [
     { "id": "ui.create", "title": "Create", "label": "Create New", "icon": "plus", "order": 20 },
     { "id": "archive.create-album", "parent": "ui.create", "title": "Album", "icon": "photo", "color": "blue", "action": { "dialog": "/albums/new" } }
@@ -154,7 +154,9 @@ tile on the About dialog for a service EiN uses (ems's media service, the assist
 something floating over every page, the drawer and the lightbox and under a dialog (todo's widget), drawn once for the
 whole app by `FloatHost` in a layer of no size of its own, so the panel places what it draws itself (`position: fixed`)
 and follows the node on screen with `useShownNode` — the picture in the lightbox, else what the page declares with
-`usePageSubject`. The page draws each
+`usePageSubject`; `device.tabs`, a tab of a device's page after its own, whose route gets the device's path
+(`/dev/<device>`) for `{path}` (archive's Trips). An entry's `when: { has: <node type> }` keeps it to a node with a
+child of that type, where the slot has a node: archive's Trips only on a device with a `track`. The page draws each
 with `RoutePanel` (`components/Surface/`), the surface router of the dialog and the drawer with a
 `panel` kind: no frame of its own, and a navigation that leaves the route opens on the page. A route
 an answer names is drawn the same way — a chat card, an entry on the home page — and where the
@@ -217,8 +219,8 @@ What a module gives the UI is navigation entries and routes, nothing else (besid
 above, which are data), and an entry's action
 says where to open a route — the same route can be shown all four ways:
 
-- `{ "navigate": "/devices" }` opens it as the page;
-- `{ "dialog": "/devices/new" }` opens it in the shell's dialog, over the page;
+- `{ "navigate": "/cameras" }` opens it as the page;
+- `{ "dialog": "/cameras/new" }` opens it in the shell's dialog, over the page;
 - `{ "drawer": "/chat" }` opens it in the shell's side drawer, or closes the drawer when it shows
   that route already;
 - `{ "fullscreen": "/media/…" }` opens it full screen, over everything, until Back or Escape;
@@ -228,7 +230,7 @@ says where to open a route — the same route can be shown all four ways:
 Search, the upload indicator, the terminal and the account menu are the shell's own, fixed parts of
 the top bar; the terminal is a keyboard tool, left out on a phone. The Create menu is the shell's dropdown (`ui.create`) with no rows of its own: each
 module adds a `dialog` row for its `new` route — `/albums/new` (media), `/people/new` (people),
-`/locations/new` (location), `/devices/new` (device; its list page opens it with a scan proposal's
+`/locations/new` (location), `/cameras/new` (camera; its list page opens it with a scan proposal's
 make and model in the query). The random-album button is media's, beside the search box: `album-random`
 and the album it names. The account menu is the shell's dropdown too (`ui.account`, signed in only), drawn on the
 reader's avatar rather than as a button of its own: its rows, the reader's own pages — media's
@@ -350,8 +352,8 @@ are on. The list scrolls inside the navbar when it is taller than the window. Th
 its foot switches to a 72 px icon rail that shows every icon whatever is folded, rules
 standing in for the headings. The shell's own entries are grouped by what you came to do, not by
 what exists: a home, then querying the archive, then walking its collections, then operating the
-thing — Media sits up top because it is the page most visits are for, Devices beside Locations as
-what took a picture and, through its track, the other half of where. Nodes and the dashboard are
+thing — Media sits up top because it is the page most visits are for, Devices (core's, what reports
+or is switched, the phone that says where) beside Locations, and Cameras, what took a picture. Nodes and the dashboard are
 `admin` entries; Settings stays for everyone, whose Modules tab is not an administrator's alone (its System, Users, Groups and Permissions tabs are drawn for the administrator only). The rail always sits beside the page and pushes it
 (`sidebarCollapsed` from `sm` up, `mobileSidebarRail` below, where it is the default); on a
 phone the layout drops the navbar's breakpoint so Mantine offsets the page by the rail there

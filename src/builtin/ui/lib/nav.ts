@@ -135,9 +135,10 @@ type TopbarEntry = {
  * Search page before anything is asked (`search.explore`), a part above the Search page's results
  * while it asks for one label (`search.label`, whose route gets the label's tag directory for
  * `{path}`), a way to begin under the home page's
- * empty News (`home.start`), a tile on the About dialog (`about.services`), something floating over
- * every page and the lightbox, under a dialog (`shell.float`, which places what it draws itself). It
- * is how a page shows a module's part without naming the module.
+ * empty News (`home.start`), a tile on the About dialog (`about.services`), a tab of a device's page
+ * after its own (`device.tabs`, whose route gets the device's path, `/dev/<device>`, for `{path}`),
+ * something floating over every page and the lightbox, under a dialog (`shell.float`, which places
+ * what it draws itself). It is how a page shows a module's part without naming the module.
  */
 export type PanelEntry = {
   id: string;
@@ -147,6 +148,12 @@ export type PanelEntry = {
   icon?: string;
   /** The route drawn there; `{path}` is replaced by the URI-encoded node path where the slot has one. */
   route: string;
+  /**
+   * Which nodes it is shown for: `has` names a node type the node must have a child of
+   * (`{ "has": "track" }`, a device's tab only on a device with a track endpoint). `device.tabs`
+   * checks it; the other slots ignore it.
+   */
+  when?: { has?: string };
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
@@ -221,6 +228,10 @@ const REQUIRED: Record<Kind, string[]> = {
   panels: ['slot', 'label', 'route'],
   layers: ['label'],
 };
+
+const isWhen = (value: unknown): value is PanelEntry['when'] =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) &&
+  Object.entries(value).every(([key, field]) => key === 'has' && typeof field === 'string' && field !== '');
 
 const isTiles = (value: unknown): value is MapTiles[] =>
   Array.isArray(value) && value.length > 0 &&
@@ -333,6 +344,10 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
       }
       if (kind === 'layers' && !isTiles(entry.tiles)) {
         warnings.push(`${entry.id}: tiles is not a list of { url, options }`);
+        return false;
+      }
+      if (kind === 'panels' && entry.when !== undefined && !isWhen(entry.when)) {
+        warnings.push(`${entry.id}: when is not { has: <node type> }`);
         return false;
       }
       if ((entry.admin === true && !reader.admin) || (entry.signedIn === true && reader.guest)) {

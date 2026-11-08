@@ -4,6 +4,7 @@ import type { ModuleRoute, SearchableKind, UiManifest } from '@ui/ui-cache';
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
 import { loadAccessIds } from '../hooks/useAccessIds.ts';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
+import { DEV_PATH } from '@ein/paths';
 import { type DataRouter, type Location, matchPath, matchRoutes, type NavigationType, type RouteObject, type To } from 'react-router-dom';
 
 /**
@@ -59,8 +60,21 @@ export const onPageChange = (listener: (location: Location, action: NavigationTy
  */
 export const nodeRoutes = signal<Record<string, string>>({});
 
-/** The route that opens a node, or null when no installed module gives one for its type. */
+/** Endpoints a device's page opens for: what a device under `/dev` holds. */
+const ENDPOINT_TYPES = new Set(['log', 'track', 'control']);
+
+/** Core's own: a device opens at its page, and so does a log, track or control right under one. */
+const coreRoute = (type: string, path: string): string | null => {
+  const [root, device, endpoint, ...deeper] = path.slice(1).split('/');
+  if (`/${root}` !== DEV_PATH || !device || deeper.length > 0) return null;
+  if (endpoint === undefined ? type !== 'device' : !ENDPOINT_TYPES.has(type)) return null;
+  return `/devices/${encodeURIComponent(device)}`;
+};
+
+/** The route that opens a node, or null when neither core nor an installed module gives one for its type. */
 export const openRoute = (type: string, path: string): string | null => {
+  const own = coreRoute(type, path);
+  if (own) return own;
   const template = nodeRoutes.value[type];
   if (!template) return null;
   const segments = path.split('/');

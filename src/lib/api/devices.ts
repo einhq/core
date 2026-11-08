@@ -7,6 +7,9 @@
  * (a module's, or core's `tracker`) turns the device's raw input and output into those endpoints.
  */
 
+/** The group whose members make, name and forget the devices under `/dev`. */
+export const DEVICES_GROUPNAME = 'devices';
+
 /** A value as an endpoint keeps it and the bus carries it. */
 export type DeviceValue = number | string | boolean | null;
 

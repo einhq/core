@@ -81,6 +81,15 @@
       "to": "/search",
       "order": 10,
       "shortcut": "alt+S"
+    },
+    {
+      "id": "ui.devices",
+      "signedIn": true,
+      "section": "browse",
+      "label": "Devices",
+      "icon": "plug",
+      "to": "/devices",
+      "order": 45
     }
   ],
   "topbar": [
