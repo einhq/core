@@ -10,7 +10,7 @@ export type ListFilterInputProps = {
 };
 
 /**
- * The filter above a list page — people, albums, locations, labels, devices, tracks.
+ * The filter above a list page — people, albums, locations, labels, cameras, devices, tracks.
  *
  * It narrows what the page already holds, as the reader types, by `matchesText` (case and
  * accents aside, every word in any order). It is not the search box: nothing is asked of the

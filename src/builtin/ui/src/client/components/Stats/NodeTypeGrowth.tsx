@@ -19,6 +19,7 @@ const CARD_KIND_BY_NODE_TYPE: Partial<Record<string, EntityKind>> = {
   album: 'album',
   person: 'person',
   location: 'location',
+  camera: 'camera',
   device: 'device',
   track: 'track',
   file: 'document',

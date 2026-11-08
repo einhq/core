@@ -4,7 +4,7 @@ import { gridUrl } from '../../lib/derivatives.ts';
 import { fileUrl } from '../../lib/file-url.ts';
 import { type SearchFilters, splitSubject } from '../../lib/search-filters.ts';
 
-/** What a pill needs a name for: a subject's kind (`person`, `location`, `device`), or `album`. */
+/** What a pill needs a name for: a subject's kind (`person`, `location`, `camera`), or `album`. */
 export type PillKind = string;
 
 export type SearchPillsProps = {

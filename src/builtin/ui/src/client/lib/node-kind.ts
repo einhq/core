@@ -37,6 +37,7 @@ const KIND: Record<string, NodeKindStyle> = {
   album: ENTITY_KIND_STYLES.album,
   person: ENTITY_KIND_STYLES.person,
   location: ENTITY_KIND_STYLES.location,
+  camera: ENTITY_KIND_STYLES.camera,
   device: ENTITY_KIND_STYLES.device,
   track: ENTITY_KIND_STYLES.track,
   softlink: { label: 'Link', color: 'gray', icon: IconLink },

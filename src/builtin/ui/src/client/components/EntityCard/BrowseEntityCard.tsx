@@ -10,7 +10,7 @@ type BrowseEntityCardProps = Omit<EntityCardProps, 'coverUrl' | 'coverFallbackUr
 /**
  * The shared card for browsable VFS entities other than albums.
  *
- * The visible card supplies the viewport observer, so a people/locations/devices
+ * The visible card supplies the viewport observer, so a people/locations/cameras
  * grid gets the same lazy cover loading as the album and search grids without
  * each page having to recreate the observer plumbing.
  */

@@ -8,7 +8,7 @@
  * The vocabularies are the `search` command's own.
  */
 
-export const SEARCH_KINDS = ['photo', 'video', 'audio', 'document', 'person', 'location', 'album', 'device', 'track'] as const;
+export const SEARCH_KINDS = ['photo', 'video', 'audio', 'document', 'person', 'location', 'album', 'camera', 'device', 'track'] as const;
 export type SearchKind = typeof SEARCH_KINDS[number];
 
 export const SEARCH_SORTS = ['score', 'time', '-time', 'name'] as const;
@@ -24,7 +24,7 @@ export const FILE_KINDS: readonly SearchKind[] = ['photo', 'video', 'audio', 'do
  * The kinds a thing can be rather than a file. Which of them the Search page finds is the
  * installed modules' to say (`searchableKinds`).
  */
-export const ENTITY_KINDS: readonly SearchKind[] = ['album', 'person', 'location', 'device', 'track'];
+export const ENTITY_KINDS: readonly SearchKind[] = ['album', 'person', 'location', 'camera', 'device', 'track'];
 
 /**
  * The media page's type filter, as one exclusive choice rather than a set of
@@ -59,7 +59,7 @@ export type SearchFilters = {
   region?: SearchRegion;
   /**
    * Media every one of these subjects has, each `<kind>:<slug or path>` as `search --subject`
-   * takes it (`person:anna`, `location:…`, `device:/archive/devices/…`). Intersected.
+   * takes it (`person:anna`, `location:…`, `camera:/archive/cameras/…`). Intersected.
    */
   subjects?: string[];
   /**

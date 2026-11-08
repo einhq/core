@@ -25,11 +25,11 @@
 import { type SearchFilters, subjectArg, subjectRefs } from './search-filters.ts';
 
 /** What an `@` can resolve to. Mirrors the `search` command's own kinds. */
-export const MENTION_KINDS = ['person', 'location', 'label', 'device', 'album'] as const;
+export const MENTION_KINDS = ['person', 'location', 'label', 'camera', 'album'] as const;
 export type MentionKind = typeof MENTION_KINDS[number];
 
 /** The mention kinds that are subjects, `--subject <kind>:<value>`; a label is a tag and an album a container. */
-const SUBJECT_MENTION_KINDS: readonly MentionKind[] = ['person', 'location', 'device'];
+const SUBJECT_MENTION_KINDS: readonly MentionKind[] = ['person', 'location', 'camera'];
 
 export type Mention = {
   kind: MentionKind;

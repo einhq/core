@@ -74,6 +74,6 @@ trackToken.spec = {
     { name: 'new', writes: true, type: 'bool' as const, description: 'make a new link; the one before it stops working' },
     { name: 'off', writes: true, type: 'bool' as const, description: 'turn the link off' },
   ],
-  examples: ['track-token /archive/devices/sailboat/track', 'track-token /archive/devices/sailboat/track --new'],
+  examples: ['track-token /archive/devices/sailboat/position/history', 'track-token /archive/devices/sailboat/position/history --new'],
   returns: 'TrackToken: whether the track takes tracker posts, and the path of its link.',
 };

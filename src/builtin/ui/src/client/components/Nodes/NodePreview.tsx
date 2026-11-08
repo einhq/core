@@ -29,7 +29,7 @@ const TEXT_LINE = 18;
  * takes the box's last line of height and lies over the text.
  */
 const TEXT_SCROLLBAR = 16;
-const COVERED_TYPES = new Set(['album', 'person', 'location', 'device', 'track']);
+const COVERED_TYPES = new Set(['album', 'person', 'location', 'camera', 'track']);
 
 type Head = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; text: string; total: number | undefined };
 

@@ -1,5 +1,5 @@
 import { ActionIcon, Badge, Group, Loader, Pill, PillsInput, Popover, Text, TextInput, UnstyledButton } from '@mantine/core';
-import { IconAlbum, IconArrowRight, IconDeviceCameraPhone, IconMapPin, IconSearch, IconTag, IconUser } from '@tabler/icons-react';
+import { IconAlbum, IconArrowRight, IconCamera, IconMapPin, IconSearch, IconTag, IconUser } from '@tabler/icons-react';
 import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useMentionComplete } from '../../hooks/useMentionComplete.ts';
 import { usePhone } from '../../hooks/usePhone.ts';
@@ -10,7 +10,7 @@ const KIND_ICON: Record<MentionKind, React.ReactNode> = {
   person: <IconUser size={14} />,
   location: <IconMapPin size={14} />,
   label: <IconTag size={14} />,
-  device: <IconDeviceCameraPhone size={14} />,
+  camera: <IconCamera size={14} />,
   album: <IconAlbum size={14} />,
 };
 
@@ -52,7 +52,7 @@ export type SearchInputProps = {
 /**
  * The search box, shared by every page that searches.
  *
- * Typing `@` opens a list of people, locations, labels, devices and albums;
+ * Typing `@` opens a list of people, locations, labels, cameras and albums;
  * picking one writes `@Their Name` into the text and remembers what it resolved
  * to. Committing splits the two apart — see `lib/mentions.ts`, which owns that
  * codec and is where the round trip is tested.
@@ -73,7 +73,7 @@ export function SearchInput({
   onCommit,
   filters = {},
   kinds = MENTION_KINDS,
-  placeholder: fullPlaceholder = 'Search — type @ for a person, location, label or device',
+  placeholder: fullPlaceholder = 'Search — type @ for a person, location, label or camera',
   shortPlaceholder = 'Search…',
   size = 'md',
   leftSection = <IconSearch size={18} />,

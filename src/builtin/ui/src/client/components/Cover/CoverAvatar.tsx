@@ -23,7 +23,7 @@ type CoverAvatarProps = {
 /**
  * A node's cover image, or its icon when it has none.
  *
- * People, locations and devices carry a `coverPhoto` softlink as albums do.
+ * People, locations and cameras carry a `coverPhoto` softlink as albums do.
  */
 export function CoverAvatar({ path, fallback, fallbackSrc, size = 80, radius, color = 'marine', alt, eager = false, enabled }: CoverAvatarProps) {
   const { ref, inViewport } = useInViewport();

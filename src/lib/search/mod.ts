@@ -2110,7 +2110,7 @@ search.spec = {
       name: 'subject',
       type: 'string' as const,
       description:
-        'media a subject has, as <kind>:<slug or path> (person:anna-exempel, location:…, device:…) or a path; any kind a subject-<kind> command answers for (repeatable, intersected). For a town or country use --bbox from location-region',
+        'media a subject has, as <kind>:<slug or path> (person:anna-exempel, location:…, camera:…) or a path; any kind a subject-<kind> command answers for (repeatable, intersected). For a town or country use --bbox from location-region',
       repeatable: true,
     },
     {

@@ -7,7 +7,7 @@ import { navigatePage, pageLocation } from './module-ui.ts';
 /**
  * Where a route can be shown besides the page: the shell's dialog, over the page; its side
  * drawer, beside it; and full screen, over everything (the lightbox). A module gives routes;
- * its navigation entries say where to open one (`{ "dialog": "/devices/new" }`,
+ * its navigation entries say where to open one (`{ "dialog": "/cameras/new" }`,
  * `{ "drawer": "/chat" }`, `{ "fullscreen": "/media/…" }`), and the same route is a page when
  * opened by its URL. Each surface renders its route with a router of its own over the same
  * route table (`components/Surface/`); a route asks where it is with `useSurface()`. A `panel`

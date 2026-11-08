@@ -14,7 +14,7 @@ import type { NodeSort } from './nodes-workspace.ts';
 import { toMillis } from './node-entry.ts';
 
 /** Types whose children are the point; everything else is a leaf that merely may have some. */
-const CONTAINER_TYPES = new Set(['directory', 'album', 'person', 'location', 'device', 'track', 'user', 'group']);
+const CONTAINER_TYPES = new Set(['directory', 'album', 'person', 'location', 'camera', 'device', 'track', 'user', 'group']);
 
 export const isContainer = (entry: Pick<NodeChildEntry, 'node'>): boolean => CONTAINER_TYPES.has(entry.node.type);
 

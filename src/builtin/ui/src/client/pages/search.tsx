@@ -61,7 +61,7 @@ const searchLabel = (filters: SearchFilters, text: string, choices: readonly Kin
  * Search: the things that hold media, rather than the media itself.
  *
  * The kinds the installed modules mark `searchable` in their `nodeTypes` (`searchableKinds`) —
- * with the archive, its albums, people, locations and devices: the entities a picture hangs off.
+ * with the archive, its albums, people, locations and cameras: the entities a picture hangs off.
  * The pictures are on the Media page, which is the same query pointed at files; splitting them
  * is what lets each side have controls that suit it, instead of one page whose filters are
  * half-relevant whatever you are looking for. The choice of what to show lists those kinds, and
@@ -94,7 +94,7 @@ export default function SearchPage() {
     { value: 'all', label: 'All', kinds: allKinds },
     ...findable.map((entry) => ({ value: entry.kind, label: entry.label, kinds: [entry.kind] })),
   ], [findable, allKinds]);
-  // An `@` resolves to a label, or to a person, location or device the page finds; an album is a
+  // An `@` resolves to a label, or to a person, location or camera the page finds; an album is a
   // result here, not a filter for it.
   const mentionKinds = useMemo(
     () => MENTION_KINDS.filter((kind) => kind === 'label' || (kind !== 'album' && (allKinds as readonly string[]).includes(kind))),
@@ -205,7 +205,7 @@ export default function SearchPage() {
                   <InterpretedFilter
                     details={details}
                     note={pictureFiltered
-                      ? 'People, locations, dates and devices are what a picture has: an album matches when it holds a picture that does. A label matches an album that carries it or holds a picture that does.'
+                      ? 'People, locations, dates and cameras are what a picture has: an album matches when it holds a picture that does. A label matches an album that carries it or holds a picture that does.'
                       : undefined}
                   />
                 )}

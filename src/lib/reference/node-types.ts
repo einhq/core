@@ -36,7 +36,7 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     label: 'Track',
     category: 'content',
     description:
-      "The route a device recorded, kept as the device's child named track: timestamped GPS points, live or from imported GPX files, summarised by their extent and time span.",
+      'The route something travelled: timestamped GPS points, live or from imported GPX files, summarised by their extent and time span. A device keeps it as the history of its position.',
   },
   {
     type: 'user',

@@ -12,9 +12,9 @@
  * picked to stay apart from each other on a near-black surface, and the flag
  * shade is dark enough that a white glyph on it stays legible.
  */
-import { IconDeviceCameraPhone, IconFileText, IconMapPin, IconMusic, IconPhoto, IconQuestionMark, IconRoute, IconSparkles, IconUser } from '@tabler/icons-react';
+import { IconCamera, IconFileText, IconMapPin, IconMusic, IconPhoto, IconPlug, IconQuestionMark, IconRoute, IconSparkles, IconUser } from '@tabler/icons-react';
 
-export type EntityKind = 'album' | 'suggested' | 'person' | 'location' | 'device' | 'track' | 'audio' | 'document' | 'other';
+export type EntityKind = 'album' | 'suggested' | 'person' | 'location' | 'camera' | 'device' | 'track' | 'audio' | 'document' | 'other';
 
 export type EntityKindStyle = {
   /** Human name, used as the flag's accessible label. */
@@ -34,7 +34,8 @@ export const ENTITY_KIND_STYLES: Record<EntityKind, EntityKindStyle> = {
   suggested: { label: 'Suggested album', color: 'violet', icon: IconSparkles },
   person: { label: 'Person', color: 'grape', icon: IconUser },
   location: { label: 'Location', color: 'teal', icon: IconMapPin },
-  device: { label: 'Device', color: 'green', icon: IconDeviceCameraPhone },
+  camera: { label: 'Camera', color: 'green', icon: IconCamera },
+  device: { label: 'Device', color: 'orange', icon: IconPlug },
   track: { label: 'Track', color: 'cyan', icon: IconRoute },
   audio: { label: 'Audio', color: 'pink', icon: IconMusic },
   document: { label: 'Document', color: 'lime', icon: IconFileText },

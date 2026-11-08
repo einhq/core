@@ -85,8 +85,8 @@ Deno.test('blank values leave no trace', () => {
   assertEquals(params.toString(), '');
 });
 
-Deno.test('a picked device and album survive the address bar', () => {
-  const filters = { subjects: ['device:/archive/devices/Camera_One'], under: '/archive/albums/Summer' };
+Deno.test('a picked camera and album survive the address bar', () => {
+  const filters = { subjects: ['camera:/archive/cameras/Camera_One'], under: '/archive/albums/Summer' };
   assertEquals(filtersFromParams(paramsFromFilters(filters)), filters);
 });
 

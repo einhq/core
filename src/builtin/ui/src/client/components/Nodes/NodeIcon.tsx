@@ -28,7 +28,7 @@ import { thumbnailUrl } from '../../lib/derivatives.ts';
 import { isMediaFile, type NodeChildEntry } from '../../lib/node-entry.ts';
 import { nodeKindOf } from '../../lib/node-kind.ts';
 
-const COVERED_TYPES = new Set(['album', 'person', 'location', 'device', 'track']);
+const COVERED_TYPES = new Set(['album', 'person', 'location', 'camera', 'track']);
 /** How long a row must stay on screen before its picture is asked for; a scroll passing through asks for none. */
 const SETTLE_MS = 200;
 /** A picture's corners: square but for a hair, so a photo reads as a photo, not a button. */
