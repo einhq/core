@@ -17,6 +17,7 @@ jobs:
           for url in https://dl.deno.land/release/v2.9.6/$zip https://github.com/denoland/deno/releases/download/v2.9.6/$zip; do
             curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/deno.zip" "$url" && break
           done
+          mkdir -p "$HOME/.deno/bin"
           unzip -q -o "$RUNNER_TEMP/deno.zip" -d "$HOME/.deno/bin"
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
       - name: Format
