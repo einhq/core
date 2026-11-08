@@ -15,8 +15,8 @@
  *   /var      machine-owned mutable state. Rebuildable; nothing here is authored.
  *   /usr      code and read-only payload: core's commands and files, modules, the shipped guide.
  *
- * plus `/dev` (router endpoints) and `/tmp` (scratch), which keep their Unix
- * meanings exactly.
+ * plus `/dev` (the devices, and core's `null` and event endpoints) and `/tmp` (scratch), which
+ * keep their Unix meanings.
  *
  * **Keep this file a leaf.** It must import nothing. The browser shell
  * (`src/builtin/ui`) imports it, and `#!ts` bins are staged as copies where only
@@ -199,8 +199,17 @@ export const DOCS_GUIDE_PATH = `${DOCS_PATH}/guide`;
 /* ------------------------------------------------------------- /dev, /tmp */
 
 export const DEV_PATH = '/dev';
+export const NULL_NODE_PATH = `${DEV_PATH}/null`;
 export const EVENTS_NODE_PATH = `${DEV_PATH}/events`;
 export const PIPELINE_EVENTS_NODE_PATH = `${DEV_PATH}/pipeline-events`;
+/** Core's own nodes in `/dev`, whose names no device takes. */
+export const DEV_RESERVED_NAMES: readonly string[] = ['null', 'events', 'pipeline-events', 'tty', 'stdin', 'stdout', 'stderr'];
+/** A device: `/dev/<device>`, with its endpoints as children. */
+export const devicePath = (device: string): string => `${DEV_PATH}/${device}`;
+/** The child of a device that holds the key its HTTP writes carry. */
+export const DEVICE_KEY_NAME = '.key';
+/** The child of a device that holds what its driver keeps secret. */
+export const DEVICE_SECRET_NAME = '.secret';
 
 export const TEMP_PATH = '/tmp';
 /** Development-only: the repo's `modules/` mounted read-only for `04_modules.sh`. */

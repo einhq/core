@@ -6,6 +6,8 @@ import { DiskFileRegistry, MemoryFileRegistry, TieredFileRegistry } from '../reg
 import { MemoryPositionRegistry } from '../registries/position/mod.ts';
 import { MemoryLogRegistry } from '../registries/log/mod.ts';
 import { NullRegistry } from '../registries/null/mod.ts';
+import { DeviceRegistry } from '../registries/device/mod.ts';
+import { ControlRegistry } from '../registries/control/mod.ts';
 import { MemoryPoolRegistry } from '../registries/pool/mod.ts';
 import { MemoryQueueRegistry } from '../registries/queue/mod.ts';
 import { RouterRegistry } from '../registries/router/mod.ts';
@@ -33,6 +35,7 @@ export async function createMemoryTestVfs(
   options: MemoryTestVfsOptions = {},
 ): Promise<MemoryTestVfs> {
   const store = new InMemoryStore({ audit: true });
+  const log = new MemoryLogRegistry({ router: routerManager });
   const dataVfs = new LocalNodeVFS(store, routerManager, {
     file: new TieredFileRegistry({
       disk: options.fileRoot ? new DiskFileRegistry({ rootPath: options.fileRoot }) : new MemoryFileRegistry(),
@@ -40,12 +43,14 @@ export async function createMemoryTestVfs(
     }),
     embedding: new MemoryEmbeddingRegistry(),
     position: new MemoryPositionRegistry(),
-    log: new MemoryLogRegistry({ router: routerManager }),
+    log,
     null: new NullRegistry(),
     pool: new MemoryPoolRegistry(),
     queue: new MemoryQueueRegistry({ router: routerManager }),
     router: new RouterRegistry({ router: routerManager }),
     track: new MemoryTrackRegistry({ router: routerManager }),
+    device: new DeviceRegistry(),
+    control: new ControlRegistry({ log }),
   }, { unaudited: options.unaudited });
 
   if (!options.rootMount) {

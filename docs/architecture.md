@@ -1153,25 +1153,28 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 
 **The sharing dialog.** `share-info <path>` answers the panel in one round trip: owner, the node's own group, mode, ACL, pin, the node's title, its links (tokens only for a caller who may change it), the pinned nodes below it (`exceptions`, by the `access_pinned` index), whether visitors may browse (`guestBrowsing`), each group grant's `role`, the default sharing as resolved for the node's owner (`default`, with whether the node is on it), and, for a caller who may change it, every group and active user to add. A user — the owner, a grant, one to add — carries `personPath`, the target of its `person` link (read as the administrator; the picture behind it is read as the caller), whose cover the row shows. The guest is refused: who has access names people and groups. The panel (`SharePanel`, `src/builtin/ui/src/client/components/Share/`) is one list — the owner, then every grant with **Can view** / **Can edit** / **Remove access**, an add box above, and visitors who are not signed in as one more row, a grant to the guest's group, where `guestBrowsing` is on or that grant is already there; the group every signed-in person carries (role `everyone`) reads "Everyone with an account". On content the other bits reach only the accounts, so the dialog opens on a draft (`openingDraft`) that shows what they give as that group's grant, and a save writes it there and clears them; `share-info`'s `preset` is `everyone` for a grant to visitors. Above them the draft's visibility (`draftVisibility`) and two presets that replace the rows: **Default** (`defaultDraft`: the `everyone` group views it, nobody else) and **Private** (`privateDraft`: the owner alone). The rows are a draft (`lib/share.ts`): Save sends one `share-set --mode … -b -m …` that walks the subtree once — a dialog issuing `chmod -r` plus one `acl -r` per row would walk a large album once per changed row — and `-b` leaves link entries alone. The link section (albums only, whose page reads nothing outside them) creates, copies, re-times and deletes links at once, each action with its own spinner rather than Save's, since a link copied before a save would open nothing; it says when each expires and how often it was opened. The exceptions section lists what keeps its own sharing, each with **Share like the album** (`share-set <path> --reference <node> --unpin`), and **Share all like the album** reaches every one of them, those past the listed `EXCEPTIONS_SHOWN` too (`share-set <node> --pinned-below --reference <node> --unpin`, which finds them by the `access_pinned` index). Its stored _effective_ list is withheld from non-administrators because it reveals group membership; an administrator's hover on a group row lists its members (`group-members --limit=50`), each with the cover of the person its `person` link names (`personPath`). `share-set` reports `{ ok, updated, pinned, skipped, failed, failures }` (`ShareSetResult`) and exits 0 on a partial failure — the API shell drops the payload of any command that exits non-zero, which would hide a mostly-successful apply; `--strict` restores the `chmod -R` habit. The album page carries **Share** in its header, a chip under its title (`SharingChip`, from the album's own ownership by `ownershipVisibility`: Public when a link opens it or visitors are granted it where they browse, Restricted when neither the `users` group nor the other bits read it, Private when nobody but the owner does, and no chip when every account reads it) and **Share** in the selection bar (`ShareSelectionAction`): chosen media shared like the album (`--reference <album> --unpin`) or given their own (`share-set … -b -m … --drop-links --pin`), so the album's changes and its link pass them by; the dialog opens on their own sharing when every chosen item's hit says it is pinned. Person, device, location and track pages carry `ShareButton` in their menus.
 
-| Type        | Key attrs                                                                                      | Backed by                                |
-| ----------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `directory` | —                                                                                              | PgStore / InMemoryStore                  |
-| `file`      | name, mimetype, size, sha256, sourceId, frozen (+ immutable `tier` prop)                       | file registry (tiered: disk/volatile/db) |
-| `buffer`    | capacity                                                                                       | buffer registry                          |
-| `queue`     | routingKeys                                                                                    | queue registry                           |
-| `pool`      | agingSeconds, agingBoost, agingMax, leaseMs, maxAttempts, backoff\*                            | pool registry                            |
-| `log`       | retention, routingKeys                                                                         | log registry                             |
-| `router`    | routingKey                                                                                     | router registry                          |
-| `null`      | —                                                                                              | null registry (holds nothing)            |
-| `embedding` | embeddingType, capacity                                                                        | embedding registry                       |
-| `position`  | none of its own (the shape is content); a file's carries the reverse geocode and the `weather` | position registry                        |
-| `track`     | description, routingKeys; the summary is the registry's (`trackSummaries`)                     | track registry                           |
-| `command`   | name, args, flags                                                                              | CommandStore                             |
-| `session`   | secret, access, env, expiresSec, bootId                                                        | PgStore                                  |
-| `tty`       | rows, cols, env, cwd, bootId                                                                   | PgStore                                  |
-| `user`      | uid, gid, name, email, description, inactive, mustResetPassword                                | PgStore                                  |
-| `group`     | gid, title, description; members are softlinks in its `users` directory                        | PgStore                                  |
-| `softlink`  | target (path)                                                                                  | PgStore                                  |
+| Type         | Key attrs                                                                                      | Backed by                                |
+| ------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `directory`  | —                                                                                              | PgStore / InMemoryStore                  |
+| `file`       | name, mimetype, size, sha256, sourceId, frozen (+ immutable `tier` prop)                       | file registry (tiered: disk/volatile/db) |
+| `buffer`     | capacity                                                                                       | buffer registry                          |
+| `queue`      | routingKeys                                                                                    | queue registry                           |
+| `pool`       | agingSeconds, agingBoost, agingMax, leaseMs, maxAttempts, backoff\*                            | pool registry                            |
+| `log`        | retention, routingKeys                                                                         | log registry                             |
+| `router`     | routingKey                                                                                     | router registry                          |
+| `null`       | —                                                                                              | null registry (holds nothing)            |
+| `embedding`  | embeddingType, capacity                                                                        | embedding registry                       |
+| `position`   | none of its own (the shape is content); a file's carries the reverse geocode and the `weather` | position registry                        |
+| `track`      | description, routingKeys; the summary is the registry's (`trackSummaries`)                     | track registry                           |
+| `device`     | label, class, driver, manufacturer, model, firmware, serial, mac, online, config               | device registry (keeps nothing)          |
+| `control`    | label, unit, schema, requested; its states are a log's entries                                 | control registry (log registry's tables) |
+| `device-key` | key, createdBy, createdAt                                                                      | PgStore                                  |
+| `command`    | name, args, flags                                                                              | CommandStore                             |
+| `session`    | secret, access, env, expiresSec, bootId                                                        | PgStore                                  |
+| `tty`        | rows, cols, env, cwd, bootId                                                                   | PgStore                                  |
+| `user`       | uid, gid, name, email, description, inactive, mustResetPassword                                | PgStore                                  |
+| `group`      | gid, title, description; members are softlinks in its `users` directory                        | PgStore                                  |
+| `softlink`   | target (path)                                                                                  | PgStore                                  |
 
 Node types are free-form strings; modules define their own (e.g. `exif` and `album` in
 [modules/archive/types/media/](../modules/archive/types/media/)). What each is for, for a reader, is `CORE_NODE_TYPES`
@@ -1182,10 +1185,26 @@ children — except a file from a staging inbox, which `album add` moves into it
 point into a directory only the inbox's owner may enter.
 
 `position` and `track` are core's because they are storage, not meaning: each is a registry with
-its own spatial index (and for a track, `POST /track/<path>` for a script with a session and
-`/tracker/<id>.<token>` for a phone or GPS tracker without one), which a module cannot provide. What a position or a track _is for_ is the module's: archive's locations are its own
-`location` nodes with a `position` child, and archive decides that a device's route is its child
-`track`, and owns `/archive/locations`, `/archive/devices` and every command over them.
+its own spatial index, which a module cannot provide. What a position or a track _is for_ is the
+module's: archive's locations are its own `location` nodes with a `position` child, and archive
+cuts a device's track into trips and owns `/archive/locations` and every command over them.
+
+**Devices** are core's too (`src/managers/devices/`): a `device` node at `/dev/<device>`, its
+endpoints the `log`, `track` and `control` nodes under it. A driver turns the device's raw input
+and output into its endpoints: core's `tracker` (every protocol `tracker-protocols.ts` reads, GPX
+files included, into a `position` track) or a module's, registered by the module's service with
+`cmd.sys.devices.registerDriver` (`@ein/client`'s `Driver`). The VFS hands what is written to a
+device to `DeviceManager.input`, its driver's `input`, and what is written to a control to
+`DeviceManager.command`, which checks it against the control's `schema`, records it as the
+control's `requested` (the audit's record of who switched what) and awaits the driver's `write`;
+the writer hears the driver's answer from its close. A control's states are the device's reports,
+appended by its driver (opened `a`, the administrator's alone) and kept in the log registry's
+tables under the control's id, so `cat`, `tail -f` and `log-read` read a control as a log. A driver
+appends what it reads with `append`, through the VFS (so a track's change reaches whoever follows
+it), throttled as `throttle.ts` says, and publishes it on `dev.<device>.<endpoint>` (`DeviceMessage`)
+for queues and rules; `dev.<device>` carries a device coming or going. `/dev` is the `devices`
+group's (`1775`, so core's `null` and event routers stay the administrator's): its members make,
+name and forget devices (`device-create`, `device-label`, `device-forget`).
 
 **Relations** (spec 6.1) are pairs of softlinks under each node's `relations/` directory,
 created by `relate <a> <b> <label> [--reverse <label>]`. Each link carries
@@ -1449,30 +1468,30 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 
 ### HTTP (`:8080`) — [src/servers/http/](../src/servers/http/)
 
-| Route                             | Handler                               | Purpose                                                                       |
-| --------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
-| `/__shell` (WS upgrade)           | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                            |
-| `GET /__session`                  | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie    |
-| `GET /file/<path>`                | `get-file`                            | Stream file from VFS (ETag via sha256)                                        |
-| `PUT /file/<path>`                | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME          |
-| `POST /file/<dir>/?name=`         | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`             |
-| `POST /archive`                   | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it              |
-| `GET /archive/<token>`            | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                        |
-| `POST /log/<path>`                | `post-log`                            | Append JSON entries to a log node (`ts` backdates)                            |
-| `POST /track/<path>`              | `post-track`                          | Append fixes to a track node with a session (dedupes on `ts`)                 |
-| `GET\|POST /tracker/<id>.<token>` | `tracker`                             | A phone or GPS tracker posts fixes without a session (Traccar, OsmAnd, GPRMC) |
-| `GET /*`                          | `get-default`                         | SPA fallback, vhost support                                                   |
+| Route                          | Handler                               | Purpose                                                                    |
+| ------------------------------ | ------------------------------------- | -------------------------------------------------------------------------- |
+| `/__shell` (WS upgrade)        | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                         |
+| `GET /__session`               | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie |
+| `GET /file/<path>`             | `get-file`                            | Stream file from VFS (ETag via sha256)                                     |
+| `PUT /file/<path>`             | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME       |
+| `POST /file/<dir>/?name=`      | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`          |
+| `POST /archive`                | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it           |
+| `GET /archive/<token>`         | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                     |
+| `PUT\|POST /file/dev/<device>` | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key      |
+| `GET /file/dev/<device>?key=…` | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input    |
+| `POST /file/dev/<device>/<ep>` | `dev-write`                           | A value: appended to a log or a track, or written to a control             |
+| `GET /*`                       | `get-default`                         | SPA fallback, vhost support                                                |
 
-**Tracker links.** `/tracker/<track node id>.<token>` is the one URL a phone or GPS tracker is
-given (`handlers/tracker.ts`). It needs no session: the token is the track's own, made with
-`track-token <track> --new` by whoever may change the track and kept in the track's child `.tracker`
-(a `tracker-token` node, mode 0600 and the administrator's, so it can be shown again; `--new`
-replaces it, `--off` deletes it). The handler finds the track by id, compares the token in constant
-time, and appends as the track's owner (`accessOfUid`), so a track its owner may no longer change,
-or an owner with no active account, takes nothing; every refusal is the same 403, logged with the
-client's address. `tracker-protocols.ts` reads Traccar Client's JSON, the OsmAnd query or form,
-`?gprmc=` sentences and EiN's own points, speed in m/s; a request with no fix — a registration
-ping, a void GPRMC fix — is answered 200 with nothing appended.
+**Device keys.** A device cannot sign in, so what it writes to `/file/dev/<device>` carries its key
+(`handlers/dev-write.ts`): `Authorization: Bearer <key>`, or `key=` in the query for a client that
+only takes a URL. The key is made with `device-key <device> --new` by whoever may change the device
+and kept in its child `.key` (a `device-key` node, mode 0600 and the administrator's, so the URL can
+be shown again; `--new` replaces it, `--off` deletes it). It opens the device's own folder for these
+writes and nothing else, compared in constant time; the write is made as the device's owner
+(`accessOfUid`), and its driver is told it was the device's (`by: device:<name>`). Every refusal is
+the same 403, logged with the client's address. A GET with a key on a device node is the device
+talking, a tracker that only sends GETs: its query is the raw input. Without a key, a write is the
+signed-in session's, as every `/file` write is, and a GET is a read.
 
 File responses own the VFS handle until their body finishes, fails or is cancelled.
 `file-body` pulls bounded chunks directly from the handle and closes it at the

@@ -21,6 +21,7 @@ import { isLinkedEtc } from '../managers/exec/commands/mod/module-links.ts';
 import { buildPathExportLine } from '../managers/exec/commands/mod/path-line.ts';
 import { contributionsOf, registerContributions, unregisterContributions } from '../lib/contributions/registry.ts';
 import { ensureArchiveRoots } from '../lib/contributions/roots.ts';
+import { DeviceManager } from '../managers/devices/mod.ts';
 import type { SystemCore } from '../system-core.ts';
 import { expandModuleDeps } from './module-deps.ts';
 import { LIB_SOURCE_DIR, MODULES_DIR, moduleSourceDir } from '../modules/repo.ts';
@@ -165,6 +166,8 @@ export type InstanceContext = {
   bufferManager: BufferManagerIf;
   /** The relay registries bind to: what a test publishes on reaches a bound log, queue or track. */
   routerManager: RouterManager;
+  /** The devices under `/dev`: a test registers a driver here as a module's service does. */
+  devices: DeviceManager;
   shell: Shell;
   httpPort: number;
   sshPort: number;
@@ -180,6 +183,7 @@ export type SSHExecResult = {
 export class SystemTestHarness {
   private vfs?: LocalNodeVFS;
   private routerManager?: RouterManager;
+  private devices?: DeviceManager;
   private bufferManager?: BufferManager;
   private shell?: Shell;
   private sshServer?: SSHServer;
@@ -225,7 +229,10 @@ export class SystemTestHarness {
     })).vfs;
     this.vfs = vfs;
 
-    const sysCore: SystemCore = { vfs, bufferManager, routerManager };
+    const devices = new DeviceManager({ vfs, routerManager });
+    vfs.setDeviceSink(devices);
+    this.devices = devices;
+    const sysCore: SystemCore = { vfs, bufferManager, routerManager, devices };
     const cem = new ExecManager(sysCore);
     await cem.init();
     sysCore.execManager = cem;
@@ -354,6 +361,7 @@ export class SystemTestHarness {
       cem,
       vfs,
       bufferManager,
+      devices,
       rootPath: '/',
       env,
       onListen: (info) => listening.resolve(info.port),
@@ -370,6 +378,7 @@ export class SystemTestHarness {
       cem,
       bufferManager,
       routerManager,
+      devices,
       shell,
       httpPort,
       sshPort,
@@ -532,6 +541,7 @@ export class SystemTestHarness {
         await this.shell.close();
       } catch { /* ignore */ }
     }
+    this.devices?.dispose();
     if (this.vfs) {
       try {
         await this.vfs.dispose();

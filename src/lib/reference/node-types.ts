@@ -36,7 +36,7 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     label: 'Track',
     category: 'content',
     description:
-      'The route something travelled: timestamped GPS points, live or from imported GPX files, summarised by their extent and time span. A device keeps it as the history of its position.',
+      'The route something travelled: timestamped GPS points, live or from GPX files, summarised by their extent and time span. A device under /dev keeps its position as one, its `position` endpoint.',
   },
   {
     type: 'user',
@@ -66,7 +66,8 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     type: 'log',
     label: 'Log',
     category: 'system',
-    description: 'An append-only record of lines kept for a retention period, such as the system log under /var/logs.',
+    description:
+      "An append-only record of entries kept for a retention period, such as the system log under /var/logs. A device's readings and events are logs under it, one an endpoint.",
   },
   {
     type: 'queue',
@@ -112,10 +113,24 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
       'A link that opens an album, and what it holds, to whoever has it, without signing in; under /var/links, with when it expires and how often it was opened. `share-link` makes, lists and turns them off.',
   },
   {
-    type: 'tracker-token',
-    label: 'Tracker token',
+    type: 'device',
+    label: 'Device',
     category: 'system',
     description:
-      "The secret in the link a phone or GPS tracker posts a track's positions to without signing in: the track's child .tracker, readable by the administrator alone. `track-token` makes, shows and turns it off.",
+      'Something that reports or can be switched, under /dev: a phone, a sensor, a plug. Its endpoints are its children, logs, tracks and controls, and what is written to the device itself goes to its driver, which reads it into them.',
+  },
+  {
+    type: 'control',
+    label: 'Control',
+    category: 'system',
+    description:
+      "An endpoint of a device that is written to change it: a switch, a dimmer, a setpoint. What is written goes to the device's driver; what is read are the states the device reported.",
+  },
+  {
+    type: 'device-key',
+    label: 'Device key',
+    category: 'system',
+    description:
+      "The key a device carries to write to /file/dev/<device> without signing in, as a phone posting its position does: the device's child .key, readable by the administrator alone. `device-key` makes, shows and takes it away.",
   },
 ];

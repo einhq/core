@@ -9,6 +9,9 @@ import type { PoolRegistryIf } from '../registries/pool/types.ts';
 import type { QueueRegistryIf } from '../registries/queue/types.ts';
 import type { RouterRegistryIf } from '../registries/router/types.ts';
 import type { TrackRegistryIf } from '../registries/track/types.ts';
+import type { LogStat } from '../registries/log/types.ts';
+import type { LogResourceOptions } from '../registries/log/types.ts';
+import type { Access } from '../lib/access/types.ts';
 import { NodeVFS } from './node-vfs.ts';
 import { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeSpecialProps, NodeType, UserTime } from './node.ts';
 
@@ -22,7 +25,20 @@ export type VfsRegistries = {
   pool?: PoolRegistryIf;
   queue?: QueueRegistryIf;
   track?: TrackRegistryIf;
+  device?: RegistryIf;
+  control?: RegistryIf<LogResourceOptions, LogStat>;
 };
+
+/**
+ * Where the VFS sends what is written to a device or a control (`DeviceWriteHandle`): core's device
+ * manager, which hands it the device's driver. The writer hears the answer from its close.
+ */
+export interface DeviceSink {
+  /** Raw input written to the device node at `path`: a fix, a GPX file, a webhook's body. */
+  input(access: Access, path: NodePath, raw: { bytes: Uint8Array; contentType?: string; query?: string }): Promise<unknown>;
+  /** A value written to the control at `path`, as the writer gave it. */
+  command(access: Access, path: NodePath, text: string): Promise<unknown>;
+}
 
 /**
  * Event subscription handle

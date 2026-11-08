@@ -72,7 +72,8 @@ import { comment } from './node/comment.ts';
 import { label, labels } from './node/label.ts';
 import { logAppend } from './node/log-append.ts';
 import { logRead } from './node/log-read.ts';
-import { trackToken } from './track/track-token.ts';
+import { deviceHistory, devices, deviceShow } from './devices/read.ts';
+import { deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
 import { relate, unrelate } from './node/relate.ts';
 import { relationsGuard } from './node/relations-guard.ts';
 import { star } from './node/star.ts';
@@ -325,7 +326,15 @@ export const COMMAND_NAMES: CmdFunction[] = [
   mknode,
   logAppend,
   logRead,
-  trackToken,
+
+  // Devices
+  devices,
+  deviceShow,
+  deviceHistory,
+  deviceCreate,
+  deviceLabel,
+  deviceForget,
+  deviceKey,
   relate,
   unrelate,
   relationsGuard,

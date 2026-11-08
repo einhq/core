@@ -21,6 +21,7 @@ import { ShellManager } from './managers/shell/mod.ts';
 import { RouterRegistry } from './registries/router/mod.ts';
 import { InMemoryStore } from './stores/memory/index.ts';
 import type { SystemCore } from './system-core.ts';
+import { DeviceManager } from './managers/devices/mod.ts';
 import { LocalNodeVFS } from './vfs/mod.ts';
 
 const logger = createLogger('main');
@@ -130,6 +131,11 @@ async function main() {
     pgListenPool,
   };
 
+  // Devices: given to the VFS before `mount` makes the store's, which takes it on.
+  const devices = new DeviceManager({ vfs, routerManager });
+  vfs.setDeviceSink(devices);
+  systemCore.devices = devices;
+
   // Execution manager
   logger.info('Initializing exec manager...');
   const execManager = new ExecManager(systemCore);
@@ -221,6 +227,7 @@ async function main() {
     logger.error('Failed to close shells during shutdown', error);
   }
   try {
+    devices.dispose();
     await vfs.dispose();
   } catch (error) {
     logger.error('Failed to dispose VFS during shutdown', error);

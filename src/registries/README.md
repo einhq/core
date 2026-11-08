@@ -26,6 +26,8 @@ ResourceHandleIf (open resource)
 | Registry                | Backend                  | Purpose                                       |
 | ----------------------- | ------------------------ | --------------------------------------------- |
 | [blob](blob/)           | PostgreSQL LOB / Memory  | Binary storage in PostgreSQL large objects    |
+| [control](control/)     | the log registry         | A device's control: its reported states       |
+| [device](device/)       | None                     | A device: what is written goes to its driver  |
 | [file](file/)           | Filesystem / Memory      | Binary file storage                           |
 | [embedding](embedding/) | PostgreSQL + pgvector    | Vector embeddings with similarity search      |
 | [position](position/)   | PostgreSQL + PostGIS     | Geo shapes (point/circle/polygon), queries    |

@@ -11,6 +11,8 @@ import { SftpFileRegistry } from '../../../../registries/file/sftp-file-registry
 import { MemoryPositionRegistry, PositionRegistry } from '../../../../registries/position/mod.ts';
 import { MemoryLogRegistry, PgLogRegistry } from '../../../../registries/log/mod.ts';
 import { NullRegistry } from '../../../../registries/null/mod.ts';
+import { DeviceRegistry } from '../../../../registries/device/mod.ts';
+import { ControlRegistry } from '../../../../registries/control/mod.ts';
 import { MemoryPoolRegistry, PgPoolRegistry } from '../../../../registries/pool/mod.ts';
 import { MemoryQueueRegistry, PgQueueRegistry } from '../../../../registries/queue/mod.ts';
 import { RouterRegistry } from '../../../../registries/router/mod.ts';
@@ -137,6 +139,8 @@ async function buildVfs(
       regs.track = new MemoryTrackRegistry({
         router: cmd.sys.routerManager,
       });
+      regs.device = new DeviceRegistry();
+      regs.control = new ControlRegistry({ log: regs.log });
     }
 
     store = new InMemoryStore({
@@ -217,6 +221,9 @@ async function buildVfs(
         pool: cmd.sys.pgPool,
         listenPool: cmd.sys.pgListenPool,
       });
+
+      regs.device = new DeviceRegistry();
+      regs.control = new ControlRegistry({ log: regs.log });
     }
 
     store = new PgStore({

@@ -57,6 +57,7 @@
     // minors here change detection behaviour (the order of magic signatures decides whether
     // ftypheic beats the generic 4-byte ftyp/mp4 match). See src/lib/media/mime.ts.
     "mime-bytes": "npm:mime-bytes@0.30.0",
+    "qrcode-generator": "npm:qrcode-generator@^2.0.4",
     // Dev-only npm tooling does NOT belong here: `deno bundle --node-modules-dir=auto`
     // installs everything in this map, so it would be downloaded by every UI build. It lives
     // in a config of its own, outside this repository.

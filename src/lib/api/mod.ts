@@ -28,7 +28,6 @@ export * from './similar.ts';
 export * from './stars.ts';
 export * from './feeds.ts';
 export * from './completion.ts';
-export * from './track.ts';
 export * from './trash.ts';
 export * from './position.ts';
 export * from './node.ts';
@@ -40,3 +39,4 @@ export type { ArgCompleteType, CmdArgDef, CmdEffect, CmdFlagDef, CmdSpec, FlagCo
 export type { ContainerListing, ContainerMember } from '../containers/types.ts';
 export type { SubjectEntry, SubjectListing, SubjectMatch, SubjectsOf } from '../subjects/types.ts';
 export type { EnvVarDoc, EnvVarKind, NodeTypeCategory, NodeTypeDoc, Owned } from '../reference/types.ts';
+export * from './devices.ts';

@@ -1,7 +1,6 @@
 /**
- * Log tailing over the api-shell (log.follow/log.unfollow) and HTTP log
- * ingest (POST /log/<path>). The follow stream must deliver existing
- * entries first and then live appends without polling.
+ * Log tailing over the api-shell (log.follow/log.unfollow). The follow stream must deliver
+ * existing entries first and then live appends without polling.
  */
 
 import { assertEquals } from '@std/assert';
@@ -39,13 +38,12 @@ function collector() {
 }
 
 Deno.test({
-  name: 'log follow and HTTP log ingest',
+  name: 'log follow',
   sanitizeResources: false,
   sanitizeOps: false,
 }, async (t) => {
-  const { baseUrl } = await harness.start();
+  await harness.start();
   const client = await harness.createShellClient();
-  const { cookie } = await harness.createHttpSession();
 
   try {
     await t.step('log.follow streams history then live appends', async () => {
@@ -82,46 +80,6 @@ Deno.test({
         failed = true;
       }
       assertEquals(failed, true);
-    });
-
-    await t.step('POST /log appends JSON entries (array, ts backdating)', async () => {
-      await client.execJson('mknode -t log /http-log');
-
-      const res = await fetch(`${baseUrl}/log/http-log`, {
-        method: 'POST',
-        headers: { cookie, 'Content-Type': 'application/json' },
-        body: JSON.stringify([
-          { lat: 57.7, lng: 11.97, ts: '2020-05-01T10:00:00Z' },
-          { lat: 57.71, lng: 11.98 },
-        ]),
-      });
-      assertEquals(res.status, 200);
-      assertEquals(await res.json(), { appended: 2 });
-
-      const events = collector();
-      const unfollow = await client.followLog('/http-log', events.onEvent);
-      await events.waitFor(2);
-      await unfollow();
-      assertEquals(events.received[0].data.lat, 57.7);
-      assertEquals(events.received[1].data.lat, 57.71);
-    });
-
-    await t.step('POST /log rejects bad input', async () => {
-      const bad = await fetch(`${baseUrl}/log/http-log`, {
-        method: 'POST',
-        headers: { cookie },
-        body: 'not json at all {',
-      });
-      assertEquals(bad.status, 400);
-      await bad.body?.cancel();
-
-      const notLog = await fetch(`${baseUrl}/log/not-a-log`, {
-        method: 'POST',
-        headers: { cookie },
-        body: JSON.stringify({ x: 1 }),
-      });
-      assertEquals(notLog.status, 400);
-      await notLog.body?.cancel();
     });
   } finally {
     client.close();

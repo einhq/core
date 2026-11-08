@@ -10,6 +10,7 @@ import {
   ADMIN_GROUPNAME,
   ADMIN_UID,
   ADMIN_USERNAME,
+  DEVICES_GROUPNAME,
   GUEST_GID,
   GUEST_GROUPNAME,
   GUEST_UID,
@@ -44,6 +45,7 @@ export USERS_GROUPNAME=${USERS_GROUPNAME}
 export USERS_GID=${USERS_GID}
 export SSH_GROUPNAME=${SSH_GROUPNAME}
 export SUDO_GROUPNAME=${SUDO_GROUPNAME}
+export DEVICES_GROUPNAME=${DEVICES_GROUPNAME}
 ${Object.entries(pathEnv()).map(([key, value]) => `export ${key}="${value}"`).join('\n')}
 export EIN_PATH_EXPORTS="${pathExports().replaceAll('"', '\\"')}"
 ${Object.entries(env).map(([key, value]) => `export ${key.toUpperCase()}="${value}"`).join('\n')}

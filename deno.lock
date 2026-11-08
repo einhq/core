@@ -27,6 +27,7 @@
     "jsr:@std/ulid@1": "1.0.0",
     "jsr:@std/yaml@*": "1.0.12",
     "jsr:@std/yaml@^1.0.11": "1.0.12",
+    "jsr:@ymjacky/mqtt5@^0.0.26": "0.0.26",
     "jsr:@zip-js/zip-js@^2.8.60": "2.8.60",
     "npm:@codemirror/commands@^6.7.0": "6.11.1",
     "npm:@codemirror/lang-css@^6.3.0": "6.3.1",
@@ -160,6 +161,9 @@
     },
     "@std/yaml@1.0.12": {
       "integrity": "7deabca4545bcedd07c5f69ea53acea71b8b4c67562f224e17b90d75944cb20c"
+    },
+    "@ymjacky/mqtt5@0.0.26": {
+      "integrity": "152254e8f5a80c583be4bcda9c1e5c9ab25937fb84aded9c29695f70b2449a47"
     },
     "@zip-js/zip-js@2.8.60": {
       "integrity": "7c2620d26c5221d74664c3c935a0f59e3bb7b93acf4740b662a2b362e925572d"
@@ -1646,6 +1650,7 @@
       "npm:leaflet@^1.9.4",
       "npm:mime-bytes@0.30.0",
       "npm:pg@^8.16.3",
+      "npm:qrcode-generator@^2.0.4",
       "npm:react-dom@^19.2.3",
       "npm:react-markdown@^10.1.0",
       "npm:react-router-dom@^7.12.0",
@@ -1675,7 +1680,6 @@
           "npm:@mantine/hooks@9.6.2",
           "npm:@preact/signals-react@^3.6.1",
           "npm:pg@^8.16.3",
-          "npm:qrcode-generator@^2.0.4",
           "npm:react-dom@^19.2.3",
           "npm:react-router-dom@^7.12.0",
           "npm:react@^19.2.3"
@@ -1690,6 +1694,22 @@
           "npm:@mantine/hooks@9.6.2",
           "npm:@preact/signals-react@^3.6.1",
           "npm:mdast-util-from-markdown@^2.0.3",
+          "npm:react-dom@^19.2.3",
+          "npm:react-router-dom@^7.12.0",
+          "npm:react@^19.2.3"
+        ]
+      },
+      "modules/automation": {
+        "dependencies": [
+          "jsr:@std/assert@^1.0.16",
+          "jsr:@std/yaml@^1.0.11",
+          "jsr:@ymjacky/mqtt5@^0.0.26",
+          "npm:@hello-pangea/dnd@^18.0.1",
+          "npm:@mantine/core@9.6.2",
+          "npm:@mantine/dates@9.6.2",
+          "npm:@mantine/hooks@9.6.2",
+          "npm:@preact/signals-react@^3.6.1",
+          "npm:qrcode-generator@^2.0.4",
           "npm:react-dom@^19.2.3",
           "npm:react-router-dom@^7.12.0",
           "npm:react@^19.2.3"

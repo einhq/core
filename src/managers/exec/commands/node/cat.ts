@@ -8,6 +8,7 @@ import { NODE_TYPE_EMBEDDING } from '../../../../vfs/types/embedding.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import { NODE_TYPE_POSITION } from '../../../../vfs/types/position.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
+import { NODE_TYPE_CONTROL } from '../../../../vfs/types/device.ts';
 import { NODE_TYPE_NULL } from '../../../../vfs/types/null.ts';
 import { NODE_TYPE_POOL } from '../../../../vfs/types/pool.ts';
 import { NODE_TYPE_QUEUE } from '../../../../vfs/types/queue.ts';
@@ -63,6 +64,8 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
     const node = await cmd.sys.vfs.get(cmd.access, path);
 
     switch (node.type) {
+      // A control's states are kept as a log's entries are.
+      case NODE_TYPE_CONTROL:
       case NODE_TYPE_LOG: {
         // Read without a signal: a log read given one blocks at the end for new
         // appends, which is `tail -f`, not cat.

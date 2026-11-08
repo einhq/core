@@ -14,7 +14,7 @@ const AGGREGATES: LogAggregate[] = ['avg', 'min', 'max', 'sum', 'count', 'first'
 const DEFAULT_LIMIT = 10_000;
 
 /** A moment: an ISO 8601 time, or a duration (`24h`, `7d`) meaning that long ago. */
-const parseMoment = (value: string | undefined, what: string): Date | undefined => {
+export const parseMoment = (value: string | undefined, what: string): Date | undefined => {
   if (value === undefined) return undefined;
   if (/^\d+(\.\d+)?(ms|s|m|h|d)$/.test(value.trim())) return new Date(Date.now() - parseDuration(value, what)!);
   const at = new Date(value);

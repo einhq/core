@@ -1,9 +1,9 @@
-import { isTrackerPath } from '../../lib/track/tracker.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { ArchiveTicketStore } from './archive-tickets.ts';
 import { clientAddress } from './client-address.ts';
 import { DownloadLog } from './download-log.ts';
+import { handleDevWrite } from './handlers/dev-write.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
 import { handleGetFile } from './handlers/get-file.ts';
@@ -11,10 +11,7 @@ import { handleGetSession } from './handlers/get-session.ts';
 import { handleGetShell } from './handlers/get-shell.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
 import { handlePostFile } from './handlers/post-file.ts';
-import { handlePostLog } from './handlers/post-log.ts';
-import { handlePostTrack } from './handlers/post-track.ts';
 import { handlePutFile } from './handlers/put-file.ts';
-import { handleTracker } from './handlers/tracker.ts';
 import { HttpServerConfig } from './types.ts';
 import { InteractiveTerminalRegistry } from './ws/interactive-terminal-registry.ts';
 
@@ -36,6 +33,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
       } else if (url.pathname === '/__session' && req.method === 'GET') {
         return await handleGetSession(config, req);
       } else if (url.pathname.startsWith('/file/')) {
+        const devWrite = await handleDevWrite(config, req, url, info.remoteAddr);
+        if (devWrite) return devWrite;
         if (req.method === 'GET' || req.method === 'HEAD') {
           return await handleGetFile(config, req, url, { downloads, from: clientAddress(req.headers, info.remoteAddr) });
         } else if (req.method === 'PUT') {
@@ -47,12 +46,6 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handlePostArchive(config, req, archiveTickets);
       } else if (url.pathname.startsWith('/archive/') && (req.method === 'GET' || req.method === 'HEAD')) {
         return await handleGetArchive(config, req, url, archiveTickets, downloads, clientAddress(req.headers, info.remoteAddr));
-      } else if (url.pathname.startsWith('/log/') && req.method === 'POST') {
-        return await handlePostLog(config, req, url);
-      } else if (url.pathname.startsWith('/track/') && req.method === 'POST') {
-        return await handlePostTrack(config, req, url);
-      } else if (isTrackerPath(url.pathname) && (req.method === 'GET' || req.method === 'POST')) {
-        return await handleTracker(config, req, url, info.remoteAddr);
       }
 
       if (req.method !== 'GET' && req.method !== 'HEAD') {

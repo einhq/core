@@ -4,6 +4,7 @@ import type { ExecutionManager } from './managers/exec/mod.ts';
 import type { RouterManagerIf } from './managers/router/mod.ts';
 import type { ServiceManager } from './managers/services/mod.ts';
 import type { ShellManagerIf } from './managers/shell/mod.ts';
+import type { DeviceManager } from './managers/devices/mod.ts';
 import type { NodeVFS } from './vfs/mod.ts';
 
 export type SystemCore = {
@@ -19,6 +20,9 @@ export type SystemCore = {
 
   /** Shell manager (set during boot after construction) */
   shellManager?: ShellManagerIf;
+
+  /** The devices under `/dev` and their drivers; the VFS gives it what is written to them. */
+  devices?: DeviceManager;
 
   /** PostgreSQL pool */
   pgPool?: Pool;

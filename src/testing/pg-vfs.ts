@@ -6,6 +6,8 @@ import { MemoryFileRegistry, TieredFileRegistry } from '../registries/file/mod.t
 import { MemoryPositionRegistry } from '../registries/position/mod.ts';
 import { MemoryLogRegistry } from '../registries/log/mod.ts';
 import { NullRegistry } from '../registries/null/mod.ts';
+import { DeviceRegistry } from '../registries/device/mod.ts';
+import { ControlRegistry } from '../registries/control/mod.ts';
 import { MemoryPoolRegistry } from '../registries/pool/mod.ts';
 import { PgQueueRegistry } from '../registries/queue/mod.ts';
 import { RouterRegistry } from '../registries/router/mod.ts';
@@ -28,16 +30,19 @@ export type PgTestVfsOptions = { pool: Pool; prefix: string; embeddings?: boolea
  */
 export async function createPgTestVfs(routerManager: RouterManagerIf, options: PgTestVfsOptions): Promise<LocalNodeVFS> {
   const { pool, prefix } = options;
+  const log = new MemoryLogRegistry({ router: routerManager });
   const vfs = new LocalNodeVFS(new PgStore({ pgPool: pool, name: prefix }), routerManager, {
     file: new TieredFileRegistry({ disk: new MemoryFileRegistry(), db: new PgBlobRegistry({ pool, prefix }) }),
     embedding: options.embeddings ? new EmbeddingRegistry({ pool, name: prefix }) : new MemoryEmbeddingRegistry(),
     position: new MemoryPositionRegistry(),
-    log: new MemoryLogRegistry({ router: routerManager }),
+    log,
     null: new NullRegistry(),
     pool: new MemoryPoolRegistry(),
     queue: new PgQueueRegistry({ router: routerManager, name: prefix, pool }),
     router: new RouterRegistry({ router: routerManager }),
     track: new MemoryTrackRegistry({ router: routerManager }),
+    device: new DeviceRegistry(),
+    control: new ControlRegistry({ log }),
   });
   await vfs.initialize();
   return vfs;

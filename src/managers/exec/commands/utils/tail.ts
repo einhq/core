@@ -4,6 +4,7 @@ import { deferred, Mutex } from '../../../../lib/async/mod.ts';
 import { ResourceHandleIf, ResourceSeekMode } from '../../../../registries/types.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
+import { NODE_TYPE_CONTROL } from '../../../../vfs/types/device.ts';
 import type { Command } from '../../command.ts';
 import { signalExitCode } from '../../signal.ts';
 import { CmdReturn } from '../../types.ts';
@@ -38,6 +39,8 @@ export const tail = async (cmd: Command): CmdReturn => {
     const node = await cmd.sys.vfs.get(cmd.access, path);
 
     switch (node.type) {
+      // A control's states are kept as a log's entries are.
+      case NODE_TYPE_CONTROL:
       case NODE_TYPE_LOG:
         return await tailLog(cmd, path, flags, follow);
       case NODE_TYPE_FILE:

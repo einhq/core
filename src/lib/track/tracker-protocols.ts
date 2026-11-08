@@ -1,19 +1,22 @@
 /**
- * What phones and GPS trackers post, read into track points.
+ * What phones and GPS trackers send, read into track points: the raw input core's `tracker` driver
+ * takes for a device's track.
  *
  * - Traccar Client's JSON body: `{location: {coords: {latitude, longitude, speed, heading,
  *   altitude}, timestamp}}`, or `location` as a list of them; speed in m/s, a heading of −1 unknown.
  * - The OsmAnd protocol, as a query or a form body: `lat`, `lon`, `timestamp` (epoch seconds or
  *   milliseconds, or a date), `speed` in knots, `bearing`, `altitude`.
  * - A GPRMC sentence over HTTP: `?gprmc=$GPRMC,…`, speed in knots.
- * - EiN's own points, as `POST /track` takes them: a JSON object, a JSON list, or one object a
- *   line, each `{lat, lng, ts?, alt?, speed?, course?}`.
+ * - A GPX document, as a logger or a phone app saves it: its fixes that have a time.
+ * - EiN's own points: a JSON object, a JSON list, or one object a line, each
+ *   `{lat, lng, ts?, alt?, speed?, course?}`.
  *
  * Speed is kept in m/s and course in degrees. A request that carries no fix — Traccar Client's
  * registration ping, a GPRMC sentence marked void — reads as no points, which is not an error.
  */
 
 import type { TrackPointInput } from '../../registries/track/mod.ts';
+import { isGpx, parseGpx, timedPoints } from './gpx.ts';
 
 const KNOT_MS = 1852 / 3600;
 
@@ -132,7 +135,7 @@ export const fromTraccarJson = (body: Record<string, unknown>): TrackerFixes => 
 };
 
 /** EiN's own points: a JSON object, a JSON list, or one object a line. */
-export const fromNative = (text: string): TrackerFixes => {
+const fromNative = (text: string): TrackerFixes => {
   let entries: unknown[];
   try {
     const parsed = JSON.parse(text);
@@ -151,14 +154,22 @@ export const fromNative = (text: string): TrackerFixes => {
 const isTraccarBody = (body: unknown): body is Record<string, unknown> =>
   typeof body === 'object' && body !== null && !Array.isArray(body) && ('location' in body || 'coords' in body || 'device_id' in body);
 
+/** A GPX document's fixes that have a time, or why it has none. */
+const fromGpx = (xml: string): TrackerFixes => {
+  const timed = timedPoints(parseGpx(xml).points);
+  return timed.problem ? { error: timed.problem } : { points: timed.points };
+};
+
 /**
- * Whatever protocol a request speaks, its points: a GPRMC sentence in `gprmc`, then a JSON body
- * (Traccar Client's, or EiN's own), then OsmAnd's parameters from the form body and the query.
+ * Whatever protocol a request speaks, its points: a GPRMC sentence in `gprmc`, then a GPX
+ * document, then a JSON body (Traccar Client's, or EiN's own), then OsmAnd's parameters from the
+ * form body and the query.
  */
 export const readTrackerRequest = (url: URL, contentType: string, body: string): TrackerFixes => {
   const form = contentType.includes('application/x-www-form-urlencoded') ? new URLSearchParams(body) : undefined;
   const gprmc = url.searchParams.get('gprmc') ?? form?.get('gprmc');
   if (gprmc) return fromGprmc(gprmc);
+  if (isGpx(body, contentType)) return fromGpx(body);
 
   if (!form && body.trim()) {
     let parsed: unknown;

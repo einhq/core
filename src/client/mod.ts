@@ -7,9 +7,8 @@
  * has no business seeing. This file is the boundary, and it is deliberately small.
  *
  * It is sized to what modules actually use rather than to what core happens to expose: on the
- * command object only `sys.vfs`, never `bufferManager`, `routerManager` or `execManager`, which
- * is why `ModuleSystemCore` carries `vfs` alone. Widening any of this is additive and safe;
- * narrowing it is not.
+ * command object only `sys.vfs` and `sys.devices`, never `bufferManager`, `routerManager` or
+ * `execManager`. Widening any of this is additive and safe; narrowing it is not.
  *
  * Core keeps importing `@ein/exec` internally. The two are expected to diverge: this one is
  * a published contract with a version, that one is whatever core needs today.
@@ -21,11 +20,12 @@ import type { EchoMode } from '../managers/shell/readline/mod.ts';
 import type { ModuleVFS } from '../vfs/node-vfs.ts';
 import type { CmdSpec } from '../managers/exec/spec.ts';
 import type { Input } from '../managers/exec/command-input.ts';
+import type { ModuleDevices } from '../managers/devices/types.ts';
 
 /**
  * What a module sees of `SystemCore`.
  *
- * Only `vfs` is exposed because only `vfs` is used. A module reaching for the buffer or router
+ * `vfs`, and `devices` for a module that drives devices. A module reaching for the buffer or router
  * managers is a design smell that should surface as a type error rather than as a working
  * import — the shell is the intended route to anything else. The VFS is core's `ModuleVFS`,
  * exported here as `NodeVFS`: without the store's lifecycle, mounting, the pool worker's side and
@@ -33,6 +33,8 @@ import type { Input } from '../managers/exec/command-input.ts';
  */
 export type ModuleSystemCore = {
   vfs: ModuleVFS;
+  /** The devices under `/dev`: registering a driver, and the writes a driver makes. */
+  devices?: ModuleDevices;
 };
 
 /**
@@ -222,6 +224,11 @@ export type { GeoBounds, PositionData, PositionFilter, PositionPoint, WithinMatc
 
 // What the track registry knows about a track without reading its points (`NodeVFS.trackSummaries`).
 export type { TrackSummary } from '../registries/track/types.ts';
+// GPX documents read into fixes.
+export { type Gpx, isGpx, parseGpx, timedPoints } from '../lib/track/gpx.ts';
+
+// Devices: a module's drivers and the writes they make (`cmd.sys.devices`).
+export type { AppendOptions, Driver, DriverAnswer, DriverInput, DriverWrite, ModuleDevices } from '../managers/devices/types.ts';
 
 // A series out of a log: the latest samples of a metrics series, core's own or one a module's
 // service keeps, or any log's entries by time, as they are or summed up per interval.

@@ -42,6 +42,8 @@ import { ContentWriteHandle } from './content-write-handle.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.ts';
 import { type AuditInput, type AuditOp, type AuditPurge, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
+import { DeviceWriteHandle } from './device-write-handle.ts';
 import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
@@ -79,6 +81,7 @@ import {
   ChildCountOptions,
   ChildrenOptions,
   CopyOptions,
+  DeviceSink,
   EventSubscription,
   EventSubscriptionFilter,
   EventSubscriptionHandler,
@@ -342,6 +345,8 @@ export class LocalNodeVFS implements NodeVFS {
   private inFlight = new Set<Promise<unknown>>();
   /** Set by `dispose`: no write starts after it. */
   private closed = false;
+  /** Where writes to devices and controls go (`setDeviceSink`); a mount made later is given it too. */
+  private deviceSink?: DeviceSink;
 
   constructor(
     private store: NodeStore,
@@ -350,6 +355,18 @@ export class LocalNodeVFS implements NodeVFS {
     private regs: VfsRegistries,
     private options: LocalNodeVfsOptions = {},
   ) {}
+
+  /**
+   * Give writes to devices and controls to `sink`: core's device manager, made after the VFS it
+   * reads through. Every VFS mounted here, now or later, is given it too, since the one that holds
+   * a device's node is the one its write is opened on.
+   */
+  setDeviceSink(sink: DeviceSink): void {
+    this.deviceSink = sink;
+    for (const mount of this.mountpoints) {
+      if (mount.vfs instanceof LocalNodeVFS) mount.vfs.setDeviceSink(sink);
+    }
+  }
 
   // ===== Locking and Transaction Helpers =====
 
@@ -795,6 +812,7 @@ export class LocalNodeVFS implements NodeVFS {
       };
 
       this.mountpoints.push(mountPoint);
+      if (this.deviceSink && vfs instanceof LocalNodeVFS) vfs.setDeviceSink(this.deviceSink);
 
       // Subscribe to the mounted VFS for event propagation. The mounted VFS
       // stops publishing its own events, so this is where they reach the
@@ -4947,6 +4965,25 @@ export class LocalNodeVFS implements NodeVFS {
 
       // A path-addressed store's registry takes the path within the mount
       const id = this.store.pathAddressed ? entry.vfsAbsPath : entry.id;
+
+      // What is written to a device is raw input for its driver, and what is written to a control a
+      // value for it: neither is stored by the write. Only a control's driver appends to it (`a`),
+      // reporting the state the device then has; drivers run as services, the administrator's.
+      const writing = mode.includes('w') || mode.includes('a') || mode.includes('+');
+      const reporting = node.type === NODE_TYPE_CONTROL && mode.includes('a');
+      if (writing && (node.type === NODE_TYPE_DEVICE || (node.type === NODE_TYPE_CONTROL && !reporting))) {
+        const sink = this.deviceSink;
+        if (!sink) throw new NodeNotSupportedError(node.type);
+        const path = entry.vfsAbsPath;
+        const decoder = new TextDecoder();
+        return new DeviceWriteHandle(id, this.tierOpts(node), mode, reg, async (bytes) => {
+          if (node.type === NODE_TYPE_DEVICE) await sink.input(access, path, { bytes });
+          else await sink.command(access, path, decoder.decode(bytes));
+        });
+      }
+      if (reporting && !bypassesAccess(access)) {
+        throw new NodeAccessDeniedError(entry.vfsAbsPath, 'report a control state');
+      }
 
       const handle = await reg.open(id, this.tierOpts(node) as any, mode);
 

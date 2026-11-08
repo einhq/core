@@ -35,6 +35,9 @@ export const SSH_GROUPNAME = 'ssh';
  */
 export const SUDO_GROUPNAME = 'sudo';
 
+/** The group whose members make, name and forget the devices under `/dev`. */
+export const DEVICES_GROUPNAME = 'devices';
+
 /**
  * The mode a node created in a parent with `parentMode` gets when its creator names none.
  *
