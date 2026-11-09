@@ -130,3 +130,22 @@ export const assertOwnerAttrsUnchanged = (
     if (changes(attrs, node, key)) throw new NodeAccessDeniedError(node.id, `change ${key}`);
   }
 };
+
+/**
+ * Attrs only an administrator sets, on a new node or an existing one: `routingKeys` binds a queue, a
+ * log or a track to what is published under those keys, whoever may read what it is about (a
+ * device's readings, every node's changes), so it is for EiN's own services and pipelines.
+ */
+const ADMIN_ATTRS: readonly string[] = ['routingKeys'];
+
+/** Assert that a node's creation or update sets none of the `ADMIN_ATTRS` unless an administrator makes it. */
+export const assertAdminAttrsUnchanged = (
+  access: Access,
+  node: { id: NodeId; attrs: NodeAttrs },
+  attrs?: NodeAttrsUpdate,
+) => {
+  if (isAdmin(access)) return;
+  for (const key of ADMIN_ATTRS) {
+    if (changes(attrs, node, key)) throw new NodeAccessDeniedError(node.id, `change ${key}`);
+  }
+};

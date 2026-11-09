@@ -45,7 +45,14 @@ import { NODE_TYPE_POSITION } from './types/position.ts';
 import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
 import { NODE_TYPE_LOG } from './types/log.ts';
 import { DeviceWriteHandle } from './device-write-handle.ts';
-import { assertAccess, assertIdentityCreatable, assertIdentityUnchanged, assertOwnerAttrsUnchanged, assertOwnershipAllowed } from './assert-access.ts';
+import {
+  assertAccess,
+  assertAdminAttrsUnchanged,
+  assertIdentityCreatable,
+  assertIdentityUnchanged,
+  assertOwnerAttrsUnchanged,
+  assertOwnershipAllowed,
+} from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from './types/file.ts';
@@ -2761,6 +2768,7 @@ export class LocalNodeVFS implements NodeVFS {
       };
       assertOwnershipAllowed(access, path, { uid: access.uid, gid: parent.props.gid }, spec.props);
       assertIdentityCreatable(access, path, spec.type);
+      assertAdminAttrsUnchanged(access, { id: path, attrs: {} }, spec.attrs);
       this.declareWrite(mut, spec.type);
       return { spec, path, props };
     });
@@ -3382,6 +3390,7 @@ export class LocalNodeVFS implements NodeVFS {
     assertAccess(access, node, 'w');
     assertIdentityUnchanged(access, node, props, attrs);
     assertOwnerAttrsUnchanged(access, node, attrs);
+    assertAdminAttrsUnchanged(access, node, attrs);
     assertOwnershipAllowed(access, node.id, node.props, props);
 
     // Storage tier is set once at creation and immutable thereafter: the
