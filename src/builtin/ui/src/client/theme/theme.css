@@ -3452,7 +3452,8 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
 /* A page header's controls floating over the page's foot on a phone (`FloatingControls`): on the
  * line of back to top, up to its left, and as round and plain as it — the box a pill, the choices
  * round buttons. It keeps clear of a phone's sidebar rail on the left. A container, so the
- * controls fold as they do in a phone's header. */
+ * controls fold as they do in a phone's header. It spans the row, so only the controls take a
+ * tap; between and beside them it goes through to the page under them. */
 .mrx-floating-controls {
   position: fixed;
   left: calc(var(--app-shell-navbar-offset, 0px) + var(--mantine-spacing-md));
@@ -3460,6 +3461,11 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mantine-spacing-md));
   z-index: var(--mantine-z-index-app);
   container-type: inline-size;
+  pointer-events: none;
+}
+
+.mrx-floating-controls :is(a, button, input, textarea, label, [role], .mantine-Input-wrapper) {
+  pointer-events: auto;
 }
 
 /* Back to top's room at the row's end, which the box takes while it has the keyboard
