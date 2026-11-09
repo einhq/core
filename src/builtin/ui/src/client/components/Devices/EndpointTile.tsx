@@ -1,8 +1,10 @@
-import { Anchor, Box, Button, Card, Group, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Anchor, Box, Button, Card, Group, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import type { ControlSchema, DeviceHistory, DeviceValue, EndpointSummary } from '@ein/api';
 import { StatTile } from '../Pipeline/StatTile.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
+import { Dialog } from '../Surface/Dialog.tsx';
 import { agoText, chartLabel, readingText, sameValue } from '../../lib/device-format.ts';
 import { shq } from '../../lib/shquote.ts';
 import { execCommand } from '../../signals/shell-client.ts';
@@ -120,6 +122,10 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
   const points = endpoint.track?.points ?? 0;
   const last = fixes?.at(-1);
   const motion = last ? motionText(last, deviceClass) : '';
+  const [mapOpen, setMapOpen] = useState(false);
+  const isNarrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
+  const isCoarse = useMediaQuery('(hover: none) and (pointer: coarse)', false, { getInitialValueInEffect: false });
+  const isMobile = isNarrow || isCoarse;
   return (
     <Card p='sm'>
       <Stack gap={6}>
@@ -128,8 +134,19 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
           ? <Text size='sm' c='dimmed'>No fixes yet.</Text>
           : fixes && fixes.length > 0
           ? (
-            <Box style={{ borderRadius: 'var(--mantine-radius-sm)', overflow: 'hidden' }}>
+            <Box style={{ position: 'relative', borderRadius: 'var(--mantine-radius-sm)', overflow: 'hidden' }}>
               <FixMap fixes={fixes} height={180} layerSwitcher={false} />
+              <ActionIcon
+                variant='filled'
+                color='dark'
+                size={44}
+                onClick={() => setMapOpen(true)}
+                aria-label='Enlarge map'
+                title='Enlarge map'
+                style={{ position: 'absolute', top: '50%', right: 8, zIndex: 1, transform: 'translateY(-50%)' }}
+              >
+                <TablerIcon name='maximize' size={22} />
+              </ActionIcon>
             </Box>
           )
           : <Skeleton height={180} animate={fixes === undefined} />}
@@ -150,6 +167,23 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
           )}
         </Group>
       </Stack>
+      <Dialog
+        opened={mapOpen && !!fixes?.length}
+        onClose={() => setMapOpen(false)}
+        fullScreen={isMobile}
+        size='min(1000px, calc(100vw - 32px))'
+        title={endpoint.label}
+        subtitle={endpoint.track?.lastAt ? `${fixTimeText(endpoint.track.lastAt)}, ${agoText(endpoint.track.lastAt)}` : undefined}
+        icon='map-pin'
+        pattern='device'
+        bleed
+      >
+        {fixes && fixes.length > 0 && (
+          <Box style={{ flex: isMobile ? 1 : undefined, height: isMobile ? undefined : 'min(70dvh, 700px)', minHeight: 320 }}>
+            <FixMap fixes={fixes} height='100%' />
+          </Box>
+        )}
+      </Dialog>
     </Card>
   );
 }
