@@ -86,8 +86,8 @@ A `track` node is touched the same way when its fixes change through a writable 
 deleted, marked by hand, or moved in or out (`TrackHandle.onChanged`): on the first change, then at
 most every five seconds while the handle stays open, and on close; points a routing key appends do
 not touch it. That touch on a device's
-`track` child, a device's `kind` or `timezone` changing, and a link added to or removed from its
-`homes/` announce `track.changed` for the device, on which `track-trips` derives its trips again and
+`track` child, its `kind` or `timezone` or the device's `class` changing, and a link added to or removed from its
+`homes/` announce `track.changed` for the track, on which `track-trips` derives its trips again and
 `track-places` puts their stays at locations, and `track-weather` gives their legs and trips the weather along the track; each write of the device's `.trips` rewrites the
 `trip` attr of the albums made of its trips (`trip-album`). A `<file>/location` link that `location-link-media` made
 from a shape (`linkSource: 'shape'`) announces nothing and never counts toward a centroid;
