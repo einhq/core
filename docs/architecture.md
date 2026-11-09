@@ -291,26 +291,35 @@ pipeline instances and their steps under it were 61% of the trail's 5.4 M rows a
 (ein/core#340), most of them for instances the pipeline pruner had already removed.
 
 Whether a store keeps a trail is its own `auditing` flag: `PgStore` always (table
-`<prefix>_audit`, indexed by uid, node, path and cause; a trail made before `cause` existed gains the column at boot, the one `ALTER` boot runs, and only when the column is missing), `InMemoryStore` only when constructed with
+`<prefix>_audit`; see _Storage_ below), `InMemoryStore` only when constructed with
 `audit: true` (the test VFS), the command and filesystem stores never — so `/tmp` never grows an
 unread trail in memory. Records are written with the storing VFS's own paths; `vfs.audit()`
 (administrators only) walks the mounts, rebases their paths onto the mount point and merges in id
 order, which is how the router-only root reads the pg trail mounted at `/`. The `audit` command
-(`audit [path] --user --sid --no-pipeline --id --record --cause --op --type --since --until --after -n -v`) is the shell's view of it;
+(`audit [path] --user --sid --no-pipeline --id --record --cause --op --type --since --until --after --all -n -v`) is the shell's view of it;
 `--no-pipeline` (`AuditQuery.pipeline: false`) leaves out the runs' writes through a partial index
 on the rest (`people_idx`), so a page of what people wrote never walks past millions of derived
 records, and `--sid` of a session or SSH connection reads `sid_idx`, a partial index on the same
 writes.
 
-**Retention.** The trail grows with every content write, a crawl's or a re-embedding's included, and
-the writes of pipeline runs (`sid` starting `pipeline:`) are nearly all of it: on a photo archive
-about ninety records per indexed file (ein/core#691). `vfs.auditPurge()` deletes the records written
-before a time, optionally only the pipeline runs', through every mount like `vfs.audit()`;
-`PgStore.purgeAudit` takes them in batches of 5000 by ascending id, each its own statement, bounded
-by the smallest ULID of that millisecond, so a purge is a range of the primary key. The
-`audit-purger` service runs `audit-purge` twice a day: pipeline runs' records after
-`CFG_AUDIT_PIPELINE_RETENTION_DAYS` (14), every other record after `CFG_AUDIT_RETENTION_DAYS` (0,
-kept). The space a purge frees is reused by new records; the table does not shrink.
+**Storage.** The trail is kept for good: it is every node's whole history, and a node's history
+needs every write to it, a pipeline's as much as a person's (ein/core#1107). It grows with every
+content write, a crawl's or a re-embedding's included, and the writes of pipeline runs (`sid`
+starting `pipeline:`) are nearly all of it: on a photo archive about ninety records per indexed
+file (ein/core#691). So a record is kept small. `id`, `node_id` and `cause` are ULIDs kept as
+`uuid`, 16 bytes each (`src/stores/pg/ulid-uuid.ts` converts at the store's edge), and a record has
+no time column: its `timestamp` is the time in its id, and `since`/`until` are ranges of the
+primary key. The table is a TimescaleDB hypertable split by that time (the partitioning function
+`ein_ulid_time`) into chunks of 7 days, and a chunk wholly older than `AUDIT_RECENT_DAYS` (14) is
+compressed by a policy, ordered by `node_id, id`, with bloom filters on `cause` and `sid` and a
+min/max of `id` per batch. On fry's data that is 66 bytes a record compressed against 501 before
+and 599 with text ids. A node's history (`--id`) is one index probe per chunk, compressed or
+not, and `--record`, `--cause` and `--sid` are as cheap; a read in time order (newest first,
+`--after`, `--user`, a path) decompresses what it reads, 12–18 ms a day of records. So `audit`
+reads the last `AUDIT_RECENT_DAYS` unless given `--all`, a time range, or a record, node, session
+or cause to find, and the dashboard's Activity tab asks for older changes with a button. A trail
+made when ids were text is renamed `<prefix>_audit_v1`, its indexes with it, at boot, for a
+one-off copy into the new one.
 
 **Reading forward.** A query reads newest first; with `after: <id>` (`audit --after`) it reads the
 records after that id, oldest first, so a reader follows the trail by passing the last id it read,
@@ -353,8 +362,11 @@ events are recorded:
 
 `vfs.accessLog()` reads it like `vfs.audit()` (administrators only, newest first or forward from
 `after`), `access-log` is the shell's view, and the dashboard's Activity tab lists both logs as
-one, newest first. `vfs.accessLogPurge()` deletes by age in the same batches as the trail; the
-`audit-purger` service runs `access-log-purge` after `CFG_ACCESS_LOG_RETENTION_DAYS` (365).
+one, newest first. `vfs.accessLogPurge()` deletes by age, in batches of 5000 by ascending id, each
+its own statement, bounded by the smallest ULID of that millisecond, so a purge is a range of the
+primary key; the `access-log-purger` service runs `access-log-purge` twice a day after
+`CFG_ACCESS_LOG_RETENTION_DAYS` (365). The space a purge frees is reused by new records; the table
+does not shrink.
 
 ### Write-time size and hash tracking
 

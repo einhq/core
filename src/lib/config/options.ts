@@ -174,28 +174,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     restarts: ['pipeline-pruner'],
   },
 
-  /* Audit trail */
-  {
-    key: 'CFG_AUDIT_PIPELINE_RETENTION_DAYS',
-    scope: 'system',
-    type: 'number',
-    default: '14',
-    label: "Days the audit trail keeps pipelines' writes",
-    description:
-      'How long the audit trail keeps the records of what pipelines wrote: thumbnails, faces, text and the other nodes derived from a file, most of the trail. 0 keeps them for good.',
-    group: 'Audit trail',
-    restarts: ['audit-purger'],
-  },
-  {
-    key: 'CFG_AUDIT_RETENTION_DAYS',
-    scope: 'system',
-    type: 'number',
-    default: '0',
-    label: 'Days the audit trail keeps every other write',
-    description: 'How long the audit trail keeps the records of every other write: what people, imports and services changed. 0 keeps them for good.',
-    group: 'Audit trail',
-    restarts: ['audit-purger'],
-  },
+  /* Access log */
   {
     key: 'CFG_ACCESS_LOG_RETENTION_DAYS',
     scope: 'system',
@@ -203,8 +182,8 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: '365',
     label: 'Days the access log keeps sign-ins and downloads',
     description: 'How long the access log keeps its records: who signed in or out, opened a share link or downloaded what, and from where. 0 keeps them for good.',
-    group: 'Audit trail',
-    restarts: ['audit-purger'],
+    group: 'Access log',
+    restarts: ['access-log-purger'],
   },
 
   /* Users and sharing */

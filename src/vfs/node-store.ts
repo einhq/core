@@ -9,7 +9,7 @@ import type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeType } from './n
 import type { AggregateBucket, NodeAggregateQuery, NodeQuery, NodeQueryRow, ParentLink, ResolvedPath } from './query.ts';
 import { NodeAttrsUpdate, NodeChildEntry, NodePropsCreate, NodePropsUpdate, TreeEntry } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
-import type { AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
+import type { AuditQuery, AuditRecord } from '../lib/api/audit.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from '../lib/api/audit.ts';
 
 /**
@@ -548,7 +548,7 @@ export interface NodeStore {
 
   /**
    * Whether this store keeps an audit trail and an access log; when true, `appendAudit`,
-   * `queryAudit`, `purgeAudit` and their `…AccessLog` counterparts exist.
+   * `queryAudit` and their `…AccessLog` counterparts exist.
    */
   readonly auditing?: boolean;
 
@@ -560,9 +560,6 @@ export interface NodeStore {
 
   /** Read the trail back, newest first. */
   queryAudit?(query: AuditQuery): Promise<AuditRecord[]>;
-
-  /** Delete the records `purge` names, and say how many went. */
-  purgeAudit?(purge: AuditPurge): Promise<number>;
 
   // ===== Access Log (Optional) =====
   // Kept by every store that keeps the audit trail: present exactly when `auditing` is true.

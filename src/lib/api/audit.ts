@@ -82,10 +82,10 @@ export type AuditQuery = {
 };
 
 /**
- * Which records `auditPurge` removes: those written before `before` (milliseconds since the epoch),
- * and with `pipeline` only the writes of pipeline runs, whose `sid` starts with `pipeline:`.
+ * The days `audit` reads unless asked for more. The trail is kept for good; what is older is
+ * compressed, and reading it in time order takes longer.
  */
-export type AuditPurge = { before: number; pipeline?: boolean };
+export const AUDIT_RECENT_DAYS = 14;
 
 /** `audit`: one record, with the account name resolved when the account still exists. */
 export type AuditEntry = AuditRecord & { username?: string };

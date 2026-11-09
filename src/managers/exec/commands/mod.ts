@@ -109,7 +109,6 @@ import { mount } from './vfs/mount.ts';
 import { resolveId } from './vfs/resolve-id.ts';
 import { reachCheck } from './vfs/reach-check.ts';
 import { audit } from './vfs/audit.ts';
-import { auditPurge } from './vfs/audit-purge.ts';
 import { accessLog } from './vfs/access-log.ts';
 import { accessLogPurge } from './vfs/access-log-purge.ts';
 import { unmount } from './vfs/unmount.ts';
@@ -310,7 +309,6 @@ export const COMMAND_NAMES: CmdFunction[] = [
   resolveId,
   reachCheck,
   audit,
-  auditPurge,
   accessLog,
   accessLogPurge,
   mount,

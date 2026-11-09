@@ -1,5 +1,5 @@
 import { resolve } from '@std/path';
-import type { AuditChange, AuditEntry, AuditOp, AuditQuery } from '../../../../lib/api/audit.ts';
+import { AUDIT_RECENT_DAYS, type AuditChange, type AuditEntry, type AuditOp, type AuditQuery } from '../../../../lib/api/audit.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { SYSTEM_TIME_ZONE } from '../../../../lib/datetime/timezone.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
@@ -32,7 +32,7 @@ export const audit = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
     string: ['user', 'id', 'record', 'sid', 'cause', 'op', 'since', 'until', 'n', 'after', 'type'],
     collect: ['type'],
-    boolean: ['v', 'no-pipeline'],
+    boolean: ['v', 'no-pipeline', 'all'],
   });
 
   const fail = async (message: string): CmdReturn => {
@@ -75,6 +75,13 @@ export const audit = async (cmd: Command): CmdReturn => {
     query[key] = ms;
   }
 
+  // The recent days unless asked for more: older records are compressed, and reading them in time
+  // order takes longer. A record, a node, a session or a cause is found as fast in all of them,
+  // and a time range or a forward read says where it reads itself.
+  const located = [query.id, query.nodeId, query.sid, query.cause, query.after, query.since, query.until].some((v) => v !== undefined);
+  const windowed = !flags.all && !located;
+  if (windowed) query.since = Date.now() - AUDIT_RECENT_DAYS * 86_400_000;
+
   if (flags.n) {
     const limit = Number(flags.n);
     if (!Number.isInteger(limit) || limit < 1) return await fail(`-n must be a positive integer`);
@@ -110,6 +117,7 @@ export const audit = async (cmd: Command): CmdReturn => {
       }
     }
   }
+  if (windowed && entries.length < (query.limit ?? 100)) await cmd.writeError(`audit: the last ${AUDIT_RECENT_DAYS} days only; --all reads older records\n`);
 
   return 0;
 };
@@ -118,7 +126,8 @@ audit.spec = {
   name: 'audit',
   admin: true,
   effect: 'read' as const,
-  description: 'Show who created, changed, moved, linked or removed which node, and when (administrators only)',
+  description:
+    `Show who created, changed, moved, linked or removed which node, and when (administrators only). Reads the last ${AUDIT_RECENT_DAYS} days unless given --all, a time range, or a record, node, session or cause to find`,
   args: [
     {
       name: 'path',
@@ -145,6 +154,11 @@ audit.spec = {
       name: 'after',
       type: 'string' as const,
       description: 'only the records after this record id, oldest first: pass the last id read to follow the trail',
+    },
+    {
+      name: 'all',
+      type: 'bool' as const,
+      description: `read the whole trail, not only the last ${AUDIT_RECENT_DAYS} days: slower, and slowest with only a path to narrow on`,
     },
     { name: 'n', type: 'string' as const, description: 'at most this many records, the latest, or with --after the first (default: 100)' },
     { name: 'v', type: 'bool' as const, description: "show each record's id, session or pipeline run, cause, and the values it changed" },

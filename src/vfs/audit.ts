@@ -3,11 +3,11 @@
  */
 
 import { monotonicUlid } from '@std/ulid';
-import type { AuditChange, AuditOp, AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
+import type { AuditChange, AuditOp, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
 import type { Access } from '../lib/access/types.ts';
 import type { Node, NodePath } from './node.ts';
 
-export type { AuditChange, AuditOp, AuditPurge, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
+export type { AuditChange, AuditOp, AuditQuery, AuditRecord } from '../lib/api/audit.ts';
 
 /** What a mutation site knows about one write. */
 export type AuditInput = {
@@ -127,7 +127,3 @@ export const auditMatches = (record: AuditRecord, query: AuditQuery): boolean =>
 
 /** What every write of a pipeline run carries as its `sid`, before the run's name. */
 export const PIPELINE_SID_PREFIX = 'pipeline:';
-
-/** Whether `auditPurge` removes this record. */
-export const auditPurgeMatches = (record: AuditRecord, purge: AuditPurge): boolean =>
-  record.timestamp < purge.before && (!purge.pipeline || record.sid?.startsWith(PIPELINE_SID_PREFIX) === true);

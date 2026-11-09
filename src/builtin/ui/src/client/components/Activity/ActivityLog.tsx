@@ -2,7 +2,7 @@ import { Alert, Anchor, Badge, Button, Card, Chip, Group, Skeleton, Stack, Switc
 import { DateInput } from '@mantine/dates';
 import { IconAlertTriangle, IconSearch, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import type { AccessEvent, AccessLogEntry, AuditEntry, AuditOp } from '@ein/api';
+import { type AccessEvent, type AccessLogEntry, AUDIT_RECENT_DAYS, type AuditEntry, type AuditOp } from '@ein/api';
 import { execCommand } from '../../signals/shell-client.ts';
 import { shq } from '../../lib/shquote.ts';
 
@@ -48,10 +48,13 @@ const OP_LABELS: Record<AuditOp, string> = {
   delete: 'deleted',
 };
 
-/** The filters the commands are run with. Every one narrows; empty ones are left out. */
-type Filters = { kind: Kind; user: string; path: string; from: string; sid: string; since: string | null; until: string | null; pipeline: boolean };
+/**
+ * The filters the commands are run with. Every one narrows; empty ones are left out. `older`
+ * reaches past the audit trail's recent days, which `audit` reads unless told otherwise.
+ */
+type Filters = { kind: Kind; user: string; path: string; from: string; sid: string; since: string | null; until: string | null; pipeline: boolean; older: boolean };
 
-const NO_FILTERS: Filters = { kind: 'all', user: '', path: '', from: '', sid: '', since: null, until: null, pipeline: false };
+const NO_FILTERS: Filters = { kind: 'all', user: '', path: '', from: '', sid: '', since: null, until: null, pipeline: false, older: false };
 
 /** One line of the list: an access-log record or an audit record, in the same terms. */
 type Row = {
@@ -130,9 +133,12 @@ function commandsFor(filters: Filters, limit: number): { access?: string; audit?
   // The audit trail has no client address and no sign-ins: it answers only what changed.
   const audit = filters.kind !== 'all' && filters.kind !== 'changes' || filters.from
     ? undefined
-    : ['audit', ...common, ...(filters.pipeline ? [] : ['--no-pipeline'])].join(' ');
+    : ['audit', ...common, ...(filters.pipeline ? [] : ['--no-pipeline']), ...(filters.older ? ['--all'] : [])].join(' ');
   return { access, audit };
 }
+
+/** Whether `audit` reads only its recent days for `filters`: neither asked for more nor given a time or session to read. */
+const auditWindowed = (filters: Filters): boolean => !filters.older && !filters.since && !filters.until && !filters.sid;
 
 /**
  * The access log and the audit trail as one list, newest first: who signed in or out, opened a
@@ -300,6 +306,12 @@ export function ActivityLog() {
         {rows && more && (
           <Group justify='center' mt='sm'>
             <Button size='xs' variant='light' onClick={() => setLimit((current) => current + PAGE)}>Show more</Button>
+          </Group>
+        )}
+        {rows && !more && commandsFor(filters, limit).audit && auditWindowed(filters) && (
+          <Group justify='center' gap='xs' mt='sm'>
+            <Text size='xs' c='dimmed'>Changes from the last {AUDIT_RECENT_DAYS} days.</Text>
+            <Button size='xs' variant='light' onClick={() => narrow({ older: true })}>Show older changes</Button>
           </Group>
         )}
       </Card>

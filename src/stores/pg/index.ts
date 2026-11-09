@@ -13,7 +13,6 @@ import {
   type AccessLogQuery,
   type AccessRecord,
   type AggregateBucket,
-  type AuditPurge,
   type AuditQuery,
   type AuditRecord,
   type ChildLinkFilter,
@@ -79,6 +78,8 @@ import {
   TYPED_ORDER_REF,
 } from './query.ts';
 import { createExtension } from '../../lib/pg/mod.ts';
+import { AUDIT_RECENT_DAYS } from '../../lib/api/audit.ts';
+import { ulidToUuid, uuidAtTime, uuidTime, uuidToUlid } from './ulid-uuid.ts';
 import type { IndexDecl } from '../../lib/contributions/types.ts';
 import { attrRefOf, NAME_LANGUAGES, type NodeQueryCollation, type NodeQueryOrder } from '../../vfs/query.ts';
 
@@ -108,8 +109,14 @@ const FOREIGN_KEY_VIOLATION = '23503';
 /** An audit record that is not a pipeline run's write: the predicate of the trail's `people_idx` and `sid_idx`. */
 const NOT_PIPELINE_SQL = `NOT coalesce(starts_with(sid, '${PIPELINE_SID_PREFIX}'), false)`;
 
-/** Audit and access-log records deleted per statement by `purgeBefore`. */
-const AUDIT_PURGE_BATCH = 5000;
+/** Access-log records deleted per statement by `purgeAccessLog`. */
+const ACCESS_LOG_PURGE_BATCH = 5000;
+
+/** The audit trail's hypertable chunk: a node's history is one probe per chunk. */
+const AUDIT_CHUNK = '7 days';
+
+/** The function that reads a `uuid`-kept ULID's time: the audit trail's partitioning function. */
+const ULID_TIME_FN = 'ein_ulid_time';
 
 /** A node row as the bulk reads give it, without the link-count join; `n` is the nodes table, `a` its attrs. */
 const LINK_COLUMNS = `
@@ -410,7 +417,8 @@ export class PgStore implements NodeStore {
         )
       `);
       // A table made before `reach` gains the column here, empty; `fillReach` fills it. Looked up
-      // first and bounded, as the audit trail's `cause` is below.
+      // first, so a boot that has nothing to add asks for no exclusive lock, and bounded, so one
+      // stuck behind a long reader fails instead of hanging (ein/core#41).
       const hasReach = await conn.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'reach'`,
         [this.nodesTable],
@@ -510,52 +518,10 @@ export class PgStore implements NodeStore {
         WHERE softlink IS NOT NULL
       `);
 
-      // The audit trail: one row per node write, inserted in the write's own
-      // transaction (`appendAudit`). The id is a monotonic ULID, so ordering by it is
-      // write order: a read walks an index newest first, or the primary key forward from `after`.
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.auditTable} (
-          id VARCHAR(26) PRIMARY KEY,
-          at TIMESTAMPTZ NOT NULL,
-          uid INTEGER NOT NULL,
-          sid TEXT,
-          cause VARCHAR(26),
-          op VARCHAR(16) NOT NULL,
-          node_id TEXT NOT NULL,
-          node_type VARCHAR(64) NOT NULL,
-          path TEXT NOT NULL,
-          from_path TEXT,
-          attrs JSONB,
-          props JSONB
-        )
-      `);
-      // A trail made before it had `cause` gains the column here. Looked up first, so a boot
-      // that has nothing to add asks for no exclusive lock, and bounded, so one stuck behind a
-      // long reader fails instead of hanging (ein/core#41).
-      const hasCause = await conn.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'cause'`,
-        [this.auditTable],
-      );
-      if (hasCause.rowCount === 0) {
-        await conn.query(`SET lock_timeout = '10s'`);
-        try {
-          await conn.query(`ALTER TABLE ${this.auditTable} ADD COLUMN IF NOT EXISTS cause VARCHAR(26)`);
-        } finally {
-          await conn.query(`RESET lock_timeout`);
-        }
-      }
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_uid_idx ON ${this.auditTable} (uid, id)`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_node_idx ON ${this.auditTable} (node_id, id)`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_path_idx ON ${this.auditTable} (path text_pattern_ops)`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_cause_idx ON ${this.auditTable} (cause, id) WHERE cause IS NOT NULL`);
-      // What people, imports and services wrote, newest first, without walking past the far more
-      // numerous writes of pipeline runs (`audit --no-pipeline`).
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_people_idx ON ${this.auditTable} (id) WHERE ${NOT_PIPELINE_SQL}`);
-      // A session's or SSH connection's writes (`audit --sid`), which the access log leads to.
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_sid_idx ON ${this.auditTable} (sid, id) WHERE sid IS NOT NULL AND ${NOT_PIPELINE_SQL}`);
+      await this.createAuditTrail(conn);
 
       // The access log: sign-ins, sign-outs, share links opened and downloads (`appendAccessLog`).
-      // Ids are monotonic ULIDs as in the audit trail, so the same reads and purge apply.
+      // Ids are monotonic ULIDs, as text: a range of them is a range of time, which reads and the purge use.
       await conn.query(`
         CREATE TABLE IF NOT EXISTS ${this.accessLogTable} (
           id VARCHAR(26) PRIMARY KEY,
@@ -728,6 +694,104 @@ export class PgStore implements NodeStore {
     } finally {
       conn.release();
     }
+  }
+
+  /**
+   * The audit trail: one row per node write, inserted in the write's own transaction
+   * (`appendAudit`) and kept for good, a node's whole history (ein/core#1107).
+   *
+   * Every id is a ULID kept as a `uuid`, 16 bytes, and a record's time is the one in its id. A
+   * monotonic ULID sorts in write order, so ordering by `id` is write order: a read walks an index
+   * newest first, or the primary key forward from `after`. The table is a hypertable split by
+   * that time into chunks of {@link AUDIT_CHUNK}; a chunk wholly older than
+   * {@link AUDIT_RECENT_DAYS} is compressed. Compressed rows are ordered by node, so a node's
+   * history is one index probe per chunk however large the trail grows; a read in time order
+   * decompresses what it reads, which is why `audit` stays within the recent days unless asked.
+   */
+  private async createAuditTrail(conn: PoolClient): Promise<void> {
+    await createExtension(conn, 'timescaledb');
+    // The time a ULID kept as a `uuid` was minted at: its first 48 bits, milliseconds. Replaced
+    // under a lock, as `createExtension` creates, since stores start side by side.
+    await conn.query(`
+      SELECT pg_advisory_xact_lock(hashtext('ein:ulid-time'));
+      CREATE OR REPLACE FUNCTION ${ULID_TIME_FN}(id uuid) RETURNS timestamptz
+        LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+        AS $$ SELECT to_timestamp(('x' || translate(left(id::text, 13), '-', ''))::bit(48)::bigint / 1000.0) $$
+    `);
+
+    // A trail made when ids were text is set aside, with its indexes, as `<table>_v1`, for a
+    // one-off copy into this one (ein/core#1107).
+    const idType = await conn.query(
+      `SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'id'`,
+      [this.auditTable],
+    );
+    if (idType.rows.length > 0 && idType.rows[0].data_type !== 'uuid') {
+      await conn.query(`SET lock_timeout = '10s'`);
+      try {
+        const indexes = await conn.query<{ indexname: string }>(
+          `SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = $1`,
+          [this.auditTable],
+        );
+        for (const { indexname } of indexes.rows) await conn.query(`ALTER INDEX ${indexname} RENAME TO ${indexname}_v1`);
+        await conn.query(`ALTER TABLE ${this.auditTable} RENAME TO ${this.auditTable}_v1`);
+      } finally {
+        await conn.query(`RESET lock_timeout`);
+      }
+      logger.warn('audit trail with text ids set aside', { table: `${this.auditTable}_v1` });
+    }
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.auditTable} (
+        id uuid PRIMARY KEY,
+        uid INTEGER NOT NULL,
+        sid TEXT,
+        cause uuid,
+        op TEXT NOT NULL,
+        node_id uuid NOT NULL,
+        node_type TEXT NOT NULL,
+        path TEXT NOT NULL,
+        from_path TEXT,
+        attrs JSONB,
+        props JSONB
+      )
+    `);
+    await conn.query(
+      `SELECT create_hypertable($1::regclass, by_range('id', INTERVAL '${AUDIT_CHUNK}', partition_func => '${ULID_TIME_FN}'),
+         create_default_indexes => false, if_not_exists => true)`,
+      [this.auditTable],
+    );
+    // Settings cannot change once a chunk is compressed, so they are set only the first time.
+    const compression = await conn.query(
+      `SELECT compression_enabled AS enabled FROM timescaledb_information.hypertables
+        WHERE hypertable_schema = current_schema() AND hypertable_name = $1`,
+      [this.auditTable],
+    );
+    if (!compression.rows[0]?.enabled) {
+      await conn.query(`
+        ALTER TABLE ${this.auditTable} SET (
+          timescaledb.compress,
+          timescaledb.compress_segmentby = '',
+          timescaledb.compress_orderby = 'node_id, id',
+          timescaledb.sparse_index = 'bloom(cause), bloom(sid), minmax(id)'
+        )
+      `);
+    }
+    await conn.query(
+      `SELECT add_compression_policy($1::regclass, INTERVAL '${AUDIT_RECENT_DAYS} days', if_not_exists => true)`,
+      [this.auditTable],
+    );
+
+    // These cover the recent, uncompressed chunks; a compressed chunk has its own index on each
+    // batch's node range, and bloom filters on `cause` and `sid`.
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_uid_idx ON ${this.auditTable} (uid, id)`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_node_idx ON ${this.auditTable} (node_id, id)`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_path_idx ON ${this.auditTable} (path text_pattern_ops)`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_cause_idx ON ${this.auditTable} (cause, id) WHERE cause IS NOT NULL`);
+    // What people, imports and services wrote, newest first, without walking past the far more
+    // numerous writes of pipeline runs (`audit --no-pipeline`).
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_people_idx ON ${this.auditTable} (id) WHERE ${NOT_PIPELINE_SQL}`);
+    // A session's or SSH connection's writes (`audit --sid`), which the access log leads to.
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.auditTable}_sid_idx ON ${this.auditTable} (sid, id) WHERE sid IS NOT NULL AND ${NOT_PIPELINE_SQL}`);
   }
 
   /**
@@ -2633,13 +2697,12 @@ export class PgStore implements NodeStore {
 
     // One statement for the whole mutation, however many nodes it wrote.
     const rows = records.map((r) => ({
-      id: r.id,
-      at: r.timestamp,
+      id: ulidToUuid(r.id),
       uid: r.uid,
       sid: r.sid ?? null,
-      cause: r.cause ?? null,
+      cause: r.cause ? ulidToUuid(r.cause) : null,
       op: r.op,
-      node_id: r.nodeId,
+      node_id: ulidToUuid(r.nodeId),
       node_type: r.nodeType,
       path: r.path,
       from_path: r.fromPath ?? null,
@@ -2649,10 +2712,10 @@ export class PgStore implements NodeStore {
 
     await this.runParameterized({
       text: `
-        INSERT INTO ${this.auditTable} (id, at, uid, sid, cause, op, node_id, node_type, path, from_path, attrs, props)
-        SELECT id, to_timestamp(at / 1000.0), uid, sid, cause, op, node_id, node_type, path, from_path, attrs, props
+        INSERT INTO ${this.auditTable} (id, uid, sid, cause, op, node_id, node_type, path, from_path, attrs, props)
+        SELECT id, uid, sid, cause, op, node_id, node_type, path, from_path, attrs, props
         FROM jsonb_to_recordset($1::jsonb) AS r(
-          id text, at double precision, uid integer, sid text, cause text, op text, node_id text,
+          id uuid, uid integer, sid text, cause uuid, op text, node_id uuid,
           node_type text, path text, from_path text, attrs jsonb, props jsonb
         )
       `,
@@ -2660,7 +2723,10 @@ export class PgStore implements NodeStore {
     }, tx);
   }
 
-  /** The statement `queryAudit` runs for `query`. */
+  /**
+   * The statement `queryAudit` runs for `query`. Times are ranges of the primary key, whose ids
+   * carry them, so a read of the recent days never opens an older chunk.
+   */
   private auditQuerySql(query: AuditQuery): { text: string; values: unknown[] } {
     const where: string[] = [];
     const values: unknown[] = [];
@@ -2669,7 +2735,7 @@ export class PgStore implements NodeStore {
       return `$${values.length}`;
     };
 
-    if (query.id !== undefined) where.push(`id = ${param(query.id)}`);
+    if (query.id !== undefined) where.push(`id = ${param(ulidToUuid(query.id))}`);
     if (query.uid !== undefined) where.push(`uid = ${param(query.uid)}`);
     if (query.sid !== undefined) {
       // A session's sid is no pipeline run's: saying so lets the planner use `sid_idx`.
@@ -2678,14 +2744,14 @@ export class PgStore implements NodeStore {
     }
     // Spelled as the predicate of `people_idx` is, so the planner can use it: a parameter would hide the match.
     if (query.pipeline !== undefined) where.push(`${query.pipeline ? 'NOT ' : ''}${NOT_PIPELINE_SQL}`);
-    if (query.nodeId !== undefined) where.push(`node_id = ${param(query.nodeId)}`);
-    if (query.cause !== undefined) where.push(`cause = ${param(query.cause)}`);
+    if (query.nodeId !== undefined) where.push(`node_id = ${param(ulidToUuid(query.nodeId))}`);
+    if (query.cause !== undefined) where.push(`cause = ${param(ulidToUuid(query.cause))}`);
     if (query.op !== undefined) where.push(`op = ${param(query.op)}`);
     if (query.nodeTypes !== undefined) where.push(`node_type = ANY(${param(query.nodeTypes)}::text[])`);
     // A forward read is a range of the primary key, which the order below walks.
-    if (query.after !== undefined) where.push(`id > ${param(query.after)}`);
-    if (query.since !== undefined) where.push(`at >= to_timestamp(${param(query.since)} / 1000.0)`);
-    if (query.until !== undefined) where.push(`at < to_timestamp(${param(query.until)} / 1000.0)`);
+    if (query.after !== undefined) where.push(`id > ${param(ulidToUuid(query.after))}::uuid`);
+    if (query.since !== undefined) where.push(`id >= ${param(uuidAtTime(query.since))}::uuid`);
+    if (query.until !== undefined) where.push(`id < ${param(uuidAtTime(query.until))}::uuid`);
     if (query.pathPrefix !== undefined && query.pathPrefix !== '/') {
       const exact = param(query.pathPrefix);
       const below = param(query.pathPrefix.replace(/[\\%_]/g, (c) => '\\' + c) + '/%');
@@ -2694,7 +2760,7 @@ export class PgStore implements NodeStore {
 
     return {
       text: `
-        SELECT id, (extract(epoch FROM at) * 1000)::bigint AS at, uid, sid, cause, op, node_id, node_type, path, from_path, attrs, props
+        SELECT id::text, uid, sid, cause::text, op, node_id::text, node_type, path, from_path, attrs, props
         FROM ${this.auditTable}
         ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
         ORDER BY id ${query.after !== undefined ? 'ASC' : 'DESC'}
@@ -2708,61 +2774,19 @@ export class PgStore implements NodeStore {
     const rows = await this.runParameterized(this.auditQuerySql(query));
 
     return rows.map((row) => ({
-      id: row.id as string,
-      timestamp: Number(row.at),
+      id: uuidToUlid(row.id as string),
+      timestamp: uuidTime(row.id as string),
       uid: row.uid as UserId,
       ...(row.sid ? { sid: row.sid as string } : {}),
-      ...(row.cause ? { cause: row.cause as string } : {}),
+      ...(row.cause ? { cause: uuidToUlid(row.cause as string) } : {}),
       op: row.op as AuditRecord['op'],
-      nodeId: row.node_id as NodeId,
+      nodeId: uuidToUlid(row.node_id as string) as NodeId,
       nodeType: row.node_type as string,
       path: row.path as NodePath,
       ...(row.from_path ? { fromPath: row.from_path as NodePath } : {}),
       ...(row.attrs ? { attrs: row.attrs as AuditRecord['attrs'] } : {}),
       ...(row.props ? { props: row.props as AuditRecord['props'] } : {}),
     }));
-  }
-
-  async purgeAudit(purge: AuditPurge): Promise<number> {
-    return await this.purgeBefore(this.auditTable, purge.before, purge.pipeline ? PIPELINE_SID_PREFIX : null);
-  }
-
-  /**
-   * Delete a ULID-keyed log's rows written before `before` (and with `sidPrefix`, only those whose
-   * `sid` starts with it), in batches of {@link AUDIT_PURGE_BATCH} by ascending id, each its own
-   * statement, so a purge of millions of rows never holds one transaction open. An id is minted
-   * with its timestamp, so "written before" is a range of the primary key: the bound is the
-   * smallest id of the millisecond `before`.
-   */
-  private async purgeBefore(table: string, before: number, sidPrefix: string | null): Promise<number> {
-    const bound = ulid(before).slice(0, 10) + '0'.repeat(16);
-
-    let total = 0;
-    let after = '';
-    for (;;) {
-      const [row] = await this.runParameterized({
-        text: `
-          WITH del AS (
-            DELETE FROM ${table}
-             WHERE id IN (
-               SELECT id FROM ${table}
-                WHERE id > $1 AND id < $2
-                  AND ($3::text IS NULL OR starts_with(sid, $3))
-                ORDER BY id
-                LIMIT $4
-             )
-            RETURNING id
-          )
-          SELECT COUNT(*)::int AS n, MAX(id) AS last FROM del
-        `,
-        values: [after, bound, sidPrefix, AUDIT_PURGE_BATCH],
-      });
-
-      const n = row.n as number;
-      total += n;
-      if (n < AUDIT_PURGE_BATCH || row.last === null) return total;
-      after = row.last as string;
-    }
   }
 
   // ===== Access Log =====
@@ -2852,8 +2876,40 @@ export class PgStore implements NodeStore {
     }));
   }
 
+  /**
+   * Delete the access-log records written before `purge.before`, in batches of
+   * {@link ACCESS_LOG_PURGE_BATCH} by ascending id, each its own statement, so a purge of millions
+   * of rows never holds one transaction open. An id is minted with its timestamp, so "written
+   * before" is a range of the primary key: the bound is the smallest id of the millisecond `before`.
+   */
   async purgeAccessLog(purge: AccessLogPurge): Promise<number> {
-    return await this.purgeBefore(this.accessLogTable, purge.before, null);
+    const bound = ulid(purge.before).slice(0, 10) + '0'.repeat(16);
+
+    let total = 0;
+    let after = '';
+    for (;;) {
+      const [row] = await this.runParameterized({
+        text: `
+          WITH del AS (
+            DELETE FROM ${this.accessLogTable}
+             WHERE id IN (
+               SELECT id FROM ${this.accessLogTable}
+                WHERE id > $1 AND id < $2
+                ORDER BY id
+                LIMIT $3
+             )
+            RETURNING id
+          )
+          SELECT COUNT(*)::int AS n, MAX(id) AS last FROM del
+        `,
+        values: [after, bound, ACCESS_LOG_PURGE_BATCH],
+      });
+
+      const n = row.n as number;
+      total += n;
+      if (n < ACCESS_LOG_PURGE_BATCH || row.last === null) return total;
+      after = row.last as string;
+    }
   }
 
   // ===== Storage Deletes =====

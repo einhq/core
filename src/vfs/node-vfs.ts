@@ -44,7 +44,7 @@ import {
   UpdateManyOptions,
 } from './types.ts';
 import type { IndexDecl } from '../lib/contributions/types.ts';
-import type { AuditPurge, AuditQuery, AuditRecord } from './audit.ts';
+import type { AuditQuery, AuditRecord } from './audit.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from '../lib/api/audit.ts';
 import type { OwnerRelease, ReleasedOwner } from './node-store.ts';
 
@@ -718,12 +718,6 @@ export interface NodeVFS extends ModuleVFS {
    * only.
    */
   reachNamed(access: Access): Promise<{ uids: UserId[]; gids: GroupId[] }>;
-
-  /**
-   * Delete the audit records `purge` names, in this VFS's own store and what is mounted into it,
-   * and say how many went. Administrators only.
-   */
-  auditPurge(access: Access, purge: AuditPurge): Promise<number>;
 
   /**
    * Add records to the access log: in this VFS's own store when it keeps one, otherwise in the

@@ -1,0 +1,5 @@
+{
+  "description": "Removes access-log records once they are older than their retention",
+  "restartPolicy": "on-failure",
+  "workClass": "background"
+}
