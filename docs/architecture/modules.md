@@ -101,7 +101,7 @@ means a person has something to do, and a check that does not answer is a `warn`
 `gaugeCommand` answers meters — `[{ label, percent?, value }]` — which `top` draws beside the host's
 RAM and the `gauges` command lists. ems declares one of each: `ems-status --checks` on `ems-link`
 (whether EMS answers, its model worker, each degradation, the card) and `ems-gpu --gauge` on
-`gpu-sampler` (the card's utilization and memory). The assistant declares `llm-status --checks` on
+`ems-sampler` (the card's utilization and memory). The assistant declares `llm-status --checks` on
 `llm-link` (whether its language model answers, whose it is and where it runs, and whether the
 model is one it was tried with).
 

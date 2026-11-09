@@ -76,7 +76,7 @@ const sample = (): TopData => ({
     counts: { ready: 1200, claimed: 3, done: 100, failed: 0, cancelled: 0, total: 1303 },
     policy: { agingSeconds: 0, agingBoost: 0, agingMax: 0, leaseMs: 0, maxAttempts: 0, backoffMs: 0, backoffMaxMs: 0, sweepIntervalMs: 0 },
   }],
-  gauges: [{ label: 'VRAM', percent: 62, value: '10.1/16.3 GB', service: 'gpu-sampler' }],
+  gauges: [{ label: 'VRAM', percent: 62, value: '10.1/16.3 GB', service: 'ems-sampler' }],
   services: [
     { name: 'http-server', status: 'running', enabled: true, description: '', restartCount: 0, startedAt: NOW - 86_400_000 },
     { name: 'pipeline-engine', status: 'running', enabled: true, description: '', restartCount: 1, startedAt: NOW - 3_600_000, detail: '7 steps running' },
