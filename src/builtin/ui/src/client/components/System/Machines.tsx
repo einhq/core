@@ -70,7 +70,7 @@ function MachineCard({ device, own }: { device: DeviceSummary; own?: OwnShare })
   return (
     <Card p='sm' withBorder>
       <Stack gap='xs'>
-        <Group gap='xs' rowGap={2}>
+        <Group gap='xs'>
           <Anchor component={Link} to={`/devices/${encodeURIComponent(device.name)}`} fw={600}>{device.label}</Anchor>
           {info?.online === true && <Badge size='xs' variant='light' color='green'>online</Badge>}
           {info?.online === false && <Badge size='xs' variant='light' color='red'>offline</Badge>}
