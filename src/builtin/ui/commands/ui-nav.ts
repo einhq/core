@@ -2,8 +2,27 @@ import type { CmdReturn, Command } from '@ein/client';
 import { collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
 import { GROUP_HOMES_PATH, groupHomePath, HOME_UI_NAV_D, HOME_UI_NAV_FILE, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
 import { toText } from '@std/streams/to-text';
-import { groupEntriesFor } from '../../../lib/auth/member-gids.ts';
+import { groupEntriesFor, groupGid } from '../../../lib/auth/member-gids.ts';
 import { type NamedLayer, type NavLayer, resolveNav, type UiNav } from '@ui/nav';
+
+/** The groups the layers' entries are kept to (`group`) that the caller is a member of. */
+const groupsNamed = async (cmd: Command, layers: NamedLayer[]): Promise<string[]> => {
+  const named = new Set<string>();
+  for (const { layer } of layers) {
+    for (const list of Object.values(layer ?? {})) {
+      if (!Array.isArray(list)) continue;
+      for (const entry of list as unknown[]) {
+        const group = entry && typeof entry === 'object' ? (entry as { group?: unknown }).group : undefined;
+        if (typeof group === 'string') named.add(group);
+      }
+    }
+  }
+  const members = await Promise.all([...named].map(async (name) => {
+    const gid = await groupGid(cmd.sys.vfs, name);
+    return gid !== undefined && cmd.access.gids.includes(gid) ? name : undefined;
+  }));
+  return members.filter((name): name is string => name !== undefined);
+};
 
 /** A file's JSON, `undefined` when it is not there, a warning when it is not JSON. */
 const readLayer = async (cmd: Command, path: string, warnings: string[]): Promise<NavLayer | undefined> => {
@@ -66,7 +85,8 @@ export const uiNav = async (cmd: Command): CmdReturn => {
     if (layer) overlays.push({ source: path, layer });
   }
 
-  const nav = resolveNav(fragments, overlays, { admin: isAdmin(cmd.access), guest: isVisitor(cmd.access) });
+  const memberOf = await groupsNamed(cmd, [...fragments, ...overlays]);
+  const nav = resolveNav(fragments, overlays, { admin: isAdmin(cmd.access), guest: isVisitor(cmd.access), groups: memberOf });
   const answer: UiNav = { ...nav, warnings: [...warnings, ...nav.warnings] };
 
   if (cmd.json) {

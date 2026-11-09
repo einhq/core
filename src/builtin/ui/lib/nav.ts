@@ -77,6 +77,8 @@ export type NavLink = {
   admin?: boolean;
   /** Shown to someone signed in only, never to the guest: a page of their own, or one that writes. */
   signedIn?: boolean;
+  /** Shown to this group's members and administrators only: what only they may do (`devices`). */
+  group?: string;
   /** A key that opens the page from anywhere outside a text field, in the top bar's form (`alt+P`). */
   shortcut?: string;
   /** In the top bar (`topbar`, `search`) it is a button that opens the page. */
@@ -105,6 +107,8 @@ type TopbarEntry = {
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
+  /** As a sidebar entry's: this group's members and administrators only. */
+  group?: string;
   /** `false` leaves the button out on a phone. */
   phone?: boolean;
   /**
@@ -219,7 +223,7 @@ export type NamedLayer = { source: string; layer: NavLayer };
 
 const KINDS = ['sections', 'sidebar', 'topbar', 'panels', 'layers'] as const;
 type Kind = typeof KINDS[number];
-type Entry = { id: string; order?: number; admin?: boolean; signedIn?: boolean } & Record<string, unknown>;
+type Entry = { id: string; order?: number; admin?: boolean; signedIn?: boolean; group?: string } & Record<string, unknown>;
 
 /** The order of an entry that gives none. */
 export const DEFAULT_ORDER = 1000;
@@ -288,12 +292,12 @@ const byOrder = <T extends { order?: number }>(entries: T[]): T[] =>
  * the order a directory lists in; two modules giving the same id is a warning and the first
  * keeps it, since neither has the right to change the other's entry. Overlays may.
  */
-export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], reader: { admin: boolean; guest: boolean }): UiNav => {
+export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], reader: { admin: boolean; guest: boolean; groups?: string[] }): UiNav => {
   const warnings: string[] = [];
   const merged = Object.fromEntries(KINDS.map((kind) => [kind, new Map<string, Entry>()])) as Record<Kind, Map<string, Entry>>;
   const owner = new Map<string, string>();
   const hidden = new Set<string>();
-  /** Entries this reader may not see (`admin`, `signedIn`); what names one as its parent goes with it, quietly. */
+  /** Entries this reader may not see (`admin`, `signedIn`, `group`); what names one as its parent goes with it, quietly. */
   const withheld = new Set<string>();
 
   const lay = ({ source, layer }: NamedLayer, overlay: boolean) => {
@@ -354,7 +358,10 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
         warnings.push(`${entry.id}: when is not { has: <node type> }`);
         return false;
       }
-      if ((entry.admin === true && !reader.admin) || (entry.signedIn === true && reader.guest)) {
+      if (
+        (entry.admin === true && !reader.admin) || (entry.signedIn === true && reader.guest) ||
+        (typeof entry.group === 'string' && !reader.admin && !(reader.groups ?? []).includes(entry.group))
+      ) {
         withheld.add(entry.id);
         return false;
       }

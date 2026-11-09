@@ -93,6 +93,24 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
       await client.exec(`rm -r ${groupHomePath('sailors')}/${HOME_UI_NAV_D}`);
     });
 
+    await t.step("an entry kept to a group is its members' and the administrator's, whether or not the group has a home", async () => {
+      await client.exec('group-create crew --gid 7002 && group-add-member crew anna');
+      await write(`${UI_NAV_D_PATH}/boats.json`, {
+        topbar: [{ id: 'boats.new', title: 'Boat', icon: 'sailboat', group: 'crew', action: { dialog: '/boats/new' } }],
+      });
+      const has = (nav: UiNav) => nav.topbar.some((entry) => entry.id === 'boats.new');
+      const anna = await testCtx.server.createShellClient({ username: 'anna', password: 'secret1' });
+      const bert = await testCtx.server.createShellClient({ username: 'bert', password: 'secret1' });
+      try {
+        assertEquals([has(await anna.execJson<UiNav>('ui-nav')), has(await bert.execJson<UiNav>('ui-nav'))], [true, false]);
+      } finally {
+        anna.close();
+        bert.close();
+      }
+      assertEquals(has(await client.execJson<UiNav>('ui-nav')), true);
+      await client.exec(`rm ${UI_NAV_D_PATH}/boats.json`);
+    });
+
     await t.step('the guest is not given what is for someone signed in', async () => {
       await write(`${UI_NAV_D_PATH}/own.json`, {
         sidebar: [{ id: 'own.favourites', section: 'main', label: 'Favourites', icon: 'heart', to: '/favourites', signedIn: true }],

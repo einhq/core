@@ -102,6 +102,18 @@
       "order": 20
     },
     {
+      "id": "ui.create-device",
+      "parent": "ui.create",
+      "group": "devices",
+      "title": "Device",
+      "icon": "plug",
+      "color": "orange",
+      "action": {
+        "dialog": "/devices/new"
+      },
+      "order": 50
+    },
+    {
       "id": "ui.account",
       "signedIn": true,
       "title": "Account",

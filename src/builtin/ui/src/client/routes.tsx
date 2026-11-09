@@ -4,6 +4,7 @@ import { NotFound, RouteError } from './components/RouteProblem/RouteProblem.tsx
 import Layout from './Layout.tsx';
 import DevicePage from './pages/device.tsx';
 import DevicesPage from './pages/devices.tsx';
+import NewDevicePage, { handle as newDeviceHandle } from './pages/new-device.tsx';
 import DocsLayout, { DocPage, ModulePage } from './pages/docs.tsx';
 import HomePage from './pages/home.tsx';
 import LoginPage from './pages/login.tsx';
@@ -77,6 +78,7 @@ export const routes: RouteObject[] = [{
     // Opened in the dialog from the account menu; it draws its own header there.
     { path: 'about', element: <AboutPage />, handle: { title: 'About EiN', hero: AboutHero, ground: 'base', signedIn: true, dialogSize: ABOUT_WIDTH } },
     { path: 'devices', element: <DevicesPage />, handle: fullBleed },
+    { path: 'devices/new', element: <NewDevicePage />, handle: newDeviceHandle },
     { path: 'devices/:name', element: <DevicePage />, handle: fullBleed },
     { path: 'profile', element: <ProfilePage />, handle: ownPage },
     { path: 'search', element: <SearchPage />, handle: fullBleed },
