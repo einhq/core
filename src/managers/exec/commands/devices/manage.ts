@@ -177,7 +177,10 @@ export const deviceKey = async (cmd: Command): CmdReturn => {
       answer.url = origin ? `${origin}${path}` : path;
       answer.createdAt = new Date(record.attrs.createdAt).toISOString();
       if (origin) {
-        answer.qrText = `${answer.url}&id=${encodeURIComponent(device)}`;
+        // Traccar Client's own link: from an http(s) one it keeps only the origin and path as the
+        // server, so the key would be lost; from this one it takes the whole of `url`.
+        const config = new URLSearchParams({ url: answer.url, id: device });
+        answer.qrText = `org.traccar.client://config?${config}`;
         answer.qrSvg = qrSvg(answer.qrText);
       }
     }

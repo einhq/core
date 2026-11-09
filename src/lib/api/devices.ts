@@ -192,7 +192,10 @@ export type DeviceKeyAnswer = {
   enabled: boolean;
   /** `<origin>/file/dev/<device>?key=<key>`, or its path without `--origin`; absent while turned off. */
   url?: string;
-  /** What a QR code says: the URL with the device's name as Traccar Client's device identifier. */
+  /**
+   * What a QR code says: Traccar Client's configuration link, `org.traccar.client://config?url=<url>&id=<device>`,
+   * the URL as its server and the device's name as its device identifier.
+   */
   qrText?: string;
   /** The QR code as an SVG document; only with `--origin`. */
   qrSvg?: string;

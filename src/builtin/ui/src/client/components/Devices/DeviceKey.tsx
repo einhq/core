@@ -94,7 +94,7 @@ export function DeviceKey({ device, driver }: { device: string; driver?: string 
                 <List.Item>
                   Install <Anchor href={TRACCAR_CLIENT} target='_blank' rel='noreferrer'>Traccar Client</Anchor> on the phone, from Google Play or the App Store.
                 </List.Item>
-                <List.Item>In its settings, scan this QR code. It fills in the server URL and the device identifier.</List.Item>
+                <List.Item>Scan this QR code in its settings, or with the phone's camera. It fills in the server URL and the device identifier.</List.Item>
                 <List.Item>Set how often it reports, for example every 30 seconds, and switch tracking on.</List.Item>
               </List>
             )}

@@ -53,12 +53,10 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       const devicesGid = (await admin.execJson<{ gid: number }>('group-info devices')).gid;
       assertEquals([phone.props.uid, phone.props.gid, phone.props.mode & 0o777], [0, devicesGid, 0o770]);
       const key = await anna.execJson<DeviceKeyAnswer>('device-key ruby-phone --new --origin https://ein.example');
-      assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone?key='), key.qrText?.endsWith('&id=ruby-phone'), key.qrSvg?.startsWith('<svg')], [
-        true,
-        true,
-        true,
-        true,
-      ]);
+      assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone?key='), key.qrSvg?.startsWith('<svg')], [true, true, true]);
+      // Traccar Client takes the server from `url` whole, key and all, only from its own scheme.
+      const qr = new URL(key.qrText!);
+      assertEquals([qr.protocol, qr.searchParams.get('url'), qr.searchParams.get('id')], ['org.traccar.client:', key.url, 'ruby-phone']);
       const secret = new URL(key.url!).searchParams.get('key')!;
 
       const osmand = await fetch(`${baseUrl}/file/dev/ruby-phone?key=${secret}&lat=57.7&lon=11.9&timestamp=1717236000`);
