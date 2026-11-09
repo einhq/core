@@ -1,5 +1,5 @@
 {
-  "description": "Samples host, storage and workload counters into /var/logs/metrics",
+  "description": "Samples EiN's own resources, storage and workload into /var/logs/metrics, and the machine's readings into its device /dev/<hostname>",
   "restartPolicy": "on-failure",
   "workClass": "background"
 }
