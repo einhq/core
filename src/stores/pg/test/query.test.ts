@@ -442,13 +442,13 @@ pgTest('time-ordered queries use the takenAtUtc index', async (t) => {
   }
 });
 
-pgTest('undated device queries use the device/time index', async (t) => {
+pgTest('undated camera queries use the camera/time index', async (t) => {
   const ctx = pgTestContext();
   const { vfs, dispose } = await createPgVfs(ctx.pool, ctx.prefix);
   const nodesTable = `${ctx.prefix}_nodes`;
   const attrsTable = `${nodesTable}_attr`;
-  const indexName = `${attrsTable}_device_taken_utc_idx`;
-  const devicePath = '/devices/scanjet';
+  const indexName = `${attrsTable}_camera_taken_utc_idx`;
+  const cameraPath = '/archive/cameras/scanjet';
 
   try {
     await vfs.create(ADMIN_ACCESS, 'directory', '/', 'media', { props: { mode: 0o755 } });
@@ -460,7 +460,7 @@ pgTest('undated device queries use the device/time index', async (t) => {
           props: { mode: 0o644 },
           attrs: {
             mimetype: 'image/jpeg',
-            devicePath: target ? devicePath : '/devices/other',
+            cameraPath: target ? cameraPath : '/archive/cameras/other',
             ...(target ? {} : { takenAtUtc: '2000-01-01T00:00:00Z' }),
           },
         });
@@ -469,14 +469,14 @@ pgTest('undated device queries use the device/time index', async (t) => {
       await ctx.pool.query(`ANALYZE ${nodesTable}`);
     });
 
-    await t.step('planner narrows the undated phase by device', async () => {
-      // The second phase of a device's `search --subject device:…` timeline: membership
+    await t.step('planner narrows the undated phase by camera', async () => {
+      // The second phase of a camera's `search --subject camera:…` timeline: membership
       // remains pushed down, while missing capture time replaces the ordering.
       const sql = buildQuerySql(
         {
           types: ['file'],
           where: [
-            { ref: 'devicePath', op: 'eq', value: devicePath },
+            { ref: 'cameraPath', op: 'eq', value: cameraPath },
             { ref: 'takenAtUtc', op: 'missing' },
             { ref: 'sourceId', op: 'missing' },
           ],
@@ -490,7 +490,7 @@ pgTest('undated device queries use the device/time index', async (t) => {
       try {
         // With the tiny fixture the primary-key walk can be cheaper because an
         // unordered NodeQuery pages on id. Disable it with seq scans so this
-        // answers whether the device-leading index can serve the predicates.
+        // answers whether the camera-leading index can serve the predicates.
         await client.query('SET enable_seqscan = off');
         await client.query('SET enable_indexscan = off');
         const explained = await client.query<{ 'QUERY PLAN': string }>(`EXPLAIN ${sql.text}`, sql.values);
