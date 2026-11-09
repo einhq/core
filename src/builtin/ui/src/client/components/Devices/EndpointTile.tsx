@@ -85,22 +85,23 @@ function LogTile({ device, endpoint }: TileProps) {
 
 /** The day of fixes up to a track's last: what it did today while it reports, its last trip once it stopped. */
 function useLastDay(device: string, endpoint: EndpointSummary): Fix[] | undefined {
-  const [fixes, setFixes] = useState<Fix[]>();
+  const track = `${device}/${endpoint.name}`;
+  // The fixes with the track they are of: a new fix keeps the map until the day is read again,
+  // another device's are never shown as this one's.
+  const [read, setRead] = useState<{ track: string; fixes: Fix[] }>();
   const lastAt = endpoint.track?.lastAt;
   useEffect(() => {
-    // Another device's fixes are not this one's, while its own are on their way or when it has none.
-    setFixes(undefined);
     if (!lastAt) return;
     let cancelled = false;
     const since = new Date(Date.parse(lastAt) - 86_400_000).toISOString();
-    execCommand<DeviceHistory>(`device-history ${shq(`${device}/${endpoint.name}`)} --since ${shq(since)} -n 5000`)
-      .then((history) => !cancelled && setFixes(history.fixes ?? []))
-      .catch(() => !cancelled && setFixes([]));
+    execCommand<DeviceHistory>(`device-history ${shq(track)} --since ${shq(since)} -n 5000`)
+      .then((history) => !cancelled && setRead({ track, fixes: history.fixes ?? [] }))
+      .catch(() => !cancelled && setRead({ track, fixes: [] }));
     return () => {
       cancelled = true;
     };
-  }, [device, endpoint.name, lastAt]);
-  return fixes;
+  }, [track, lastAt]);
+  return lastAt && read?.track === track ? read.fixes : undefined;
 }
 
 /** A coordinate in degrees with its hemisphere: `59.32741° N`. */
