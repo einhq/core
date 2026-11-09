@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { ControlSchema, DeviceHistory, DeviceValue, EndpointSummary } from '@ein/api';
 import { StatTile } from '../Pipeline/StatTile.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
-import { agoText, readingText, sameValue } from '../../lib/device-format.ts';
+import { agoText, chartLabel, readingText, sameValue } from '../../lib/device-format.ts';
 import { shq } from '../../lib/shquote.ts';
 import { execCommand } from '../../signals/shell-client.ts';
 import { notify } from '../../signals/notify.ts';
@@ -101,11 +101,10 @@ function useLastDay(device: string, endpoint: EndpointSummary): Fix[] | undefine
 /** A coordinate in degrees with its hemisphere: `59.32741° N`. */
 const degreesText = (value: number, positive: string, negative: string): string => `${Math.abs(value).toFixed(5)}° ${value < 0 ? negative : positive}`;
 
-/** A time as the tile shows it: the hour and minute today, the date as well before. */
+/** A time as the tile shows it, on a 24-hour clock: the hour and minute today, the date as well before (`2026-11-08 20:30`). */
 const fixTimeText = (at: string): string => {
-  const time = new Date(at);
-  const today = time.toDateString() === new Date().toDateString();
-  return today ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : time.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  const label = chartLabel(at);
+  return new Date(at).toDateString() === new Date().toDateString() ? label.slice(11) : label;
 };
 
 /** What a fix tells beyond where it is: altitude, speed (knots on a boat, km/h otherwise) and course. */
