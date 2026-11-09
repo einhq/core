@@ -49,6 +49,8 @@ export type DeviceAttrs = {
   firmware?: string;
   serial?: string;
   mac?: string;
+  /** Its own web page, an http(s) URL, when its driver knows one: a Shelly's, an ESPHome node's, a printer's. */
+  url?: string;
   /** Whether it answers, when its driver can tell. */
   online?: boolean;
   /** What a person gave its driver (`device-create --config`); secrets are in `.secret`, never here. */
@@ -168,6 +170,8 @@ export type DeviceInfo = DeviceSummary & {
   firmware?: string;
   serial?: string;
   mac?: string;
+  /** Its own web page. */
+  url?: string;
   config?: Record<string, string>;
   /** Whether its driver runs now; unset for a device without one. */
   driverRunning?: boolean;

@@ -206,6 +206,7 @@ export const deviceInfo = async (vfs: ModuleVFS, access: Access, devices: Device
     ...(node.attrs.firmware ? { firmware: node.attrs.firmware } : {}),
     ...(node.attrs.serial ? { serial: node.attrs.serial } : {}),
     ...(node.attrs.mac ? { mac: node.attrs.mac } : {}),
+    ...(node.attrs.url && /^https?:\/\//.test(node.attrs.url) ? { url: node.attrs.url } : {}),
     ...(node.attrs.config ? { config: node.attrs.config } : {}),
     ...(node.attrs.driver ? { driverRunning: driver !== undefined } : {}),
     input: driver?.input !== undefined,

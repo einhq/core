@@ -81,6 +81,7 @@ export const deviceShow = async (cmd: Command): CmdReturn => {
     const about = [info.manufacturer, info.model, info.firmware].filter(Boolean).join(' ');
     const driver = info.driver ? `  driver ${info.driver}${info.driverRunning === false ? ' (not running)' : ''}` : '';
     await cmd.writeLn(`${info.label} (${info.name})${about ? `  ${about}` : ''}${info.online === false ? '  offline' : ''}${driver}`);
+    if (info.url) await cmd.writeLn(`  web page ${info.url}`);
     for (const ep of info.endpointList) {
       const value = ep.track
         ? `${ep.track.points} fixes${ep.track.lastAt ? `  ${ep.track.lastAt}` : ''}`

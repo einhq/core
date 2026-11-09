@@ -127,6 +127,13 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       assertEquals((await anna.execJson<DeviceHistory>('device-history lamp/button')).readings.length, 2);
     });
 
+    await t.step("a device's own web page is answered when it is http(s), and nothing else is", async () => {
+      await devices.ensureDevice(ADMIN_ACCESS, 'lamp', { url: 'http://192.0.2.30/' });
+      assertEquals((await anna.execJson<DeviceInfo>('device-show lamp')).url, 'http://192.0.2.30/');
+      await devices.ensureDevice(ADMIN_ACCESS, 'lamp', { url: 'javascript:alert(1)' });
+      assertEquals((await anna.execJson<DeviceInfo>('device-show lamp')).url, undefined);
+    });
+
     await t.step('someone outside the devices group sees a device once a member shares it, what it gets later too', async () => {
       assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => device.name), []);
       await testCommands(bo).shouldFailWith('device-history lamp/power', 'denied');

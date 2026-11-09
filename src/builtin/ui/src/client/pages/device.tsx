@@ -194,6 +194,16 @@ function Info({ info, onChanged }: { info: DeviceInfo; onChanged: () => void }) 
               <Table.Td c={name === 'Driver' && info.driverRunning === false ? 'red' : undefined}>{value}</Table.Td>
             </Table.Tr>
           ))}
+          {info.url && (
+            <Table.Tr>
+              <Table.Td c='dimmed' w={160}>Web page</Table.Td>
+              <Table.Td>
+                <Anchor href={info.url} target='_blank' rel='noopener noreferrer'>
+                  {info.url} <TablerIcon name='external-link' size={14} />
+                </Anchor>
+              </Table.Td>
+            </Table.Tr>
+          )}
         </Table.Tbody>
       </Table>
       <Table.ScrollContainer minWidth={560}>
