@@ -33,6 +33,7 @@
 # NOTICE.md, in /usr/share/doc/ein-core/, says what the image passes on under which licence.
 
 FROM docker.io/denoland/deno:bin-2.9.6 AS deno
+FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:bin-2.9.6 AS build-deno
 
 # The guide the Docs page shows: einhq.eu's documentation, from the site's repository as DOCS_URL
 # archives it (main by default; a tag's or a fork's archive works as well). Cut down to what its
@@ -53,6 +54,16 @@ RUN tar -xzf /site.tar.gz --strip-components=1 \
     if [ -f "${shot%.webp}@2x.webp" ]; then cp --parents "${shot%.webp}@2x.webp" /guide/; fi; \
   done \
   && test -f /guide/docs/SUMMARY.md
+
+# The Web UI's bundle, which is the same on every platform, so it is built once, on the builder's:
+# under emulation the bundler is slow, and on arm64 it has died of an illegal instruction.
+FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-20261027-slim AS ui
+COPY --from=build-deno /deno /usr/local/bin/deno
+WORKDIR /app
+COPY src src
+COPY deno.jsonc deno.jsonc
+COPY deno.lock deno.lock
+RUN deno cache src/main.ts && deno task bundle-ui
 
 FROM docker.io/library/debian:trixie-20261027-slim
 
@@ -83,7 +94,8 @@ COPY LICENSE LICENSE
 # from this stat. A bin that reached the checkout as 644 would then run for admin only.
 RUN chmod +x src/builtin/core/bin/* && mkdir -p modules modules-installed
 
-RUN deno cache src/main.ts && deno task bundle-ui
+RUN deno cache src/main.ts
+COPY --from=ui /app/src/builtin/ui/ui src/builtin/ui/ui
 
 ENV POSTGRES_URL=postgres://ein:ein@postgres:5432/ein
 ENV CFG_HTTP_PORT=8080
