@@ -330,5 +330,5 @@ Deno.test('ui-nav: map layers come in order, and one without tiles is left out',
   };
   const nav = resolveNav([shell, charts], [{ source: '/etc/ui/nav.json', layer: { hide: ['ui.satellite'] } }], user);
   assertEquals(nav.layers.map((layer) => layer.id), ['ui.map', 'charts.sea']);
-  assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options }', 'charts.odd: tiles is not a list of { url, options }']);
+  assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options, detail }', 'charts.odd: tiles is not a list of { url, options, detail }']);
 });

@@ -38,9 +38,10 @@ const boundsOf = (fixes: Fix[]): GeoBounds =>
 
 /**
  * A track endpoint's fixes on a map fitted to them, with a pin where the last one is; fixes that
- * stayed in one spot are shown around it instead. `fixes` is never empty.
+ * stayed in one spot are shown around it instead. `fixes` is never empty. A `small` map has no
+ * layer switcher and leaves out the layers' details, such as sea marks.
  */
-export function FixMap({ fixes, height, layerSwitcher = true }: { fixes: Fix[]; height: number | string; layerSwitcher?: boolean }) {
+export function FixMap({ fixes, height, small = false }: { fixes: Fix[]; height: number | string; small?: boolean }) {
   const tracks = useMemo(() => runsOf(fixes), [fixes]);
   const bounds = useMemo(() => boundsOf(fixes), [fixes]);
   const last = fixes[fixes.length - 1];
@@ -52,7 +53,8 @@ export function FixMap({ fixes, height, layerSwitcher = true }: { fixes: Fix[]; 
       center={spot ? last : undefined}
       zoom={spot ? 16 : undefined}
       style={{ height, minHeight: height }}
-      layerSwitcher={layerSwitcher}
+      layerSwitcher={!small}
+      details={!small}
     >
       <MapTracks tracks={tracks} />
       <MapMarkers markers={markers} />

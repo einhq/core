@@ -146,6 +146,7 @@
         },
         {
           "url": "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
+          "detail": true,
           "options": {
             "attribution": "© OpenSeaMap contributors",
             "maxNativeZoom": 18,

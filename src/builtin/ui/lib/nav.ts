@@ -174,8 +174,11 @@ export type MapLayerEntry = {
   signedIn?: boolean;
 };
 
-/** One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. */
-export type MapTiles = { url: string; options?: Record<string, unknown> };
+/**
+ * One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. `detail`
+ * marks one a small map leaves out, such as sea marks over the map, with its attribution.
+ */
+export type MapTiles = { url: string; options?: Record<string, unknown>; detail?: boolean };
 
 /** An entry as a layer gives it: any of its fields, `null` for one an overlay takes away. */
 type Layered<T> = { [K in keyof T]?: T[K] | null };
@@ -237,7 +240,8 @@ const isTiles = (value: unknown): value is MapTiles[] =>
   Array.isArray(value) && value.length > 0 &&
   value.every((tiles) =>
     tiles && typeof tiles === 'object' && typeof tiles.url === 'string' && tiles.url !== '' &&
-    (tiles.options === undefined || (typeof tiles.options === 'object' && tiles.options !== null && !Array.isArray(tiles.options)))
+    (tiles.options === undefined || (typeof tiles.options === 'object' && tiles.options !== null && !Array.isArray(tiles.options))) &&
+    (tiles.detail === undefined || typeof tiles.detail === 'boolean')
   );
 
 /** The route an action opens, as the page or over it; none for one that runs a command. */
@@ -343,7 +347,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
         return false;
       }
       if (kind === 'layers' && !isTiles(entry.tiles)) {
-        warnings.push(`${entry.id}: tiles is not a list of { url, options }`);
+        warnings.push(`${entry.id}: tiles is not a list of { url, options, detail }`);
         return false;
       }
       if (kind === 'panels' && entry.when !== undefined && !isWhen(entry.when)) {

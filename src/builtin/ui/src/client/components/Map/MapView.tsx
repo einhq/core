@@ -39,6 +39,8 @@ export type MapViewProps = {
   onBaseLayerChange?: (id: string) => void;
   /** Leaflet's own base-layer switcher, for a page that does not offer the choice itself. */
   layerSwitcher?: boolean;
+  /** The tile sets marked `detail`, such as sea marks; a small map leaves them out, and their attribution with them. */
+  details?: boolean;
   style?: CSSProperties;
   children?: ReactNode;
 };
@@ -47,11 +49,12 @@ function toGeoBounds(b: L.LatLngBounds): GeoBounds {
   return { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
 }
 
-export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, onBaseLayerChange, layerSwitcher = true, style, children }: MapViewProps) {
+export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, onBaseLayerChange, layerSwitcher = true, details = true, style, children }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<L.Map | null>(null);
   const initialBaseLayer = useRef(baseLayer);
   const initialLayerSwitcher = useRef(layerSwitcher);
+  const initialDetails = useRef(details);
   /** The base layers by id, and the one on the map. */
   const baseLayersRef = useRef<{ layers: Record<string, L.Layer>; current: string }>({ layers: {}, current: '' });
   const baseLayerChanged = useRef(onBaseLayerChange);
@@ -74,7 +77,7 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
     const byLabel: Record<string, L.Layer> = {};
     const wanted = defs.find((def) => def.id === initialBaseLayer.current) ?? defs[0];
     defs.forEach((def) => {
-      const layer = L.layerGroup(def.tiles.map((tile) => L.tileLayer(tile.url, tile.options as L.TileLayerOptions)));
+      const layer = L.layerGroup(def.tiles.filter((tile) => initialDetails.current || !tile.detail).map((tile) => L.tileLayer(tile.url, tile.options as L.TileLayerOptions)));
       baseLayers[def.id] = layer;
       byLabel[def.label] = layer;
       if (def === wanted) layer.addTo(m);

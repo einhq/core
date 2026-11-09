@@ -136,7 +136,7 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
           : fixes && fixes.length > 0
           ? (
             <Box style={{ position: 'relative', borderRadius: 'var(--mantine-radius-sm)', overflow: 'hidden' }}>
-              <FixMap fixes={fixes} height={180} layerSwitcher={false} />
+              <FixMap fixes={fixes} height={180} small />
               <ActionIcon
                 variant='filled'
                 color='dark'
@@ -144,7 +144,7 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
                 onClick={() => setMapOpen(true)}
                 aria-label='Enlarge map'
                 title='Enlarge map'
-                style={{ position: 'absolute', top: '50%', right: 8, zIndex: 1, transform: 'translateY(-50%)' }}
+                style={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
               >
                 <TablerIcon name='maximize' size={22} />
               </ActionIcon>
