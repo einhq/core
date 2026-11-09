@@ -42,7 +42,9 @@ function Overview({ info, onChanged, onHistory }: { info: DeviceInfo; onChanged:
   if (live.length === 0) {
     return <EmptyState title='No endpoints'>The device has nothing it reports or can be told yet.</EmptyState>;
   }
-  const tile = (endpoint: EndpointSummary) => <EndpointTile key={endpoint.name} device={info.name} endpoint={endpoint} onChanged={onChanged} onHistory={onHistory} />;
+  const tile = (endpoint: EndpointSummary) => (
+    <EndpointTile key={endpoint.name} device={info.name} deviceClass={info.class} endpoint={endpoint} onChanged={onChanged} onHistory={onHistory} />
+  );
   return (
     <Stack gap='lg'>
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }}>{shown.map(tile)}</SimpleGrid>

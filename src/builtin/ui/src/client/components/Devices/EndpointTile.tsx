@@ -16,6 +16,8 @@ const failed = (error: unknown) => notify({ message: error instanceof Error ? er
 type TileProps = {
   /** The device's name. */
   device: string;
+  /** What the device is (`boat`, `car`, …): a boat's speed is in knots. */
+  deviceClass?: string;
   endpoint: EndpointSummary;
   /** After a control was written: the page reads the device again. */
   onChanged: () => void;
@@ -96,9 +98,29 @@ function useLastDay(device: string, endpoint: EndpointSummary): Fix[] | undefine
   return fixes;
 }
 
-function TrackTile({ device, endpoint, onHistory }: TileProps) {
+/** A coordinate in degrees with its hemisphere: `59.32741° N`. */
+const degreesText = (value: number, positive: string, negative: string): string => `${Math.abs(value).toFixed(5)}° ${value < 0 ? negative : positive}`;
+
+/** A time as the tile shows it: the hour and minute today, the date as well before. */
+const fixTimeText = (at: string): string => {
+  const time = new Date(at);
+  const today = time.toDateString() === new Date().toDateString();
+  return today ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : time.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+/** What a fix tells beyond where it is: altitude, speed (knots on a boat, km/h otherwise) and course. */
+const motionText = (fix: Fix, deviceClass?: string): string =>
+  [
+    fix.alt !== undefined ? `${Math.round(fix.alt)} m` : undefined,
+    fix.speed !== undefined ? (deviceClass === 'boat' ? `${(fix.speed * 3600 / 1852).toFixed(1)} kn` : `${Math.round(fix.speed * 3.6)} km/h`) : undefined,
+    fix.course !== undefined ? `${Math.round(fix.course)}°` : undefined,
+  ].filter(Boolean).join(' · ');
+
+function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
   const fixes = useLastDay(device, endpoint);
   const points = endpoint.track?.points ?? 0;
+  const last = fixes?.at(-1);
+  const motion = last ? motionText(last, deviceClass) : '';
   return (
     <Card p='sm'>
       <Stack gap={6}>
@@ -112,10 +134,15 @@ function TrackTile({ device, endpoint, onHistory }: TileProps) {
             </Box>
           )
           : <Skeleton height={180} animate={fixes === undefined} />}
+        {last && (
+          <Box>
+            <Text size='sm' fw={600}>{degreesText(last.lat, 'N', 'S')}, {degreesText(last.lng, 'E', 'W')}</Text>
+            {motion && <Text size='sm'>{motion}</Text>}
+          </Box>
+        )}
         <Group justify='space-between' gap='xs' wrap='nowrap'>
           <Text size='xs' c='dimmed'>
-            {points.toLocaleString()} {points === 1 ? 'fix' : 'fixes'}
-            {endpoint.track?.lastAt ? `, the last ${agoText(endpoint.track.lastAt)}` : ''}
+            {endpoint.track?.lastAt ? `${fixTimeText(endpoint.track.lastAt)}, ${agoText(endpoint.track.lastAt)}` : ''}
           </Text>
           {points > 0 && (
             <Anchor component='button' size='xs' onClick={() => onHistory(endpoint.name)}>
