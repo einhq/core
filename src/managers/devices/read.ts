@@ -152,12 +152,35 @@ const withMain = async (vfs: ModuleVFS, access: Access, device: string, summary:
   return summary;
 };
 
+/** How recently a device that cannot say whether it answers must have been heard from to count as online. */
+const HEARD_WITHIN_MS = 15 * 60_000;
+
+/**
+ * A device whose driver cannot tell whether it answers (a tracker, a webhook: they post when they
+ * have something) counts as online while it has been heard from in the last quarter hour.
+ */
+const withHeard = (summary: DeviceSummary, now = Date.now()): DeviceSummary =>
+  summary.online === undefined && summary.lastAt && now - Date.parse(summary.lastAt) < HEARD_WITHIN_MS ? { ...summary, online: true } : summary;
+
+/** When a device's tracks last had a fix, for a device that tells nothing else of being online. */
+const trackLastAt = async (vfs: ModuleVFS, access: Access, endpoints: EndpointNode[]): Promise<string | undefined> => {
+  const ids = endpoints.filter((ep) => ep.node.type === 'track').map((ep) => ep.node.id);
+  if (ids.length === 0) return undefined;
+  const summaries = await vfs.trackSummaries(access, ids);
+  return [...summaries.values()].map((track) => track.lastTs).filter((at): at is string => Boolean(at)).sort().at(-1);
+};
+
 /** Every device the caller may read, by label: the devices group's members see them all, anyone else those shared with them. */
 export const listDevices = async (vfs: ModuleVFS, access: Access): Promise<DeviceSummary[]> => {
   const children = (await vfs.children<DeviceAttrs>(access, DEV_PATH)).filter((child) => child.node.type === NODE_TYPE_DEVICE);
   const summaries = await Promise.all(children.map(async (child) => {
     const endpoints = await endpointsOf(vfs, access, child.name).catch(() => []);
-    return await withMain(vfs, access, child.name, summaryOf(child.name, child.node.attrs, endpoints), endpoints);
+    const summary = await withMain(vfs, access, child.name, summaryOf(child.name, child.node.attrs, endpoints), endpoints);
+    if (summary.online === undefined) {
+      const tracked = await trackLastAt(vfs, access, endpoints).catch(() => undefined);
+      if (tracked && (!summary.lastAt || Date.parse(tracked) > Date.parse(summary.lastAt))) summary.lastAt = new Date(tracked).toISOString();
+    }
+    return withHeard(summary);
   }));
   return summaries.sort((a, b) => a.label.localeCompare(b.label));
 };
@@ -201,8 +224,7 @@ export const deviceInfo = async (vfs: ModuleVFS, access: Access, devices: Device
   const latest = endpointList.map((ep) => ep.last?.at ?? ep.track?.lastAt).filter((at): at is string => Boolean(at)).sort().at(-1);
   const driver = node.attrs.driver ? devices?.driver(node.attrs.driver) : undefined;
   return {
-    ...summary,
-    ...(latest ? { lastAt: latest } : {}),
+    ...withHeard({ ...summary, ...(latest ? { lastAt: latest } : {}) }),
     ...(node.attrs.firmware ? { firmware: node.attrs.firmware } : {}),
     ...(node.attrs.serial ? { serial: node.attrs.serial } : {}),
     ...(node.attrs.mac ? { mac: node.attrs.mac } : {}),

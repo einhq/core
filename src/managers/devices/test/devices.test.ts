@@ -71,6 +71,12 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       const info = await anna.execJson<DeviceInfo>('device-show ruby-phone');
       assertEquals(info.endpointList.map((ep) => [ep.name, ep.type, ep.track?.points]), [['position', 'track', 2]]);
       assertEquals([info.driver, info.driverRunning, info.input, info.tracks], ['tracker', true, true, true]);
+      // Its driver cannot tell whether it answers: a fix from 2024 says nothing, one from now says online.
+      assertEquals(info.online, undefined);
+      const now = await fetch(`${baseUrl}/file/dev/ruby-phone?key=${secret}&lat=57.72&lon=11.92&timestamp=${Math.floor(Date.now() / 1000)}`);
+      await now.body?.cancel();
+      const listed = (await anna.execJson<{ name: string; online?: boolean }[]>('devices')).find((device) => device.name === 'ruby-phone');
+      assertEquals([(await anna.execJson<DeviceInfo>('device-show ruby-phone')).online, listed?.online], [true, true]);
 
       const wrong = await fetch(`${baseUrl}/file/dev/ruby-phone?key=not-the-key&lat=1&lon=1`);
       await wrong.body?.cancel();

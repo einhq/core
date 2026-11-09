@@ -152,6 +152,10 @@ export type DeviceSummary = {
   driver?: string;
   manufacturer?: string;
   model?: string;
+  /**
+   * Whether it answers, as its driver tells; a device whose driver cannot tell (a tracker, a
+   * webhook) is online while heard from in the last 15 minutes, and neither once it is not.
+   */
   online?: boolean;
   endpoints: number;
   /** When the latest of its values arrived. */
