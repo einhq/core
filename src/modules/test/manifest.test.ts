@@ -129,6 +129,13 @@ Deno.test('module UI validation', async (t) => {
     assertEquals(checkUi(mod('m', { ui: bad })).errors.length, 2);
   });
 
+  await t.step('ui.open names a route per folder, ending with /, with {rest} beside the others', () => {
+    const ok = { routes: { '/things/:name': 'ui/pages/thing.tsx' }, open: { '/etc/things/': '/things/{rest}', '/etc/things.d/': '/things/{rest}?from={parent}' } };
+    assertEquals(checkUi(mod('m', { ui: ok })).errors, []);
+    const bad = { routes: { '/things/:name': 'ui/pages/thing.tsx' }, open: { '/etc/things': '/things/{rest}', '/': '/things/{path}', thing: '/things/{rest}' } };
+    assertEquals(checkUi(mod('m', { ui: bad })).errors.length, 3);
+  });
+
   await t.step('routes that are not a map of at least one route are rejected', () => {
     assertEquals(checkUi(mod('m', { ui: { routes: {} } })).errors.length, 1);
     assertEquals(checkUi(mod('m', { ui: { routes: 'ui/app' } } as unknown as Partial<ModuleManifest>)).errors.length, 1);

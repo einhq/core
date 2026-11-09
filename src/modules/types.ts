@@ -109,6 +109,9 @@ export type ModuleManifest = {
      * know (search results, the header's completions, the node explorer's Open):
      * `{ "person": "/people/{name}", "album": "/albums/{path}" }`, `{name}` the node's last path
      * segment, `{parent}` the one before it and `{path}` its whole path, all URI-encoded. A type no module names is not linked.
+     * A key that is a folder, starting and ending with `/`, opens whatever is under it, whatever its
+     * type: `{ "/etc/automations/": "/automations/{rest}" }`, `{rest}` the path after the folder
+     * without its extension. The longest such folder wins, and wins over the node's type.
      */
     open?: Record<string, string>;
   };
@@ -124,7 +127,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.14.6';
+export const MODULE_API_VERSION = '0.14.7';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];

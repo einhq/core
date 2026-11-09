@@ -54,9 +54,10 @@ export const onPageChange = (listener: (location: Location, action: NavigationTy
   pageRouter?.subscribe((state) => listener(state.location, state.historyAction)) ?? (() => {});
 
 /**
- * Which route opens a node of a type, from every module's `ui.open`: the shell links what it
- * finds — search results, the header's completions, the explorer's Open — without knowing whose
- * pages those are. Filled when the manifest is read.
+ * Which route opens a node, from every module's `ui.open`: by its type, or by a folder it is under
+ * (a key starting with `/`). The shell links what it finds — search results, the header's
+ * completions, the explorer's Open — without knowing whose pages those are. Filled when the
+ * manifest is read.
  */
 export const nodeRoutes = signal<Record<string, string>>({});
 
@@ -71,17 +72,26 @@ const coreRoute = (type: string, path: string): string | null => {
   return `/devices/${encodeURIComponent(device)}`;
 };
 
-/** The route that opens a node, or null when neither core nor an installed module gives one for its type. */
+/**
+ * The route that opens a node, or null when neither core nor an installed module gives one: the
+ * longest folder it is under that a module names, else its type. `{rest}` is the path after that
+ * folder without its extension.
+ */
 export const openRoute = (type: string, path: string): string | null => {
   const own = coreRoute(type, path);
   if (own) return own;
-  const template = nodeRoutes.value[type];
+  const folder = Object.keys(nodeRoutes.value)
+    .filter((key) => key.startsWith('/') && key.endsWith('/') && path.startsWith(key) && path.length > key.length)
+    .sort((a, b) => b.length - a.length)[0];
+  const template = nodeRoutes.value[folder ?? type];
   if (!template) return null;
   const segments = path.split('/');
+  const rest = folder ? path.slice(folder.length).replace(/\.[^./]+$/, '') : '';
   return template
     .replaceAll('{path}', encodeURIComponent(path))
     .replaceAll('{name}', encodeURIComponent(segments.at(-1) ?? ''))
-    .replaceAll('{parent}', encodeURIComponent(segments.at(-2) ?? ''));
+    .replaceAll('{parent}', encodeURIComponent(segments.at(-2) ?? ''))
+    .replaceAll('{rest}', encodeURIComponent(rest));
 };
 
 /**

@@ -1,35 +1,18 @@
 import { ActionIcon, Box, Loader, Stack, Text, Tooltip } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconFocusCentered, IconMaximize, IconMinimize, IconZoomScan } from '@tabler/icons-react';
-import { memo, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, type ReactNode, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, type FamilyNode, layoutFamily } from '../../lib/family-layout.ts';
 import { layoutHatField } from '../../lib/hat-field.ts';
 import { type FamilyDirection, FamilyTreeCard } from './FamilyTreeCard.tsx';
 import { Dialog } from '../Surface/Dialog.tsx';
+import { usePanZoom } from '../../hooks/usePanZoom.ts';
+import { centredOn, clampView, fitScale, fitView, MIN_FIT_SCALE, type PanZoomSize, sameView } from '../../lib/pan-zoom.ts';
 
 /** How tall the drawing's box gets inline. Tall enough for five rows at full zoom. */
 const MAX_VIEWPORT_HEIGHT = 620;
 /** Short enough for one row of cards, tall enough for the controls standing in its corner. */
 const MIN_VIEWPORT_HEIGHT = 180;
-const MAX_SCALE = 2;
-/** Below this a fitted drawing is unreadable, so it stops shrinking and is dragged instead. */
-const MIN_FIT_SCALE = 0.2;
-/**
- * Scale change per pixel of wheel. A mouse notch is about 100px, so a notch is
- * a fifth; a trackpad pinch arrives as Ctrl+wheel in small deltas and so zooms
- * smoothly.
- */
-const WHEEL_ZOOM_PER_PIXEL = 0.002;
-/** Line-mode wheels (Firefox with some mice) report lines, about 16px each. */
-const WHEEL_LINE_PIXELS = 16;
-/** How far a pointer moves before a press is a drag rather than a click. */
-const DRAG_THRESHOLD = 4;
-/** Two taps this close in time and place are a double tap. */
-const DOUBLE_TAP_MS = 300;
-const DOUBLE_TAP_DISTANCE = 24;
-/** What a double tap multiplies the scale by, or divides it by with Shift. */
-const DOUBLE_TAP_ZOOM = 2;
-const ZOOM_ANIMATION_MS = 220;
 /** The inline box's border, which `border-box` takes out of the height it is given. */
 const VIEWPORT_BORDER = 2;
 const CORNER_RADIUS = 10;
@@ -44,41 +27,11 @@ const CONTROL_SIZE = 40;
 
 const DIRECTIONS: readonly FamilyDirection[] = ['up', 'down'];
 
-/** The drawing's scale, and where its top-left corner sits in the box. */
-type View = { scale: number; x: number; y: number };
-type Size = { width: number; height: number };
 type Layout = ReturnType<typeof layoutFamily>;
 
-const fitScaleFor = (layout: Layout, size: Size): number => Math.max(MIN_FIT_SCALE, Math.min(1, size.width / layout.width, size.height / layout.height));
-
-/** The whole drawing, as large as fits, in the middle of the box. */
-const fitView = (layout: Layout, size: Size): View => {
-  const scale = fitScaleFor(layout, size);
-  return { scale, x: (size.width - layout.width * scale) / 2, y: (size.height - layout.height * scale) / 2 };
-};
-
 /** `card` in the middle of the box at `scale`. */
-const centredOn = (card: { x: number; y: number }, scale: number, size: Size): View => ({
-  scale,
-  x: size.width / 2 - (card.x + CARD_WIDTH / 2) * scale,
-  y: size.height / 2 - (card.y + CARD_HEIGHT / 2) * scale,
-});
-
-/** The middle of the box stays on the drawing, so it cannot be dragged out of sight. */
-const clampView = (view: View, layout: Layout, size: Size): View => ({
-  scale: view.scale,
-  x: Math.min(size.width / 2, Math.max(size.width / 2 - layout.width * view.scale, view.x)),
-  y: Math.min(size.height / 2, Math.max(size.height / 2 - layout.height * view.scale, view.y)),
-});
-
-const sameView = (a: View, b: View): boolean => Math.abs(a.scale - b.scale) < 1e-6 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
-
-/** `view` at `scale`, with the drawing's point under box point (`px`, `py`) still under it. */
-const zoomedAbout = (view: View, scale: number, px: number, py: number): View => ({
-  scale,
-  x: px - (px - view.x) * scale / view.scale,
-  y: py - (py - view.y) * scale / view.scale,
-});
+const centredOnCard = (card: { x: number; y: number }, scale: number, size: PanZoomSize) =>
+  centredOn({ x: card.x + CARD_WIDTH / 2, y: card.y + CARD_HEIGHT / 2 }, scale, size);
 
 /** A bar's tooth: a vertical line from the bar at `y` to `end`, above it or below it. */
 type Tooth = { x: number; end: number };
@@ -226,15 +179,9 @@ type FamilyDrawingProps = FamilyTreeProps & {
  * `<svg>` behind the cards rather than borders on them, because a line from a
  * parent to a child crosses the gap between two rows and belongs to neither.
  *
- * The drawing is moved with a transform rather than scrolled: one finger or the
- * mouse drags it, two fingers pinch it, and the wheel zooms it about the
- * cursor. A double click or tap on the ground zooms in about that point, with
- * Shift out, and at full zoom back to the whole family, as on a map; on a card
- * it stays the card's. A press that moves less than `DRAG_THRESHOLD` is a click, so a card's
- * name and buttons still work; one that moves further swallows the click that
- * ends it. The listeners are native rather than React's: the wheel's must not
- * be passive, and React's events would also arrive from a card's menu, which is
- * portalled outside the box.
+ * The drawing is moved with a transform rather than scrolled, by the gestures `usePanZoom` reads:
+ * dragged, pinched, zoomed with the wheel and by a double tap, never smaller than fitting. A tap
+ * on a card's name or buttons stays theirs.
  */
 function FamilyDrawing(
   {
@@ -258,111 +205,23 @@ function FamilyDrawing(
   const layout = useMemo(() => (graph ? layoutFamily(graph) : null), [graph]);
   const root = graph?.root;
 
-  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
-  /** The room the drawing is placed in: the box without the inset. */
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const insetRight = inset?.right ?? 0;
-  const insetBottom = inset?.bottom ?? 0;
-  const [view, setViewState] = useState<View | null>(null);
-  const [fitted, setFitted] = useState(fit);
-  const [dragging, setDragging] = useState(false);
   /** The family whose lines the pointer is on, or a finger last tapped. */
   const [lit, setLit] = useState<string | null>(null);
   // useId's colons are not valid in a selector.
   const scope = `mrx-family-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const insetRight = inset?.right ?? 0;
+  const insetBottom = inset?.bottom ?? 0;
 
-  // The gesture listeners are attached once per box, so they read through refs.
-  const viewRef = useRef(view);
-  const layoutRef = useRef(layout);
-  const sizeRef = useRef(size);
-  layoutRef.current = layout;
-  sizeRef.current = size;
-  const fittedRef = useRef(fitted);
-  fittedRef.current = fitted;
-
-  const setView = (next: View, isFit = false) => {
-    viewRef.current = next;
-    setViewState(next);
-    setFitted(isFit);
-  };
-
-  /** Zoomed out as far as fitting and no further: smaller than that is empty box. */
-  const scaleWithin = (scale: number): number => {
-    const current = layoutRef.current;
-    const min = current ? fitScaleFor(current, sizeRef.current) : MIN_FIT_SCALE;
-    return Math.min(MAX_SCALE, Math.max(min, scale));
-  };
-
-  const animation = useRef<number | null>(null);
-  const stopAnimation = () => {
-    if (animation.current !== null) cancelAnimationFrame(animation.current);
-    animation.current = null;
-  };
-
-  /**
-   * Glide to `to`. Between two scales the point both views put at the same place on screen stays
-   * there throughout and the scale changes evenly in proportion, so a zoom about a point looks like
-   * one, not like a slide and a zoom at once.
-   */
-  const animateTo = (to: View, isFit = false) => {
-    stopAnimation();
-    const from = viewRef.current;
-    if (!from || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setView(to, isFit);
-      return;
-    }
-    const zooms = Math.abs(from.scale - to.scale) > 1e-6;
-    const fixedX = zooms ? from.x + from.scale * (to.x - from.x) / (from.scale - to.scale) : 0;
-    const fixedY = zooms ? from.y + from.scale * (to.y - from.y) / (from.scale - to.scale) : 0;
-    const start = performance.now();
-    const frame = (now: number) => {
-      const t = Math.min(1, (now - start) / ZOOM_ANIMATION_MS);
-      if (t === 1) {
-        animation.current = null;
-        setView(to, isFit);
-        return;
-      }
-      const e = 1 - (1 - t) ** 3;
-      if (zooms) {
-        const scale = from.scale * (to.scale / from.scale) ** e;
-        setView({ scale, x: fixedX - (fixedX - from.x) * scale / from.scale, y: fixedY - (fixedY - from.y) * scale / from.scale });
-      } else {
-        setView({ scale: from.scale, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
-      }
-      animation.current = requestAnimationFrame(frame);
-    };
-    animation.current = requestAnimationFrame(frame);
-  };
-
-  /** A double tap at box point (`px`, `py`): in about it, with `out` out, and from full zoom back to the whole family. */
-  const zoomByTap = (px: number, py: number, out: boolean) => {
-    const current = viewRef.current;
-    const drawing = layoutRef.current;
-    if (!current || !drawing) return;
-    const size = sizeRef.current;
-    const whole = fitView(drawing, size);
-    const scale = out ? current.scale / DOUBLE_TAP_ZOOM : current.scale * DOUBLE_TAP_ZOOM;
-    if ((out && scale <= whole.scale) || (!out && current.scale >= MAX_SCALE - 1e-6)) {
-      animateTo(whole, true);
-      return;
-    }
-    animateTo(clampView(zoomedAbout(current, scaleWithin(scale), px, py), drawing, size));
-  };
-
-  /** A view the reader moved to, kept on the drawing. */
-  const moveTo = (next: View) => {
-    const current = layoutRef.current;
-    if (current) setView(clampView(next, current, sizeRef.current));
-  };
-
-  useEffect(() => {
-    if (!viewport) return;
-    const measure = () => setSize({ width: Math.max(0, viewport.clientWidth - insetRight), height: Math.max(0, viewport.clientHeight - insetBottom) });
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewport);
-    measure();
-    return () => observer.disconnect();
-  }, [viewport, insetRight, insetBottom]);
+  const panZoom = usePanZoom({
+    content: layout && layout.cards.length > 0 ? layout : null,
+    // Zoomed out as far as fitting and no further: smaller than that is empty box.
+    minScale: (box) => layout ? fitScale(layout, box) : MIN_FIT_SCALE,
+    inset,
+    onPress: (target) => {
+      if (!(target instanceof Element && target.closest('[data-family]'))) setLit(null);
+    },
+  });
+  const { size, view, fitted, dragging, setView, animateTo } = panZoom;
 
   /** The card whose expand was asked for last, which stays put while the drawing grows round it. */
   const anchorPath = useRef<string | null>(null);
@@ -382,166 +241,28 @@ function FamilyDrawing(
     const anchor = anchorPath.current;
     anchorPath.current = null;
 
-    if (placedFor.current !== root || !viewRef.current) {
+    if (placedFor.current !== root || !panZoom.current()) {
       placedFor.current = root;
       // A family that fits at full size is shown whole, wherever its person is in it.
-      if (fit || !rootCard || fitScaleFor(layout, size) >= 1) setView(fitView(layout, size), fit);
-      else setView(clampView(centredOn(rootCard, 1, size), layout, size));
+      if (fit || !rootCard || fitScale(layout, size) >= 1) setView(fitView(layout, size), fit);
+      else setView(clampView(centredOnCard(rootCard, 1, size), layout, size));
       return;
     }
     // A fitted drawing fits again, except round an expand: the card the reader
     // pressed stays under their finger, and the view is theirs from then on.
-    if (fittedRef.current && !(anchor && previous !== layout)) {
+    if (panZoom.isFitted() && !(anchor && previous !== layout)) {
       setView(fitView(layout, size), true);
       return;
     }
-    let next = viewRef.current;
+    let next = panZoom.current()!;
     const kept = anchor ?? root;
     const before = previous?.byPath[kept];
     const after = layout.byPath[kept];
     if (previous !== layout && before && after) {
       next = { ...next, x: next.x + (before.x - after.x) * next.scale, y: next.y + (before.y - after.y) * next.scale };
     }
-    setView(clampView({ ...next, scale: Math.max(next.scale, fitScaleFor(layout, size)) }, layout, size));
+    setView(clampView({ ...next, scale: Math.max(next.scale, fitScale(layout, size)) }, layout, size));
   }, [layout, root, size, fit]);
-
-  const hasDrawing = Boolean(layout && layout.cards.length > 0);
-  useEffect(() => {
-    if (!viewport || !hasDrawing) return;
-
-    /** A pointer's position in the box. */
-    const local = (event: { clientX: number; clientY: number }) => {
-      const rect = viewport.getBoundingClientRect();
-      return { x: event.clientX - rect.left - viewport.clientLeft, y: event.clientY - rect.top - viewport.clientTop };
-    };
-
-    const pointers = new Map<number, { x: number; y: number }>();
-    /** The view and the pointers' positions when the current gesture, or its latest change of fingers, began. */
-    let gesture: { view: View; points: { x: number; y: number }[] } | null = null;
-    let moved = false;
-    /** The most pointers down at once in the current gesture: a tap is one finger's. */
-    let most = 0;
-    let lastTap: { time: number; x: number; y: number } | null = null;
-
-    const restart = () => {
-      const current = viewRef.current;
-      gesture = current && pointers.size > 0 ? { view: current, points: [...pointers.values()] } : null;
-    };
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      stopAnimation();
-      if (!(event.target instanceof Element && event.target.closest('[data-family]'))) setLit(null);
-      if (pointers.size === 0) {
-        moved = false;
-        most = 0;
-      }
-      pointers.set(event.pointerId, local(event));
-      most = Math.max(most, pointers.size);
-      restart();
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!pointers.has(event.pointerId)) return;
-      pointers.set(event.pointerId, local(event));
-      if (!gesture) return;
-      const now = [...pointers.values()];
-      const start = gesture.view;
-
-      if (now.length === 1) {
-        const dx = now[0].x - gesture.points[0].x;
-        const dy = now[0].y - gesture.points[0].y;
-        if (!moved) {
-          if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-          moved = true;
-          setDragging(true);
-          viewport.setPointerCapture(event.pointerId);
-        }
-        moveTo({ ...start, x: start.x + dx, y: start.y + dy });
-        return;
-      }
-
-      // Two fingers: the drawing's point under their midpoint follows the
-      // midpoint, and the scale follows their spread.
-      const [a0, b0] = gesture.points;
-      const [a, b] = now;
-      const spread0 = Math.hypot(b0.x - a0.x, b0.y - a0.y);
-      if (spread0 === 0) return;
-      moved = true;
-      const scale = scaleWithin(start.scale * Math.hypot(b.x - a.x, b.y - a.y) / spread0);
-      const px = ((a0.x + b0.x) / 2 - start.x) / start.scale;
-      const py = ((a0.y + b0.y) / 2 - start.y) / start.scale;
-      moveTo({ scale, x: (a.x + b.x) / 2 - px * scale, y: (a.y + b.y) / 2 - py * scale });
-    };
-
-    const onPointerEnd = (event: PointerEvent) => {
-      if (!pointers.delete(event.pointerId)) return;
-      // A finger lifted from a pinch: the one left carries on dragging from here.
-      restart();
-      if (pointers.size > 0) return;
-      setDragging(false);
-      // The click a drag ends with comes before any timer; after it, a click is a click again.
-      if (moved) setTimeout(() => (moved = false));
-
-      // A tap on a card's name or button is that control's, not the drawing's.
-      const onControl = event.target instanceof Element && event.target.closest('a, button, input, [role="button"]');
-      if (event.type !== 'pointerup' || moved || most !== 1 || onControl) {
-        lastTap = null;
-        return;
-      }
-      const tap = { time: event.timeStamp, ...local(event) };
-      if (lastTap && tap.time - lastTap.time < DOUBLE_TAP_MS && Math.hypot(tap.x - lastTap.x, tap.y - lastTap.y) < DOUBLE_TAP_DISTANCE) {
-        lastTap = null;
-        zoomByTap(tap.x, tap.y, event.shiftKey);
-        return;
-      }
-      lastTap = tap;
-    };
-
-    // Capturing, so the click that ends a drag never reaches the card it began on.
-    const onClick = (event: MouseEvent) => {
-      if (!moved) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      stopAnimation();
-      const current = viewRef.current;
-      if (!current) return;
-      const pixels = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PIXELS : 1);
-      const scale = scaleWithin(current.scale * Math.exp(-pixels * WHEEL_ZOOM_PER_PIXEL));
-      if (scale === current.scale) return;
-      const point = local(event);
-      moveTo(zoomedAbout(current, scale, point.x, point.y));
-    };
-
-    // A portrait or a name is a link the browser would otherwise drag away as a URL.
-    const onDragStart = (event: DragEvent) => event.preventDefault();
-    // Safari's own pinch, which would zoom the page rather than the drawing.
-    const onGesture = (event: Event) => event.preventDefault();
-
-    viewport.addEventListener('pointerdown', onPointerDown);
-    viewport.addEventListener('pointermove', onPointerMove);
-    viewport.addEventListener('pointerup', onPointerEnd);
-    viewport.addEventListener('pointercancel', onPointerEnd);
-    viewport.addEventListener('click', onClick, true);
-    viewport.addEventListener('wheel', onWheel, { passive: false });
-    viewport.addEventListener('dragstart', onDragStart);
-    viewport.addEventListener('gesturestart', onGesture);
-    return () => {
-      stopAnimation();
-      viewport.removeEventListener('pointerdown', onPointerDown);
-      viewport.removeEventListener('pointermove', onPointerMove);
-      viewport.removeEventListener('pointerup', onPointerEnd);
-      viewport.removeEventListener('pointercancel', onPointerEnd);
-      viewport.removeEventListener('click', onClick, true);
-      viewport.removeEventListener('wheel', onWheel);
-      viewport.removeEventListener('dragstart', onDragStart);
-      viewport.removeEventListener('gesturestart', onGesture);
-    };
-  }, [viewport, hasDrawing]);
 
   // The drawing itself depends on the graph and not on the view, so dragging
   // re-renders only the transform round it; a lit family is drawn on its own
@@ -646,7 +367,7 @@ function FamilyDrawing(
   // Inline, a small family is a small box: reserving five rows of height for
   // two rows of cards is a box of empty space under them. Sized from the scale
   // the drawing starts at, not the current one, so zooming never moves the page.
-  const startScale = fit ? fitScaleFor(layout, { width: size.width, height: MAX_VIEWPORT_HEIGHT }) : 1;
+  const startScale = fit ? fitScale(layout, { width: size.width, height: MAX_VIEWPORT_HEIGHT }) : 1;
   const inlineHeight = Math.max(MIN_VIEWPORT_HEIGHT, Math.min(MAX_VIEWPORT_HEIGHT, layout.height * startScale)) + VIEWPORT_BORDER;
   const rootCard = layout.byPath[graph.root];
   const litFamily = lit ? layout.families.find((family) => family.key === lit) : undefined;
@@ -654,7 +375,7 @@ function FamilyDrawing(
   return (
     <Box style={fill ? { flex: 1, minHeight: 0, position: 'relative' } : { position: 'relative' }}>
       <Box
-        ref={setViewport}
+        ref={panZoom.ref}
         id={scope}
         style={{
           height: fill ? undefined : inlineHeight,
@@ -732,7 +453,7 @@ function FamilyDrawing(
               variant='filled'
               color='dark'
               size={CONTROL_SIZE}
-              onClick={() => animateTo(clampView(centredOn(rootCard, view?.scale ?? 1, size), layout, size))}
+              onClick={() => animateTo(clampView(centredOnCard(rootCard, view?.scale ?? 1, size), layout, size))}
               aria-label='Centre on this person'
             >
               <IconFocusCentered size={20} />

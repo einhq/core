@@ -17,6 +17,7 @@ export * from './useSelection.ts';
 export * from './useSectionSelection.ts';
 export * from './useCommandQueue.ts';
 export * from './useLasso.ts';
+export * from './usePanZoom.ts';
 export * from './useDropTarget.ts';
 export * from './useNodeAttrs.ts';
 export * from './useNodeEvents.ts';

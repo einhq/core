@@ -92,9 +92,14 @@ export const checkUi = (manifest: ModuleManifest): ValidationResult => {
     if (typeof open !== 'object' || open === null || Array.isArray(open)) {
       errors.push(`${manifest.name}: ui.open must map node types to routes`);
     } else {
-      for (const [type, route] of Object.entries(open)) {
-        if (typeof route !== 'string' || !route.startsWith('/') || /\{(?!path\}|name\}|parent\})/.test(route)) {
-          errors.push(`${manifest.name}: ui.open['${type}'] must be a route, with {path}, {name} or {parent} as its only placeholders`);
+      for (const [key, route] of Object.entries(open)) {
+        const folder = key.startsWith('/');
+        if (folder && (!key.endsWith('/') || key === '/')) errors.push(`${manifest.name}: ui.open['${key}'] names a folder, so it ends with /`);
+        const placeholders = folder ? /\{(?!path\}|name\}|parent\}|rest\})/ : /\{(?!path\}|name\}|parent\})/;
+        if (typeof route !== 'string' || !route.startsWith('/') || placeholders.test(route)) {
+          errors.push(
+            `${manifest.name}: ui.open['${key}'] must be a route, with {path}, {name}${folder ? ', {parent} or {rest}' : ' or {parent}'} as its only placeholders`,
+          );
         }
       }
     }

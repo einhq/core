@@ -108,7 +108,7 @@ Each answer is fetched once per page load and shared by every docs page (`useRef
   the mark with its kites lit in turn, a third of them at a time, running round the hat; anything
   smaller that waits — a field, a button, a row, a list's next page — shows Mantine's `Loader`, which
   the theme draws as `HatRunLoader`: the hat's outline with a third of it lit, running round), no module's data or commands (ein/core#442 moved those to the modules that own them — the album card, the timeline cards and feeds, the media grid's cover, time and stack actions, the unknown-people and split-person screens, the event form — and the chat's signals to the assistant). Chart (a line, bars or a pie of labelled values, drawn as SVG) and Markdown (sanitized, highlighted, its links and images resolved by the caller), which keep those in the shell for module pages, CodeEditor (the shared code editor, below), Layout, Map (plain-leaflet MapView + shape/track/marker layers, shape editor; vendored `leaflet.css`), MediaGrid (and `MediaStrip`, a group's two-row preview), Pipeline, SectionStream (a long list of sections one height until opened, below), Search (the shared `SearchInput`, `SearchPills`, `ListFilterInput`, result cards), EmptyState (what a page with nothing to list shows: a muted hat cluster, a line on how it fills, and the actions that fill it), People (the family tree, drawn from a graph in the kit's own `FamilyGraph` shape, which archive's `person-graph` answer satisfies), Terminal, Upload. Archive keeps its own parts in its `ui/`: the timeline scrubber, the face crop, `EntityPicker`, the current-residents card, the media type filter, the lightbox's sidebar, faces and count toggles, its audio and video players (one transport, `useMediaTransport`), and the album, capture-time and map-state helpers
-- `hooks/` — `useSearch`, `useMentionComplete`, `useMediaSelection`, `useSectionSelection` (sections whole, their items one by one, and items taken out, never listing a whole section's items; a range across sections takes the rest of the first, those between whole and the head of the last), `useCommandQueue` (a page's serial queue of commands for decisions drawn at once, which asks before a reload while any waits), `useLasso` (a mouse's rubber band over a page, below), `useDropTarget` (a place pictures dragged on the page drop, below), `useElementWidth`, `usePipelines`, `useNodeEvents`, … (archive's data hooks — `usePeople`, `useLocations`, `useMapTracks`, `useMapMedia`, `useMediaTimeline` and the rest — are in its `ui/`)
+- `hooks/` — `useSearch`, `useMentionComplete`, `useMediaSelection`, `useSectionSelection` (sections whole, their items one by one, and items taken out, never listing a whole section's items; a range across sections takes the rest of the first, those between whole and the head of the last), `useCommandQueue` (a page's serial queue of commands for decisions drawn at once, which asks before a reload while any waits), `useLasso` (a mouse's rubber band over a page, below), `usePanZoom` (a drawing dragged and zoomed in a box, below), `useDropTarget` (a place pictures dragged on the page drop, below), `useElementWidth`, `usePipelines`, `useNodeEvents`, … (archive's data hooks — `usePeople`, `useLocations`, `useMapTracks`, `useMapMedia`, `useMediaTimeline` and the rest — are in its `ui/`)
 
 ## Navigation
 
@@ -796,6 +796,17 @@ the Nodes page's rows use too), `MediaGrid`'s `dragPayload(item)` makes a tile a
 selected one, carrying the selection), and `useDropTarget` takes only such drags and names its action
 while one is over it, so Mantine's full-screen dropzone, which takes only `Files`, and the Nodes page's
 targets keep theirs.
+
+**A drawing dragged and zoomed in a box.** `usePanZoom` (hooks) moves a drawing in a box as a map
+is moved: one finger or the mouse drags it once the pointer has moved 4 px, two fingers pinch it, the
+wheel zooms it about the cursor (Ctrl+wheel being a trackpad's pinch), and a double tap on the ground
+zooms in about that point, with Shift out, and from full zoom back to the whole drawing. Its view, a
+scale and where the drawing's top-left corner sits, is the page's to render as a transform, and its
+sums are `lib/pan-zoom.ts`, pure: fitting, centring a point, keeping the box's middle on the drawing,
+zooming about a point. The listeners are native, on the box, because the wheel's must not be passive;
+so they run before an element's own React handlers, and the page's `ignore(target)` keeps a press on
+something of its own (a node dragged on a canvas) from moving the drawing. The family tree draws with
+it, as do modules' canvases.
 
 **`SectionStream` holds the reader in place.** Its geometry is `lib/section-stream.ts`, pure: a
 section's top is its index times the closed height (and gap), plus what the open sections above it

@@ -290,6 +290,17 @@ search results, completions, the node explorer's Open:
 all URI-encoded. A type no
 installed module names is not a link.
 
+A key that is a folder, starting and ending with `/`, opens whatever is under it, whatever its type:
+files of a module's own that are plain files to the VFS.
+
+```json
+"open": { "/etc/automations/": "/automations/{rest}" }
+```
+
+`{rest}` is the path after the folder without its extension (`hall-light` for
+`/etc/automations/hall-light.yaml`, `media%2Fgpu-hot` for a deeper one). The longest folder a node
+is under wins, and wins over its type.
+
 ## Not in the manifest: the module's folders
 
 Some of what a module brings is found by where it is, not by a field:

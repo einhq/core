@@ -39,6 +39,7 @@ export { forgetMediaSet, loadMediaSet, type MediaSet, peekMediaSet, prefetchMedi
 export { type LassoHits, type LassoRect, lassoSelection, sameHits, sectionHit, type TileIndex, tileIndex, tilesInRect } from './lasso.ts';
 export { endMediaDrag, isMediaDrag, MEDIA_DRAG_MIME, mediaDrag, type MediaDragPayload, startMediaDrag, takeMediaDrag } from './media-drag.ts';
 export { setDragChip } from './drag-chip.ts';
+export { centredOn, clampView, fitScale, fitView, MIN_FIT_SCALE, type PanZoomSize, type PanZoomView, sameView, toDrawing, zoomedAbout } from './pan-zoom.ts';
 export type { SectionPoint, SectionSelection } from './section-selection.ts';
 export { TO_TOP_EVENT } from './scroll-to-top.ts';
 export type { GeoBounds, PositionPoint, PositionShape } from '../components/Map/types.ts';

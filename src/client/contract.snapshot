@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.6
+MODULE_API_VERSION 0.14.7
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -271,6 +271,7 @@ src/builtin/ui/src/client/hooks/mod.ts NodeTypeGrowth 9651fab7cf8c months=96cfca
 src/builtin/ui/src/client/hooks/mod.ts NodeTypeReference 96e70a9a9255 category=51bd90ce51c5,count=56355d434a33,description=644be3c4d4da,label=995d88c00ff2,owner=e042e7caef36,type=e22be5ee8605
 src/builtin/ui/src/client/hooks/mod.ts PHONE_HEADER_HEIGHT b1dfc98870c5
 src/builtin/ui/src/client/hooks/mod.ts PHONE_QUERY f47e343b628d
+src/builtin/ui/src/client/hooks/mod.ts PanZoomOptions d8be20689139 content=83a25d6d5b3a,ignore=1961c6d59a80,inset=234fdc1a4a48,maxScale=d1002f205f66,minScale=89d9bbcb7343,onPress=ab7d24f00a4b
 src/builtin/ui/src/client/hooks/mod.ts PipelineDef f65c4e5b113c description=c4833b0d92ac,error=7a151e0a316a,name=6d0c36381511,options=91e1aac8fe95,stepKinds=4cff97a00c73,steps=dee33928d24b,triggerLabel=1f36f80dcbb9,triggerRules=e701af5bcedf,triggers=e7d337f0b700
 src/builtin/ui/src/client/hooks/mod.ts PipelineInstance 8b48e3cbf2ea completedAt=5b21d7233912,id=752fa5797ebe,pipeline=4d16cdec526e,startedAt=4e4642f81a31,status=606b7556b079,triggerPath=4bae9b3a4715
 src/builtin/ui/src/client/hooks/mod.ts PipelineOverview a29fcf45b2db active=2ec2587ca8a8,completions=a0ef815682e2,coverage=62b7aba7cf45,instances=61867b72e1e1,memory=4cd7dd1007c7,queues=25169682af36,quiet=4e6889ca23fb,quietMs=405b67986376,steps=f2d7e86eb537
@@ -355,6 +356,7 @@ src/builtin/ui/src/client/hooks/mod.ts useNodeStat 5f9770e651b5 0|336e2b46aff6=3
 src/builtin/ui/src/client/hooks/mod.ts useNodeTree 6043404847bc
 src/builtin/ui/src/client/hooks/mod.ts useNodeTypeReference 3bb3a05f2c95
 src/builtin/ui/src/client/hooks/mod.ts usePageSubject 42490c5e721c @signature=834e71694942,about=00f35a4be9a6,node=aa1a07b9f75e,title=ba1f3813786d
+src/builtin/ui/src/client/hooks/mod.ts usePanZoom 881227762fea @signature=f28e409fac2b,content=8ac8fea942e2,ignore=1fe01f2efa5a,inset=a466d2dd8b24,maxScale=3da0ae1a5fae,minScale=f1c416c06434,onPress=d0e045e80d77
 src/builtin/ui/src/client/hooks/mod.ts usePersistedState cf2072aa6bf3 0|336e2b46aff6=336e2b46aff6,1|2d4e7846df03=2d4e7846df03,@signature=abfb3b620813
 src/builtin/ui/src/client/hooks/mod.ts usePhone 1ca2bf2455f3
 src/builtin/ui/src/client/hooks/mod.ts usePipelineActions d2adf16b4e60
@@ -413,6 +415,7 @@ src/builtin/ui/src/client/lib/mod.ts MEDIA_DRAG_MIME 185b2eb76f6f
 src/builtin/ui/src/client/lib/mod.ts MEDIA_KINDS f07881348eb9
 src/builtin/ui/src/client/lib/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/lib/mod.ts MENTION_KINDS 5d370efc1f45
+src/builtin/ui/src/client/lib/mod.ts MIN_FIT_SCALE bae4bb64bbba
 src/builtin/ui/src/client/lib/mod.ts MONTHS d21685b85d62
 src/builtin/ui/src/client/lib/mod.ts MediaDragPayload a801be0d0572 count=56355d434a33,except=305cdc494fbd,files=8f4cf1e75865,groups=5a5a9e593ea2,label=af04505f402e
 src/builtin/ui/src/client/lib/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
@@ -437,6 +440,8 @@ src/builtin/ui/src/client/lib/mod.ts NodeTool 86e54873a4c8
 src/builtin/ui/src/client/lib/mod.ts NodeTreeProps b393ec0e2c19 entry=f54055089b59,path=3fd20668ef6e
 src/builtin/ui/src/client/lib/mod.ts NodesWorkspace 176e7b62e8b1 columns=5d27c1638e9d,focused=ee69e78bc4a0,panes=4b911e44142f,showHidden=245cbb280c57,split=d831fe1a37b3,tools=9e3708fb02fb,version=530392557be9
 src/builtin/ui/src/client/lib/mod.ts OpenTarget dc51c1d2c765
+src/builtin/ui/src/client/lib/mod.ts PanZoomSize 9c111e7021f8 height=2d6643d8656a,width=4f23b8406a01
+src/builtin/ui/src/client/lib/mod.ts PanZoomView 57cdd1f0b04b scale=bf680c6955c5,x=d0b937254e19,y=9df0ea69c6d9
 src/builtin/ui/src/client/lib/mod.ts PaneIndex 02629c175278
 src/builtin/ui/src/client/lib/mod.ts PaneState 4fc566cd6e12 activeTabId=227ead79440b,id=752fa5797ebe,tabs=7f23e26008d2
 src/builtin/ui/src/client/lib/mod.ts ParsedAttrs 3bd81d5e462c
@@ -493,7 +498,9 @@ src/builtin/ui/src/client/lib/mod.ts cardLayout 58fc726be003
 src/builtin/ui/src/client/lib/mod.ts cardPosition dfc99a945a8a
 src/builtin/ui/src/client/lib/mod.ts cardRangeForVerticalWindow f0103085b8fc
 src/builtin/ui/src/client/lib/mod.ts cardTextHeight dedd28c1f485 0|80dbc359f29c=80dbc359f29c,@signature=ced22ee5f80e
+src/builtin/ui/src/client/lib/mod.ts centredOn 40e3ebb6420e 0|b7bf532d21f6=b7bf532d21f6,1|b3d9da3d9fc5=b3d9da3d9fc5,2|9f8c5cf68369=9f8c5cf68369,@signature=82a3ececd86e
 src/builtin/ui/src/client/lib/mod.ts changedTopLevel 6cf2b914ae6b 0|9c9b1d3e8bfb=9c9b1d3e8bfb,1|9c9b1d3e8bfb=9c9b1d3e8bfb,@signature=8f48ee7d94be
+src/builtin/ui/src/client/lib/mod.ts clampView bbf9a8a329a4 0|3f02ad9d75e3=3f02ad9d75e3,1|9f8c5cf68369=9f8c5cf68369,2|9f8c5cf68369=9f8c5cf68369,@signature=4398432e783f
 src/builtin/ui/src/client/lib/mod.ts closePane a7a4a2d69305 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,@signature=e25ca1de8e7b
 src/builtin/ui/src/client/lib/mod.ts closeTab 3b45ea9e6ab9 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,@signature=f71f7e1466ea
 src/builtin/ui/src/client/lib/mod.ts columnsForWidth 9b420798ad6b
@@ -512,6 +519,8 @@ src/builtin/ui/src/client/lib/mod.ts fileUrl a90ef74a89ee 0|336e2b46aff6=336e2b4
 src/builtin/ui/src/client/lib/mod.ts filtersFromMentions 5ec2718fd543 0|e4d28e70980d=e4d28e70980d,1|472db73a7ae1=472db73a7ae1,@signature=36d3ce49303e
 src/builtin/ui/src/client/lib/mod.ts filtersFromNaturalQuery 9ae712c591d2
 src/builtin/ui/src/client/lib/mod.ts filtersFromParams fd7340356186 0|c5cdf14498b4=c5cdf14498b4,@signature=d19a96564b08
+src/builtin/ui/src/client/lib/mod.ts fitScale eaf2578452d4
+src/builtin/ui/src/client/lib/mod.ts fitView 11ac13960f9f
 src/builtin/ui/src/client/lib/mod.ts flattenAttrs 7d2431e3d785
 src/builtin/ui/src/client/lib/mod.ts foldText 6aff3ac4b124 0|336e2b46aff6=336e2b46aff6,@signature=d27e86770286
 src/builtin/ui/src/client/lib/mod.ts forgetAspect c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
@@ -584,6 +593,7 @@ src/builtin/ui/src/client/lib/mod.ts preloadIcons 27bdc6ad17df
 src/builtin/ui/src/client/lib/mod.ts queryWords 18ee60f5a0af 0|336e2b46aff6=336e2b46aff6,@signature=e9618345473c
 src/builtin/ui/src/client/lib/mod.ts renditionName 5e912e31d0a0 0|336e2b46aff6=336e2b46aff6,@signature=aef0a136d9df
 src/builtin/ui/src/client/lib/mod.ts sameHits 00de4eb62fd4 0|f4b9ca6a7021=f4b9ca6a7021,1|f4b9ca6a7021=f4b9ca6a7021,@signature=b8282f786a37
+src/builtin/ui/src/client/lib/mod.ts sameView 961dd7e040fc 0|3f02ad9d75e3=3f02ad9d75e3,1|3f02ad9d75e3=3f02ad9d75e3,@signature=b8282f786a37
 src/builtin/ui/src/client/lib/mod.ts sectionHit e9c5a64e5816 0|79a556091416=79a556091416,1|63025b360575=63025b360575,@signature=20e79e13b789
 src/builtin/ui/src/client/lib/mod.ts setActiveTab 3b45ea9e6ab9 0|fcd5397ec702=fcd5397ec702,1|25f87be15c2f=25f87be15c2f,2|336e2b46aff6=336e2b46aff6,@signature=f71f7e1466ea
 src/builtin/ui/src/client/lib/mod.ts setColumns dd586fc9ba18 0|fcd5397ec702=fcd5397ec702,1|a29be0de2cf0=a29be0de2cf0,@signature=56e9a8fa5496
@@ -610,6 +620,7 @@ src/builtin/ui/src/client/lib/mod.ts textScore 5382fef76ed9 0|336e2b46aff6=336e2
 src/builtin/ui/src/client/lib/mod.ts thumbnailUrl 311f0c31fabb 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=03ccf17196f6
 src/builtin/ui/src/client/lib/mod.ts tileIndex beccbe680716 0|12ab5112325b=12ab5112325b,@signature=21586ae83854
 src/builtin/ui/src/client/lib/mod.ts tilesInRect dba53d8919b5 0|1f3b85ad294d=1f3b85ad294d,1|79a556091416=79a556091416,@signature=876d916e7db1
+src/builtin/ui/src/client/lib/mod.ts toDrawing 9c02f6b0ccd3 0|3f02ad9d75e3=3f02ad9d75e3,1|b3d9da3d9fc5=b3d9da3d9fc5,2|b3d9da3d9fc5=b3d9da3d9fc5,@signature=e90283eaf901
 src/builtin/ui/src/client/lib/mod.ts transformToDirectory 128d9b20801b 0|2eb159b578e0=2eb159b578e0,1|336e2b46aff6=336e2b46aff6,@signature=041b51f7f41d
 src/builtin/ui/src/client/lib/mod.ts typeFromPath 2a83e6bdbf57 0|336e2b46aff6=336e2b46aff6,@signature=3cb43d81869e
 src/builtin/ui/src/client/lib/mod.ts unflattenAttrs 618813746f50 0|d626ca893cae=d626ca893cae,1|9c9b1d3e8bfb=9c9b1d3e8bfb,@signature=ffff99e69a75
@@ -619,6 +630,7 @@ src/builtin/ui/src/client/lib/mod.ts uuidv4 d2adf16b4e60
 src/builtin/ui/src/client/lib/mod.ts versionOf 479a24056dd4 0|336e2b46aff6=336e2b46aff6,@signature=fb200a0e8fa5
 src/builtin/ui/src/client/lib/mod.ts withBit 4cbec2b6e583 0|b3d9da3d9fc5=b3d9da3d9fc5,1|26de26064953=26de26064953,2|68cdec24bb4b=68cdec24bb4b,3|c06d55bc013d=c06d55bc013d,@signature=f91e339f8621
 src/builtin/ui/src/client/lib/mod.ts withLightboxSearch 2c0aee030ca1 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=20cd29abcb9e
+src/builtin/ui/src/client/lib/mod.ts zoomedAbout 9ecf93624425 0|3f02ad9d75e3=3f02ad9d75e3,1|b3d9da3d9fc5=b3d9da3d9fc5,2|b3d9da3d9fc5=b3d9da3d9fc5,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=8781f3f8d9a1
 src/builtin/ui/src/client/signals/mod.ts ActionContext b21d7e30c8eb navigate=870a398fa6ad
 src/builtin/ui/src/client/signals/mod.ts CodeEditorRequest a6beb3e379c8
 src/builtin/ui/src/client/signals/mod.ts ConfigEntry c53adf64a7e7
