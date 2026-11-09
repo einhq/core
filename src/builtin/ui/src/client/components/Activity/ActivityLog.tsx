@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { type AccessEvent, type AccessLogEntry, AUDIT_RECENT_DAYS, type AuditEntry, type AuditOp } from '@ein/api';
 import { execCommand } from '../../signals/shell-client.ts';
 import { shq } from '../../lib/shquote.ts';
+import { formatDateTime } from '../../lib/datetime.ts';
 
 /** What the list shows: every kind, or one of them. */
 type Kind = 'all' | 'sign-ins' | 'failures' | 'downloads' | 'links' | 'changes';
@@ -265,7 +266,7 @@ export function ActivityLog() {
                   {rows.map((row) => (
                     <Table.Tr key={row.id}>
                       <Table.Td>
-                        <Text size='xs' ff='monospace' style={{ whiteSpace: 'nowrap' }}>{new Date(row.timestamp).toLocaleString('sv-SE')}</Text>
+                        <Text size='xs' ff='monospace' style={{ whiteSpace: 'nowrap' }}>{formatDateTime(row.timestamp)}</Text>
                       </Table.Td>
                       <Table.Td>
                         {row.user ? <Anchor size='xs' onClick={() => narrow({ user: row.user! })}>{row.who}</Anchor> : <Text size='xs' c='dimmed'>{row.who ?? '—'}</Text>}

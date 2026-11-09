@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.2
+MODULE_API_VERSION 0.14.3
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -499,6 +499,7 @@ src/builtin/ui/src/client/lib/mod.ts closeTab 3b45ea9e6ab9 0|fcd5397ec702=fcd539
 src/builtin/ui/src/client/lib/mod.ts columnsForWidth 9b420798ad6b
 src/builtin/ui/src/client/lib/mod.ts copyText d854c63dd684 0|336e2b46aff6=336e2b46aff6,1|200c4bbb9601=200c4bbb9601,1|c6374001a893=c6374001a893,1|e47c90b8d195=e47c90b8d195,@signature=6be18960841a
 src/builtin/ui/src/client/lib/mod.ts countOf 3e8d5d4a5025 0|b3d9da3d9fc5=b3d9da3d9fc5,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=4eef6caa8d5f
+src/builtin/ui/src/client/lib/mod.ts dateTimeFormat 13830f334aaf
 src/builtin/ui/src/client/lib/mod.ts defaultWorkspace 81e1f782a6ea
 src/builtin/ui/src/client/lib/mod.ts describeNodeError d552e6b18d62 0|e2e9e83e047a=e2e9e83e047a,@signature=9fce72105833
 src/builtin/ui/src/client/lib/mod.ts displayDims 3de7f72ef51b 0|9a275a247a7d=9a275a247a7d,@signature=1acfc20a44dd
@@ -518,8 +519,11 @@ src/builtin/ui/src/client/lib/mod.ts forgetMediaSet c6a7aabc3791 0|336e2b46aff6=
 src/builtin/ui/src/client/lib/mod.ts formatBytes 551d31459314 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=fb16a295bf49
 src/builtin/ui/src/client/lib/mod.ts formatClock 80c229e09d9e 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=c00518025796
 src/builtin/ui/src/client/lib/mod.ts formatCount 90a1811d0279 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=04fe420b81f4
+src/builtin/ui/src/client/lib/mod.ts formatDate 5c27f96db06c
+src/builtin/ui/src/client/lib/mod.ts formatDateTime 34b234ab8951
 src/builtin/ui/src/client/lib/mod.ts formatDuration 26f1537238c8 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=e118f3e14d35
 src/builtin/ui/src/client/lib/mod.ts formatRange 54ee524268a6 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=583eaee7cd26
+src/builtin/ui/src/client/lib/mod.ts formatTime 9e1052073910
 src/builtin/ui/src/client/lib/mod.ts formatUptime c917dce0aa57 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=9e073bdf7727
 src/builtin/ui/src/client/lib/mod.ts gridNeighbour e7eb3154cdf8 0|521adbf96790=521adbf96790,1|b3d9da3d9fc5=b3d9da3d9fc5,2|c388037e2b96=c388037e2b96,@signature=5de4cd61a5c7
 src/builtin/ui/src/client/lib/mod.ts gridSrcSet b0e1d183b06e 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,2|b3d9da3d9fc5=b3d9da3d9fc5,3|b6f947317c10=b6f947317c10,@signature=8dc2463266fd
@@ -807,6 +811,7 @@ src/builtin/ui/src/client/signals/mod.ts terminalOpenToggle df01802e180a
 src/builtin/ui/src/client/signals/mod.ts terminalTabExited 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts terminalTabs 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts terminalWorkspaceId 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts timeLocale 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts toggleDrawer c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts toggleMobileRailHidden df01802e180a
 src/builtin/ui/src/client/signals/mod.ts toggleSidebar 19ae7121f60b 0|c06d55bc013d=c06d55bc013d,@signature=b813ead0096e
@@ -1013,7 +1018,7 @@ src/lib/api/mod.ts ConfigEntry c53adf64a7e7
 src/lib/api/mod.ts ConfigOption 428b16afe092 choices=b130c884fcdf,default=957f9ae9c764,description=c4833b0d92ac,emptyMeans=1a45cd3b42ca,group=fa0113d0351a,key=fdb05a1ff54c,label=af04505f402e,owner=e042e7caef36,restartNote=46e09839c546,restarts=4dcfc7cb7b59,scope=d98e7a17a7da,type=7cb72c80b753
 src/lib/api/mod.ts ConfigScope cf94b6592de4
 src/lib/api/mod.ts ConfigSource b41959e0ad4f
-src/lib/api/mod.ts ConfigType 5e5e4e18b677
+src/lib/api/mod.ts ConfigType f8216ab000f1
 src/lib/api/mod.ts ContainerListing 21d4642769fa members=71968da5e5fb,truncated=ee81b8046300
 src/lib/api/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797ebe,memberPath=c769fc41a1c3,path=3fd20668ef6e,stackCount=a48b3d338e26
 src/lib/api/mod.ts ControlRequest 3e79bf6ea0d2 at=f9e6ea108483,by=2e436585632a,value=c9bb9f40efa8

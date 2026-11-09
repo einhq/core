@@ -25,6 +25,16 @@ export const CORE_OPTIONS: ConfigOption[] = [
     description: 'The language the archive is kept in: the order names are sorted in, the words it offers as labels, and how it describes how two people are related.',
     group: 'Language',
   },
+  {
+    key: 'CFG_TIME_LOCALE',
+    scope: 'system',
+    type: 'locale',
+    default: 'en-SE',
+    label: 'Date and time format',
+    description:
+      'How dates and times are written in the browser, as a locale: en-SE writes 2026-11-09, 13:26 and 9 Nov 2026, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM, sv-SE 9 nov. 2026. Each person may choose their own.',
+    group: 'Language',
+  },
 
   /* Sessions */
   {
@@ -341,6 +351,17 @@ export const CORE_OPTIONS: ConfigOption[] = [
     label: 'How widely what you create is shared',
     description: 'Where anything you create as shared starts out: private, shared with its group, or with everyone who has an account. "Default" follows the system setting.',
     group: 'Sharing',
+  },
+  {
+    key: 'CFG_USER_TIME_LOCALE',
+    scope: 'user',
+    type: 'locale',
+    default: '',
+    emptyMeans: "the system's date and time format",
+    label: 'Date and time format',
+    description:
+      'How dates and times are written for you, as a locale: en-SE writes 2026-11-09, 13:26, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM, sv-SE 9 nov. 2026. Empty follows the system setting.',
+    group: 'Language',
   },
   {
     key: 'HISTSIZE',

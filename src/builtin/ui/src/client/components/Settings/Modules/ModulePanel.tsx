@@ -22,6 +22,7 @@ import { Done, Note, PanelHeader, PanelSection, useInlineConfirm } from '../Acco
 import { ModuleCommands } from './ModuleCommands.tsx';
 import { ModuleAvatar, moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
+import { formatDateTime } from '../../../lib/datetime.ts';
 
 /** The panel's tabs, in order. */
 const MODULE_SECTIONS = ['about', 'dependencies', 'services', 'pages', 'commands', 'settings', 'types'] as const;
@@ -95,7 +96,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
         meta={[
           [module.version && `version ${module.version}`, module.coreApi && `core API ${module.coreApi}`].filter(Boolean).join(' · '),
           module.path,
-          module.setup ? `set up ${new Date(module.setup.at).toLocaleString()}` : 'not set up since EiN started',
+          module.setup ? `set up ${formatDateTime(module.setup.at)}` : 'not set up since EiN started',
         ].filter(Boolean)}
         badges={<Badge size='sm' variant='light' color={STATE_COLOR[state]} tt='none'>{STATE_LABEL[state]}</Badge>}
       />
@@ -223,7 +224,7 @@ function Installed({ module, usedBy, admin, install, onStarted, onRemoved }: Ins
           <Anchor href={record.repository} target='_blank' rel='noreferrer' size='sm' style={{ overflowWrap: 'anywhere' }}>{record.repository}</Anchor> at{' '}
           <Text span ff='monospace' size='sm'>{record.commit.slice(0, 9)}</Text>
           {!pinned && ` (${record.ref})`}
-          {record.at && `, ${new Date(record.at).toLocaleString()}`}
+          {record.at && `, ${formatDateTime(record.at)}`}
         </>
       }
       error={problem}

@@ -8,6 +8,7 @@ export * from './shquote.ts';
 export * from './uuid.ts';
 export * from './WebSocketClient.ts';
 export * from './format.ts';
+export { dateTimeFormat, formatDate, formatDateTime, formatTime } from './datetime.ts';
 export * from './mentions.ts';
 export * from './text-match.ts';
 export * from './natural-search.ts';

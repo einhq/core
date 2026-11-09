@@ -5,7 +5,8 @@ import type { ControlSchema, DeviceHistory, DeviceValue, EndpointSummary } from 
 import { StatTile } from '../Pipeline/StatTile.tsx';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { Dialog } from '../Surface/Dialog.tsx';
-import { agoText, chartLabel, readingText, sameValue } from '../../lib/device-format.ts';
+import { formatDateTime, formatTime } from '../../lib/datetime.ts';
+import { agoText, readingText, sameValue } from '../../lib/device-format.ts';
 import { shq } from '../../lib/shquote.ts';
 import { execCommand } from '../../signals/shell-client.ts';
 import { notify } from '../../signals/notify.ts';
@@ -103,11 +104,11 @@ function useLastDay(device: string, endpoint: EndpointSummary): Fix[] | undefine
 /** A coordinate in degrees with its hemisphere: `59.32741° N`. */
 const degreesText = (value: number, positive: string, negative: string): string => `${Math.abs(value).toFixed(5)}° ${value < 0 ? negative : positive}`;
 
-/** A time as the tile shows it, on a 24-hour clock: the hour and minute today, the date as well before (`2026-11-08 20:30`). */
-const fixTimeText = (at: string): string => {
-  const label = chartLabel(at);
-  return new Date(at).toDateString() === new Date().toDateString() ? label.slice(11) : label;
-};
+/** A time as the tile shows it: the hour and minute today, the date as well before (`9 Nov 2026, 20:30`). */
+const fixTimeText = (at: string): string =>
+  new Date(at).toDateString() === new Date().toDateString()
+    ? formatTime(at, { hour: '2-digit', minute: '2-digit' })
+    : formatDateTime(at, { dateStyle: 'medium', timeStyle: 'short' });
 
 /** What a fix tells beyond where it is: altitude, speed (knots on a boat, km/h otherwise) and course. */
 const motionText = (fix: Fix, deviceClass?: string): string =>

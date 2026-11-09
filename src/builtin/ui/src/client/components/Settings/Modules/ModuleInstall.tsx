@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ModuleInstallJob, ModuleInstallStatus } from '@ein/api';
 import { formatCount } from '../../../lib/format.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
+import { formatTime } from '../../../lib/datetime.ts';
 
 /** How often `mod status` is asked while an install runs, and while none does. */
 const RUNNING_POLL_MS = 2_000;
@@ -83,7 +84,7 @@ export function InstallProgress({ install, onOpenModule, onDismiss }: InstallPro
       <Alert color='blue' variant='light' icon={<Loader size={16} />} title={`Installing: ${asked}`}>
         <Stack gap={2}>
           <Text size='sm'>
-            Started by {install.by} at {new Date(install.startedAt).toLocaleTimeString()}. It goes on when this page is closed.
+            Started by {install.by} at {formatTime(install.startedAt)}. It goes on when this page is closed.
           </Text>
           {install.unpacking && <Text size='sm'>{formatCount(install.unpacking.files)} files of {install.unpacking.module} unpacked</Text>}
           {!install.unpacking && last && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{last}</Text>}

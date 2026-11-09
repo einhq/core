@@ -21,6 +21,8 @@ export type ConfigScope = 'system' | 'user';
  * `secret` is a key to another service, named `CFG_*_KEY`: it is kept out of
  * every shell's environment, and nothing reports its value, only whether and
  * where it is set (see `isSecretKey`).
+ *
+ * `locale` is a BCP 47 language tag such as `en-SE`, which `Intl` formats with.
  */
 export type ConfigType =
   | 'string'
@@ -30,7 +32,8 @@ export type ConfigType =
   | 'mode'
   | 'user'
   | 'group'
-  | 'secret';
+  | 'secret'
+  | 'locale';
 
 export type ConfigOption = {
   /** The environment variable itself — `CFG_LANGUAGE`. */

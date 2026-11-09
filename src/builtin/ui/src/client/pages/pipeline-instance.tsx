@@ -6,8 +6,9 @@ import { elapsed, EntityDetailHeader, type PageAction, statusColor } from '@ein/
 import { type PipelineStep, useAccessIds, usePipelineActions, usePipelineStatus } from '@ein/ui/hooks';
 import { HeaderTrail } from '../components/EntityDetail/HeaderTrail.tsx';
 import { SYSTEM_TRAIL } from './pipeline.tsx';
+import { formatDateTime } from '../lib/datetime.ts';
 
-const formatTime = (ts?: number) => ts ? new Date(ts).toLocaleString() : '-';
+const formatTime = (ts?: number) => ts ? formatDateTime(ts) : '-';
 const duration = (start?: number, end?: number) => start ? elapsed(start, end ?? Date.now()) : '-';
 
 /**

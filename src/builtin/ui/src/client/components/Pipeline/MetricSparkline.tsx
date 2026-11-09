@@ -1,5 +1,6 @@
 import { Box, Text, Tooltip } from '@mantine/core';
 import { SERIES_ACCENT } from './palette.ts';
+import { formatDate, formatTime } from '../../lib/datetime.ts';
 
 export type MetricPoint = { at: number; value: number };
 
@@ -19,10 +20,10 @@ const DAY = 86_400_000;
 const timeLabel = (at: number, span: number, detail = false) => {
   const date = new Date(at);
   if (span >= DAY) {
-    const day = date.toLocaleDateString([], { day: 'numeric', month: 'short' });
-    return detail ? `${day}, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : day;
+    const day = formatDate(date, { day: 'numeric', month: 'short' });
+    return detail ? `${day}, ${formatTime(date, { hour: '2-digit', minute: '2-digit' })}` : day;
   }
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return formatTime(date, { hour: '2-digit', minute: '2-digit' });
 };
 
 /**

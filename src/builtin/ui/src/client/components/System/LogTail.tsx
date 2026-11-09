@@ -4,6 +4,7 @@ import { IconPlayerPause, IconPlayerPlay, IconTerminal2, IconTrash } from '@tabl
 import { useSignals } from '@preact/signals-react/runtime';
 import { useEffect, useRef, useState } from 'react';
 import { type LogLine, useLogTail } from '@ein/ui/hooks';
+import { formatTime } from '../../lib/datetime.ts';
 
 /** Levels in severity order; a filter selects this level and everything above it. */
 const LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR'] as const;
@@ -13,7 +14,7 @@ const RANK: Record<string, number> = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 const LEVEL_COLOR: Record<string, string> = { ERROR: 'red', WARN: 'yellow', DEBUG: 'gray' };
 
-const timeLabel = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const timeLabel = (at: number) => formatTime(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 /** Distance from the bottom still counted as "at the bottom", in px. */
 const STICK_PX = 40;

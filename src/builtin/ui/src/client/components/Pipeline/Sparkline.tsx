@@ -1,6 +1,7 @@
 import { Box, Text, Tooltip } from '@mantine/core';
 import { useMemo } from 'react';
 import { SERIES_ACCENT } from './palette.ts';
+import { formatTime } from '../../lib/datetime.ts';
 
 export type Bucket = { at: number; count: number };
 
@@ -13,7 +14,7 @@ type Props = {
   height?: number;
 };
 
-const timeLabel = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const timeLabel = (at: number) => formatTime(at, { hour: '2-digit', minute: '2-digit' });
 
 /**
  * Completions over time — a single series, so it needs no legend; the heading

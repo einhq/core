@@ -12,6 +12,7 @@ import { AccountAvatar } from './AccountAvatar.tsx';
 import { Checklist, type ChecklistItem } from './Checklist.tsx';
 import { asSentence, DeleteConfirm, Done, Note, PanelHeader, PanelSection, useInlineConfirm } from './PanelParts.tsx';
 import type { Accounts } from './useAccounts.ts';
+import { formatDateTime } from '../../../lib/datetime.ts';
 
 type UserPanelProps = {
   user: UserEntry;
@@ -30,9 +31,7 @@ type UserPanelProps = {
 const ORIGIN: Record<SessionEntry['origin'], string> = { web: 'In the browser', ssh: 'Over SSH', terminal: 'In a terminal' };
 
 const sessionLine = (session: SessionEntry): string =>
-  `${ORIGIN[session.origin]}${session.from ? ` from ${session.from}` : ''}, since ${
-    new Date(session.since).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-  }`;
+  `${ORIGIN[session.origin]}${session.from ? ` from ${session.from}` : ''}, since ${formatDateTime(session.since, { dateStyle: 'medium', timeStyle: 'short' })}`;
 
 const StatusBadge = ({ color, children }: { color: string; children: string }) => <Badge size='sm' variant='light' color={color} tt='none'>{children}</Badge>;
 

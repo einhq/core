@@ -1,5 +1,7 @@
 /** Shared value formatting for media UI. */
 
+import { dateTimeFormat } from './datetime.ts';
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
 
 /** Bytes at human scale — 1.4 GB, 812 MB, 0 B. */
@@ -82,20 +84,20 @@ export function formatUptime(ms: number): string {
  * `1966-04` "Apr 1966", rather than both becoming "1 Jan 1966" — a day nobody
  * wrote down, and which reads as a birthday.
  */
-const formatDate = (iso: string): string => {
+const formatRecorded = (iso: string): string => {
   if (/^\d{4}$/.test(iso)) return iso;
   const monthOnly = /^\d{4}-\d{2}$/.test(iso);
   const opts: Intl.DateTimeFormatOptions = monthOnly
     ? { month: 'short', year: 'numeric', timeZone: 'UTC' }
     : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
   const date = new Date(monthOnly ? `${iso}-01` : iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('en-GB', opts);
+  return Number.isNaN(date.getTime()) ? iso : dateTimeFormat(opts).format(date);
 };
 
 /** Compact human date range, e.g. "1 Jun 2026", "1 Jun 2026 – 3 Jun 2026" or "1966 – 1968". */
 export function formatRange(startIso?: string, endIso?: string): string {
   if (!startIso) return '';
-  const sf = formatDate(startIso);
-  const ef = endIso ? formatDate(endIso) : sf;
+  const sf = formatRecorded(startIso);
+  const ef = endIso ? formatRecorded(endIso) : sf;
   return sf === ef ? sf : `${sf} – ${ef}`;
 }

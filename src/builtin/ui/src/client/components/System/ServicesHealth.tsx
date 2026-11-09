@@ -5,6 +5,7 @@ import { execCommand } from '@ein/ui/signals';
 import { useAccessIds } from '../../hooks/useAccessIds.ts';
 import { formatUptime } from '../../lib/format.ts';
 import type { ServiceEntry } from '@ein/api';
+import { formatDateTime } from '../../lib/datetime.ts';
 
 type Service = ServiceEntry;
 
@@ -134,7 +135,7 @@ export function ServicesHealth({ services, onChanged }: Props) {
 
                   <Table.Td ta='right' style={{ width: 110, whiteSpace: 'nowrap' }}>
                     {service.status === 'running' && service.startedAt !== undefined && (
-                      <Tooltip label={`Started ${new Date(service.startedAt).toLocaleString()}`} withArrow>
+                      <Tooltip label={`Started ${formatDateTime(service.startedAt)}`} withArrow>
                         <Text size='xs' c='dimmed'>up {formatUptime(Date.now() - service.startedAt)}</Text>
                       </Tooltip>
                     )}

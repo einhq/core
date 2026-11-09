@@ -4,13 +4,13 @@ import { IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Dialog, DialogActions, elapsed, EntityDetailHeader, PageLoader, statusColor } from '@ein/ui/components';
-import { countOf } from '@ein/ui/lib';
+import { countOf, formatDateTime } from '@ein/ui/lib';
 import { useAccessIds, usePipelineActions, usePipelineInstances, usePipelines } from '@ein/ui/hooks';
 import { HeaderTrail } from '../components/EntityDetail/HeaderTrail.tsx';
 
 const STATUS_TABS = ['all', 'running', 'completed', 'failed', 'cancelled'] as const;
 
-const formatTime = (ts?: number) => ts ? new Date(ts).toLocaleString() : '-';
+const formatTime = (ts?: number) => ts ? formatDateTime(ts) : '-';
 
 /** The pages above a pipeline's: the system dashboard and its Work tab, which lists the pipelines. */
 export const SYSTEM_TRAIL = [{ label: 'System dashboard', to: '/system' }, { label: 'Work', to: '/system?tab=work' }];

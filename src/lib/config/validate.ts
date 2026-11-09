@@ -40,6 +40,15 @@ export const validateConfigValue = (option: ConfigOption, value: string): string
       if (!/^[A-Za-z0-9._-]+$/.test(value)) return `${option.key}: '${value}' is not a valid ${option.type} name`;
       return undefined;
     }
+    case 'locale': {
+      // A tag of the right shape that no locale data answers to would quietly format as some other.
+      try {
+        if (Intl.DateTimeFormat.supportedLocalesOf(value).length > 0) return undefined;
+      } catch {
+        // Not a language tag at all.
+      }
+      return `${option.key}: expected a locale such as en-SE or sv-SE, got '${value}'`;
+    }
     case 'string':
     case 'secret':
       return undefined;

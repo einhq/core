@@ -3,7 +3,7 @@ import { useSignals } from '@preact/signals-react/runtime';
 import type { ModuleEntry, SystemInfo } from '@ein/api';
 import { DialogActions, RoutePanel, StatTile } from '@ein/ui/components';
 import { useModuleReference, usePolledCommand, useSurface } from '@ein/ui/hooks';
-import { formatUptime } from '@ein/ui/lib';
+import { formatDate, formatDateTime, formatUptime } from '@ein/ui/lib';
 import { panelRoute, panelsOf } from '@ein/ui/signals';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -19,11 +19,11 @@ export const ABOUT_WIDTH = 1040;
 const day = (iso: string) => {
   const date = new Date(iso);
   const year = date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric';
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year });
+  return formatDate(date, { day: 'numeric', month: 'short', year });
 };
 
 /** `9 Oct, 14:02`. */
-const moment = (at: number) => new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const moment = (at: number) => formatDateTime(at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /** The mark and the name, for the hat field in all of the mark's colours: the dialog's hero band (the route's `handle`), the page's own. */
 export function AboutHero() {
@@ -131,7 +131,7 @@ export default function AboutPage() {
               value={info.version}
               hint={info.build ? `${info.build.commit}, ${day(info.build.date)}` : undefined}
               accent={MARK_COLORS[0]}
-              tooltip={info.build ? `Built from commit ${info.build.commit} of ${new Date(info.build.date).toLocaleString()}` : undefined}
+              tooltip={info.build ? `Built from commit ${info.build.commit} of ${formatDateTime(info.build.date)}` : undefined}
             />
             <StatTile
               label='Module API'

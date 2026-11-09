@@ -1,3 +1,5 @@
+import { formatDate } from './datetime.ts';
+
 /**
  * Share links in the browser: the address one is sent as, and which pages a visitor holding one may
  * see without signing in.
@@ -45,7 +47,7 @@ export const LINK_EXPIRIES: { label: string; days: number | null }[] = [
 
 /** A day as the dialog writes it: `11 Nov`, and the year too when it is not this one. */
 const shortDate = (at: number, now: number): string =>
-  new Date(at).toLocaleDateString(undefined, {
+  formatDate(at, {
     day: 'numeric',
     month: 'short',
     ...(new Date(at).getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}),
