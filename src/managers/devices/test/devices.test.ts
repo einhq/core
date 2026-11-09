@@ -1,8 +1,8 @@
 /**
  * Devices on a booted EiN: the devices group's /dev, a tracker device a phone posts to with its key
  * and a GPX file is written to, a driver's readings kept and published, a device shared with someone
- * outside the group, a control written through its driver as whoever wrote it, values over HTTP, and
- * forgetting a device.
+ * outside the group, a control written through its driver as whoever wrote it, values over HTTP, a
+ * webhook device's posts kept and published, and forgetting a device.
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert';
@@ -199,6 +199,33 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       const refused = await fetch(`${baseUrl}/file/dev/lamp/switch`, { method: 'POST', headers: { cookie }, body: 'maybe' });
       assertEquals(refused.status, 400);
       await refused.body?.cancel();
+    });
+
+    await t.step("a webhook device's posts are readings on endpoints made as they come, kept and published", async () => {
+      await anna.execString("device-create 'Porch' --driver webhook --config events=button");
+      const key = await anna.execJson<DeviceKeyAnswer>('device-key porch --new --origin https://ein.example');
+      const secret = new URL(key.url!).searchParams.get('key')!;
+      await admin.execString("mkqueue -k 'dev.porch.#' /home/admin/porch");
+      const post = (body: string, query = '') =>
+        fetch(`${baseUrl}/file/dev/porch${query}`, { method: 'POST', headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' }, body });
+
+      const first = await post('{"temperature": 21.4, "button": "single", "env": {"lux": 300}}');
+      assertEquals([first.status, (await first.json()).taken], [200, 3]);
+      const again = await post('{"temperature": 21.4, "button": "single"}');
+      assertEquals((await again.json()).taken, 1, 'a repeated reading is not news, a press is');
+      const pressed = await fetch(`${baseUrl}/file/dev/porch?key=${secret}`);
+      assertEquals((await pressed.json()).taken, 1);
+
+      const info = await anna.execJson<DeviceInfo>('device-show porch');
+      assertEquals(info.endpointList.map((ep) => [ep.name, ep.type]), [['button', 'log'], ['call', 'log'], ['env-lux', 'log'], ['temperature', 'log']]);
+      assertEquals((await anna.execJson<DeviceHistory>('device-history porch/button')).readings.length, 2);
+      const queued = await admin.execString('queue-peek -n 10 /home/admin/porch');
+      for (const endpoint of ['temperature', 'button', 'env-lux', 'call']) assertStringIncludes(queued, `"endpoint":"${endpoint}"`);
+      assertStringIncludes(queued, '"device":"porch"');
+
+      const wrong = await fetch(`${baseUrl}/file/dev/porch?key=not-the-key&temperature=1`);
+      await wrong.body?.cancel();
+      assertEquals(wrong.status, 403);
     });
 
     await t.step('a member forgets a device, and nobody else does', async () => {

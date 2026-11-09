@@ -12,8 +12,8 @@ import { assertDevicesMember, fail, parseTarget, qrSvg } from './lib.ts';
 
 /**
  * A device made by a person rather than found by a driver: a phone or a GPS logger (`--driver
- * tracker`), something whose values a script writes, something a driver reaches at an address it
- * is given (`--config`). For members of the `devices` group.
+ * tracker`), something that posts its readings to a webhook (`--driver webhook`), something a
+ * driver reaches at an address it is given (`--config`). For members of the `devices` group.
  */
 export const deviceCreate = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -25,7 +25,7 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
   if (await reportUnknownFlags(cmd, unknown)) return 1;
   const typed = flags._.map(String).join(' ').trim();
   const device = deviceName(typed);
-  if (!device) return await fail(cmd, 'device-create', 'usage: device-create <name> [--driver tracker] [--class phone] [--label <text>]');
+  if (!device) return await fail(cmd, 'device-create', 'usage: device-create <name> [--driver tracker|webhook] [--class phone] [--label <text>]');
   try {
     await assertDevicesMember(cmd);
     if (!isDeviceName(device)) throw new Error(`'${device}' is core's own in ${DEV_PATH}, not a device's name`);
@@ -61,17 +61,21 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
 deviceCreate.spec = {
   name: 'device-create',
   effect: 'write' as const,
-  description: 'Make a device by hand, which no driver announces: a phone or GPS logger (--driver tracker), something a script writes values to',
+  description: 'Make a device by hand, which no driver announces: a phone or GPS logger (--driver tracker), something that posts its readings to a webhook (--driver webhook)',
   args: [{ name: 'name', type: 'string' as const, description: 'what to call it; its name under /dev is made from it' }],
   flags: [
     { name: 'label', type: 'string' as const, description: 'what its page calls it, when not the name' },
     { name: 'class', type: 'string' as const, description: 'what it is: phone, tracker, boat, car, sensor, …' },
-    { name: 'driver', type: 'string' as const, description: "the driver that reads what is written to it: tracker, or a module's (devices --drivers)" },
+    { name: 'driver', type: 'string' as const, description: "the driver that reads what is written to it: tracker, webhook, or a module's (devices --drivers)" },
     { name: 'manufacturer', type: 'string' as const, description: 'who made it' },
     { name: 'model', type: 'string' as const, description: 'its model' },
     { name: 'config', type: 'string' as const, description: 'name=value for its driver; again for each' },
   ],
-  examples: ["device-create 'Ruby phone' --driver tracker --class phone", "device-create 'Old logger' --driver tracker --class tracker --model 'eTrex 30'"],
+  examples: [
+    "device-create 'Ruby phone' --driver tracker --class phone",
+    "device-create 'Old logger' --driver tracker --class tracker --model 'eTrex 30'",
+    "device-create 'Porch' --driver webhook --class button --config events=button",
+  ],
   returns: 'DeviceCreated: device, path',
 };
 
