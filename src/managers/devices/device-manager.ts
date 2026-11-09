@@ -159,7 +159,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
 
     const by = await this.nameOf(access.uid);
     // The request is the control's attr, written as the writer: the audit's record of who switched what.
-    await this.sys.vfs.update(access, path, { attrs: { requested: { value, at: new Date().toISOString(), by } } });
+    // A state's is written before the driver runs, since the device may report the new state before
+    // the driver returns; a press has no state to wait for, so it is written once the driver took it.
+    const request = async () => await this.sys.vfs.update(access, path, { attrs: { requested: { value, at: new Date().toISOString(), by } } });
+    const momentary = node.attrs.schema?.type === 'momentary';
+    if (!momentary) await request();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
@@ -173,6 +177,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     } finally {
       clearTimeout(timer);
     }
+    if (momentary) await request();
     return { value };
   }
 

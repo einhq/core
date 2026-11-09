@@ -94,9 +94,11 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     });
 
     const writes: DriverWrite[] = [];
+    let refuse: string | undefined;
     let unregister = devices.registerDriver('stub', {
       description: 'a lamp for the test',
       async write(command: DriverWrite) {
+        if (refuse) throw new Error(refuse);
         writes.push(command);
       },
     });
@@ -166,6 +168,16 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       assertStringIncludes(await bo.execString('cat /dev/lamp/switch'), 'true');
       await bo.execString('echo toggle > /dev/lamp/switch');
       assertEquals(writes.at(-1)?.value, false);
+
+      // A press is recorded once the driver took it, not when it refused it.
+      await devices.ensureEndpoint(ADMIN_ACCESS, 'lamp', 'chime', 'control', { label: 'Chime', schema: { type: 'momentary' } });
+      refuse = 'nothing to chime';
+      await testCommands(bo).shouldFailWith('echo press > /dev/lamp/chime', 'nothing to chime');
+      const pressed = () => admin.execJson<{ attrs: { requested?: { by: string } } }>('stat /dev/lamp/chime');
+      assertEquals((await pressed()).attrs.requested, undefined);
+      refuse = undefined;
+      await bo.execString('echo press > /dev/lamp/chime');
+      assertEquals((await pressed()).attrs.requested?.by, 'bo');
 
       unregister();
       await testCommands(bo).shouldFailWith('echo on > /dev/lamp/switch', 'not running');
