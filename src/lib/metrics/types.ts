@@ -12,8 +12,10 @@ import type { DiskSample } from './disk.ts';
 import type { FileTier } from '../../registries/file/types.ts';
 import type { RuntimeSample } from './runtime.ts';
 
-export type CpuEntry = CpuSample;
-export type MemoryEntry = MemorySample;
+/** EiN's own CPU time and the cores it is shared over; the machine's is its device's (`/dev/<hostname>/cpu`). */
+export type CpuEntry = Pick<CpuSample, 'usageUsec' | 'cores'>;
+/** EiN's own memory against its cap; the machine's is its device's (`/dev/<hostname>/memory-used`). */
+export type MemoryEntry = Pick<MemorySample, 'usedBytes' | 'limitBytes'>;
 export type RuntimeEntry = RuntimeSample;
 
 export type PoolCountsEntry = { ready: number; claimed: number; done: number; failed: number };

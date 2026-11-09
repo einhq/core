@@ -16,6 +16,7 @@ import type { DiskUsage, HostMetrics, LogLine, PoolStatAnswer, SystemInfo } from
 import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
 import { UNSERVABLE_GRACE_MS, unservableKinds } from '../../../pipeline/unservable.ts';
 import { MODULE_API_VERSION } from '../../../../modules/mod.ts';
+import { thisHost } from '../../../devices/host.ts';
 
 const testCtx = createTestContext();
 let client: ShellClient;
@@ -63,17 +64,22 @@ Deno.test({
       assertEquals(host.cpu, undefined);
     });
 
-    await t.step("host-metrics gives the machine's memory beside EiN's, when the sample has it", async () => {
-      // 8 GiB machine with 2 GiB available: 6 GiB in use; EiN's container holds 1 of its 4.
-      await cmd.shouldSucceed(
-        `log-append ${seriesPath('memory')} --data '{"usedBytes":1073741824,"limitBytes":4294967296,"host":{"totalBytes":8589934592,"availableBytes":2147483648}}'`,
-      );
+    await t.step("host-metrics gives the machine's memory and CPU beside EiN's, from the machine's device", async () => {
+      // An 8 GB machine with 75% in use; EiN's container holds 1 GiB of its 4.
+      const device = `/dev/${thisHost().name}`;
+      await cmd.shouldSucceed(`mkdir -p /dev && mknode -t device ${device}`);
+      for (const [endpoint, value] of [['memory-used', 75], ['memory-total', 8], ['cpu', 40], ['load', 1.5]] as const) {
+        await cmd.shouldSucceed(`mknode -t log ${device}/${endpoint} && log-append ${device}/${endpoint} --data '{"value":${value}}'`);
+      }
+      await cmd.shouldSucceed(`mknode -t log ${seriesPath('cpu')} && log-append ${seriesPath('cpu')} --data '{"usageUsec":1000,"cores":4}'`);
 
       const host = await client.execJson<HostMetrics>('host-metrics');
       assertEquals(host.memory?.percent, 25);
       assertEquals(host.memory?.machine?.percent, 75);
-      assertEquals(host.memory?.machine?.usedBytes, 6442450944);
-      assertEquals(host.memory?.machine?.totalBytes, 8589934592);
+      assertEquals(host.memory?.machine?.usedBytes, 6e9);
+      assertEquals(host.memory?.machine?.totalBytes, 8e9);
+      assertEquals([host.cpu?.percent, host.cpu?.load1, host.cpu?.cores], [40, 1.5, 4]);
+      assertEquals(host.cpu?.series.map((point) => point.value), [40]);
     });
 
     await t.step("host-metrics reports the event loop's lag once the runtime series has entries", async () => {

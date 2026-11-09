@@ -2,24 +2,16 @@
  * host-metrics — the machine's CPU and memory (and this container's share of each),
  * and how late the event loop runs, each now and with its recent history. The media service's GPU is ems's (`ems-gpu`).
  *
- * Read back from `metrics-sampler`'s series (see ./lib.ts), so it answers the same on a laptop
- * in a harness with no cgroup and before the sampler has ticked: an absent source is an absent
- * field, not a zero.
+ * The machine's figures are its device's readings (`/dev/<hostname>`), EiN's own share and the lag
+ * `metrics-sampler`'s series (see ./lib.ts); both are what the sampler wrote, so this answers the
+ * same on a laptop in a harness with no cgroup and before the sampler has ticked: an absent source
+ * is an absent field, not a zero.
  */
 
 import { parseArgs } from '../../../../lib/args/mod.ts';
-import {
-  type CpuEntry,
-  cpuPercent,
-  downsample,
-  hostCpuPercent,
-  type MemoryEntry,
-  percent,
-  type RuntimeEntry,
-  type Sample,
-  TICK_MS,
-  within,
-} from '../../../../lib/metrics/mod.ts';
+import { type CpuEntry, cpuPercent, type MemoryEntry, percent, type RuntimeEntry, TICK_MS, within } from '../../../../lib/metrics/mod.ts';
+import { deviceHistory } from '../../../devices/read.ts';
+import { thisHost } from '../../../devices/host.ts';
 import type { HostMetrics, MetricPoint } from '../../../../lib/api/system.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -37,61 +29,64 @@ const windowFlag = (value: string | undefined): number => value ? Math.max(MINUT
  */
 const rowsFor = (windowMs: number): number => Math.min(1600, Math.ceil(windowMs / TICK_MS) * 2 + 2);
 
-/**
- * The machine's CPU as a rolling series: each point is the utilization between it and the
- * point before, which is the only thing a cumulative counter can say.
- */
-const cpuSeries = (samples: Sample<CpuEntry>[]): MetricPoint[] => {
-  const thinned = downsample(samples, POINTS + 1);
-  const points: MetricPoint[] = [];
-
-  for (let i = 1; i < thinned.length; i++) {
-    const value = hostCpuPercent([thinned[i - 1], thinned[i]]);
-    if (value !== undefined) points.push({ at: thinned[i].at, value });
+/** One of this machine's device readings: its latest value, and its history over `windowMs` averaged into chart points. */
+const machineReading = async (cmd: Command, endpoint: string, windowMs: number): Promise<{ now?: number; series: MetricPoint[] }> => {
+  const device = thisHost().name;
+  try {
+    const [latest, history] = await Promise.all([
+      deviceHistory(cmd.sys.vfs, cmd.access, device, endpoint, { limit: 1 }),
+      deviceHistory(cmd.sys.vfs, cmd.access, device, endpoint, {
+        since: new Date(Date.now() - windowMs),
+        limit: POINTS,
+        bucket: { seconds: Math.max(TICK_MS / 1000, Math.ceil(windowMs / 1000 / POINTS)), aggregate: 'avg' },
+      }),
+    ]);
+    const value = latest.readings.at(-1)?.value;
+    const series = history.readings.flatMap((reading) => typeof reading.value === 'number' ? [{ at: Date.parse(reading.at), value: reading.value }] : []);
+    return { now: typeof value === 'number' ? value : undefined, series };
+  } catch {
+    // No device yet, or not one this account may read.
+    return { series: [] };
   }
-
-  return points;
 };
 
 export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_WINDOW_MS): Promise<HostMetrics> => {
   const rows = rowsFor(windowMs);
-  const [cpuAll, memoryAll, runtimeAll] = await Promise.all([
+  const [cpuAll, memoryAll, runtimeAll, machineCpu, machineLoad, machineMemory, machineTotal] = await Promise.all([
     readSeries<CpuEntry>(cmd, 'cpu', rows),
     readSeries<MemoryEntry>(cmd, 'memory', rows),
     readSeries<RuntimeEntry>(cmd, 'runtime', rows),
+    machineReading(cmd, 'cpu', windowMs),
+    machineReading(cmd, 'load', MINUTE),
+    machineReading(cmd, 'memory-used', windowMs),
+    machineReading(cmd, 'memory-total', MINUTE),
   ]);
 
   const cpuNow = latest(cpuAll);
   const cpu = cpuNow
     ? {
+      percent: machineCpu.now,
       // The last pair, not the window average: "CPU now" means the interval
       // that just elapsed. One sampling interval is a wide enough span for a
       // microsecond counter (see GAUGE_MIN_SPAN_MS).
-      percent: hostCpuPercent(cpuAll.slice(-2)),
       ownPercent: cpuPercent(cpuAll.slice(-2)),
       cores: cpuNow.cores,
-      load1: cpuNow.load1,
-      series: cpuSeries(within(cpuAll, windowMs)),
+      load1: machineLoad.now,
+      series: machineCpu.series,
     }
     : undefined;
 
   const memoryNow = latest(memoryAll);
-  const machineUsed = (entry: MemoryEntry) => (entry.host ? entry.host.totalBytes - entry.host.availableBytes : undefined);
+  // The machine's total is in GB, as its device keeps it.
+  const totalBytes = machineTotal.now !== undefined ? machineTotal.now * 1e9 : undefined;
   const memory = memoryNow
     ? {
       usedBytes: memoryNow.usedBytes,
       limitBytes: memoryNow.limitBytes,
       percent: percent(memoryNow.usedBytes, memoryNow.limitBytes),
       series: toPoints(within(memoryAll, windowMs), (entry) => percent(entry.usedBytes, entry.limitBytes)),
-      ...(memoryNow.host
-        ? {
-          machine: {
-            usedBytes: machineUsed(memoryNow)!,
-            totalBytes: memoryNow.host.totalBytes,
-            percent: percent(machineUsed(memoryNow)!, memoryNow.host.totalBytes)!,
-            series: toPoints(within(memoryAll, windowMs), (entry) => entry.host ? percent(machineUsed(entry)!, entry.host.totalBytes) : undefined),
-          },
-        }
+      ...(machineMemory.now !== undefined && totalBytes !== undefined
+        ? { machine: { usedBytes: Math.round(totalBytes * machineMemory.now / 100), totalBytes, percent: machineMemory.now, series: machineMemory.series } }
         : {}),
     }
     : undefined;

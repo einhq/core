@@ -15,6 +15,10 @@
  * it would hold `pools`, and the unservable-kind alarm fed from it, back for as
  * long.
  *
+ * The machine's own readings — all its CPU and memory, its disks, its temperatures — are not
+ * series but its device's, `/dev/<hostname>` (`HostDevice`), where they have the device page's
+ * history and publish on `dev.<hostname>.*` for rules. The series keep EiN's own share.
+ *
  * Long-running, so exempt from JSON output — like pipeline-engine and
  * relations-guard, it owns its stdout as a service log.
  */
@@ -31,10 +35,15 @@ import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { deferred } from '../../../../lib/async/deferred.ts';
 import { type Kind, kindConditions, NOT_DERIVED } from '../../../../lib/kinds/mod.ts';
 import { createLogger } from '../../../logger/mod.ts';
+import { HostDevice } from '../../../devices/host.ts';
 import { countLive } from '../pipeline/pipeline-overview.ts';
 import type { PrunedCompletedAttrs } from '../pipeline/pipeline-prune.ts';
 import {
+  type CpuEntry,
   type DiskEntry,
+  hostCpuPercent,
+  type HostCpuTicks,
+  type MemoryEntry,
   METRICS_PATH,
   METRICS_SERIES,
   type MetricsSeries,
@@ -43,10 +52,17 @@ import {
   type PipelinesEntry,
   type PoolCountsEntry,
   type PoolsEntry,
+  type Sample,
   sampleCpu,
   sampleDisk,
+  sampleHostMemory,
+  sampleHostTicks,
+  sampleLoad,
   sampleMemory,
   sampleRuntime,
+  sampleTemperatures,
+  sampleUptime,
+  sampleVolumes,
   seriesPath,
   startLoopLagProbe,
   stopLoopLagProbe,
@@ -398,10 +414,14 @@ const sampleNodes = async (cmd: Command): Promise<NodesEntry | undefined> => {
 
 const sample = async (cmd: Command, name: MetricsSeriesName): Promise<unknown | undefined> => {
   switch (name) {
-    case 'cpu':
-      return await sampleCpu();
-    case 'memory':
-      return await sampleMemory();
+    case 'cpu': {
+      const cpu = await sampleCpu();
+      return cpu && ({ usageUsec: cpu.usageUsec, cores: cpu.cores } satisfies CpuEntry);
+    }
+    case 'memory': {
+      const memory = await sampleMemory();
+      return memory && ({ usedBytes: memory.usedBytes, limitBytes: memory.limitBytes } satisfies MemoryEntry);
+    }
     case 'runtime':
       return sampleRuntime();
     case 'pools':
@@ -473,9 +493,58 @@ const append = async (cmd: Command, name: string, value: unknown): Promise<void>
   }
 };
 
-/** Core's series, each with how to read it. A module keeps its own series in a service of its own. */
-const allSeries = (cmd: Command): (MetricsSeries & { read: () => Promise<unknown | undefined> })[] =>
-  METRICS_SERIES.map((series) => ({ ...series, read: () => sample(cmd, series.name as MetricsSeriesName) }));
+/** Something the sampler does on a cadence: one series, or some of the machine's readings. */
+type Job = { name: string; intervalMs: number; run: () => Promise<void> };
+
+/** Core's series, each read and appended to its log. A module keeps its own series in a service of its own. */
+const seriesJobs = (cmd: Command, ensured: Set<string>): Job[] =>
+  METRICS_SERIES.map((series) => ({
+    name: series.name,
+    intervalMs: series.intervalMs,
+    run: async () => {
+      const value = await sample(cmd, series.name as MetricsSeriesName);
+      // A probe with no source appends nothing. A run of null rows would
+      // read as "the GPU was idle" rather than "there is no GPU".
+      if (value === undefined) return;
+
+      if (!ensured.has(series.name)) {
+        await ensureSeries(cmd, series);
+        ensured.add(series.name);
+      }
+
+      await append(cmd, series.name, value);
+    },
+  }));
+
+/**
+ * The machine's readings, written to its device (`HostDevice`): what moves within seconds on the
+ * series' shortest cadence, its disks, uptime and total memory every quarter hour. The CPU is the share of the
+ * machine's ticks busy since the reading before.
+ */
+const hostJobs = (host: HostDevice): Job[] => {
+  let lastTicks: Sample<{ host: HostCpuTicks }> | undefined;
+  return [
+    {
+      name: 'host',
+      intervalMs: TICK_MS,
+      run: async () => {
+        const [ticks, temperatures] = await Promise.all([sampleHostTicks(), sampleTemperatures()]);
+        const now = ticks ? { at: Date.now(), value: { host: ticks } } : undefined;
+        const cpu = lastTicks && now ? hostCpuPercent([lastTicks, now]) : undefined;
+        if (now) lastTicks = now;
+        await host.write({ cpu, load: sampleLoad(), memory: sampleHostMemory(), temperatures });
+      },
+    },
+    {
+      name: 'host-disks',
+      intervalMs: 15 * 60_000,
+      run: async () => {
+        const [volumes, uptimeSeconds] = await Promise.all([sampleVolumes(), sampleUptime()]);
+        await host.write({ volumes, uptimeSeconds, memoryTotalBytes: sampleHostMemory()?.totalBytes });
+      },
+    },
+  ];
+};
 
 /**
  * Start every series that is due and not still running from an earlier tick.
@@ -509,35 +578,24 @@ export const metricsSampler = async (cmd: Command): CmdReturn => {
   const due = new Map<string, number>();
   const inFlight = new Map<string, Promise<void>>();
   const ensured = new Set<string>();
+  const host = cmd.sys.devices ? new HostDevice({ vfs: cmd.sys.vfs, devices: cmd.sys.devices }) : undefined;
+  const jobs = [...seriesJobs(cmd, ensured), ...(host ? hostJobs(host) : [])];
+  const byName = new Map(jobs.map((job) => [job.name, job]));
 
   // Started here rather than on the first sample so the first window is a full
   // interval; `sampleRuntime` would otherwise drain an empty one and skip the
   // first row.
   startLoopLagProbe();
 
-  await cmd.write(`metrics-sampler running (tick ${tickMs / 1000}s, ${allSeries(cmd).length} series)\n`);
+  await cmd.write(`metrics-sampler running (tick ${tickMs / 1000}s, ${METRICS_SERIES.length} series${host ? `, device ${host.name}` : ''})\n`);
 
   const stopped = deferred<void>();
   cmd.onInterrupt(() => stopped.resolve());
 
   while (!stopped.isFinished()) {
-    const series = allSeries(cmd);
-    const byName = new Map(series.map((entry) => [entry.name, entry]));
-
-    startDueSeries(series, Date.now(), due, inFlight, async (name) => {
-      const entry = byName.get(name)!;
+    startDueSeries(jobs, Date.now(), due, inFlight, async (name) => {
       try {
-        const value = await entry.read();
-        // A probe with no source appends nothing. A run of null rows would
-        // read as "the GPU was idle" rather than "there is no GPU".
-        if (value === undefined) return;
-
-        if (!ensured.has(name)) {
-          await ensureSeries(cmd, entry);
-          ensured.add(name);
-        }
-
-        await append(cmd, name, value);
+        await byName.get(name)!.run();
       } catch (error) {
         logger.warn('sample failed', { series: name, error: (error as Error).message });
       }
@@ -566,7 +624,7 @@ metricsSampler.spec = {
   effect: 'write' as const,
   daemon: true,
   json: false,
-  description: 'Sample host, storage and workload metrics into /var/logs/metrics (long-running)',
+  description: "Sample EiN's own resources, storage and workload into /var/logs/metrics, and the machine's readings into its device /dev/<hostname> (long-running)",
   args: [],
   flags: [
     { name: 'interval', type: 'string' as const, description: 'Seconds between ticks (default: shortest series cadence)' },

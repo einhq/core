@@ -33,6 +33,7 @@ import { ControlValueError, parseControlValue } from './control-value.ts';
 import { decide, type Published } from './throttle.ts';
 import type { AppendOptions, Driver, DriverAnswer, ModuleDevices } from './types.ts';
 import { webhookDriver } from './webhook.ts';
+import { HOST_DRIVER, hostDriver } from './host.ts';
 
 const logger = createLogger('devices');
 
@@ -87,6 +88,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   constructor(private readonly sys: { vfs: NodeVFS; routerManager: RouterManagerIf }) {
     this.registerDriver('tracker', trackerDriver(this));
     this.registerDriver('webhook', webhookDriver(this));
+    this.registerDriver(HOST_DRIVER, hostDriver);
   }
 
   /** Stop what waits to be published. */

@@ -1,5 +1,5 @@
 /**
- * Host resource probes — CPU and memory as the kernel reports them.
+ * Host resource probes — CPU, memory, temperatures and uptime as the kernel reports them.
  *
  * EiN runs in a container, where `/proc/meminfo` and `/proc/stat` are the *host's* numbers and
  * cgroup v2 files are this container's. Both are kept, for memory as for CPU: the machine's, because
@@ -17,7 +17,7 @@ const readText = async (path: string): Promise<string | undefined> => {
   try {
     return await Deno.readTextFile(path);
   } catch {
-    // Not a cgroup v2 host, or the file is unreadable. Absent, not zero.
+    // Not a cgroup v2 host, no such sensor, or the file is unreadable. Absent, not zero.
     return undefined;
   }
 };
@@ -70,22 +70,73 @@ export const parseProcStat = (text: string): HostCpuTicks | undefined => {
   return { busy: total - ticks[3] - ticks[4], total };
 };
 
+/** The machine's CPU ticks from `/proc/stat`; absent where it is unreadable. */
+export const sampleHostTicks = async (): Promise<HostCpuTicks | undefined> => {
+  const stat = await readText('/proc/stat');
+  return stat === undefined ? undefined : parseProcStat(stat);
+};
+
+/** The machine's 1-minute load average; absent without --allow-sys. */
+export const sampleLoad = (): number | undefined => {
+  try {
+    return Deno.loadavg()[0];
+  } catch {
+    return undefined;
+  }
+};
+
 export const sampleCpu = async (): Promise<CpuSample | undefined> => {
-  const [text, stat] = await Promise.all([readText(`${CGROUP}/cpu.stat`), readText('/proc/stat')]);
+  const [text, host] = await Promise.all([readText(`${CGROUP}/cpu.stat`), sampleHostTicks()]);
   if (text === undefined) return undefined;
 
   const usageUsec = flatKey(text, 'usage_usec');
   if (usageUsec === undefined) return undefined;
-  const host = stat === undefined ? undefined : parseProcStat(stat);
 
-  let load1: number | undefined;
+  return { usageUsec, ...(host ? { host } : {}), cores: navigator.hardwareConcurrency, load1: sampleLoad() };
+};
+
+/** One of the machine's thermal zones: what the kernel calls it (`x86_pkg_temp`, `acpitz`) and its temperature. */
+type TemperatureSample = { zone: string; celsius: number };
+
+const THERMAL = '/sys/class/thermal';
+
+/** Every thermal zone that reads, in the kernel's order; none where sysfs is not there. */
+export const sampleTemperatures = async (): Promise<TemperatureSample[]> => {
+  const zones: string[] = [];
   try {
-    load1 = Deno.loadavg()[0];
+    for await (const entry of Deno.readDir(THERMAL)) {
+      if (entry.name.startsWith('thermal_zone')) zones.push(entry.name);
+    }
   } catch {
-    // --allow-sys not granted; the counter alone is still useful.
+    return [];
   }
+  zones.sort((a, b) => Number(a.slice('thermal_zone'.length)) - Number(b.slice('thermal_zone'.length)));
 
-  return { usageUsec, ...(host ? { host } : {}), cores: navigator.hardwareConcurrency, load1 };
+  const samples: TemperatureSample[] = [];
+  for (const zone of zones) {
+    const [type, temp] = await Promise.all([readText(`${THERMAL}/${zone}/type`), readText(`${THERMAL}/${zone}/temp`)]);
+    // Millidegrees; a zone whose sensor is off answers with an error, which reads as absent.
+    const milli = Number(temp?.trim());
+    if (!type?.trim() || temp === undefined || !Number.isFinite(milli)) continue;
+    samples.push({ zone: type.trim(), celsius: milli / 1000 });
+  }
+  return samples;
+};
+
+/** Seconds since the machine booted, from `/proc/uptime`, which a container shares with its host. */
+export const sampleUptime = async (): Promise<number | undefined> => {
+  const seconds = Number((await readText('/proc/uptime'))?.split(' ')[0]);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+};
+
+/** The machine's memory and how much of it is available, as `/proc/meminfo` says; absent without --allow-sys. */
+export const sampleHostMemory = (): MemorySample['host'] => {
+  try {
+    const info = Deno.systemMemoryInfo();
+    return { totalBytes: info.total, availableBytes: info.available };
+  } catch {
+    return undefined;
+  }
 };
 
 export const sampleMemory = async (): Promise<MemorySample | undefined> => {
@@ -100,13 +151,7 @@ export const sampleMemory = async (): Promise<MemorySample | undefined> => {
   let limitBytes = max !== undefined && max !== 'max' ? Number(max) : undefined;
   if (limitBytes !== undefined && !Number.isFinite(limitBytes)) limitBytes = undefined;
 
-  let host: MemorySample['host'];
-  try {
-    const info = Deno.systemMemoryInfo();
-    host = { totalBytes: info.total, availableBytes: info.available };
-  } catch {
-    // --allow-sys not granted; the container's numbers alone are still useful.
-  }
+  const host = sampleHostMemory();
   limitBytes ??= host?.totalBytes;
 
   return { usedBytes, limitBytes, ...(host ? { host } : {}) };

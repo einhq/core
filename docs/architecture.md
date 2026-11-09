@@ -1204,7 +1204,9 @@ cuts a device's track into trips and owns `/archive/locations` and every command
 **Devices** are core's too (`src/managers/devices/`): a `device` node at `/dev/<device>`, its
 endpoints the `log`, `track` and `control` nodes under it. A driver turns the device's raw input
 and output into its endpoints: core's `tracker` (every protocol `tracker-protocols.ts` reads, GPX
-files included, into a `position` track) or a module's, registered by the module's service with
+files included, into a `position` track), `webhook`, `host` (the machine EiN runs on,
+`/dev/<hostname>`, in the administrators' group, whose readings `metrics-sampler` writes through
+`host.ts`) or a module's, registered by the module's service with
 `cmd.sys.devices.registerDriver` (`@ein/client`'s `Driver`). The VFS hands what is written to a
 device to `DeviceManager.input`, its driver's `input`, and what is written to a control to
 `DeviceManager.command`, which checks it against the control's `schema`, records it as the
