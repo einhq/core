@@ -155,7 +155,8 @@ something floating over every page, the drawer and the lightbox and under a dial
 whole app by `FloatHost` in a layer of no size of its own, so the panel places what it draws itself (`position: fixed`)
 and follows the node on screen with `useShownNode` — the picture in the lightbox, else what the page declares with
 `usePageSubject`; `device.tabs`, a tab of a device's page after its own, whose route gets the device's path
-(`/dev/<device>`) for `{path}` (archive's Trips). An entry's `when: { has: <node type> }` keeps it to a node with a
+(`/dev/<device>`) for `{path}` (archive's Trips); `devices.header`, a button in the Devices page's header
+beside its filters, which draws nothing while it has nothing to say (automation's devices found on the network). An entry's `when: { has: <node type> }` keeps it to a node with a
 child of that type, where the slot has a node: archive's Trips only on a device with a `track`. The page draws each
 with `RoutePanel` (`components/Surface/`), the surface router of the dialog and the drawer with a
 `panel` kind: no frame of its own, and a navigation that leaves the route opens on the page. A route

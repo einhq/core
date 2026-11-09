@@ -10,10 +10,12 @@ import {
   HeaderStats,
   ListFilterInput,
   PageLoader,
+  RoutePanel,
   TablerIcon,
 } from '@ein/ui/components';
 import { countOf, matchesText } from '@ein/ui/lib';
 import { usePersistedState, usePolledCommand, useUrlParam } from '@ein/ui/hooks';
+import { panelRoute, panelsOf } from '@ein/ui/signals';
 import type { DeviceSummary } from '@ein/api';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,7 +28,11 @@ type DeviceSort = 'name' | 'recent';
 const descriptionOf = (device: DeviceSummary): string =>
   device.main ? `${device.main.label}: ${readingText(device.main.value, device.main.unit)}` : [device.manufacturer, device.model].filter(Boolean).join(' ');
 
-/** Every device under `/dev` the reader may see, as cards: online or not, and its main value. */
+/**
+ * Every device under `/dev` the reader may see, as cards: online or not, and its main value. The
+ * header carries the modules' `devices.header` panels, beside the filters: automation's devices
+ * found on the network.
+ */
 export default function DevicesPage() {
   const [search, setSearch] = useUrlParam('q');
   const [scope, setScope] = usePersistedState<Scope>('devices.list.scope', 'all');
@@ -54,6 +60,7 @@ export default function DevicesPage() {
         flowContent
         controls={
           <HeaderFilterBar input={<ListFilterInput value={search} onChange={setSearch} what='devices' />}>
+            {panelsOf('devices.header').map((panel) => <RoutePanel key={panel.id} path={panelRoute(panel)} loading={null} failed={null} />)}
             <HeaderChoices>
               <HeaderChoice
                 label='Show'
