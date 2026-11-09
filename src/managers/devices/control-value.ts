@@ -1,6 +1,6 @@
 /**
  * What a control takes, read from what was written to it: `on` for a switch, `21.5` for a setpoint,
- * a word from a mode's options. A value its schema does not take is refused with why, so the writer
+ * a word from a mode's options, `#ff8000` for a colour. A value its schema does not take is refused with why, so the writer
  * hears it from its write.
  */
 
@@ -16,6 +16,16 @@ export class ControlValueError extends Error {
 
 const TRUE_WORDS = new Set(['on', 'true', '1', 'yes']);
 const FALSE_WORDS = new Set(['off', 'false', '0', 'no']);
+
+/** Red, green and blue of a colour written as `#rrggbb`, `rrggbb` or `r,g,b`. */
+const colorOf = (word: string): number[] | undefined => {
+  const hex = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(word);
+  if (hex) return hex.slice(1).map((part) => parseInt(part, 16));
+  const parts = word.split(',').map((part) => part.trim());
+  if (parts.length !== 3 || parts.some((part) => !/^\d{1,3}$/.test(part))) return undefined;
+  const rgb = parts.map(Number);
+  return rgb.every((part) => part <= 255) ? rgb : undefined;
+};
 
 /**
  * `text` as `schema` takes it. `toggle` turns a switch to the other of `current`, the state the
@@ -51,6 +61,11 @@ export const parseControlValue = (schema: ControlSchema, text: string, current?:
     case 'text':
       if (word === '') throw new ControlValueError('takes a line of text, not nothing');
       return word;
+    case 'color': {
+      const rgb = colorOf(word);
+      if (!rgb) throw new ControlValueError(`takes a colour as #rrggbb or r,g,b, not '${word}'`);
+      return `#${rgb.map((part) => part.toString(16).padStart(2, '0')).join('')}`;
+    }
     case 'momentary':
       if (word !== '' && word !== 'press') throw new ControlValueError(`is pressed, with press, not '${word}'`);
       return 'press';

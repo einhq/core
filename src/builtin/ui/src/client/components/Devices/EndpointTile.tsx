@@ -1,4 +1,4 @@
-import { ActionIcon, Anchor, Box, Button, Card, Group, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Anchor, Box, Button, Card, ColorInput, Group, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import type { ControlSchema, DeviceHistory, DeviceValue, EndpointSummary } from '@ein/api';
@@ -261,6 +261,7 @@ function ControlTile({ endpoint, onChanged }: TileProps) {
           />
         )}
         {schema.type === 'text' && <TextControl shown={shown} label={endpoint.label} disabled={disabled} onSet={write} />}
+        {schema.type === 'color' && <ColorControl shown={shown} label={endpoint.label} disabled={disabled} onSet={write} />}
         {schema.type === 'momentary' && (
           <Button
             size='compact-sm'
@@ -356,6 +357,32 @@ function TextControl({ shown, label, disabled, onSet }: { shown: DeviceValue | u
         aria-label={label}
       />
       <Button size='xs' variant='light' disabled={disabled || !changed} onClick={() => onSet(draft)}>Set</Button>
+    </Group>
+  );
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** A colour to set: picked, written when let go, or typed as `#rrggbb` and written with Set or Enter. */
+function ColorControl({ shown, label, disabled, onSet }: { shown: DeviceValue | undefined; label: string; disabled: boolean; onSet: (value: string) => void }) {
+  const current = typeof shown === 'string' && HEX.test(shown) ? shown.toLowerCase() : '';
+  const [draft, setDraft] = useState(current);
+  useEffect(() => setDraft(current), [current]);
+  const changed = (value: string) => HEX.test(value) && value.toLowerCase() !== current;
+  return (
+    <Group gap='xs' wrap='nowrap'>
+      <ColorInput
+        style={{ flex: 1 }}
+        size='xs'
+        format='hex'
+        value={draft}
+        onChange={setDraft}
+        onChangeEnd={(value) => changed(value) && onSet(value)}
+        onKeyDown={(event) => event.key === 'Enter' && changed(draft) && onSet(draft)}
+        disabled={disabled}
+        aria-label={label}
+      />
+      <Button size='xs' variant='light' disabled={disabled || !changed(draft)} onClick={() => onSet(draft)}>Set</Button>
     </Group>
   );
 }

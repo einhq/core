@@ -32,6 +32,14 @@ Deno.test('a choice, a line and a press', () => {
   assertThrows(() => parseControlValue({ type: 'momentary' }, 'on'), ControlValueError, 'press');
 });
 
+Deno.test('a colour is #rrggbb, however it was written', () => {
+  assertEquals(parseControlValue({ type: 'color' }, '#FF8000'), '#ff8000');
+  assertEquals(parseControlValue({ type: 'color' }, 'ff8000'), '#ff8000');
+  assertEquals(parseControlValue({ type: 'color' }, '255, 128, 0'), '#ff8000');
+  assertThrows(() => parseControlValue({ type: 'color' }, 'orange'), ControlValueError, '#rrggbb');
+  assertThrows(() => parseControlValue({ type: 'color' }, '256,0,0'), ControlValueError, '#rrggbb');
+});
+
 Deno.test('a reading is published when it changes, a number no oftener than its interval', () => {
   assertEquals(decide(undefined, 1, 0, 10_000), { publish: 'now' });
   assertEquals(decide({ value: 1, at: 0 }, 1, 50_000, 10_000), { publish: 'no' });

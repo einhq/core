@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.5
+MODULE_API_VERSION 0.14.6
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -1022,7 +1022,7 @@ src/lib/api/mod.ts ConfigType f8216ab000f1
 src/lib/api/mod.ts ContainerListing 21d4642769fa members=71968da5e5fb,truncated=ee81b8046300
 src/lib/api/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797ebe,memberPath=c769fc41a1c3,path=3fd20668ef6e,stackCount=a48b3d338e26
 src/lib/api/mod.ts ControlRequest 3e79bf6ea0d2 at=f9e6ea108483,by=2e436585632a,value=c9bb9f40efa8
-src/lib/api/mod.ts ControlSchema 12a050b58924
+src/lib/api/mod.ts ControlSchema b66a14ae7495
 src/lib/api/mod.ts CrawlCoverage dd91f9013e82 candidates=b2ccc562f3d9,covered=e7fd72745b72,etaMs=4335b7111c73,kinds=47ee7f719d18,perHour=44ea6a464925,pipeline=4d16cdec526e,remaining=9e09cd4b5df6
 src/lib/api/mod.ts DEVICES_GROUPNAME d4c3ad057218
 src/lib/api/mod.ts DatabaseTable 61fba3aa4efc bytes=23e3d4379f17,name=6d0c36381511

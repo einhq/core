@@ -24,6 +24,7 @@ export const ENDPOINT_TYPES: readonly EndpointType[] = ['log', 'track', 'control
  * - `number` — a number, within `min` and `max`, a multiple of `step` from `min`
  * - `enum` — one of `options`
  * - `text` — any line
+ * - `color` — a colour, `#rrggbb` (`#ff8000`)
  * - `momentary` — a press with no state: a restart, a doorbell's chime (`press`)
  */
 export type ControlSchema =
@@ -31,6 +32,7 @@ export type ControlSchema =
   | { type: 'number'; min?: number; max?: number; step?: number }
   | { type: 'enum'; options: string[] }
   | { type: 'text' }
+  | { type: 'color' }
   | { type: 'momentary' };
 
 /** What an endpoint is about when it is not what the device is for: its own temperature, a setting. */
