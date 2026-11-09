@@ -88,6 +88,8 @@ function useLastDay(device: string, endpoint: EndpointSummary): Fix[] | undefine
   const [fixes, setFixes] = useState<Fix[]>();
   const lastAt = endpoint.track?.lastAt;
   useEffect(() => {
+    // Another device's fixes are not this one's, while its own are on their way or when it has none.
+    setFixes(undefined);
     if (!lastAt) return;
     let cancelled = false;
     const since = new Date(Date.parse(lastAt) - 86_400_000).toISOString();
@@ -121,7 +123,7 @@ const motionText = (fix: Fix, deviceClass?: string): string =>
 function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
   const fixes = useLastDay(device, endpoint);
   const points = endpoint.track?.points ?? 0;
-  const last = fixes?.at(-1);
+  const last = points > 0 ? fixes?.at(-1) : undefined;
   const motion = last ? motionText(last, deviceClass) : '';
   const [mapOpen, setMapOpen] = useState(false);
   const isNarrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
