@@ -74,8 +74,9 @@ export interface ModuleDevices {
   ensureDevice(access: Access, name: string, attrs: Partial<DeviceAttrs>): Promise<string>;
   /**
    * The device's endpoint `name` of `type`, made when it is missing, the attrs given set where they
-   * differ, a label only when it is made, as a device's. `mode` is its mode when made, for the users
-   * group unless said: a reading `0640`, a track `0750`, a control `0660`. Answers its path.
+   * differ, a label only when it is made, as a device's. `mode` is its mode when made, for its
+   * device's owner and group, unless said: a reading's and a control's `0660`, a track's `0770`.
+   * Answers its path.
    */
   ensureEndpoint(access: Access, device: string, name: string, type: EndpointType, attrs: EndpointAttrs, mode?: number): Promise<string>;
   /** Remove one endpoint of a device and its history: one the device no longer has, or one of another type now. */
