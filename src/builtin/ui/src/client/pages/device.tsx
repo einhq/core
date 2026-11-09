@@ -277,6 +277,7 @@ export default function DevicePage() {
       <EntityDetailHeader
         title={info.label}
         pattern='device'
+        flowContent
         actions={{ share: info.path }}
         subtitle={[info.manufacturer, info.model].filter(Boolean).join(' ') || undefined}
         meta={
