@@ -318,9 +318,10 @@ Some of what a module brings is found by where it is, not by a field:
 | `deno.jsonc`              | generated from `mod.json` by `deno task sync:modules`; never edited                                   |
 
 A module's own figures on the system dashboard need no field either: the module samples them in a
-service of its own into a metrics log or a device's readings, reads them back with a command, and
-draws them in a `system.overview` panel from its `ui/nav.json`. ems's GPU tiles are made that way
-(`ems-sampler` writing the media service machine's device, `ems-gpu`, `ui/pages/gpu.tsx`).
+service of its own into a metrics log, reads them back with a command, and draws them in a
+`system.overview` panel from its `ui/nav.json`. A machine needs not even that: a device of class
+`host` or `storage` with a machine's readings is drawn among the overview's machines, as ems's
+`/dev/ems` is.
 
 A node type with members of its own rules needs no field either. `search --under <node>` and core's
 `members <node>` run `members-<type>` for the node's type when a command of that name is on `PATH`,

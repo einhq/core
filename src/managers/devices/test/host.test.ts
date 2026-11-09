@@ -87,6 +87,12 @@ Deno.test({ name: 'the host device', sanitizeResources: false, sanitizeOps: fals
       assertEquals([node.props.gid, endpoint.props.gid, endpoint.attrs.retention], [ADMIN_GID, ADMIN_GID, '30 day']);
     });
 
+    await t.step('devices --class lists it among the machines, not among the phones', async () => {
+      const names = async (line: string) => (await admin.execJson<DeviceSummary[]>(line)).map((device) => device.name);
+      assertEquals((await names('devices --class host,storage')).includes('testbox'), true);
+      assertEquals((await names('devices --class phone')).includes('testbox'), false);
+    });
+
     await t.step('a member of the devices group does not see it', async () => {
       await admin.execString('user-create anna && user-passwd anna --new-password hunter2 && group-add-member devices anna');
       const anna = await harness.createShellClient({ username: 'anna', password: 'hunter2' });

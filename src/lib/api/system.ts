@@ -19,6 +19,8 @@ export type HostMetrics = {
   lag?: { p99Ms: number; maxMs: number; series: MetricPoint[] };
   /** False until the sampler has written anything — the UI says "warming up". */
   sampled: boolean;
+  /** The device of the machine EiN runs on (`/dev/<device>`), whose readings the machine's figures are. */
+  device: string;
 };
 
 export type StorageTier = {

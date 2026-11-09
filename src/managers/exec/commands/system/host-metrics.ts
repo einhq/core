@@ -100,7 +100,7 @@ export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_W
     }
     : undefined;
 
-  return { cpu, memory, lag, sampled: cpuAll.length > 0 || memoryAll.length > 0 || runtimeAll.length > 0 };
+  return { cpu, memory, lag, sampled: cpuAll.length > 0 || memoryAll.length > 0 || runtimeAll.length > 0, device: thisHost().name };
 };
 
 const writeHostMetrics = async (cmd: Command, { cpu, memory, lag }: HostMetrics): Promise<void> => {

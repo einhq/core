@@ -39,7 +39,7 @@ const sample = (): TopData => ({
   cpu: Array.from({ length: 300 }, (_, i) => ({ at: NOW - (300 - i) * 2000, value: 50 + 45 * Math.sin(i / 7) })),
   memory: { usedBytes: 6 * GiB, limitBytes: 8 * GiB },
   heap: { usedBytes: 300 * 1024 ** 2, limitBytes: 4 * GiB },
-  host: { sampled: true, lag: { p99Ms: 4.2, maxMs: 120, series: [] } },
+  host: { sampled: true, device: 'ripley', lag: { p99Ms: 4.2, maxMs: 120, series: [] } },
   disk: {
     tiers: [
       { tier: 'disk', path: '/files', device: '/dev/a', totalBytes: 2000 * GiB, freeBytes: 900 * GiB, usedPercent: 55, daysUntilFull: 200 },
@@ -159,7 +159,7 @@ Deno.test('top frame', async (t) => {
 
     const data = empty();
     data.cores = 4;
-    data.host = { sampled: true, cpu: { cores: 4, percent: 60, series: history.map((point) => ({ ...point, value: 60 })) } };
+    data.host = { sampled: true, device: 'ripley', cpu: { cores: 4, percent: 60, series: history.map((point) => ({ ...point, value: 60 })) } };
     const text = renderTop(data, view(), { rows: 24, cols: 80 }, { keys: true, now: NOW }).rows.map(toText).join('\n');
     assert(text.includes('60% of 4 cores'), text);
     assert(text.includes('█'), 'the graph is drawn before any reading of its own');

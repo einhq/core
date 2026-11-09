@@ -11,15 +11,19 @@ import { fail, parseTarget, valueText } from './lib.ts';
 const AGGREGATES: HistoryAggregate[] = ['avg', 'min', 'max', 'sum', 'count', 'first', 'last'];
 
 /**
- * Every device the caller may see: its name, label, whether it answers and its main value. With
- * `--drivers`, the drivers instead: core's and those modules' services have registered.
+ * Every device the caller may see: its name, label, whether it answers and its main value; with
+ * `--class`, those of the classes it names. With `--drivers`, the drivers instead: core's and those
+ * modules' services have registered.
  */
 export const devices = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
-  const flags = parseArgs(cmd.args, { boolean: ['online', 'drivers'], unknown: collectUnknownFlags(unknown) });
+  const flags = parseArgs(cmd.args, { boolean: ['online', 'drivers'], string: ['class'], unknown: collectUnknownFlags(unknown) });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
+  const classes = flags.class ? new Set(String(flags.class).split(',').map((name) => name.trim()).filter(Boolean)) : undefined;
   try {
-    const listed = (await listDevices(cmd.sys.vfs, cmd.access)).filter((device) => !flags.online || device.online === true);
+    const listed = (await listDevices(cmd.sys.vfs, cmd.access))
+      .filter((device) => !flags.online || device.online === true)
+      .filter((device) => !classes || (device.class !== undefined && classes.has(device.class)));
     if (flags.drivers) {
       const manager = cmd.sys.devices;
       const drivers: DriverSummary[] = (manager?.driverNames() ?? []).map((name) => {
@@ -59,9 +63,10 @@ devices.spec = {
   description: `Every device under ${DEV_PATH} you may see: its name, label, whether it answers and its main value; or the drivers`,
   flags: [
     { name: 'online', type: 'bool' as const, description: 'only the devices that answer now' },
+    { name: 'class', type: 'string' as const, description: 'only the devices of these classes, separated by commas: host,storage' },
     { name: 'drivers', type: 'bool' as const, description: "the drivers running now instead: core's, and those modules' services registered" },
   ],
-  examples: ['devices', 'devices --online', 'devices --drivers'],
+  examples: ['devices', 'devices --online', 'devices --class host,storage', 'devices --drivers'],
   returns: 'DeviceSummary[], or with --drivers DriverSummary[]',
 };
 

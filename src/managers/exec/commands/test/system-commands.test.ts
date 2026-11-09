@@ -79,6 +79,7 @@ Deno.test({
       assertEquals(host.memory?.machine?.usedBytes, 6 * 2 ** 30);
       assertEquals(host.memory?.machine?.totalBytes, 8 * 2 ** 30);
       assertEquals([host.cpu?.percent, host.cpu?.load1, host.cpu?.cores], [40, 1.5, 4]);
+      assertEquals(host.device, thisHost().name);
       assertEquals(host.cpu?.series.map((point) => point.value), [40]);
     });
 

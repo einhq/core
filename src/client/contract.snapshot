@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.7
+MODULE_API_VERSION 0.14.8
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -81,7 +81,6 @@ src/builtin/ui/src/client/components/mod.ts HealthBadge f2d6feab4e02 @signature=
 src/builtin/ui/src/client/components/mod.ts HealthSummary f2d6feab4e02 @signature=4816e57e7841,health=ab7089f9f1fe
 src/builtin/ui/src/client/components/mod.ts HighlightedCode 07adaf1f68d0 @signature=3416dab119ae,code=0d1e308aad30,inline=0d2a5875f6fe,language=20050587fd75
 src/builtin/ui/src/client/components/mod.ts HighlightedCodeProps ed85bdb8f111 code=622b1f0085a6,inline=4a6a98dcebd7,language=b0c414866cff
-src/builtin/ui/src/client/components/mod.ts HostMetrics 2178b6604da8 @signature=4816e57e7841,cpu=f9b43c68be00,loading=248c243176bd,memory=432760540705
 src/builtin/ui/src/client/components/mod.ts InterpretedFilter 5dd0783a42ac @signature=34b9e7273a2b,color=b015d6237c62,details=9dca06d25d84,note=4e52f48978b6,size=cb7a277af2d3
 src/builtin/ui/src/client/components/mod.ts InterpretedFilterProps 1bef5d2b7c1c color=1238f431f506,details=a4c00cfa9b62,note=384318ea4daa,size=7a7659d77da5
 src/builtin/ui/src/client/components/mod.ts LabelFacets 9378bf5885fa @signature=0296841d6ffa,chosen=008785529899,labels=b28629cde56d,onChoose=439f3fe0f95f,total=eb57c5e83067
@@ -91,6 +90,7 @@ src/builtin/ui/src/client/components/mod.ts ListFilterInputProps 105ea9da5b64 on
 src/builtin/ui/src/client/components/mod.ts LogTail aaf5538a83ec @signature=4816e57e7841,height=3a8cb7c42830,path=6f2ed93878c2
 src/builtin/ui/src/client/components/mod.ts LoginForm d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts MARKER_COLOR 1cb5ef13864c
+src/builtin/ui/src/client/components/mod.ts Machines 6edcdde47a85 @signature=d2389b7c8688,own=d475b4112119
 src/builtin/ui/src/client/components/mod.ts MapContext 0a752fffac0f
 src/builtin/ui/src/client/components/mod.ts MapMarkerSpec 1af90f134840 active=cf50bf19155a,badge=43669645ec53,color=1238f431f506,id=752fa5797ebe,label=995d88c00ff2,lat=ab04728f0de4,lng=7ef8fe750a12,onClick=5ff6a038515f,onHover=da70ae37fb27,pinNumber=56c03aa9c1f2,thumbnailUrl=9928bcd52030
 src/builtin/ui/src/client/components/mod.ts MapMarkers aff6e710a16a @signature=3cebde7a5c31,markers=93813d565bfe
@@ -128,6 +128,7 @@ src/builtin/ui/src/client/components/mod.ts NodeTypeReference d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesExplorer d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesHeaderTabs d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesPageControls d2adf16b4e60
+src/builtin/ui/src/client/components/mod.ts OwnShare 575cb27beb66 cpuPercent=19eb5faff85e,device=dc9837b78932,memoryBytes=02df4efbf9d2
 src/builtin/ui/src/client/components/mod.ts OwnerBadge c0615e973773 @signature=fca09f472f6a,owner=cf46731fc076
 src/builtin/ui/src/client/components/mod.ts PageAction ee60b08db415 button=8c3e93a08d30,color=7b5c3c3524d9,disabled=31a4a7656b0d,icon=eb7e26df3843,label=af04505f402e,lead=071d1a45205c,onClick=511b228d8079
 src/builtin/ui/src/client/components/mod.ts PageActions 30b14c43c233 edit=eefc3e347868,items=d82087f1d0e5,share=47f576b31c5b,trash=f273b3b65d47,upload=e80549765a01
@@ -1084,7 +1085,7 @@ src/lib/api/mod.ts HealthAnswer de40d03136a4 checks=48a536f48872,summary=6acb71c
 src/lib/api/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f74,service=8f8407357b77,state=7cb924224846
 src/lib/api/mod.ts HeldShareLink 77320111b197 expiresAt=7f1dc30637cf,id=752fa5797ebe,path=3fd20668ef6e,title=f6007128d157,type=e22be5ee8605
 src/lib/api/mod.ts HistoryAggregate b21795ccfd3a
-src/lib/api/mod.ts HostMetrics 50bf09d7e26e cpu=af2d62a38378,lag=df22a4b0150c,memory=3736b7daf7fa,sampled=f8c4a3271656
+src/lib/api/mod.ts HostMetrics 614dc8597492 cpu=af2d62a38378,device=dc9837b78932,lag=df22a4b0150c,memory=3736b7daf7fa,sampled=f8c4a3271656
 src/lib/api/mod.ts INSTANCE_STATUSES ce7dcbd0ac95
 src/lib/api/mod.ts ImageRendition 61adf0949bbc fit=af9b6a108f67,height=2d6643d8656a,kinds=3393d34f26c0,quality=f53f72d7683c,width=4f23b8406a01
 src/lib/api/mod.ts InstalledModule 5cad0480c24d

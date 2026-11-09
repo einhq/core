@@ -133,7 +133,7 @@ type TopbarEntry = {
 /**
  * A module's route drawn inside another page, at a place that page names (`slot`): a tool in the
  * node explorer's tool pane (`nodes.tools`, whose route gets the node's path for `{path}`), a tab
- * of the system page (`system.tabs`), gauges beside the host's on its overview
+ * of the system page (`system.tabs`), a module's own figures on its overview, under the machines
  * (`system.overview`), columns after EiN's own on the Work tab's flow board (`system.flow`, drawn
  * with `FlowColumn` and the rest of `Flow.tsx` so the board reads as one row), a section of the statistics page (`stats.sections`), a section of the
  * Search page before anything is asked (`search.explore`), a part above the Search page's results

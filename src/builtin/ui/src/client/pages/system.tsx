@@ -10,8 +10,8 @@ import {
   FlowBoard,
   HealthBadge,
   HealthSummary,
-  HostMetrics,
   LogTail,
+  Machines,
   PipelineMatrix,
   RecentErrors,
   RoutePanel,
@@ -48,9 +48,9 @@ const isTab = (value: string | null): value is SystemTab =>
  * force one of the two to run at the wrong rate.
  *
  * The host half is the ordinary commands a shell would run — `health`, `host-metrics`,
- * `df`, `system-info`, `pool-stat`, `service-list --detail`, `dmesg` — one poll
- * each, and there is no page-wide loader: every card draws its own placeholder
- * until the answer it depends on is in, so the CPU tile does not wait on the
+ * `devices --class` and `device-show` for the machines, `df`, `system-info`, `pool-stat`,
+ * `service-list --detail`, `dmesg` — one poll each, and there is no page-wide loader: every card
+ * draws its own placeholder until the answer it depends on is in, so the CPU tile does not wait on the
  * slowest thing on the page — a cold service probe, or a pipeline count. A command is polled only
  * while a tab showing it is open, except `health`, `host-metrics`, `pool-stat` and `system-info`:
  * the header's badges and uptime and the unservable alarm qualify every tab.
@@ -217,13 +217,17 @@ export default function SystemPage() {
               <HealthSummary health={health} />
 
               {
-                /* A module's gauges sit beside the host's (`system.overview` panels: ems's GPU),
-                  drawn by the module from its own series. */
+                /* The machines: EiN's own, the media service's, a NAS, each its device's readings,
+                  with EiN's part of its own machine from `host-metrics`. */
               }
-              <SimpleGrid cols={{ base: 1, md: panelsOf('system.overview').length > 0 ? 2 : 1 }} spacing='sm'>
-                <HostMetrics cpu={host?.cpu} memory={host?.memory} loading={!host} />
-                {panelsOf('system.overview').map((panel) => <RoutePanel key={panel.id} path={panelRoute(panel)} />)}
-              </SimpleGrid>
+              <Machines own={host ? { device: host.device, cpuPercent: host.cpu?.ownPercent, memoryBytes: host.memory?.usedBytes } : undefined} />
+
+              {/* A module's own figures (`system.overview` panels), drawn by the module. */}
+              {panelsOf('system.overview').length > 0 && (
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing='sm'>
+                  {panelsOf('system.overview').map((panel) => <RoutePanel key={panel.id} path={panelRoute(panel)} />)}
+                </SimpleGrid>
+              )}
 
               <WorkSummary
                 counts={pipeline ? counts : undefined}

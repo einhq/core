@@ -26,6 +26,10 @@ type TileProps = {
   onChanged: () => void;
   /** Open the History tab at this endpoint. */
   onHistory: (endpoint: string) => void;
+  /** A log's line under its value, in place of when it was read: what a page knows that the device does not. */
+  hint?: string;
+  /** A log's colour for its value, such as how close a share in use is to its ceiling. */
+  accent?: string;
 };
 
 /**
@@ -69,13 +73,14 @@ function useSparkline(device: string, endpoint: EndpointSummary): { at: number; 
   return series;
 }
 
-function LogTile({ device, endpoint }: TileProps) {
+function LogTile({ device, endpoint, hint, accent }: TileProps) {
   const series = useSparkline(device, endpoint);
   return (
     <StatTile
       label={endpoint.label}
       value={readingText(endpoint.last?.value, endpoint.unit)}
-      hint={endpoint.last ? agoText(endpoint.last.at) : endpoint.supported ? 'no value yet' : 'not read'}
+      accent={accent}
+      hint={hint ?? (endpoint.last ? agoText(endpoint.last.at) : endpoint.supported ? 'no value yet' : 'not read')}
       series={series}
       seriesMax={series?.length ? Math.max(...series.map((point) => point.value)) : undefined}
       seriesUnit={endpoint.unit ? ` ${endpoint.unit}` : ''}
