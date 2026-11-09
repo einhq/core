@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertNotEquals } from '@std/assert';
+import { assert, assertEquals, assertMatch, assertNotEquals } from '@std/assert';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import HeadlessXterm from '@xterm/headless';
 import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
@@ -134,6 +134,26 @@ Deno.test({
           await second.write('echo replacement-alive\r');
           await waitFor(() => secondPeer.messages.some((message) => message.includes('replacement-alive')), 'replacement socket received no output');
           await second.terminate();
+        } finally {
+          await registry.dispose();
+        }
+      });
+
+      await t.step("a command's error output starts on the line after the one typed", async () => {
+        const { sessionPath } = await harness.createHttpSession();
+        const registry = new InteractiveTerminalRegistry(config, 500);
+        try {
+          const peer = new ProbePeer();
+          const terminal = await registry.attach(sessionPath, 'tab-stderr', peer, { resumable: true });
+          const output = () => peer.messages.filter((message) => !message.startsWith('{')).join('');
+
+          for (let i = 0; i < 10; i++) {
+            await terminal.write(`echo err-${i} >&2\r`);
+            await waitFor(() => output().includes(`err-${i}\n`), `err-${i} never came`);
+            // The typed line, the cursor put past its end, a new line, and then what the command wrote
+            assertMatch(output(), new RegExp(`echo err-${i} >&2[^\\n]*\\r\\nerr-${i}\\n`));
+          }
+          await terminal.terminate();
         } finally {
           await registry.dispose();
         }

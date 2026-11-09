@@ -283,11 +283,11 @@ class RetainedInteractiveTerminal {
     await this.shell.open();
     this.pwd = this.shell.getEnv().PWD || '/';
 
-    const stdout = await this.shell.openIOHandle('stdout', 'r');
-    const stderr = await this.shell.openIOHandle('stderr', 'r');
+    // The shell's stdout carries its stderr too, as a terminal's one output
+    const output = await this.shell.openIOHandle('stdout', 'r');
     this.stdin = await this.shell.openIOHandle('rawStdin', 'w');
-    this.handles.push(stdout, stderr, this.stdin);
-    this.pumpPromises.push(this.pump(stdout), this.pump(stderr));
+    this.handles.push(output, this.stdin);
+    this.pumpPromises.push(this.pump(output));
 
     void this.shell.runInteractive()
       .catch((error) => logger.error('retained interactive shell exited with an error', { error: errorMessage(error) }))

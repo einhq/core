@@ -852,7 +852,7 @@ export class Shell implements TtyIf {
     return this.rawStdinId;
   }
 
-  /** Open a handle to an I/O buffer (stdout, stderr, or rawStdin). */
+  /** Open a handle to an I/O buffer (stdout, stderr, or rawStdin). An interactive shell's stderr is its stdout. */
   async openIOHandle(which: 'stdout' | 'stderr' | 'rawStdin', mode: ResourceMode): Promise<ResourceHandleIf> {
     const br = this.config.bufferManager;
     switch (which) {

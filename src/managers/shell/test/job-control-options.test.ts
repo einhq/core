@@ -33,7 +33,7 @@ Deno.test({
       await shell.open();
 
       const stdin = await shell.openIOHandle('rawStdin', 'w');
-      const stderr = await shell.openIOHandle('stderr', 'r');
+      const stderr = await shell.openIOHandle('stderr', 'r'); // the terminal's output, stdout's too
       const running = shell.runInteractive();
 
       const type = async (text: string) => {

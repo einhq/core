@@ -37,6 +37,9 @@ export class InteractiveShell extends Shell {
         TERM: '1',
       },
     });
+    // A terminal has one output: what fd 2 writes goes into fd 1's buffer, so it reaches the
+    // screen after the line the prompt ended with, in the order it was written.
+    this.io = { ...this.io, stderr: this.io.stdout };
   }
 
   /** Write to stderr. Never throws: a client that has gone away has taken FD 2 with it. */

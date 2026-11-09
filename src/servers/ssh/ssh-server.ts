@@ -323,8 +323,8 @@ export class SSHServer {
 
         this.pipeReadableToHandle(channel.readable, stdinHandle);
 
+        // The shell's stdout carries its stderr too, as a terminal's one output
         this.pipeHandleToChannel(await shell.openIOHandle('stdout', 'r'), channel, { crlf: true });
-        this.pipeHandleToChannel(await shell.openIOHandle('stderr', 'r'), channel, { crlf: true });
 
         // Hang up running commands and tear down the shell when the interactive
         // session ends — whether by EOF or an abrupt client disconnect. Shell.close
