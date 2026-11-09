@@ -65,7 +65,7 @@ Deno.test({
     });
 
     await t.step("host-metrics gives the machine's memory and CPU beside EiN's, from the machine's device", async () => {
-      // An 8 GB machine with 75% in use; EiN's container holds 1 GiB of its 4.
+      // An 8 GiB machine with 75% in use; EiN's container holds 1 GiB of its 4.
       const device = `/dev/${thisHost().name}`;
       await cmd.shouldSucceed(`mkdir -p /dev && mknode -t device ${device}`);
       for (const [endpoint, value] of [['memory-used', 75], ['memory-total', 8], ['cpu', 40], ['load', 1.5]] as const) {
@@ -76,8 +76,8 @@ Deno.test({
       const host = await client.execJson<HostMetrics>('host-metrics');
       assertEquals(host.memory?.percent, 25);
       assertEquals(host.memory?.machine?.percent, 75);
-      assertEquals(host.memory?.machine?.usedBytes, 6e9);
-      assertEquals(host.memory?.machine?.totalBytes, 8e9);
+      assertEquals(host.memory?.machine?.usedBytes, 6 * 2 ** 30);
+      assertEquals(host.memory?.machine?.totalBytes, 8 * 2 ** 30);
       assertEquals([host.cpu?.percent, host.cpu?.load1, host.cpu?.cores], [40, 1.5, 4]);
       assertEquals(host.cpu?.series.map((point) => point.value), [40]);
     });

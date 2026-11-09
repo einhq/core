@@ -77,8 +77,8 @@ export const readHostMetrics = async (cmd: Command, windowMs: number = DEFAULT_W
     : undefined;
 
   const memoryNow = latest(memoryAll);
-  // The machine's total is in GB, as its device keeps it.
-  const totalBytes = machineTotal.now !== undefined ? machineTotal.now * 1e9 : undefined;
+  // The machine's total is in GB of 1024³ bytes, as its device keeps it.
+  const totalBytes = machineTotal.now !== undefined ? machineTotal.now * 2 ** 30 : undefined;
   const memory = memoryNow
     ? {
       usedBytes: memoryNow.usedBytes,

@@ -85,7 +85,7 @@ export const hostReadings = (readings: HostReadings): Reading[] => {
     });
   }
   if (readings.memoryTotalBytes) {
-    out.push({ endpoint: 'memory-total', attrs: { label: 'memory', unit: 'GB', category: 'diagnostic', retention: SLOW }, value: round(readings.memoryTotalBytes / 1e9) });
+    out.push({ endpoint: 'memory-total', attrs: { label: 'memory', unit: 'GB', category: 'diagnostic', retention: SLOW }, value: round(readings.memoryTotalBytes / 2 ** 30) });
   }
   if (readings.uptimeSeconds !== undefined) {
     out.push({ endpoint: 'uptime', attrs: { label: 'uptime', unit: 'd', category: 'diagnostic', retention: SLOW }, value: round(readings.uptimeSeconds / 86_400) });

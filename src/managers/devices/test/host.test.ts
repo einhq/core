@@ -24,7 +24,7 @@ Deno.test('hostReadings: each reading an endpoint, named and rounded as a polled
     cpu: 12.345,
     load: 1.23456,
     memory: { totalBytes: 32e9, availableBytes: 8e9 },
-    memoryTotalBytes: 32e9,
+    memoryTotalBytes: 32 * 2 ** 30,
     temperatures: [{ zone: 'x86_pkg_temp', celsius: 41.04 }, { zone: 'acpitz', celsius: 27.8 }, { zone: 'acpitz', celsius: 30 }],
     volumes: [{ name: 'sdc1', totalBytes: 2000, freeBytes: 1500 }, { name: 'empty', totalBytes: 0, freeBytes: 0 }],
     uptimeSeconds: 2.5 * 86_400,
