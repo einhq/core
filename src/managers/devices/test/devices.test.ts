@@ -1,7 +1,8 @@
 /**
  * Devices on a booted EiN: the devices group's /dev, a tracker device a phone posts to with its key
- * and a GPX file is written to, a driver's readings kept and published, a control written through
- * its driver as whoever wrote it, values over HTTP, and forgetting a device.
+ * and a GPX file is written to, a driver's readings kept and published, a device shared with someone
+ * outside the group, a control written through its driver as whoever wrote it, values over HTTP, and
+ * forgetting a device.
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert';
@@ -47,10 +48,10 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     await t.step("a phone posts its position with its device's key, and nothing else does", async () => {
       const created = await anna.execJson<DeviceCreated>("device-create 'Ruby phone' --driver tracker --class phone");
       assertEquals(created, { device: 'ruby-phone', path: '/dev/ruby-phone' });
-      // Hers, read by everyone signed in and no visitor.
+      // The administrator's and the devices group's, whoever asked for it; nobody else's.
       const phone = await admin.execJson<{ props: { uid: number; gid: number; mode: number } }>('stat /dev/ruby-phone');
-      const [annaUid, users] = [(await admin.execJson<{ uid: number }>('user-info anna')).uid, (await admin.execJson<{ gid: number }>('group-info users')).gid];
-      assertEquals([phone.props.uid, phone.props.gid, phone.props.mode & 0o777], [annaUid, users, 0o750]);
+      const devicesGid = (await admin.execJson<{ gid: number }>('group-info devices')).gid;
+      assertEquals([phone.props.uid, phone.props.gid, phone.props.mode & 0o777], [0, devicesGid, 0o770]);
       const key = await anna.execJson<DeviceKeyAnswer>('device-key ruby-phone --new --origin https://ein.example');
       assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone?key='), key.qrText?.endsWith('&id=ruby-phone'), key.qrSvg?.startsWith('<svg')], [
         true,
@@ -81,11 +82,10 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       assertEquals([wrong.status, elsewhere.status], [403, 403]);
     });
 
-    await t.step("a GPX file written to a tracker device fills its track, its owner's; a device with no driver refuses one", async () => {
+    await t.step("a GPX file written to a tracker device fills its track, the devices group's; a device with no driver refuses one", async () => {
       await admin.execString(`echo '${GPX}' > /tmp/walk.gpx`);
-      // The track of a device she made is hers, made though it was by the driver.
-      const track = await admin.execJson<{ props: { uid: number } }>('stat /dev/old-logger/position');
-      assertEquals(track.props.uid, (await admin.execJson<{ uid: number }>('user-info anna')).uid);
+      const track = await admin.execJson<{ props: { uid: number; gid: number; mode: number } }>('stat /dev/old-logger/position');
+      assertEquals([track.props.uid, track.props.gid, track.props.mode & 0o777], [0, (await admin.execJson<{ gid: number }>('group-info devices')).gid, 0o770]);
       await anna.execString('cat /tmp/walk.gpx > /dev/old-logger');
       const history = await anna.execJson<DeviceHistory>('device-history old-logger/position');
       assertEquals(history.fixes?.map((fix) => [fix.at, fix.lat]), [['2024-06-01T10:00:00.000Z', 57.7], ['2024-06-01T10:05:00.000Z', 57.71]]);
@@ -107,20 +107,43 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       await devices.ensureEndpoint(ADMIN_ACCESS, 'lamp', 'switch', 'control', { label: 'Switch', schema: { type: 'bool' } });
       await devices.ensureEndpoint(ADMIN_ACCESS, 'lamp', 'button', 'log', { label: 'Button', events: true });
       await admin.execString("mkqueue -k 'dev.lamp.#' /home/admin/lamp");
+      // Only the administrator binds a queue to what is published: bo would hear every reading.
+      await testCommands(bo).shouldFailWith("mkqueue -k 'dev.lamp.#' /home/bo/lamp", 'routingKeys');
+      await bo.execString('mkqueue /home/bo/lamp');
+      await testCommands(bo).shouldFailWith('attrs -s \'routingKeys=["dev.#"]\' /home/bo/lamp', 'routingKeys');
 
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'power', 41.8), true);
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'power', 41.8), false, 'a repeat is not news');
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'button', 'single'), true);
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'button', 'single'), true, 'each press is an event');
 
-      const lamp = (await bo.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'lamp');
+      const lamp = (await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'lamp');
       assertEquals(lamp?.main, { endpoint: 'power', label: 'Power', value: 41.8, unit: 'W' });
       // A value written by hand is appended, `>` as `>>`, and kept as `{ value }`.
       await admin.execString('echo 40.5 > /dev/lamp/power');
-      assertEquals((await bo.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
+      assertEquals((await anna.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
       const queued = await admin.execString('queue-peek /home/admin/lamp');
       assertStringIncludes(queued, '"endpoint":"power"');
       assertEquals((await anna.execJson<DeviceHistory>('device-history lamp/button')).readings.length, 2);
+    });
+
+    await t.step('someone outside the devices group sees a device once a member shares it, what it gets later too', async () => {
+      assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => device.name), []);
+      await testCommands(bo).shouldFailWith('device-history lamp/power', 'denied');
+
+      await anna.execString('share-set -m u:bo:rx /dev/lamp');
+      assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => device.name), ['lamp']);
+      assertEquals((await bo.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
+      await devices.ensureEndpoint(ADMIN_ACCESS, 'lamp', 'motion', 'log', { label: 'Motion', deviceClass: 'motion' });
+      await devices.append(ADMIN_ACCESS, 'lamp', 'motion', true);
+      assertEquals((await bo.execJson<DeviceHistory>('device-history lamp/motion')).readings.map((reading) => reading.value), [true]);
+      await testCommands(bo).shouldFailWith('echo on > /dev/lamp/switch', 'denied');
+
+      // An endpoint narrowed further is left out of the device for them, not an error.
+      await anna.execString('share-set -x u:bo /dev/lamp/motion');
+      assertEquals((await bo.execJson<DeviceInfo>('device-show lamp')).endpointList.map((endpoint) => endpoint.name), ['button', 'power', 'switch']);
+
+      await anna.execString('share-set -m u:bo:rwx /dev/lamp');
     });
 
     await t.step('a control is written through its driver as whoever wrote it, and only what it takes', async () => {

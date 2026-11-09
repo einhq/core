@@ -9,7 +9,7 @@ group-exists "$GUEST_GROUPNAME" || group-create "$GUEST_GROUPNAME" --gid "$GUEST
 group-exists "$USERS_GROUPNAME" || group-create "$USERS_GROUPNAME" --gid "$USERS_GID" --title "Users"
 group-exists "$SSH_GROUPNAME" || group-create "$SSH_GROUPNAME" --title "SSH users" --description "May use ssh, scp and ssh-copy-id to reach other machines"
 group-exists "$SUDO_GROUPNAME" || group-create "$SUDO_GROUPNAME" --title "Administrators on request" --description "May make a sign-in of theirs an administrator's by entering their password again"
-group-exists "$DEVICES_GROUPNAME" || group-create "$DEVICES_GROUPNAME" --title "Devices" --description "May make, name and forget the devices under /dev"
+group-exists "$DEVICES_GROUPNAME" || group-create "$DEVICES_GROUPNAME" --title "Devices" --description "May see, switch, share, make, name and forget every device under /dev"
 user-exists "$ADMIN_USERNAME" || user-create "$ADMIN_USERNAME" --uid "$ADMIN_UID" --title "Administrator"
 user-exists "$GUEST_USERNAME" || user-create "$GUEST_USERNAME" --uid "$GUEST_UID" --title "Guest"
 

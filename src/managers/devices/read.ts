@@ -152,7 +152,7 @@ const withMain = async (vfs: ModuleVFS, access: Access, device: string, summary:
   return summary;
 };
 
-/** Every device the caller may see, by label. */
+/** Every device the caller may read, by label: the devices group's members see them all, anyone else those shared with them. */
 export const listDevices = async (vfs: ModuleVFS, access: Access): Promise<DeviceSummary[]> => {
   const children = (await vfs.children<DeviceAttrs>(access, DEV_PATH)).filter((child) => child.node.type === NODE_TYPE_DEVICE);
   const summaries = await Promise.all(children.map(async (child) => {

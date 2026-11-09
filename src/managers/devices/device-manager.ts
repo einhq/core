@@ -10,10 +10,11 @@
  */
 
 import { basename, dirname, join } from '@std/path';
-import { ADMIN_ACCESS, USERS_GID } from '../../lib/access/constants.ts';
+import { ADMIN_ACCESS, ADMIN_GID, DEVICES_GROUPNAME } from '../../lib/access/constants.ts';
 import type { Access } from '../../lib/access/types.ts';
 import { type DeviceAttrs, type DeviceFix, type DeviceMessage, deviceRoutingKey, type DeviceValue, type EndpointAttrs, type EndpointType } from '../../lib/api/devices.ts';
 import { createLogger } from '../logger/mod.ts';
+import { groupGid } from '../../lib/auth/member-gids.ts';
 import { readTail } from '../../lib/metrics/read.ts';
 import { DEV_PATH, DEV_RESERVED_NAMES, devicePath, USERS_PATH } from '../../lib/paths.ts';
 import { readTrackerRequest } from '../../lib/track/tracker-protocols.ts';
@@ -191,10 +192,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       if (changed) await this.sys.vfs.update(access, path, { attrs: changed });
       return path;
     }
-    // Everyone signed in reads a device (the users group), not a visitor; its owner changes it.
+    // A device is the administrator's and the devices group's, who read, switch and share it; anyone
+    // else reads it only once it is shared with them, which its endpoints then are too.
     await this.sys.vfs.create<DeviceNodeAttrs>(access, NODE_TYPE_DEVICE, DEV_PATH, name, {
       attrs: { ...attrs, label: attrs.label || name },
-      props: { mode: 0o750, gid: USERS_GID },
+      props: { mode: 0o770, gid: await groupGid(this.sys.vfs, DEVICES_GROUPNAME) ?? ADMIN_GID },
     });
     return path;
   }
@@ -215,19 +217,18 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       this.endpoints.set(`${device}/${name}`, { path, type, attrs: { ...existing.attrs, ...rest } as EndpointAttrs, readAt: Date.now() });
       return path;
     }
-    // An endpoint is its device's owner's, so a person who made a device edits its track; everyone
-    // signed in reads it, and switches a control (the users group), a visitor neither. A track is
-    // also passed through, for what archive keeps under it (its homes, its trips). Only the
-    // administrator gives a node to another, which a driver's service is. A log's or control's
-    // entries are `{ value }`, a bare one written by hand too.
-    const control = type === NODE_TYPE_CONTROL;
+    // An endpoint is its device's owner's and group's, and takes the device's access list with it, so
+    // whoever the device is shared with reads what it reports from then on too. The group reads it
+    // and writes it: switches a control, adds to a log, shares it. A track is also passed through,
+    // for what archive keeps under it (its homes, its trips). Only the administrator gives a node to
+    // another, which a driver's service is. A log's or control's entries are `{ value }`, a bare one
+    // written by hand too.
     const owner = (await this.sys.vfs.get(ADMIN_ACCESS, parent)).props;
     await this.sys.vfs.create(access, type, parent, name, {
       attrs: { ...attrs, ...(type === 'track' ? {} : { valueField: 'value' }) },
       props: {
-        mode: mode ?? (control ? 0o660 : type === 'track' ? 0o750 : 0o640),
+        mode: mode ?? (type === 'track' ? 0o770 : 0o660),
         ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
-        gid: USERS_GID,
       },
     });
     this.endpoints.set(`${device}/${name}`, { path, type, attrs, readAt: Date.now() });

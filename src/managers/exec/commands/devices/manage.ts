@@ -46,9 +46,8 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
       ...(flags.model ? { model: flags.model } : {}),
       ...(Object.keys(config).length > 0 ? { config } : {}),
     };
-    // Made as the administrator, since /dev is theirs, and given to whoever asked.
+    // Made as the administrator, since /dev is theirs, and the devices group's as every device is.
     const path = await manager.ensureDevice(ADMIN_ACCESS, device, attrs);
-    if (cmd.access.uid !== ADMIN_ACCESS.uid) await cmd.sys.vfs.update(ADMIN_ACCESS, path, { props: { uid: cmd.access.uid } });
     if (flags.driver) await manager.driver(flags.driver)?.setup?.(device);
     const created: DeviceCreated = { device, path };
     if (cmd.json) await cmd.writeJSON(created satisfies DeviceCreated);
