@@ -73,6 +73,48 @@ export function formatArgs(args: unknown[]): string {
   return ' ' + parts.join(' ');
 }
 
+/** Characters a context field keeps in the system log; the console line keeps all of it. */
+export const LOG_FIELD_MAX = 1000;
+
+/** The logger's own keys of a system log entry, which a context field never replaces. */
+const ENTRY_KEYS = new Set(['level', 'name', 'message', 'timestamp']);
+
+const capField = (text: string): string => text.length <= LOG_FIELD_MAX ? text : `${text.slice(0, LOG_FIELD_MAX - 1)}…`;
+
+/** A context value as the system log keeps it: a short value as it is, an `Error` or a long one as text. */
+const fieldValue = (value: unknown): unknown => {
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') return capField(value);
+  if (value instanceof Error) return capField(describeError(value));
+  try {
+    const json = JSON.stringify(value, errorReplacer);
+    if (json === undefined) return String(value);
+    return json.length <= LOG_FIELD_MAX ? JSON.parse(json) : capField(json);
+  } catch {
+    return capField(String(value));
+  }
+};
+
+/**
+ * The fields a log call's arguments add to its system log entry: a context object's keys, an
+ * `Error` as `error`, anything else as `args`. `dmesg` and the dashboard's log show them after the
+ * message.
+ */
+export function logFields(args: unknown[]): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  const loose: string[] = [];
+  for (const arg of args) {
+    if (arg instanceof Error) fields.error = fieldValue(arg);
+    else if (arg !== null && typeof arg === 'object' && !Array.isArray(arg)) {
+      for (const [key, value] of Object.entries(arg)) {
+        if (value !== undefined && !ENTRY_KEYS.has(key)) fields[key] = fieldValue(value);
+      }
+    } else if (arg !== undefined) loose.push(typeof arg === 'string' ? arg : JSON.stringify(arg) ?? String(arg));
+  }
+  if (loose.length > 0) fields.args = capField(loose.join(' '));
+  return fields;
+}
+
 class LoggerImpl implements Logger {
   constructor(
     private name: string,
@@ -113,7 +155,7 @@ class LoggerImpl implements Logger {
         break;
     }
 
-    routerManager?.publish('system.logs', { level, name: this.name, message, timestamp });
+    routerManager?.publish('system.logs', { ...logFields(args), level, name: this.name, message, timestamp });
   }
 
   debug(message: string, ...args: unknown[]): void {

@@ -47,6 +47,15 @@ export const kindRest = (workers: Pick<PoolWorkerInfo, 'name' | 'kinds' | 'resti
   return { restingUntil: Math.min(...rests.map((rest) => rest!.until)), ...(names.length ? { restingIn: names } : {}) };
 };
 
+/** The newest refusal of `kind` among the workers that offer it — see `PoolKindThroughput.refusal`. */
+export const kindRefusal = (workers: Pick<PoolWorkerInfo, 'kinds' | 'refused'>[], kind: string): Pick<PoolKindThroughput, 'refusal'> => {
+  const refusals = workers
+    .filter((worker) => worker.kinds.length === 0 || worker.kinds.includes(kind))
+    .flatMap((worker) => worker.refused[kind] ? [worker.refused[kind]] : []);
+  if (refusals.length === 0) return {};
+  return { refusal: refusals.reduce((newest, refusal) => refusal.at > newest.at ? refusal : newest) };
+};
+
 const poolThroughput = (
   name: string,
   path: string,
@@ -76,6 +85,7 @@ const poolThroughput = (
       unservableSince,
       oldestReadyAt: stat.oldestReadyAt?.[kind],
       ...kindRest(workers, kind),
+      ...kindRefusal(workers, kind),
     });
   }
 
@@ -107,7 +117,23 @@ const workersOn = (path: string): PoolWorkerInfo[] =>
   poolWorkerStates()
     .filter((worker) => worker.pool === path)
     .map((
-      { name, kinds, currentKind, kindSince, kindQuantumMs, concurrency, capacity, inUse, running, reserveKinds, reserveCapacity, nextReserveKind, accumulatingFor, resting },
+      {
+        name,
+        kinds,
+        currentKind,
+        kindSince,
+        kindQuantumMs,
+        concurrency,
+        capacity,
+        inUse,
+        running,
+        reserveKinds,
+        reserveCapacity,
+        nextReserveKind,
+        accumulatingFor,
+        resting,
+        refused,
+      },
     ) => ({
       ...(name ? { name } : {}),
       kinds,
@@ -123,6 +149,7 @@ const workersOn = (path: string): PoolWorkerInfo[] =>
       nextReserveKind,
       accumulatingFor,
       resting,
+      refused,
     }));
 
 const answer = (path: string, stat: PoolStat, window: Sample<PoolsEntry>[], workers = workersOn(path)): PoolStatAnswer => ({
@@ -177,6 +204,7 @@ const writePools = async (cmd: Command, pools: PoolStatAnswer[]): Promise<void> 
       const waitText = kind.oldestReadyAt !== undefined ? `  oldest waiting ${fmtAge(Date.now() - kind.oldestReadyAt)}` : '';
       const restText = kind.restingUntil === undefined ? '' : `  resting, next try in ${fmtAge(kind.restingUntil - Date.now())}`;
       await cmd.writeLn(`          ${kind.kind.padEnd(16)} ${kind.ready + kind.claimed} left${kindRate}${unservableText}${waitText}${restText}`);
+      if (kind.refusal) await cmd.writeLn(`            could not run ${fmtAge(Date.now() - kind.refusal.at)} ago: ${kind.refusal.reason}`);
     }
 
     for (const worker of pool.workers) {

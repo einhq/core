@@ -32,9 +32,11 @@ const turnLeft = (worker: PoolWorkerInfo, now: number): number | undefined =>
 const stillBecause = (line: Line, now: number): string | undefined => {
   if (line.ready === 0 || line.claimed > 0) return undefined;
   if (line.unservableSince !== undefined) return 'no worker serves it';
-  if (line.restingUntil !== undefined) return `the media service could not run it; next try in ${formatDuration(line.restingUntil - now)}`;
+  const said = line.refusal ? `: ${line.refusal.reason}` : '';
+  if (line.restingUntil !== undefined) return `the media service could not run it; next try in ${formatDuration(line.restingUntil - now)}${said}`;
   const busy = line.servers.find((worker) => worker.currentKind !== undefined && worker.currentKind !== line.kind && turnLeft(worker, now) !== undefined);
   if (busy) return `${workerName(busy)} is on ${busy.currentKind} for ${formatDuration(turnLeft(busy, now))} more, or until that line is empty`;
+  if (line.refusal) return `the media service could not run it ${formatDuration(now - line.refusal.at)} ago${said}`;
   return undefined;
 };
 

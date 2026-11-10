@@ -8,6 +8,8 @@
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import {
   elide,
+  REFUSAL_REASON_MAX,
+  refusalReason,
   STEP_ERROR_HEAD,
   STEP_ERROR_TAIL,
   STEP_LOG_HEAD,
@@ -62,4 +64,15 @@ Deno.test("a completed step's output keeps its end, and silence is no output", (
   const output = stepOutputTail(`${'w'.repeat(5000)}\n${summary}`)!;
   assert(output.endsWith(summary));
   assertEquals(output.length, STEP_OUTPUT_TAIL + 2);
+});
+
+Deno.test("a refusal's reason is the last line of the error, cut to a status line", () => {
+  assertEquals(
+    refusalReason('exif-extract: asking ems\nexif-extract: ems: media.probe: mount failed (files_unavailable)\n'),
+    'exif-extract: ems: media.probe: mount failed (files_unavailable)',
+  );
+  assertEquals(refusalReason('exit 75'), 'exit 75');
+  const long = refusalReason('x'.repeat(REFUSAL_REASON_MAX * 2));
+  assertEquals(long.length, REFUSAL_REASON_MAX);
+  assert(long.endsWith('…'));
 });

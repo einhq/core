@@ -197,7 +197,16 @@ export type PoolKindThroughput = {
   restingUntil?: number;
   /** With `restingUntil`: the workers resting it, by name (`models`, `models@laptop`). */
   restingIn?: string[];
+  /**
+   * The newest step of the kind that could not run yet (exit 75), while none of it has completed
+   * since: when, and why, as its service said — what a resting kind, or one whose jobs are handed
+   * back one at a time, is waiting on.
+   */
+  refusal?: PoolKindRefusal;
 };
+
+/** A step that could not run yet: when (epoch ms), and the last line of its error. */
+export type PoolKindRefusal = { at: number; reason: string };
 
 /** A pool's counts now and how fast it moves, from the sampler's series. */
 export type PoolThroughput = {
@@ -286,6 +295,8 @@ export type PoolWorkerInfo = {
   accumulatingFor?: string;
   /** Kinds resting after a step could not run: until when. */
   resting: Record<string, { until: number }>;
+  /** The last step of each kind that could not run yet, while none of the kind has completed since. */
+  refused: Record<string, PoolKindRefusal>;
 };
 
 export type NodeTypeGrowth = {

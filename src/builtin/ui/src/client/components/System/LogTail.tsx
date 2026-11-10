@@ -104,7 +104,10 @@ function Line({ line }: { line: LogLine }) {
         {line.level}
       </Badge>
       <Text size='xs' c='dimmed' ff='monospace' style={{ flexShrink: 0, width: 130 }} truncate>{line.name}</Text>
-      <Text size='xs' ff='monospace' style={{ minWidth: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{line.message}</Text>
+      <Text size='xs' ff='monospace' style={{ minWidth: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        {line.message}
+        {line.extra && <Text span inherit c='dimmed' ml={6}>{line.extra}</Text>}
+      </Text>
     </Group>
   );
 }

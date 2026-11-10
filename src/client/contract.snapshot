@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.13
+MODULE_API_VERSION 0.14.14
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -260,7 +260,7 @@ src/builtin/ui/src/client/hooks/mod.ts LabelEntry f85f3d65fd96 count=56355d434a3
 src/builtin/ui/src/client/hooks/mod.ts LassoMode 74323d7feaa5
 src/builtin/ui/src/client/hooks/mod.ts LassoOptions 61f5f920e10a canStart=09f6c1363e3f,enabled=f70a52e841b2,onBand=3ee00ba4430f,onCancel=ef0463850ce8,onEnd=e2713a4b1059,onStart=72680b9d01ff,root=d4d6c75dfbc0,topInset=51bc87fd57a3
 src/builtin/ui/src/client/hooks/mod.ts LassoRect dc64a3a7cb51 bottom=94309b541786,left=724f4e98fffa,right=cb0d55038708,top=53cbd27c99c3
-src/builtin/ui/src/client/hooks/mod.ts LogLine 368738bc4b86 at=8cd35eed1400,id=1a4af43267b0,level=1fb3f1f81f7c,message=ef0bf4d895db,name=6d0c36381511
+src/builtin/ui/src/client/hooks/mod.ts LogLine 83c1269526f2 at=8cd35eed1400,extra=f994b038c917,id=1a4af43267b0,level=1fb3f1f81f7c,message=ef0bf4d895db,name=6d0c36381511
 src/builtin/ui/src/client/hooks/mod.ts MEDIA_KINDS f07881348eb9
 src/builtin/ui/src/client/hooks/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/hooks/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
@@ -1141,11 +1141,12 @@ src/lib/api/mod.ts PipelineRow 9760c7bbb86c
 src/lib/api/mod.ts PipelineStepStatus 021861ac34e7 attempts=d87fea524631,command=bc11a5f7f30a,completedAt=5b21d7233912,condition=6e88d4fd776f,dependsOn=c7f0f19cf081,error=03c9a5b2b69b,exitCode=fd0fe53ed9a4,kind=f4f29121bc5f,maxAttempts=b1104ef39a7e,output=9bcbec104dfd,outputAt=85d708bac557,pool=73e621e6703c,progress=e24bc97d8b72,progressAt=4ed28844b24a,startedAt=2e6346888312,status=606b7556b079,stepName=4fad8845b846,waitingSince=0f099334bb80
 src/lib/api/mod.ts PipelineSummary f65c4e5b113c description=c4833b0d92ac,error=7a151e0a316a,name=6d0c36381511,options=91e1aac8fe95,stepKinds=4cff97a00c73,steps=dee33928d24b,triggerLabel=1f36f80dcbb9,triggerRules=e701af5bcedf,triggers=e7d337f0b700
 src/lib/api/mod.ts PipelineTriggerSummary 69fd98a1c9cf allowDerived=4c7a1ed8a816,event=f760438c1fb7,filter=64a5f17f59a3,match=5d95e86573b0,nodeType=f1cd3ed91694,on=10d3c75ec6eb,priority=703fc31e18d4,skipIf=bba395bb2551,skipIfAttr=90af6b697da7,skipIfExists=7550030d2acf,unless=615b1d7e8dcb,vars=99f4e1f4f001,wants=d70ff2137589
-src/lib/api/mod.ts PoolKindThroughput 1f2e62664c7a claimed=b2cae02b364f,done=ad11fd3265a9,etaMs=4335b7111c73,failed=759801f9d7dc,inPerHour=3a74805451d3,kind=9089229b6341,oldestReadyAt=95084f1c80ce,perHour=44ea6a464925,ready=01c84af451e1,restingIn=b85e9a0ac960,restingUntil=83fa4c111b76,unservableSince=acf23bbfbf43
+src/lib/api/mod.ts PoolKindRefusal 21f674799991 at=8cd35eed1400,reason=5fb458d38f74
+src/lib/api/mod.ts PoolKindThroughput 59490bde95b5 claimed=b2cae02b364f,done=ad11fd3265a9,etaMs=4335b7111c73,failed=759801f9d7dc,inPerHour=3a74805451d3,kind=9089229b6341,oldestReadyAt=95084f1c80ce,perHour=44ea6a464925,ready=01c84af451e1,refusal=caba38b2ccf1,restingIn=b85e9a0ac960,restingUntil=83fa4c111b76,unservableSince=acf23bbfbf43
 src/lib/api/mod.ts PoolStatAnswer 6cba048c8bad
 src/lib/api/mod.ts PoolThroughput b4076485cd7c claimed=b2cae02b364f,done=ad11fd3265a9,etaMs=4335b7111c73,failed=759801f9d7dc,inPerHour=3a74805451d3,kinds=2a2974b0c793,name=6d0c36381511,path=3fd20668ef6e,perHour=44ea6a464925,ready=01c84af451e1,role=00c1ed749a93
 src/lib/api/mod.ts PoolWakeAnswer 38b05603885d ok=d78521b3c9bb,woken=ef5cb6d8fbd7
-src/lib/api/mod.ts PoolWorkerInfo bb04105836d0 accumulatingFor=f2598540d2f6,capacity=0b33ca27e859,concurrency=ba7fe42c0efe,currentKind=3bf26d121a40,inUse=731b0dba9bf4,kindQuantumMs=73a021449cc3,kindSince=1a5c20a18203,kinds=47ee7f719d18,name=c67d65ad40bc,nextReserveKind=7d8aeae00285,reserveCapacity=1bbfc53da49b,reserveKinds=38ffa46e875b,resting=417c1295033c,running=e88921e6f8bb
+src/lib/api/mod.ts PoolWorkerInfo 1b32ce860a06 accumulatingFor=f2598540d2f6,capacity=0b33ca27e859,concurrency=ba7fe42c0efe,currentKind=3bf26d121a40,inUse=731b0dba9bf4,kindQuantumMs=73a021449cc3,kindSince=1a5c20a18203,kinds=47ee7f719d18,name=c67d65ad40bc,nextReserveKind=7d8aeae00285,refused=321120d09820,reserveCapacity=1bbfc53da49b,reserveKinds=38ffa46e875b,resting=417c1295033c,running=e88921e6f8bb
 src/lib/api/mod.ts PositionListing f6e66879c6af nodes=ba70f6a17604
 src/lib/api/mod.ts PositionShape 28a3ba6871f5 lat=ab04728f0de4,lng=7ef8fe750a12,polygon=7182834d74ed,radius=be68ac5c3169
 src/lib/api/mod.ts PrimaryGroupSet d2a7b58d1bd5 newGid=07f04aba80bc,oldGid=47a68257dc5a,primaryGroup=f223461e33b6,username=02356e67b2c7

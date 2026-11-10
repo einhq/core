@@ -7,7 +7,7 @@ import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { PoolJob, PoolJobId } from '../../registries/pool/mod.ts';
 import type { TtyIf } from '../exec/types.ts';
 import { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../../lib/step-exit.ts';
-import { stepErrorDetail, stepErrorLogDetail, stepOutputTail } from './step-error.ts';
+import { refusalReason, stepErrorDetail, stepErrorLogDetail, stepOutputTail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
 import { isLiveInstance, type PipelineInstanceAttrs, type PipelineStepAttrs, type PoolJobParams, TARGET_MISSING } from './types.ts';
 
@@ -122,10 +122,18 @@ export type PoolWorkerState = {
   accumulatingFor?: string;
   /** Kinds resting after a step could not run, by kind: when each will be tried again (epoch ms). */
   resting: Record<string, KindRest>;
+  /**
+   * The last step of each kind that could not run yet, by kind, while none of the kind has
+   * completed since: when, and what its service said.
+   */
+  refused: Record<string, KindRefusal>;
 };
 
 /** Until when a kind is resting (`PoolWorkerState.resting`). */
 type KindRest = { until: number };
+
+/** A step that could not run yet (`PoolWorkerState.refused`): when, and the reason its output gave. */
+type KindRefusal = { at: number; reason: string };
 
 /**
  * Live workers in this process, keyed by owner.
@@ -204,6 +212,8 @@ export class PoolWorker {
   private paused = new Map<string, { until: number; ms: number }>();
   /** Jobs of each kind refused for the first time since one of it last completed or the kind last rested. */
   private refusals = new Map<string, number>();
+  /** The last refusal of each kind since one of it last completed — see `PoolWorkerState.refused`. */
+  private refused = new Map<string, KindRefusal>();
   /**
    * The kind a batching worker left because it was resting, to go back to once the rest ends
    * rather than when the kind it went to drains or runs out its quantum — see `claimBatched`.
@@ -283,6 +293,7 @@ export class PoolWorker {
       resting: Object.fromEntries(
         [...this.paused].filter(([, p]) => p.until > Date.now()).map(([kind, p]) => [kind, { until: p.until }]),
       ),
+      refused: Object.fromEntries([...this.refused].map(([kind, refusal]) => [kind, { ...refusal }])),
     };
   }
 
@@ -885,6 +896,7 @@ export class PoolWorker {
         // The service this kind needs answered, so whatever rest it was given is over.
         this.paused.delete(job.kind);
         this.refusals.delete(job.kind);
+        this.refused.delete(job.kind);
         this.jobPauses.delete(job.id);
         // Step node first, pool job last — see `releaseJob`.
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {
@@ -907,6 +919,7 @@ export class PoolWorker {
         const refusals = (this.refusals.get(job.kind) ?? 0) + (again ? 0 : 1);
         const restMs = this.passOn || refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
         this.refusals.set(job.kind, restMs === undefined ? refusals : 0);
+        this.refused.set(job.kind, { at: Date.now(), reason: refusalReason(detail) });
         // Passed on: claimable at once by the pool's other workers, while this one rests the kind.
         if (this.passOn) delayMs = 0;
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {

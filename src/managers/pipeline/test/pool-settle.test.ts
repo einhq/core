@@ -250,7 +250,8 @@ async function kindWorker(
     runAndCapture: (line: string, _ctx?: unknown, captureOpts: RunAndCaptureOptions = {}) => {
       envs.push(captureOpts.env);
       const command = commands.find((c) => line.includes(`step-${c}`)) ?? '';
-      return Promise.resolve({ code: exitOf(command), stdout: '', stderr: '' });
+      const code = exitOf(command);
+      return Promise.resolve({ code, stdout: '', stderr: code === STEP_EXIT_TEMPORARY ? `step-${command}: starting\nstep-${command}: ems: busy (busy)` : '' });
     },
   } as unknown as TtyIf;
   const worker = new PoolWorker(vfs as unknown as NodeVFS, tty, { poolPath: POOL_PATH, kinds: [STEP], concurrency: 1, ...opts });
@@ -322,6 +323,8 @@ Deno.test("five refusals in a row rest the kind, and waking it runs the kind's o
   const { reg, worker, jobs, step, until, dispose } = await kindWorker(commands, () => down ? STEP_EXIT_TEMPORARY : 0);
   try {
     await until('the kind rests', () => worker.state().resting[STEP] !== undefined);
+    // The last refusal's last line is what the kind waits on.
+    assertEquals(worker.state().refused[STEP].reason, 'step-s4: ems: busy (busy)');
     // Five were refused and wait out their own pauses; the sixth is left for the rest to end.
     const states = await Promise.all(jobs.map(async ({ id }) => (await reg.get(POOL_ID, id))!.availableAt.getTime() > Date.now()));
     assertEquals(states, [true, true, true, true, true, false]);
@@ -330,6 +333,7 @@ Deno.test("five refusals in a row rest the kind, and waking it runs the kind's o
     assertEquals(endRests(), [{ pool: POOL_PATH, kind: STEP }]);
     await until("the kind's next job runs and completes", () => step(5).status === 'completed');
     assertEquals(worker.state().resting, {});
+    assertEquals(worker.state().refused, {});
     assertEquals(step(0).status, 'waiting');
   } finally {
     await dispose();

@@ -62,3 +62,15 @@ export function stepOutputTail(stdout: string): string | undefined {
   if (!text) return undefined;
   return text.length <= STEP_OUTPUT_TAIL ? text : `… ${text.slice(-STEP_OUTPUT_TAIL)}`;
 }
+
+/** Characters kept of a refusal's reason (`refusalReason`). */
+export const REFUSAL_REASON_MAX = 300;
+
+/**
+ * Why a step could not run yet, in one line for a status line: the last line of its error, where a
+ * command says what its service answered, cut to `REFUSAL_REASON_MAX`.
+ */
+export function refusalReason(detail: string): string {
+  const line = detail.split('\n').map((part) => part.trim()).filter(Boolean).at(-1) ?? detail.trim();
+  return line.length <= REFUSAL_REASON_MAX ? line : `${line.slice(0, REFUSAL_REASON_MAX - 1)}…`;
+}

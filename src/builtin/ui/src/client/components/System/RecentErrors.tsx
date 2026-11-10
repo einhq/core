@@ -12,13 +12,8 @@ type Props = { errors?: LogLine[] };
 const timeLabel = (timestamp: string) => timestamp.slice(11) || timestamp;
 
 /**
- * The last few things that went wrong.
- *
- * Message text only: the logger publishes `{level, name, message, timestamp}`
- * to /var/logs/system and drops the structured meta, so the step or instance a line
- * came from is not recoverable here — following one up still means `dmesg`.
- * What this answers is the prior question, "is anything wrong at all", which
- * otherwise requires knowing to go and look.
+ * The last few things that went wrong: each line's message, and under it the context the logger
+ * wrote beside it — the step, the instance, what a service answered — as `dmesg` prints it.
  */
 export function RecentErrors({ errors: oldestFirst }: Props) {
   // Newest first: the question is what went wrong last.
@@ -49,7 +44,10 @@ export function RecentErrors({ errors: oldestFirst }: Props) {
                 </Badge>
                 <Text size='xs' c='dimmed' ff='monospace' style={{ flexShrink: 0 }}>{timeLabel(error.timestamp)}</Text>
                 <Text size='xs' c='dimmed' ff='monospace' style={{ flexShrink: 0, maxWidth: 120 }} truncate>{error.name}</Text>
-                <Text size='xs' style={{ minWidth: 0 }} lineClamp={2}>{error.message}</Text>
+                <Stack gap={0} style={{ minWidth: 0 }}>
+                  <Text size='xs' lineClamp={2}>{error.message}</Text>
+                  {error.extra && <Text size='xs' c='dimmed' ff='monospace' lineClamp={3} style={{ wordBreak: 'break-word' }}>{error.extra}</Text>}
+                </Stack>
               </Group>
             ))}
           </Stack>

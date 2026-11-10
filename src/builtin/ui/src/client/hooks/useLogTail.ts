@@ -9,7 +9,12 @@ export type LogLine = {
   level: string;
   name: string;
   message: string;
+  /** The context the logger wrote beside the message, as `key=value` pairs; absent when none. */
+  extra?: string;
 };
+
+/** What the logger writes of every entry; the rest of an entry is its context. */
+const ENTRY_KEYS = new Set(['level', 'name', 'message', 'timestamp']);
 
 /**
  * How many lines are kept. A busy instance writes several lines per pipeline
@@ -31,6 +36,10 @@ const toLine = (entry: LogFollowEntry): LogLine => {
     level: String(data.level ?? 'INFO'),
     name: String(data.name ?? '?'),
     message: String(data.message ?? ''),
+    extra: Object.entries(data)
+      .filter(([key]) => !ENTRY_KEYS.has(key))
+      .map(([key, value]) => `${key}=${typeof value === 'object' ? JSON.stringify(value) : String(value)}`)
+      .join(' ') || undefined,
   };
 };
 

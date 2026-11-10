@@ -174,6 +174,7 @@ Deno.test({
           reserveKinds: [],
           reserveCapacity: {},
           resting: {},
+          refused: {},
         }],
         since,
       );

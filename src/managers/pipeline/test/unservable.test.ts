@@ -28,6 +28,7 @@ const worker = (pool: string, kinds: string[], currentKind?: string): PoolWorker
   reserveKinds: [],
   reserveCapacity: {},
   resting: {},
+  refused: {},
 });
 
 const media = (ready: Record<string, number>) => ({

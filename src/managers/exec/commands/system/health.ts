@@ -2,7 +2,8 @@
  * health — is the system fine and keeping up: one verdict, and the checks it comes from.
  *
  * Core's checks are about the work. Every kind of every work pool with something waiting says
- * whether it drains, rests because EMS could not run it yet, or has no worker at all. Failed pipeline work is either being run again on its own
+ * whether it drains, rests because EMS could not run it yet, or has no worker at all, and why its
+ * last step that could not run yet could not. Failed pipeline work is either being run again on its own
  * (`pipeline heal`) or needs a person; input nothing can process is counted apart, since nothing
  * will ever change it. Running steps that have gone quiet and queue entries dropped after their
  * delivery attempts are listed too. A module adds checks of its own through a service's
@@ -100,6 +101,7 @@ const poolChecks = (pools: PoolStatAnswer[], now: number): Backlog => {
       if (left === 0) continue;
       const name = `kind ${kind.kind}`;
       const waited = kind.oldestReadyAt !== undefined ? `, the oldest for ${fmtAge(now - kind.oldestReadyAt)}` : '';
+      const refused = kind.refusal ? `; the last could not run ${fmtAge(now - kind.refusal.at)} ago: ${kind.refusal.reason}` : '';
 
       backlog.waiting += left;
       if (kind.unservableSince !== undefined) {
@@ -112,12 +114,14 @@ const poolChecks = (pools: PoolStatAnswer[], now: number): Backlog => {
         backlog.checks.push({
           name,
           state: 'warn',
-          reason: `${left.toLocaleString('en')} waiting for EMS, which could not run it yet; next try in ${fmtAge(kind.restingUntil - now)}`,
+          reason: `${left.toLocaleString('en')} waiting for EMS, which could not run it yet; next try in ${fmtAge(kind.restingUntil - now)}${
+            kind.refusal ? `; it said: ${kind.refusal.reason}` : ''
+          }`,
         });
       } else if (kind.oldestReadyAt !== undefined && now - kind.oldestReadyAt > STALLED_AFTER_MS) {
-        backlog.checks.push({ name, state: 'warn', reason: `${left.toLocaleString('en')} waiting${waited}, none done in the last hour` });
+        backlog.checks.push({ name, state: 'warn', reason: `${left.toLocaleString('en')} waiting${waited}, none done in the last hour${refused}` });
       } else {
-        backlog.checks.push({ name, state: 'ok', reason: `${left.toLocaleString('en')} waiting${waited}` });
+        backlog.checks.push({ name, state: 'ok', reason: `${left.toLocaleString('en')} waiting${waited}${refused}` });
       }
     }
   }

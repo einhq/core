@@ -541,11 +541,12 @@ output goes to `error` instead.
 ein/core#515): `healthy` when nothing is waiting, `catching-up` when work is waiting and
 some finished in the last hour, `stuck` when none did, and `needs-person` when a check failed. Its
 checks are one per pool kind with something waiting — draining, resting because EMS could not run
-it (with the next try), or with no worker — failed instances that `pipeline
+it (with the next try), or with no worker, and the last line of the last step of it that could not
+run yet, which the pool worker keeps per kind until one of the kind completes — failed instances that `pipeline
 heal` is running again (`warn`) or has marked `needsPerson` (`fail`), steps that met input nothing
 can process, quiet steps, dead-lettered queue entries, and whatever running services answer through
 their `checkCommand`. `pool-stat` gives each kind the figures this reads — `oldestReadyAt`,
-`restingUntil` —
+`restingUntil`, `refusal` —
 and the system page's header badge carries the verdict, its Overview the checks that are not `ok`
 (nothing while they all are), and `top` leads with both.
 

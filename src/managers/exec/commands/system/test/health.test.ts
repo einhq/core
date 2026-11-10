@@ -69,6 +69,20 @@ Deno.test('health', async (t) => {
     assertEquals(answer.checks[0].reason, '40 waiting for EMS, which could not run it yet; next try in 1m30s');
   });
 
+  await t.step('a kind whose steps could not run says what the last one was told', () => {
+    const refusal = { at: NOW - 120_000, reason: 'read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)' };
+    const resting = assessHealth({ pools: [pool([kind('ocr', { ready: 40, restingUntil: NOW + 90_000, refusal })])], work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(
+      resting.checks[0].reason,
+      '40 waiting for EMS, which could not run it yet; next try in 1m30s; it said: read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)',
+    );
+    const stalled = assessHealth({ pools: [pool([kind('ocr', { ready: 10, oldestReadyAt: NOW - 2 * HOUR, refusal })])], work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(
+      stalled.checks[0].reason,
+      '10 waiting, the oldest for 2h00m, none done in the last hour; the last could not run 2m00s ago: read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)',
+    );
+  });
+
   await t.step('failed work that runs again on its own is a warning; work for a person fails', () => {
     const answer = assessHealth({ pools: [], work: work({ failed: 5 }), attention: { needsPerson: 2, input: 7 }, services: [] }, NOW);
     assertEquals(answer.verdict, 'needs-person');

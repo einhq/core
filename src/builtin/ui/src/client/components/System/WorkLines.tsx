@@ -13,7 +13,7 @@ type Props = {
  *
  * The pipeline table above counts work by pipeline; the steps that take the time run out of these
  * pools, where one pool mixes face detection with video transcodes. A line resting because EMS
- * could not run it says so here rather than look like a slow one.
+ * could not run it says so here rather than look like a slow one, and what EMS said is its tooltip.
  */
 export function WorkLines({ pools }: Props) {
   if (!pools) return <Skeleton height={80} />;
@@ -62,10 +62,19 @@ export function WorkLines({ pools }: Props) {
                     {kind.unservableSince !== undefined && <Badge size='xs' color='red' variant='light'>no worker</Badge>}
                     {kind.restingUntil !== undefined && (
                       <Tooltip
-                        label={`next try in ${formatDuration(kind.restingUntil - now)}${kind.restingIn?.length ? `; resting in ${kind.restingIn.join(', ')}` : ''}`}
+                        label={`next try in ${formatDuration(kind.restingUntil - now)}${kind.restingIn?.length ? `; resting in ${kind.restingIn.join(', ')}` : ''}${
+                          kind.refusal ? `; ${kind.refusal.reason}` : ''
+                        }`}
+                        multiline
+                        maw={420}
                         withArrow
                       >
                         <Badge size='xs' color='yellow' variant='light'>waiting for EMS</Badge>
+                      </Tooltip>
+                    )}
+                    {kind.restingUntil === undefined && kind.refusal && (
+                      <Tooltip label={`${formatDuration(now - kind.refusal.at)} ago: ${kind.refusal.reason}`} multiline maw={420} withArrow>
+                        <Badge size='xs' color='yellow' variant='light'>EMS could not run one</Badge>
                       </Tooltip>
                     )}
                   </Group>
