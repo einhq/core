@@ -8,11 +8,14 @@
  * decouple the producer of a fact from every consumer of it.
  *
  * Events are published by writing one JSON object per line to a router node —
- * `/dev/events`, bound to the `system.events` routing key. Anything that can
- * write to a VFS node can publish; there is no dedicated command or API.
+ * `/dev/events`, bound to the `system.events` routing key; the pipeline engine's
+ * lifecycle (`pipeline.instance.completed`, …) goes to `/dev/pipeline-events` on
+ * `system.pipeline`. Both are the administrator's alone, to write and to read;
+ * there is no dedicated command or API.
  */
 
 export const EVENTS_ROUTING_KEY = 'system.events';
+export const PIPELINE_EVENTS_ROUTING_KEY = 'system.pipeline';
 import { EVENTS_NODE_PATH, PIPELINE_EVENTS_NODE_PATH } from '../paths.ts';
 import type { DomainEvent } from '../api/events.ts';
 export type { DomainEvent } from '../api/events.ts';

@@ -4,6 +4,8 @@ In-memory pub/sub router. Resources are subscriptions bound to a routing key. Wr
 
 A key may be a wildcard pattern (`system.vfs.#`, `src/registries/routing-key-match.ts`), which makes the node a **read-only tail**: it receives everything published on any key the pattern covers, and a write to it fails with `cannot publish to a routing key pattern: …`. That asymmetry is the point — a router node's key is normally also what its writes publish _to_, and a pattern says which keys to listen to, not which one to publish on.
 
+The registry checks no access: in the VFS only the administrator sets a router node's `routingKey` (`ADMIN_ATTRS` in `src/vfs/assert-access.ts`), since the key decides what everyone else's writes reach and what a reader hears, whoever may read what it is about. A router node without a key is local: its writes reach its own readers only.
+
 Every published message in the instance reaches the relay handler, so an exact key is one map lookup and patterns live in a second map that is empty unless a pattern node is being read.
 
 ## Interfaces

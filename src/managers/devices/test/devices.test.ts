@@ -117,6 +117,13 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       await testCommands(bo).shouldFailWith("mkqueue -k 'dev.lamp.#' /home/bo/lamp", 'routingKeys');
       await bo.execString('mkqueue /home/bo/lamp');
       await testCommands(bo).shouldFailWith('attrs -s \'routingKeys=["dev.#"]\' /home/bo/lamp', 'routingKeys');
+      // Nor publishes on a key or tails it through a router: bo would hear every device, or forge domain events.
+      await testCommands(bo).shouldFailWith("mkrouter -k 'dev.#' /home/bo/tail", 'routingKey');
+      await testCommands(bo).shouldFailWith('mkrouter -k system.events /home/bo/events', 'routingKey');
+      await bo.execString('mknode -t router /home/bo/local');
+      await testCommands(bo).shouldFailWith('attrs -s routingKey=system.events /home/bo/local', 'routingKey');
+      await testCommands(bo).shouldFailWith('echo \'{"type":"media.file.discovered","subject":"/home/bo","id":"1","time":1}\' > /dev/events', 'denied');
+      await testCommands(bo).shouldFailWith('cat /dev/pipeline-events', 'denied');
 
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'power', 41.8), true);
       assertEquals(await devices.append(ADMIN_ACCESS, 'lamp', 'power', 41.8), false, 'a repeat is not news');

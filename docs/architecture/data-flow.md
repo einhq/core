@@ -24,7 +24,10 @@ whoever produced it.
 
 Publishing is writing JSONL to a router node; there is no dedicated command or API.
 `/dev/events` carries domain facts on the `system.events` routing key, and
-`/dev/pipeline-events` carries engine lifecycle on `system.pipeline`:
+`/dev/pipeline-events` carries engine lifecycle on `system.pipeline`. Both are `0700`, the
+administrator's: a fact starts pipelines that run as the administrator, and its subject may be
+anyone's node. Setting a router's `routingKey`, like a queue's `routingKeys`, is the
+administrator's too, so no other router publishes on or tails these keys. Lifecycle is
 `pipeline.instance.started` / `.completed` / `.failed`, and `pipeline.step.started` /
 `.completed` / `.failed` / `.skipped`. Each has the run's node as `subject` and
 `{pipeline, instance}` in `data`, plus `step` and `attempts` for a step (`exitCode` and

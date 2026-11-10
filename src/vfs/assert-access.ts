@@ -133,10 +133,12 @@ export const assertOwnerAttrsUnchanged = (
 
 /**
  * Attrs only an administrator sets, on a new node or an existing one: `routingKeys` binds a queue, a
- * log or a track to what is published under those keys, whoever may read what it is about (a
- * device's readings, every node's changes), so it is for EiN's own services and pipelines.
+ * log or a track to what is published under those keys, and a router's `routingKey` publishes what
+ * is written to it under its key and tails the key to whoever reads it. Either way it reaches past
+ * the node, whoever may read or write what the key is about (a device's readings, every node's
+ * changes, the domain events pipelines run on), so it is for EiN's own services and pipelines.
  */
-const ADMIN_ATTRS: readonly string[] = ['routingKeys'];
+const ADMIN_ATTRS: readonly string[] = ['routingKeys', 'routingKey'];
 
 /** Assert that a node's creation or update sets none of the `ADMIN_ATTRS` unless an administrator makes it. */
 export const assertAdminAttrsUnchanged = (

@@ -179,7 +179,7 @@ export { STEP_EXIT_INPUT, STEP_EXIT_TEMPORARY } from '../lib/step-exit.ts';
 export type { Gauge, HealthCheck } from '../lib/api/system.ts';
 
 /* Domain events */
-export { type DomainEvent, EVENTS_NODE_PATH, EVENTS_ROUTING_KEY } from '../lib/events/mod.ts';
+export { type DomainEvent, EVENTS_NODE_PATH, EVENTS_ROUTING_KEY, PIPELINE_EVENTS_NODE_PATH, PIPELINE_EVENTS_ROUTING_KEY } from '../lib/events/mod.ts';
 
 /* Capture times: the one string a file's date is, and the instant it names */
 export {

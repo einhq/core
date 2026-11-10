@@ -16,8 +16,11 @@ mkdir -p /dev
 # found at the path is replaced; the mode is set on every boot, whatever an existing one has.
 [ -c /dev/null ] || { rm -f /dev/null; mknode -t null /dev/null; }
 chmod 666 /dev/null
+# Domain events and the pipeline engine's lifecycle are the administrator's: whoever writes them
+# starts pipelines, and whoever reads them hears every node they are about.
 [ -e /dev/events ] || mknode -t router --as routingKey=system.events /dev/events
 [ -e /dev/pipeline-events ] || mknode -t router --as routingKey=system.pipeline /dev/pipeline-events
+chmod 700 /dev/events /dev/pipeline-events
 
 [ -e "$LOGS_PATH/system" ] || mknode -t log --al routingKeys=system.logs "$LOGS_PATH/system"
 truncate "$LOGS_PATH/system"

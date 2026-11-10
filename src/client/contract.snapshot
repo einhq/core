@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.10
+MODULE_API_VERSION 0.14.11
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -924,6 +924,8 @@ src/client/mod.ts NodeReference f2d4c2d76b42
 src/client/mod.ts NodeResolveOptions bb4b13e989a8 follow=0e2746401d99,readlink=966b519539c5,readmount=6ca5264393b0
 src/client/mod.ts NodeType 86e54873a4c8
 src/client/mod.ts NodeVFS c602740cd169 aggregate=eeae3164ceb5,audit=6b3f524023ad,childCount=46e3af6628c9,children=8ab7bf233521,childrenMany=2e490c82e537,copy=fcb4752361b6,countWithin=e9372ae0dd70,create=7e220647af55,createTree=e0a30d400b42,ensure=fbd6837c94f5,exists=204560e042e7,findAllPairs=5ae2882fa700,findContaining=11fb5644d521,findLinks=1918617a0fe5,findLinksUnder=4ea7013cb6bc,findNearby=8f94089f88bb,findSimilar=91aca3139163,findWithin=6b6b8f02636c,get=155a434cfa76,getChildLinksByIds=4c4b5310c245,getNodesByIds=22238586366e,getParentLinksByIds=65d534493a1d,getPoints=67549f470e57,getVectors=b3b3479fc16c,link=554d793393d2,mounts=692e216dccc3,open=f98bc691ef30,poolAdd=3eb9882585f6,query=cc118666ea05,rename=3eded9e9864e,renameMany=9ba0bd6f6464,resolveEntry=d993db350394,resolveId=8b42bfca0ccc,resolveIdEntries=aac044156ee9,resolveIdPaths=ffdcae9c36a2,resolvePath=0fc870563fb0,stat=e92877ab0a44,statX=a89e95fe8720,subscribe=23106e596e97,trackSummaries=81699cf87a30,unlink=c6454eee3fa6,unlinkMany=b82ac789b1ad,update=027d2d6f8c14,updateEach=38298b9219be,updateMany=ec6c4accd4ef
+src/client/mod.ts PIPELINE_EVENTS_NODE_PATH 629098147f14
+src/client/mod.ts PIPELINE_EVENTS_ROUTING_KEY 90082b11b3b5
 src/client/mod.ts PROCESSING_ATTR 282d1fc56eee
 src/client/mod.ts PositionData 1c1c80bec501
 src/client/mod.ts PositionFilter bf58cf60223c ownerTypes=4e1cf1506fc0
