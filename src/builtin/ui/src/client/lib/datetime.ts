@@ -34,11 +34,11 @@ const write = (at: When, options: Intl.DateTimeFormatOptions): string => {
   return Number.isNaN(date.getTime()) ? 'Invalid Date' : dateTimeFormat(options).format(date);
 };
 
-/** A date and time, like `toLocaleString`: 2026-11-09, 13:26:00 in `en-SE`. */
+/** A date and time, like `toLocaleString`: 2026-11-09 13:26:00 in `sv-SE`. */
 export const formatDateTime = (at: When, options: Intl.DateTimeFormatOptions = DATE_TIME): string => write(at, options);
 
-/** A date, like `toLocaleDateString`: 2026-11-09 in `en-SE`. */
+/** A date, like `toLocaleDateString`: 2026-11-09 in `sv-SE`. */
 export const formatDate = (at: When, options: Intl.DateTimeFormatOptions = DATE): string => write(at, options);
 
-/** A time of day, like `toLocaleTimeString`: 13:26:00 in `en-SE`. */
+/** A time of day, like `toLocaleTimeString`: 13:26:00 in `sv-SE`. */
 export const formatTime = (at: When, options: Intl.DateTimeFormatOptions = TIME): string => write(at, options);

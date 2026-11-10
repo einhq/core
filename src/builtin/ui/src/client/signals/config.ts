@@ -13,7 +13,7 @@ export type { ConfigEntry } from '@ein/api';
 export const userConfig = signal<Record<string, string>>({});
 
 /** `CFG_TIME_LOCALE`'s default, for a browser whose settings did not load. */
-const DEFAULT_TIME_LOCALE = 'en-SE';
+const DEFAULT_TIME_LOCALE = 'sv-SE';
 
 /**
  * The locale dates and times are written in: this person's `CFG_USER_TIME_LOCALE`, else the

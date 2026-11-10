@@ -29,10 +29,10 @@ export const CORE_OPTIONS: ConfigOption[] = [
     key: 'CFG_TIME_LOCALE',
     scope: 'system',
     type: 'locale',
-    default: 'en-SE',
+    default: 'sv-SE',
     label: 'Date and time format',
     description:
-      'How dates and times are written in the browser, as a locale: en-SE writes 2026-11-09, 13:26 and 9 Nov 2026, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM, sv-SE 9 nov. 2026. Each person may choose their own.',
+      'How dates and times are written in the browser, as a locale: sv-SE writes 2026-11-09 13:26 and 9 nov. 2026, en-SE 2026-11-09, 13:26 and 9 Nov 2026, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM. Each person may choose their own.',
     group: 'Language',
   },
 
@@ -360,7 +360,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     emptyMeans: "the system's date and time format",
     label: 'Date and time format',
     description:
-      'How dates and times are written for you, as a locale: en-SE writes 2026-11-09, 13:26, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM, sv-SE 9 nov. 2026. Empty follows the system setting.',
+      'How dates and times are written for you, as a locale: sv-SE writes 2026-11-09 13:26 and 9 nov. 2026, en-SE 2026-11-09, 13:26 and 9 Nov 2026, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM. Empty follows the system setting.',
     group: 'Language',
   },
   {
