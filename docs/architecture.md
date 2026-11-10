@@ -1219,7 +1219,9 @@ tables under the control's id, so `cat`, `tail -f` and `log-read` read a control
 `DeviceManager.frame`, the driver's `frame`, for a JPEG of it now (`cat`, and `GET /file/dev/…`,
 never cached), and `/stream/dev/<device>/<stream>` is a WebSocket that core opens to where the
 driver's `live` says (a restreamer's, with its credentials) and passes every message through, for
-whoever may read the stream. A driver's config field it declares `secret` is kept in the device's
+whoever may read the stream. A service, the administrator, asks `streamSource` for the address
+another service reads a stream at (the driver's `source`, an RTSP address with its credentials),
+which is how the media service is told what to watch. A driver's config field it declares `secret` is kept in the device's
 `.secret` (a JSON object, the administrator's alone), which `device-create` writes and the driver
 reads with `secret`. A driver
 appends what it reads with `append`, through the VFS (so a track's change reaches whoever follows

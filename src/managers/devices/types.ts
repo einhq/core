@@ -78,6 +78,12 @@ export type Driver = {
   frame?(stream: DriverStream): Promise<StreamFrame>;
   /** Where one of its devices' streams is watched live; throws when it cannot be. */
   live?(stream: DriverStream): Promise<StreamLive>;
+  /**
+   * An address another service reads one of its devices' streams at, with what it signs in with
+   * in it (`rtsp://user:password@host:8554/front-door-sub`): for the media service to watch it.
+   * Throws when the stream has none.
+   */
+  source?(stream: DriverStream): Promise<string>;
 };
 
 /** How `append` takes a value: when it was read, and whether the device replayed it. */
@@ -123,4 +129,9 @@ export interface ModuleDevices {
    * must be the administrator, as a driver's service is.
    */
   secret(access: Access, device: string): Promise<Record<string, string>>;
+  /**
+   * The address another service reads the stream `/dev/<device>/<endpoint>` at, as its driver's
+   * `source` says, credentials and all; the caller must be the administrator, as a service is.
+   */
+  streamSource(access: Access, device: string, endpoint: string): Promise<string>;
 }

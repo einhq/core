@@ -2,7 +2,8 @@
  * A camera's streams on a booted EiN, through a stub driver: a secret config field kept in the
  * device's `.secret` for the administrator alone, a stream endpoint shown with what it is, a frame
  * read with `cat` and over HTTP for whoever may read it, the live socket passed through to where the
- * driver says with its credentials, and nothing appended to a stream.
+ * driver says with its credentials, the stream's address for a service, and nothing appended to a
+ * stream.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
@@ -43,6 +44,10 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
     async frame(stream) {
       asked.push(stream);
       return { bytes: FRAME, type: 'image/jpeg' };
+    },
+    async source(stream) {
+      const secret = await devices.secret(ADMIN_ACCESS, stream.device);
+      return `rtsp://ein:${secret.password}@192.0.2.1:8554/${stream.device}-${stream.endpoint}`;
     },
     async live(stream) {
       const secret = await devices.secret(ADMIN_ACCESS, stream.device);
@@ -115,6 +120,13 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       const refused = await fetch(`${baseUrl}/stream/dev/front-door/main`, { headers: { cookie: await cookieOf('bo'), upgrade: 'websocket' } });
       assert(refused.status === 403 || refused.status === 404, `bo got ${refused.status}`);
       await refused.body?.cancel();
+    });
+
+    await t.step("a stream's address for another service is the administrator's alone", async () => {
+      assertEquals(await devices.streamSource(ADMIN_ACCESS, 'front-door', 'sub'), 'rtsp://ein:s3cret@192.0.2.1:8554/front-door-sub');
+      const anna = await accessOfUid(vfs, (await admin.execJson<{ attrs: { uid: number } }>('stat /etc/users/anna')).attrs.uid);
+      const refused = await devices.streamSource(anna!, 'front-door', 'sub').then(() => 'given', (error: Error) => error.message);
+      assertStringIncludes(refused, 'only the administrator');
     });
 
     await t.step('nothing is appended to a stream, nor written to it', async () => {

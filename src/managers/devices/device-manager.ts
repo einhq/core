@@ -205,6 +205,13 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     return await this.withinTimeout(stream, () => driver.live!(stream));
   }
 
+  async streamSource(access: Access, device: string, endpoint: string): Promise<string> {
+    if (!isAdmin(access)) throw new DeviceError(`only the administrator asks where ${device}/${endpoint} is read`);
+    const { stream, driver } = await this.streamOf(access, join(devicePath(device), endpoint));
+    if (!driver.source) throw new DeviceError(`${device}'s driver ${stream.attrs.driver} names no address for ${endpoint}`);
+    return await this.withinTimeout(stream, () => driver.source!(stream));
+  }
+
   private async streamOf(access: Access, path: string): Promise<{ stream: DriverStream; driver: Driver }> {
     const node = await this.sys.vfs.get<StreamAttrs>(access, path);
     if (node.type !== NODE_TYPE_STREAM) throw new DeviceError(`${path}: not a stream`);

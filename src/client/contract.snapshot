@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.12
+MODULE_API_VERSION 0.14.13
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -876,7 +876,7 @@ src/client/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797eb
 src/client/mod.ts CopyOptions 6305f5d4fb08 maxDepth=34f5e2fd62fb,overwrite=f2d77fe20c45,recursive=d247b337e7cf
 src/client/mod.ts DefaultOwnership b9c19f8487a1 gid=8c1040c8fde3,groupName=6f55f3a9a065,mode=4032464407ef,ownerName=e15a2bd9fbb8,uid=1fa992df73c7
 src/client/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
-src/client/mod.ts Driver b6f0522842f3 config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,frame=7210dfacd209,input=2430acf439f7,live=59e2d79f84b4,module=6c8b15af3edd,setup=2b883ed450d2,write=f4fed6d49b52
+src/client/mod.ts Driver a400e5098524 config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,frame=7210dfacd209,input=2430acf439f7,live=59e2d79f84b4,module=6c8b15af3edd,setup=2b883ed450d2,source=08f6fa93052f,write=f4fed6d49b52
 src/client/mod.ts DriverAnswer 08e3b2d0c365 message=3711f975e410,taken=edb065714e9c
 src/client/mod.ts DriverInput aa280614cc52 attrs=dd7075e72dc6,by=2e436585632a,bytes=d990f392d28a,contentType=03f903565be7,device=dc9837b78932,path=3fd20668ef6e,query=23f371a19ad9
 src/client/mod.ts DriverStream b96fcc3ea102 attrs=dd7075e72dc6,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e
@@ -895,7 +895,7 @@ src/client/mod.ts LinkEntry cca211d338b1 absPath=dacfc3a9d12c,id=3058e564a5ab,no
 src/client/mod.ts LogAggregate b21795ccfd3a
 src/client/mod.ts LogBucketQuery eb7b270ae4dd
 src/client/mod.ts Mode 701cc16d35f7
-src/client/mod.ts ModuleDevices 55a24b76e152 append=a42f66d576a5,appendFixes=0aa1c93daf2d,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,forget=a65cc0620afc,online=87342507628d,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec,secret=f0c703ea3f42
+src/client/mod.ts ModuleDevices 53f53486fdbb append=a42f66d576a5,appendFixes=0aa1c93daf2d,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,forget=a65cc0620afc,online=87342507628d,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec,secret=f0c703ea3f42,streamSource=76a6896834df
 src/client/mod.ts ModuleSystemCore c9d190c19d9d devices=b2f4dd8bc8c7,vfs=3ccbfd2800f5
 src/client/mod.ts NOT_DERIVED 970a00e02a5b
 src/client/mod.ts Node 623c8d634108
