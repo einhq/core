@@ -70,7 +70,7 @@ devices.spec = {
   returns: 'DeviceSummary[], or with --drivers DriverSummary[]',
 };
 
-/** A device and each of its endpoints: its latest value, a track's fixes, who may write it. */
+/** A device and each of its endpoints: its latest value, a track's fixes, a stream's size and codec, who may write it. */
 export const deviceShow = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, { unknown: collectUnknownFlags(unknown) });
@@ -90,6 +90,9 @@ export const deviceShow = async (cmd: Command): CmdReturn => {
     for (const ep of info.endpointList) {
       const value = ep.track
         ? `${ep.track.points} fixes${ep.track.lastAt ? `  ${ep.track.lastAt}` : ''}`
+        : ep.stream
+        ? [ep.stream.width && ep.stream.height ? `${ep.stream.width}x${ep.stream.height}` : '', ep.stream.codec ?? '', ep.stream.audio ? 'with sound' : ''].filter(Boolean)
+          .join(' ') || '-'
         : ep.last
         ? `${valueText(ep.last.value)}${ep.unit ? ` ${ep.unit}` : ''}  ${ep.last.at}`
         : '-';
@@ -105,7 +108,7 @@ export const deviceShow = async (cmd: Command): CmdReturn => {
 deviceShow.spec = {
   name: 'device-show',
   effect: 'read' as const,
-  description: "A device and each of its endpoints: a log's or control's latest value, a track's fixes, and whether you may write a control",
+  description: "A device and each of its endpoints: a log's or control's latest value, a track's fixes, a stream's size and codec, and whether you may write a control",
   args: [{ name: 'device', type: 'string' as const, description: `the device's name, or its path under ${DEV_PATH}` }],
   examples: ['device-show hall-plug', 'device-show /dev/ruby-phone'],
   returns: 'DeviceInfo',

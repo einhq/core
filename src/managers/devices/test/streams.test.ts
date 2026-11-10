@@ -81,6 +81,7 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       const card = (await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'front-door');
       assertEquals(card?.picture, 'sub');
       assertEquals((await anna.execJson<{ readings: unknown[] }>('device-history front-door/main')).readings, []);
+      assertStringIncludes(await anna.execString('JSON_OUTPUT=0 device-show front-door'), '  main  stream  1280x720 h264\n');
     });
 
     await t.step('a frame is read with cat and over HTTP by whoever may read the stream, never cached', async () => {
