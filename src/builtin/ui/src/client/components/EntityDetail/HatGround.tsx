@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { layoutHatField } from '../../lib/hat-field.ts';
 
 /** How strongly the tiles are outlined: a texture, not a picture. */
-const HAT_GROUND_OPACITY = 0.07;
+const HAT_GROUND_OPACITY = 0.04;
 
 /**
  * The ground behind a drawing dragged and zoomed in a box (the family tree, a module's canvas): the
