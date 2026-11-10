@@ -58,8 +58,9 @@ function Overview({ info, onChanged, onHistory }: { info: DeviceInfo; onChanged:
   );
 }
 
-/** Whether an endpoint has a history the History tab can draw: a track's fixes, or values a line can chart. */
+/** Whether an endpoint has a history the History tab can draw: a track's fixes, or values a line can chart; a stream keeps none. */
 const charted = (endpoint: EndpointSummary): boolean => {
+  if (endpoint.type === 'stream') return false;
   if (endpoint.type === 'track') return true;
   if (endpoint.type === 'control') return endpoint.schema?.type === 'bool' || endpoint.schema?.type === 'number';
   return endpoint.events === true || typeof endpoint.last?.value !== 'string';

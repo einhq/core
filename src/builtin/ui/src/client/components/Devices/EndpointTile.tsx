@@ -1,5 +1,5 @@
-import { ActionIcon, Anchor, Box, Button, Card, ColorInput, Group, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { ActionIcon, Anchor, Box, Button, Card, ColorInput, Group, Image, NumberInput, Select, Skeleton, Slider, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { useDocumentVisibility, useMediaQuery } from '@mantine/hooks';
 import { useEffect, useState } from 'react';
 import type { ControlSchema, DeviceHistory, DeviceValue, EndpointSummary } from '@ein/api';
 import { StatTile } from '../Pipeline/StatTile.tsx';
@@ -34,11 +34,13 @@ type TileProps = {
 
 /**
  * One endpoint on a device's Overview: a log's value with its last six hours, an event log's last
- * event, a track's last day on a small map, or a control to switch, set or press.
+ * event, a track's last day on a small map, a stream's picture as it is now, or a control to switch,
+ * set or press.
  */
 export function EndpointTile(props: TileProps) {
   const { endpoint } = props;
   if (endpoint.type === 'track') return <TrackTile {...props} />;
+  if (endpoint.type === 'stream') return <StreamTile {...props} />;
   if (endpoint.type === 'control') return <ControlTile {...props} />;
   if (endpoint.events) {
     return (
@@ -85,6 +87,68 @@ function LogTile({ device, endpoint, hint, accent }: TileProps) {
       seriesMax={series?.length ? Math.max(...series.map((point) => point.value)) : undefined}
       seriesUnit={endpoint.unit ? ` ${endpoint.unit}` : ''}
     />
+  );
+}
+
+/** How often a stream's tile asks for a new frame while the page is in view. */
+const FRAME_EVERY_MS = 10_000;
+
+/** What a stream is, as a line: `1280×720 · h264 · 15 fps`. */
+const streamText = (stream: EndpointSummary['stream']): string =>
+  [
+    stream?.width && stream.height ? `${stream.width}×${stream.height}` : undefined,
+    stream?.codec,
+    stream?.fps ? `${stream.fps} fps` : undefined,
+  ].filter(Boolean).join(' · ');
+
+/** A stream's picture, a frame its device gives, asked for again every ten seconds while the page is seen. */
+function StreamTile({ device, endpoint }: TileProps) {
+  const visible = useDocumentVisibility() === 'visible';
+  const [tick, setTick] = useState(() => Date.now());
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    setTick(Date.now());
+    const timer = setInterval(() => setTick(Date.now()), FRAME_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [visible]);
+  const width = endpoint.stream?.width ?? 16;
+  const height = endpoint.stream?.height ?? 9;
+  return (
+    <Card p='sm'>
+      <Stack gap={6}>
+        <Text size='xs' c='dimmed' truncate>{endpoint.label}</Text>
+        <Box
+          style={{
+            aspectRatio: `${width} / ${height}`,
+            maxHeight: 360,
+            borderRadius: 'var(--mantine-radius-sm)',
+            overflow: 'hidden',
+            background: 'var(--mrx-surface-raised)',
+          }}
+        >
+          {failed
+            ? (
+              <Stack h='100%' align='center' justify='center' gap={4}>
+                <TablerIcon name='video-off' size={28} />
+                <Text size='xs' c='dimmed'>No picture</Text>
+              </Stack>
+            )
+            : (
+              <Image
+                src={`/file/dev/${encodeURIComponent(device)}/${encodeURIComponent(endpoint.name)}?at=${tick}`}
+                alt={endpoint.label}
+                h='100%'
+                w='100%'
+                fit='contain'
+                onError={() => setFailed(true)}
+                onLoad={() => setFailed(false)}
+              />
+            )}
+        </Box>
+        <Text size='xs' c='dimmed'>{streamText(endpoint.stream) || 'a live picture'}</Text>
+      </Stack>
+    </Card>
   );
 }
 

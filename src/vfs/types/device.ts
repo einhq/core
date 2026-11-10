@@ -13,12 +13,20 @@ export const NODE_TYPE_DEVICE: NodeType = 'device';
  */
 export const NODE_TYPE_CONTROL: NodeType = 'control';
 
+/**
+ * A stream: an endpoint that is a device's live picture, a camera's. Nothing keeps it: reading it
+ * gives one frame from the device's driver, and its driver says where to watch it live.
+ */
+export const NODE_TYPE_STREAM: NodeType = 'stream';
+
 /** The key a device's HTTP writes carry, its child `.key`: mode 0600 and the administrator's. */
 export const NODE_TYPE_DEVICE_KEY: NodeType = 'device-key';
 
 export type DeviceNodeAttrs = NodeAttrs & DeviceAttrs;
 
 export type ControlAttrs = LogAttrs & EndpointAttrs;
+
+export type StreamAttrs = NodeAttrs & EndpointAttrs;
 
 export type DeviceKeyAttrs = NodeAttrs & {
   key: string;

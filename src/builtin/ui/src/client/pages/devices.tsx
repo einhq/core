@@ -3,6 +3,7 @@ import {
   BrowseEntityCard,
   CardGrid,
   EmptyState,
+  EntityCard,
   EntityDetailHeader,
   HeaderChoice,
   HeaderChoices,
@@ -28,8 +29,13 @@ type DeviceSort = 'name' | 'recent';
 const descriptionOf = (device: DeviceSummary): string =>
   device.main ? `${device.main.label}: ${readingText(device.main.value, device.main.unit)}` : [device.manufacturer, device.model].filter(Boolean).join(' ');
 
+/** A frame of a camera's smallest stream, for its card; the page polls `devices`, which keeps it current enough. */
+const pictureUrl = (device: DeviceSummary, at: string): string | undefined =>
+  device.picture ? `/file/dev/${encodeURIComponent(device.name)}/${encodeURIComponent(device.picture)}?at=${at}` : undefined;
+
 /**
- * Every device under `/dev` the reader may see, as cards: online or not, and its main value. The
+ * Every device under `/dev` the reader may see, as cards: online or not, its main value, and a
+ * camera's picture. The
  * header carries the modules' `devices.header` panels, beside the filters: automation's devices
  * found on the network.
  */
@@ -39,6 +45,8 @@ export default function DevicesPage() {
   const [sortBy, setSortBy] = usePersistedState<DeviceSort>('devices.list.sort', 'name');
   const { data, loading, error } = usePolledCommand<DeviceSummary[]>('devices');
   const devices = useMemo(() => data ?? [], [data]);
+  // A new frame each time the list is read again.
+  const readAt = useMemo(() => String(Date.now()), [data]);
   const navigate = useNavigate();
 
   const shown = useMemo(() => {
@@ -92,22 +100,23 @@ export default function DevicesPage() {
           {loading && !data ? <PageLoader /> : (
             <>
               <CardGrid items={shown} itemKey={(device) => device.name} textParts={(device) => ({ description: Boolean(descriptionOf(device)), badges: true })}>
-                {(device) => (
-                  <BrowseEntityCard
-                    title={device.label}
-                    description={descriptionOf(device)}
-                    kind='device'
-                    onClick={() => navigate(`/devices/${encodeURIComponent(device.name)}`)}
-                    badges={
+                {(device) => {
+                  const card = {
+                    title: device.label,
+                    description: descriptionOf(device),
+                    kind: 'device',
+                    onClick: () => navigate(`/devices/${encodeURIComponent(device.name)}`),
+                    badges: (
                       <>
                         {device.online === true && <Badge size='xs' variant='light' color='green'>online</Badge>}
                         {device.online === false && <Badge size='xs' variant='light' color='red'>offline</Badge>}
                         {device.class && <Badge size='xs' variant='light' color='orange'>{device.class}</Badge>}
                         <Badge size='xs' variant='light' color='gray'>{countOf(device.endpoints, 'endpoint', 'endpoints')}</Badge>
                       </>
-                    }
-                  />
-                )}
+                    ),
+                  } as const;
+                  return device.picture ? <EntityCard {...card} coverUrl={pictureUrl(device, readAt)} /> : <BrowseEntityCard {...card} />;
+                }}
               </CardGrid>
               {devices.length === 0 && (
                 <EmptyState title='No devices yet'>

@@ -12,6 +12,7 @@ import { handleGetShell } from './handlers/get-shell.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
 import { handlePostFile } from './handlers/post-file.ts';
 import { handlePutFile } from './handlers/put-file.ts';
+import { handleStreamLive } from './handlers/stream.ts';
 import { HttpServerConfig } from './types.ts';
 import { InteractiveTerminalRegistry } from './ws/interactive-terminal-registry.ts';
 
@@ -32,6 +33,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetShell({ ...config, interactiveTerminals }, req, url, info.remoteAddr);
       } else if (url.pathname === '/__session' && req.method === 'GET') {
         return await handleGetSession(config, req);
+      } else if (url.pathname.startsWith('/stream/') && req.method === 'GET') {
+        return await handleStreamLive(config, req, url);
       } else if (url.pathname.startsWith('/file/')) {
         const devWrite = await handleDevWrite(config, req, url, info.remoteAddr);
         if (devWrite) return devWrite;

@@ -42,9 +42,10 @@ import { ContentWriteHandle } from './content-write-handle.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.ts';
 import { type AuditInput, type AuditOp, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
-import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM } from './types/device.ts';
 import { NODE_TYPE_LOG } from './types/log.ts';
 import { DeviceWriteHandle } from './device-write-handle.ts';
+import { FrameHandle } from './frame-handle.ts';
 import {
   assertAccess,
   assertAdminAttrsUnchanged,
@@ -4988,6 +4989,15 @@ export class LocalNodeVFS implements NodeVFS {
       }
       if (reporting && !bypassesAccess(access)) {
         throw new NodeAccessDeniedError(entry.vfsAbsPath, 'report a control state');
+      }
+
+      // A stream keeps nothing: reading one is a frame its driver gives now.
+      if (node.type === NODE_TYPE_STREAM) {
+        const sink = this.deviceSink;
+        const path = entry.vfsAbsPath;
+        if (writing) throw new NodeNotSupportedError(`${path}: a stream is its device's live picture, read and never written`);
+        if (!sink) throw new NodeNotSupportedError(node.type);
+        return new FrameHandle(id, this.tierOpts(node), mode, reg, async () => (await sink.frame(access, path)).bytes);
       }
 
       // A device's log or track keeps its history: writing one appends to it, `>` as `>>`.

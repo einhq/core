@@ -62,9 +62,9 @@ export const onPageChange = (listener: (location: Location, action: NavigationTy
 export const nodeRoutes = signal<Record<string, string>>({});
 
 /** Endpoints a device's page opens for: what a device under `/dev` holds. */
-const ENDPOINT_TYPES = new Set(['log', 'track', 'control']);
+const ENDPOINT_TYPES = new Set(['log', 'track', 'control', 'stream']);
 
-/** Core's own: a device opens at its page, and so does a log, track or control right under one. */
+/** Core's own: a device opens at its page, and so does a log, track, control or stream right under one. */
 const coreRoute = (type: string, path: string): string | null => {
   const [root, device, endpoint, ...deeper] = path.slice(1).split('/');
   if (`/${root}` !== DEV_PATH || !device || deeper.length > 0) return null;

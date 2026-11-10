@@ -27,17 +27,21 @@ export type VfsRegistries = {
   track?: TrackRegistryIf;
   device?: RegistryIf;
   control?: RegistryIf<LogResourceOptions, LogStat>;
+  stream?: RegistryIf;
 };
 
 /**
- * Where the VFS sends what is written to a device or a control (`DeviceWriteHandle`): core's device
- * manager, which hands it the device's driver. The writer hears the answer from its close.
+ * Where the VFS sends what is written to a device or a control (`DeviceWriteHandle`), and where it
+ * asks for a stream's frame (`FrameHandle`): core's device manager, which hands it the device's
+ * driver. The writer hears the answer from its close.
  */
 export interface DeviceSink {
   /** Raw input written to the device node at `path`: a fix, a GPX file, a webhook's body. */
   input(access: Access, path: NodePath, raw: { bytes: Uint8Array; contentType?: string; query?: string }): Promise<unknown>;
   /** A value written to the control at `path`, as the writer gave it. */
   command(access: Access, path: NodePath, text: string): Promise<unknown>;
+  /** One frame of the stream at `path`, as its device's driver gives it now. */
+  frame(access: Access, path: NodePath): Promise<{ bytes: Uint8Array; type: string }>;
 }
 
 /**

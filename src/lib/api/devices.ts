@@ -3,8 +3,9 @@
  * drivers write it.
  *
  * A device is a node of type `device` whose children are its endpoints: a `log` of values or
- * events, a `track` of positions, or a `control` that is written to change the device. A driver
- * (a module's, or core's `tracker`) turns the device's raw input and output into those endpoints.
+ * events, a `track` of positions, a `control` that is written to change the device, or a `stream`,
+ * a camera's live picture. A driver (a module's, or core's `tracker`) turns the device's raw input
+ * and output into those endpoints.
  */
 
 /** The group whose members see, switch, share, make, name and forget every device under `/dev`. */
@@ -14,8 +15,8 @@ export const DEVICES_GROUPNAME = 'devices';
 export type DeviceValue = number | string | boolean | null;
 
 /** The node types an endpoint can be. */
-export type EndpointType = 'log' | 'track' | 'control';
-export const ENDPOINT_TYPES: readonly EndpointType[] = ['log', 'track', 'control'];
+export type EndpointType = 'log' | 'track' | 'control' | 'stream';
+export const ENDPOINT_TYPES: readonly EndpointType[] = ['log', 'track', 'control', 'stream'];
 
 /**
  * What a control takes:
@@ -59,8 +60,22 @@ export type DeviceAttrs = {
   config?: Record<string, string>;
 };
 
-/** Attrs a driver gives an endpoint: a `log`, `track` or `control` under a device. */
-export type EndpointAttrs = {
+/**
+ * What a `stream` is: a live picture its device sends, which nothing keeps. Reading the endpoint
+ * gives one frame of it, a JPEG; its driver says where to watch it live.
+ */
+export type StreamInfo = {
+  /** The video's codec as the device sends it: `h264`, `h265`, `mjpeg`. */
+  codec?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  /** Whether it carries sound. */
+  audio?: boolean;
+};
+
+/** Attrs a driver gives an endpoint: a `log`, `track`, `control` or `stream` under a device. */
+export type EndpointAttrs = StreamInfo & {
   label?: string;
   unit?: string;
   /** What is measured: `temperature`, `power`, `door`, `motion`. */
@@ -143,6 +158,8 @@ export type EndpointSummary = {
   last?: { value: DeviceValue; at: string };
   /** A track's: how many fixes, and when the latest was. */
   track?: { points: number; firstAt?: string; lastAt?: string };
+  /** A stream's: what it is, as its driver last said. */
+  stream?: StreamInfo;
 };
 
 /** A device, as `devices` answers. */
@@ -169,6 +186,8 @@ export type DeviceSummary = {
   main?: { endpoint: string; label: string; value: DeviceValue; unit?: string };
   /** Whether it has a track, which a page shows as a map. */
   tracks: boolean;
+  /** The stream a card shows a frame of: of a camera's streams, the one with the fewest pixels. */
+  picture?: string;
 };
 
 /** `device-show`: a device and each of its endpoints. */
@@ -227,7 +246,11 @@ export type DeviceHistory = {
   fixes?: ({ at: string } & DeviceFix)[];
 };
 
-/** A config field a driver asks for when a person makes a device with it. */
+/**
+ * A config field a driver asks for when a person makes a device with it. One that is `secret` (a
+ * password, an API key) is kept in the device's `.secret`, which the administrator alone reads, and
+ * its driver gets it from there.
+ */
 export type DriverConfigField = {
   name: string;
   label: string;

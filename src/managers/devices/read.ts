@@ -1,6 +1,7 @@
 /**
  * Devices read back as the caller may see them: what `devices`, `device-show` and `device-history`
- * answer. A log's or control's value is its last entry's `value`; a track's is its summary.
+ * answer. A log's or control's value is its last entry's `value`; a track's is its summary; a
+ * stream's is what it is, as nothing of it is kept.
  */
 
 import { join } from '@std/path';
@@ -17,6 +18,7 @@ import type {
   EndpointSummary,
   EndpointType,
   HistoryAggregate,
+  StreamInfo,
 } from '../../lib/api/devices.ts';
 import { SYSTEM_TIME_ZONE } from '../../lib/datetime/timezone.ts';
 import { readBuckets, readRange, readTail } from '../../lib/metrics/read.ts';
@@ -24,11 +26,11 @@ import { DEV_PATH, devicePath } from '../../lib/paths.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
 import type { Node } from '../../vfs/node.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
-import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../vfs/types/device.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM } from '../../vfs/types/device.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import type { DeviceManager } from './device-manager.ts';
 
-const ENDPOINT_NODE_TYPES = new Set<string>([NODE_TYPE_LOG, 'track', NODE_TYPE_CONTROL]);
+const ENDPOINT_NODE_TYPES = new Set<string>([NODE_TYPE_LOG, 'track', NODE_TYPE_CONTROL, NODE_TYPE_STREAM]);
 
 type Entry = { value?: DeviceValue };
 
@@ -127,6 +129,23 @@ const mainOf = (endpoints: EndpointNode[]): EndpointNode | undefined => {
   return readings[0] ?? live.find((ep) => ep.node.type === NODE_TYPE_CONTROL);
 };
 
+/** What a stream's attrs say it is. */
+const streamInfo = (attrs: EndpointAttrs): StreamInfo => ({
+  ...(attrs.codec ? { codec: attrs.codec } : {}),
+  ...(attrs.width ? { width: attrs.width } : {}),
+  ...(attrs.height ? { height: attrs.height } : {}),
+  ...(attrs.fps ? { fps: attrs.fps } : {}),
+  ...(typeof attrs.audio === 'boolean' ? { audio: attrs.audio } : {}),
+});
+
+/** The stream a card shows a frame of: the one with the fewest pixels, which is the quickest to give. */
+const pictureOf = (endpoints: EndpointNode[]): string | undefined => {
+  const pixels = (ep: EndpointNode) => ((ep.node.attrs as EndpointAttrs).width ?? Infinity) * ((ep.node.attrs as EndpointAttrs).height ?? 1);
+  return endpoints
+    .filter((ep) => ep.node.type === NODE_TYPE_STREAM && !(ep.node.attrs as EndpointAttrs).retired)
+    .sort((a, b) => pixels(a) - pixels(b))[0]?.name;
+};
+
 const summaryOf = (device: string, attrs: DeviceAttrs, endpoints: EndpointNode[]): DeviceSummary => ({
   name: device,
   path: devicePath(device),
@@ -138,6 +157,7 @@ const summaryOf = (device: string, attrs: DeviceAttrs, endpoints: EndpointNode[]
   ...(typeof attrs.online === 'boolean' ? { online: attrs.online } : {}),
   endpoints: endpoints.length,
   tracks: endpoints.some((ep) => ep.node.type === 'track'),
+  ...(pictureOf(endpoints) ? { picture: pictureOf(endpoints) } : {}),
 });
 
 /** The main value of a device, and when its latest value came, added to its summary. */
@@ -207,6 +227,8 @@ const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, e
   if (type === 'track') {
     const track = (await vfs.trackSummaries(access, [ep.node.id])).get(ep.node.id);
     summary.track = { points: track?.points ?? 0, ...(track?.firstTs ? { firstAt: track.firstTs } : {}), ...(track?.lastTs ? { lastAt: track.lastTs } : {}) };
+  } else if (type === 'stream') {
+    summary.stream = streamInfo(attrs);
   } else {
     const last = (await valuesOf(vfs, access, path, 1))[0];
     if (last) summary.last = last;
@@ -253,6 +275,7 @@ export const deviceHistory = async (
   const type = node.type as EndpointType;
   const attrs = node.attrs as EndpointAttrs;
   const base = { device, endpoint, type, ...(attrs.unit ? { unit: attrs.unit } : {}) };
+  if (type === 'stream') return { ...base, readings: [] };
   if (type === 'track') {
     return { ...base, readings: [], fixes: await fixesBetween(vfs, access, path, { since: query.since, until: query.until, limit: query.limit }) };
   }

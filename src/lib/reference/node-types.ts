@@ -117,7 +117,7 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     label: 'Device',
     category: 'system',
     description:
-      'Something that reports or can be switched, under /dev: a phone, a sensor, a plug. Its endpoints are its children, logs, tracks and controls, and what is written to the device itself goes to its driver, which reads it into them.',
+      'Something that reports or can be switched, under /dev: a phone, a sensor, a plug, a camera. Its endpoints are its children, logs, tracks, controls and streams, and what is written to the device itself goes to its driver, which reads it into them.',
   },
   {
     type: 'control',
@@ -125,6 +125,13 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     category: 'system',
     description:
       "An endpoint of a device that is written to change it: a switch, a dimmer, a setpoint. What is written goes to the device's driver; what is read are the states the device reported.",
+  },
+  {
+    type: 'stream',
+    label: 'Stream',
+    category: 'system',
+    description:
+      "An endpoint of a device that is a live picture, a camera's. Nothing is kept of it: reading it gives a JPEG of it now from the device's driver (`cat /dev/front-door/main > door.jpg`), and the device's page plays it live.",
   },
   {
     type: 'device-key',

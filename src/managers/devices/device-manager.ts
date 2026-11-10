@@ -2,11 +2,13 @@
  * Core's devices: the drivers modules register, what is written to a device or a control handed to
  * its driver, and the writes drivers make to devices and their endpoints.
  *
- * A device is `/dev/<device>`, its endpoints the `log`, `track` and `control` nodes under it. What a
- * driver reads from a device it appends through `append`, which keeps it on the endpoint (through
- * the VFS, so a track's change reaches those who follow it) and publishes it on
+ * A device is `/dev/<device>`, its endpoints the `log`, `track`, `control` and `stream` nodes under
+ * it. What a driver reads from a device it appends through `append`, which keeps it on the endpoint
+ * (through the VFS, so a track's change reaches those who follow it) and publishes it on
  * `dev.<device>.<endpoint>`, for queues and rules. The VFS gives writes to devices and controls to
- * `input` and `command` here (`DeviceSink`), and so does the HTTP server.
+ * `input` and `command` here (`DeviceSink`), and reads of a stream to `frame`; so does the HTTP
+ * server, which also asks `live` where to watch a stream. What a person gave a driver that is secret
+ * is the device's `.secret` file, a JSON object only the administrator reads.
  */
 
 import { basename, dirname, join } from '@std/path';
@@ -16,7 +18,7 @@ import { type DeviceAttrs, type DeviceFix, type DeviceMessage, deviceRoutingKey,
 import { createLogger } from '../logger/mod.ts';
 import { groupGid } from '../../lib/auth/member-gids.ts';
 import { readTail } from '../../lib/metrics/read.ts';
-import { DEV_PATH, DEV_RESERVED_NAMES, devicePath, USERS_PATH } from '../../lib/paths.ts';
+import { DEV_PATH, DEV_RESERVED_NAMES, DEVICE_SECRET_NAME, devicePath, USERS_PATH } from '../../lib/paths.ts';
 import { readTrackerRequest } from '../../lib/track/tracker-protocols.ts';
 import { LogHandle } from '../../registries/log/log-handle.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
@@ -25,13 +27,14 @@ import { isAdmin } from '../../lib/access/verify-access.ts';
 import { NodeNotFoundError } from '../../vfs/errors.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { DeviceSink } from '../../vfs/types.ts';
-import { type ControlAttrs, type DeviceNodeAttrs, NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../vfs/types/device.ts';
+import { type ControlAttrs, type DeviceNodeAttrs, NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM, type StreamAttrs } from '../../vfs/types/device.ts';
+import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import { isUserNode } from '../../vfs/types/user.ts';
 import type { RouterManagerIf } from '../router/mod.ts';
 import { ControlValueError, parseControlValue } from './control-value.ts';
 import { decide, type Published } from './throttle.ts';
-import type { AppendOptions, Driver, DriverAnswer, ModuleDevices } from './types.ts';
+import type { AppendOptions, Driver, DriverAnswer, DriverStream, ModuleDevices, StreamFrame, StreamLive } from './types.ts';
 import { webhookDriver } from './webhook.ts';
 import { HOST_DRIVER, hostDriver } from './host.ts';
 
@@ -39,6 +42,9 @@ const logger = createLogger('devices');
 
 /** How long a control's write waits for its driver before it is answered that the device did not. */
 const WRITE_TIMEOUT_MS = 10_000;
+
+/** How long a stream's frame, or where to watch it, is waited for from its driver. */
+const STREAM_TIMEOUT_MS = 15_000;
 
 /** A device's or endpoint's name: lower-case letters, digits and dashes, as a slug is. */
 const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -185,6 +191,51 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     return { value };
   }
 
+  /** One frame of the stream at `path`, from its device's driver, for a reader who may read it. */
+  async frame(access: Access, path: string): Promise<StreamFrame> {
+    const { stream, driver } = await this.streamOf(access, path);
+    if (!driver.frame) throw new DeviceError(`${stream.device}'s driver ${stream.attrs.driver} gives no frame of ${stream.endpoint}`);
+    return await this.withinTimeout(stream, () => driver.frame!(stream));
+  }
+
+  /** Where the stream at `path` is watched live, from its device's driver, for a reader who may read it. */
+  async live(access: Access, path: string): Promise<StreamLive> {
+    const { stream, driver } = await this.streamOf(access, path);
+    if (!driver.live) throw new DeviceError(`${stream.device}'s ${stream.endpoint} cannot be watched live`);
+    return await this.withinTimeout(stream, () => driver.live!(stream));
+  }
+
+  private async streamOf(access: Access, path: string): Promise<{ stream: DriverStream; driver: Driver }> {
+    const node = await this.sys.vfs.get<StreamAttrs>(access, path);
+    if (node.type !== NODE_TYPE_STREAM) throw new DeviceError(`${path}: not a stream`);
+    assertAccess(access, node, 'r');
+    const parent = dirname(path);
+    const deviceNode = await this.sys.vfs.get<DeviceNodeAttrs>(ADMIN_ACCESS, parent);
+    if (deviceNode.type !== NODE_TYPE_DEVICE || dirname(parent) !== DEV_PATH) throw new DeviceError(`${path}: not under a device`);
+    const device = basename(parent);
+    const name = deviceNode.attrs.driver;
+    const driver = name ? this.drivers.get(name) : undefined;
+    if (!name) throw new DeviceError(`${device} has no driver to give its ${basename(path)}`);
+    if (!driver) throw new DeviceError(`${device}'s driver ${name} is not running`);
+    return { stream: { device, endpoint: basename(path), path, attrs: deviceNode.attrs, endpointAttrs: node.attrs }, driver };
+  }
+
+  private async withinTimeout<T>(stream: DriverStream, ask: () => Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        ask(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new DeviceError(`${stream.device} did not answer within ${STREAM_TIMEOUT_MS / 1000} s`)), STREAM_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (error) {
+      throw error instanceof DeviceError ? error : new DeviceError(`${stream.device}/${stream.endpoint}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // ===== What drivers write =====
 
   async ensureDevice(access: Access, name: string, attrs: Partial<DeviceAttrs>): Promise<string> {
@@ -234,7 +285,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     // written by hand too.
     const owner = (await this.sys.vfs.get(ADMIN_ACCESS, parent)).props;
     await this.sys.vfs.create(access, type, parent, name, {
-      attrs: { ...attrs, ...(type === 'track' ? {} : { valueField: 'value' }) },
+      attrs: { ...attrs, ...(type === 'track' || type === 'stream' ? {} : { valueField: 'value' }) },
       props: {
         mode: mode ?? (type === 'track' ? 0o770 : 0o660),
         ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
@@ -255,6 +306,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
 
   async append(access: Access, device: string, endpoint: string, value: DeviceValue | DeviceFix, opts: AppendOptions = {}): Promise<boolean> {
     const ep = await this.endpointOf(access, device, endpoint);
+    if (ep.type === 'stream') throw new DeviceError(`${device}/${endpoint} is a stream, which keeps nothing appended`);
     const at = opts.at ?? new Date();
     if (ep.type === 'track') {
       if (!isFix(value)) throw new DeviceError(`${device}/${endpoint} is a track: it takes a fix`);
@@ -333,6 +385,30 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     }
   }
 
+  async secret(access: Access, device: string): Promise<Record<string, string>> {
+    if (!isAdmin(access)) throw new DeviceError(`only the administrator reads ${device}'s secrets`);
+    const path = join(devicePath(device), DEVICE_SECRET_NAME);
+    if (!await this.sys.vfs.exists(ADMIN_ACCESS, path)) return {};
+    const handle = await this.sys.vfs.open(ADMIN_ACCESS, path, { mode: 'r' });
+    try {
+      const parsed = JSON.parse(await new Response(handle.readable).text() || '{}');
+      return typeof parsed === 'object' && parsed !== null ? Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)])) : {};
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /** Keep `values` as the device's secrets, in place of those it had: the administrator's alone. */
+  async setSecret(device: string, values: Record<string, string>): Promise<void> {
+    await this.sys.vfs.ensure(ADMIN_ACCESS, NODE_TYPE_FILE, devicePath(device), DEVICE_SECRET_NAME, { props: { mode: 0o600 } });
+    const handle = await this.sys.vfs.open(ADMIN_ACCESS, join(devicePath(device), DEVICE_SECRET_NAME), { mode: 'w' });
+    try {
+      await handle.write(new TextEncoder().encode(JSON.stringify(values)));
+    } finally {
+      await handle.close();
+    }
+  }
+
   // ===== Within =====
 
   private async endpointOf(access: Access, device: string, endpoint: string): Promise<Endpoint> {
@@ -341,7 +417,9 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     if (known && Date.now() - known.readAt < ENDPOINT_TTL_MS) return known;
     const path = join(devicePath(device), endpoint);
     const node = await this.sys.vfs.get(access, path);
-    if (node.type !== NODE_TYPE_LOG && node.type !== 'track' && node.type !== NODE_TYPE_CONTROL) throw new DeviceError(`${path} is a ${node.type}, not an endpoint`);
+    if (node.type !== NODE_TYPE_LOG && node.type !== 'track' && node.type !== NODE_TYPE_CONTROL && node.type !== NODE_TYPE_STREAM) {
+      throw new DeviceError(`${path} is a ${node.type}, not an endpoint`);
+    }
     const ep: Endpoint = { path, type: node.type as EndpointType, attrs: node.attrs as EndpointAttrs, readAt: Date.now() };
     this.endpoints.set(key, ep);
     return ep;

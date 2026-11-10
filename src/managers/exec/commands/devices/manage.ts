@@ -13,7 +13,9 @@ import { assertDevicesMember, fail, parseTarget, qrSvg } from './lib.ts';
 /**
  * A device made by a person rather than found by a driver: a phone or a GPS logger (`--driver
  * tracker`), something that posts its readings to a webhook (`--driver webhook`), something a
- * driver reaches at an address it is given (`--config`). For members of the `devices` group.
+ * driver reaches at an address it is given (`--config`). What the driver declares secret of its
+ * config, a password, goes to the device's `.secret` rather than its attrs; so a driver whose
+ * service is not running takes no config. For members of the `devices` group.
  */
 export const deviceCreate = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -33,10 +35,17 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
     const manager = cmd.sys.devices;
     if (!manager) throw new Error('devices are not running here');
     const config: Record<string, string> = {};
+    const secret: Record<string, string> = {};
+    const driver = flags.driver ? manager.driver(flags.driver) : undefined;
+    const secretFields = new Set((driver?.config ?? []).filter((field) => field.secret).map((field) => field.name));
     for (const pair of (flags.config ?? []) as string[]) {
       const at = pair.indexOf('=');
       if (at < 1) throw new Error(`--config takes name=value, not '${pair}'`);
-      config[pair.slice(0, at)] = pair.slice(at + 1);
+      if (flags.driver && !driver) throw new Error(`the driver ${flags.driver} is not running, so which of its config is secret is not known: start its module first`);
+      (secretFields.has(pair.slice(0, at)) ? secret : config)[pair.slice(0, at)] = pair.slice(at + 1);
+    }
+    for (const field of driver?.config ?? []) {
+      if (field.required && !(field.name in config) && !(field.name in secret)) throw new Error(`${flags.driver} needs --config ${field.name}=… (${field.label})`);
     }
     const attrs: DeviceAttrs = {
       label: flags.label || typed,
@@ -48,7 +57,8 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
     };
     // Made as the administrator, since /dev is theirs, and the devices group's as every device is.
     const path = await manager.ensureDevice(ADMIN_ACCESS, device, attrs);
-    if (flags.driver) await manager.driver(flags.driver)?.setup?.(device);
+    if (Object.keys(secret).length > 0) await manager.setSecret(device, secret);
+    await driver?.setup?.(device);
     const created: DeviceCreated = { device, path };
     if (cmd.json) await cmd.writeJSON(created satisfies DeviceCreated);
     else await cmd.writeLn(path);

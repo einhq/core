@@ -4,8 +4,9 @@
  * A driver turns a device's raw input and output into its endpoints. A module's service registers
  * its drivers when it starts, in core's process, and core calls them while a write waits: `input`
  * for what is written to a device (`/file/dev/<device>`, `cat ride.gpx > /dev/old-etrex`), `write`
- * for a value written to one of its controls. What a driver reads from its devices it appends with
- * `append`, which publishes it on `dev.<device>.<endpoint>` too.
+ * for a value written to one of its controls, `frame` and `live` for a reader of one of its
+ * streams. What a driver reads from its devices it appends with `append`, which publishes it on
+ * `dev.<device>.<endpoint>` too.
  */
 
 import type { Access } from '../../lib/access/types.ts';
@@ -36,6 +37,25 @@ export type DriverWrite = {
   by: string;
 };
 
+/** One of a device's streams, as its driver is asked for a frame of it or where to watch it. */
+export type DriverStream = {
+  device: string;
+  endpoint: string;
+  path: string;
+  attrs: DeviceAttrs;
+  endpointAttrs: EndpointAttrs;
+};
+
+/** One frame of a stream: the picture's bytes and their media type (`image/jpeg`). */
+export type StreamFrame = { bytes: Uint8Array<ArrayBuffer>; type: string };
+
+/**
+ * Where a stream is watched live: a WebSocket address, with the headers to open it with (its
+ * credentials). Core opens it for a reader who may read the stream and passes every message both
+ * ways, so the address and headers never reach the reader.
+ */
+export type StreamLive = { url: string; headers?: Record<string, string> };
+
 /** What a driver answers raw input with: how much it took, and a word for the writer. */
 export type DriverAnswer = { taken?: number; message?: string };
 
@@ -54,6 +74,10 @@ export type Driver = {
   forget?(device: string): Promise<void>;
   /** A person made one of its devices (`device-create`): give it the endpoints it has from the start. */
   setup?(device: string): Promise<void>;
+  /** One frame of one of its devices' streams, as it is now; throws when the device does not give one. */
+  frame?(stream: DriverStream): Promise<StreamFrame>;
+  /** Where one of its devices' streams is watched live; throws when it cannot be. */
+  live?(stream: DriverStream): Promise<StreamLive>;
 };
 
 /** How `append` takes a value: when it was read, and whether the device replayed it. */
@@ -93,4 +117,10 @@ export interface ModuleDevices {
   online(access: Access, device: string, up: boolean): Promise<void>;
   /** Remove the device and everything under it, its endpoints' history included. */
   forget(access: Access, device: string): Promise<void>;
+  /**
+   * What a person gave the device's driver that is secret (`device-create --config` of a field the
+   * driver declares `secret`), from the device's `.secret`: empty when there is none. The caller
+   * must be the administrator, as a driver's service is.
+   */
+  secret(access: Access, device: string): Promise<Record<string, string>>;
 }

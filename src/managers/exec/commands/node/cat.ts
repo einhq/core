@@ -8,7 +8,7 @@ import { NODE_TYPE_EMBEDDING } from '../../../../vfs/types/embedding.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import { NODE_TYPE_POSITION } from '../../../../vfs/types/position.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
-import { NODE_TYPE_CONTROL } from '../../../../vfs/types/device.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_STREAM } from '../../../../vfs/types/device.ts';
 import { NODE_TYPE_NULL } from '../../../../vfs/types/null.ts';
 import { NODE_TYPE_POOL } from '../../../../vfs/types/pool.ts';
 import { NODE_TYPE_QUEUE } from '../../../../vfs/types/queue.ts';
@@ -19,6 +19,8 @@ import { signalExitCode } from '../../signal.ts';
 import type { CmdReturn } from '../../types.ts';
 
 const LOG_BATCH = 1000;
+/** How much of a frame is written at a time. */
+const FRAME_CHUNK = 65_536;
 
 /** Stdin to stdout as it arrives, until it ends or the command is interrupted. */
 const catStdin = async (cmd: Command): CmdReturn => {
@@ -109,6 +111,25 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
 
       case NODE_TYPE_NULL:
         return 0;
+
+      // A stream is one frame, from its device now: shown as a picture is on a terminal, its JPEG's
+      // bytes otherwise, for `cat /dev/front-door/main > door.jpg`.
+      case NODE_TYPE_STREAM: {
+        if (cmd.tty) {
+          const outputId = ulid();
+          for (let i = 0; i < mediaLines; i++) await cmd.write(`__IMG:${path}:${outputId}:${mediaLines}:${i}\n`);
+          return 0;
+        }
+        const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+        try {
+          for (let chunk = await handle.read(FRAME_CHUNK); chunk.length > 0 && !cmd.interrupted; chunk = await handle.read(FRAME_CHUNK)) {
+            await cmd.stdout.write(chunk);
+          }
+        } finally {
+          await handle.close();
+        }
+        return cmd.interrupted ? 130 : 0;
+      }
 
       case NODE_TYPE_ROUTER:
       // A pool streams a snapshot of its ready backlog and ends; unlike a
@@ -229,7 +250,8 @@ cat.spec = {
   name: 'cat',
   effect: 'read' as const,
   json: false,
-  description: "Print nodes' contents, one after the other: a text file, a log (one JSON entry a line), a position or an embedding (JSON)",
+  description:
+    "Print nodes' contents, one after the other: a text file, a log (one JSON entry a line), a position or an embedding (JSON), a camera's stream (a JPEG of it now)",
   args: [
     {
       name: 'path',

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.11
+MODULE_API_VERSION 0.14.12
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -876,9 +876,10 @@ src/client/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797eb
 src/client/mod.ts CopyOptions 6305f5d4fb08 maxDepth=34f5e2fd62fb,overwrite=f2d77fe20c45,recursive=d247b337e7cf
 src/client/mod.ts DefaultOwnership b9c19f8487a1 gid=8c1040c8fde3,groupName=6f55f3a9a065,mode=4032464407ef,ownerName=e15a2bd9fbb8,uid=1fa992df73c7
 src/client/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
-src/client/mod.ts Driver 805bc42798b3 config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,input=2430acf439f7,module=6c8b15af3edd,setup=2b883ed450d2,write=f4fed6d49b52
+src/client/mod.ts Driver b6f0522842f3 config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,frame=7210dfacd209,input=2430acf439f7,live=59e2d79f84b4,module=6c8b15af3edd,setup=2b883ed450d2,write=f4fed6d49b52
 src/client/mod.ts DriverAnswer 08e3b2d0c365 message=3711f975e410,taken=edb065714e9c
 src/client/mod.ts DriverInput aa280614cc52 attrs=dd7075e72dc6,by=2e436585632a,bytes=d990f392d28a,contentType=03f903565be7,device=dc9837b78932,path=3fd20668ef6e,query=23f371a19ad9
+src/client/mod.ts DriverStream b96fcc3ea102 attrs=dd7075e72dc6,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e
 src/client/mod.ts DriverWrite 37ef3e095c2c attrs=dd7075e72dc6,by=2e436585632a,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e,value=ac1fc49fb23d
 src/client/mod.ts EVENTS_NODE_PATH 629098147f14
 src/client/mod.ts EVENTS_ROUTING_KEY 66677c291cd1
@@ -894,7 +895,7 @@ src/client/mod.ts LinkEntry cca211d338b1 absPath=dacfc3a9d12c,id=3058e564a5ab,no
 src/client/mod.ts LogAggregate b21795ccfd3a
 src/client/mod.ts LogBucketQuery eb7b270ae4dd
 src/client/mod.ts Mode 701cc16d35f7
-src/client/mod.ts ModuleDevices 43fd8e0c66c7 append=a42f66d576a5,appendFixes=0aa1c93daf2d,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,forget=a65cc0620afc,online=87342507628d,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec
+src/client/mod.ts ModuleDevices 55a24b76e152 append=a42f66d576a5,appendFixes=0aa1c93daf2d,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,forget=a65cc0620afc,online=87342507628d,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec,secret=f0c703ea3f42
 src/client/mod.ts ModuleSystemCore c9d190c19d9d devices=b2f4dd8bc8c7,vfs=3ccbfd2800f5
 src/client/mod.ts NOT_DERIVED 970a00e02a5b
 src/client/mod.ts Node 623c8d634108
@@ -944,6 +945,8 @@ src/client/mod.ts SettingsContext 1b8e155c4a33 env=e4f7cd5b572a,sys=e2282d64ff3b
 src/client/mod.ts SharePreference b9087065ef2a
 src/client/mod.ts SpecLookup 8e20d3f3d8c9
 src/client/mod.ts StepPhase b7ff1a31c5f3
+src/client/mod.ts StreamFrame 1413b23a8dee bytes=75688b94b764,type=e22be5ee8605
+src/client/mod.ts StreamLive dbee3e579db2 headers=4ea979fb6ade,url=53273d06d6ef
 src/client/mod.ts SubjectEntry 0565fcbee9e5 error=03c9a5b2b69b,ids=9122864f7055,match=da2b6926c5b0,path=c29ab32b39f5,ref=5bab60719c93,truncated=3ea297a2e647
 src/client/mod.ts SubjectListing fa4b7e68258d subjects=d0ef21a7668d
 src/client/mod.ts SubjectMatch 01cef5f7c778 attr=5043d8c692fc,value=5647ee15e4bf
@@ -1051,7 +1054,7 @@ src/lib/api/mod.ts DeviceHistory cb115e75b84a bucket=b1c88b1c0747,device=dc9837b
 src/lib/api/mod.ts DeviceInfo fbeedd79267f
 src/lib/api/mod.ts DeviceKeyAnswer d4edb282e274 createdAt=5cf0f47e93d8,device=dc9837b78932,enabled=f70a52e841b2,qrSvg=7636c8592b87,qrText=78df8c4b2d08,url=823ee7e982b4
 src/lib/api/mod.ts DeviceMessage e0ded94782f9 at=f9e6ea108483,device=dc9837b78932,endpoint=2abf36827c7f,event=c3fa9f76d36a,fix=b7307f72798f,online=9267f296d3cb,retained=116b15733d51,unit=a31f90e44103,value=622734f3b279
-src/lib/api/mod.ts DeviceSummary 7d58672b9818 class=0132fdb7df03,driver=ce98b477b7ab,endpoints=d2a9b2b751a4,label=af04505f402e,lastAt=649408b45f04,main=b82ebfccf49b,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,name=6d0c36381511,online=9267f296d3cb,path=3fd20668ef6e,tracks=5a72ad7d35ed
+src/lib/api/mod.ts DeviceSummary d334e0c2c336 class=0132fdb7df03,driver=ce98b477b7ab,endpoints=d2a9b2b751a4,label=af04505f402e,lastAt=649408b45f04,main=b82ebfccf49b,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,name=6d0c36381511,online=9267f296d3cb,path=3fd20668ef6e,picture=e6e71e99cf5e,tracks=5a72ad7d35ed
 src/lib/api/mod.ts DeviceValue 92493af083b5
 src/lib/api/mod.ts DiskUsage 292a0300a59e databaseBytes=bff663e7d28e,databaseTables=6fd7389b642a,tiers=c8838ac64ea4
 src/lib/api/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
@@ -1060,10 +1063,10 @@ src/lib/api/mod.ts DriverSummary ba5c6d6c9f69 config=99733922b96c,description=c4
 src/lib/api/mod.ts ENDPOINT_TYPES 52e26bf0f551
 src/lib/api/mod.ts EXCEPTIONS_SHOWN 3c2047348dcc
 src/lib/api/mod.ts EffectiveEntry 877def9811c9 level=81cfde6ff39f,path=3fd20668ef6e,title=22df3e6ba489,username=02356e67b2c7,via=69ed95e6d00f,viaGroup=a985c7946614
-src/lib/api/mod.ts EndpointAttrs b80a99245c35 category=8dbfbe06208b,deviceClass=72f9156d826f,events=c7a660a34b67,label=995d88c00ff2,minInterval=849de9ff5ce4,requested=609b50974d15,retention=6fc48bd2a3a9,retired=2f29b5c0730b,schema=9638f57713c7,supported=e002e261dcda,unit=a31f90e44103
+src/lib/api/mod.ts EndpointAttrs ac42337bf5f2
 src/lib/api/mod.ts EndpointCategory 288a887a0d76
-src/lib/api/mod.ts EndpointSummary 9cb8a38cfd1a category=8dbfbe06208b,deviceClass=72f9156d826f,events=c7a660a34b67,label=af04505f402e,last=4726de26d01b,name=6d0c36381511,path=3fd20668ef6e,requested=609b50974d15,retired=07ad4691d515,schema=9638f57713c7,supported=05ae95badaa0,track=3f05ace98946,type=3c24dca901cd,unit=a31f90e44103,writable=2c61a6e4b326
-src/lib/api/mod.ts EndpointType c4cf0d16e96b
+src/lib/api/mod.ts EndpointSummary 933851a91ecb category=8dbfbe06208b,deviceClass=72f9156d826f,events=c7a660a34b67,label=af04505f402e,last=4726de26d01b,name=6d0c36381511,path=3fd20668ef6e,requested=609b50974d15,retired=07ad4691d515,schema=9638f57713c7,stream=504073fbc603,supported=05ae95badaa0,track=3f05ace98946,type=3c24dca901cd,unit=a31f90e44103,writable=2c61a6e4b326
+src/lib/api/mod.ts EndpointType 873cd7617d63
 src/lib/api/mod.ts EntityCompleteHit 3a38d543ef15 kind=9089229b6341,name=6d0c36381511,ownership=422e1253f570,path=3fd20668ef6e,score=cdcc05f75100,type=e22be5ee8605
 src/lib/api/mod.ts EntityCompleteResult c5e4ec0c4aa1 results=c985fc1b9883
 src/lib/api/mod.ts EnvReference 9b737204ba9f
@@ -1197,6 +1200,7 @@ src/lib/api/mod.ts StarEntry 69f9bc1bb7ed name=6d0c36381511,target=d9c423f5ed28
 src/lib/api/mod.ts StatsOverview 5a3a5f827164 nodeTypes=aa49233bcb23
 src/lib/api/mod.ts StorageTier c986b68fc0db bytesPerDay=c3b39afb60fd,daysUntilFull=185b0321edc0,device=dc9837b78932,filesBytes=5000403da816,freeBytes=83f01c00d354,path=3fd20668ef6e,tier=61a16a28c047,totalBytes=d9605855ffba,usedPercent=bea966994fba
 src/lib/api/mod.ts StoryboardRendition 0d8fdf517ec9 columns=03d908b52c17,maxTiles=20eceeda8f93,minInterval=073eadf9c3db,quality=f53f72d7683c,tile=b4392b86f5e2
+src/lib/api/mod.ts StreamInfo a64afa04e054 audio=dd6b7c7de43b,codec=44de2b8e40b6,fps=a6dd5c29456f,height=64579e3c11b3,width=a3309c29fc2e
 src/lib/api/mod.ts SubjectEntry 0565fcbee9e5 error=03c9a5b2b69b,ids=9122864f7055,match=da2b6926c5b0,path=c29ab32b39f5,ref=5bab60719c93,truncated=3ea297a2e647
 src/lib/api/mod.ts SubjectListing fa4b7e68258d subjects=d0ef21a7668d
 src/lib/api/mod.ts SubjectMatch 01cef5f7c778 attr=5043d8c692fc,value=5647ee15e4bf

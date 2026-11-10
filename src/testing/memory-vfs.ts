@@ -7,6 +7,7 @@ import { MemoryPositionRegistry } from '../registries/position/mod.ts';
 import { MemoryLogRegistry } from '../registries/log/mod.ts';
 import { NullRegistry } from '../registries/null/mod.ts';
 import { DeviceRegistry } from '../registries/device/mod.ts';
+import { StreamRegistry } from '../registries/stream/mod.ts';
 import { ControlRegistry } from '../registries/control/mod.ts';
 import { MemoryPoolRegistry } from '../registries/pool/mod.ts';
 import { MemoryQueueRegistry } from '../registries/queue/mod.ts';
@@ -51,6 +52,7 @@ export async function createMemoryTestVfs(
     track: new MemoryTrackRegistry({ router: routerManager }),
     device: new DeviceRegistry(),
     control: new ControlRegistry({ log }),
+    stream: new StreamRegistry(),
   }, { unaudited: options.unaudited });
 
   if (!options.rootMount) {

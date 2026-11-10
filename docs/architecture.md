@@ -1180,6 +1180,7 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 | `track`      | description, routingKeys; the summary is the registry's (`trackSummaries`)                     | track registry                           |
 | `device`     | label, class, driver, manufacturer, model, firmware, serial, mac, online, config               | device registry (keeps nothing)          |
 | `control`    | label, unit, schema, requested; its states are a log's entries                                 | control registry (log registry's tables) |
+| `stream`     | label, codec, width, height, fps, audio                                                        | stream registry (keeps nothing)          |
 | `device-key` | key, createdBy, createdAt                                                                      | PgStore                                  |
 | `command`    | name, args, flags                                                                              | CommandStore                             |
 | `session`    | secret, access, env, expiresSec, bootId                                                        | PgStore                                  |
@@ -1202,7 +1203,7 @@ module's: archive's locations are its own `location` nodes with a `position` chi
 cuts a device's track into trips and owns `/archive/locations` and every command over them.
 
 **Devices** are core's too (`src/managers/devices/`): a `device` node at `/dev/<device>`, its
-endpoints the `log`, `track` and `control` nodes under it. A driver turns the device's raw input
+endpoints the `log`, `track`, `control` and `stream` nodes under it. A driver turns the device's raw input
 and output into its endpoints: core's `tracker` (every protocol `tracker-protocols.ts` reads, GPX
 files included, into a `position` track), `webhook`, `host` (the machine EiN runs on,
 `/dev/<hostname>`, in the administrators' group, whose readings `metrics-sampler` writes through
@@ -1213,7 +1214,14 @@ device to `DeviceManager.input`, its driver's `input`, and what is written to a 
 control's `requested` (the audit's record of who switched what) and awaits the driver's `write`;
 the writer hears the driver's answer from its close. A control's states are the device's reports,
 appended by its driver (opened `a`, the administrator's alone) and kept in the log registry's
-tables under the control's id, so `cat`, `tail -f` and `log-read` read a control as a log. A driver
+tables under the control's id, so `cat`, `tail -f` and `log-read` read a control as a log. A
+`stream` is a camera's live picture and keeps nothing: a read of it is a `FrameHandle`, which asks
+`DeviceManager.frame`, the driver's `frame`, for a JPEG of it now (`cat`, and `GET /file/dev/…`,
+never cached), and `/stream/dev/<device>/<stream>` is a WebSocket that core opens to where the
+driver's `live` says (a restreamer's, with its credentials) and passes every message through, for
+whoever may read the stream. A driver's config field it declares `secret` is kept in the device's
+`.secret` (a JSON object, the administrator's alone), which `device-create` writes and the driver
+reads with `secret`. A driver
 appends what it reads with `append`, through the VFS (so a track's change reaches whoever follows
 it), throttled as `throttle.ts` says, and publishes it on `dev.<device>.<endpoint>` (`DeviceMessage`)
 for queues and rules; `dev.<device>` carries a device coming or going. A device and its endpoints are
@@ -1486,19 +1494,21 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 
 ### HTTP (`:8080`) — [src/servers/http/](../src/servers/http/)
 
-| Route                          | Handler                               | Purpose                                                                    |
-| ------------------------------ | ------------------------------------- | -------------------------------------------------------------------------- |
-| `/__shell` (WS upgrade)        | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                         |
-| `GET /__session`               | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie |
-| `GET /file/<path>`             | `get-file`                            | Stream file from VFS (ETag via sha256)                                     |
-| `PUT /file/<path>`             | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME       |
-| `POST /file/<dir>/?name=`      | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`          |
-| `POST /archive`                | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it           |
-| `GET /archive/<token>`         | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                     |
-| `PUT\|POST /file/dev/<device>` | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key      |
-| `GET /file/dev/<device>?key=…` | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input    |
-| `POST /file/dev/<device>/<ep>` | `dev-write`                           | A value: appended to a log or a track, or written to a control             |
-| `GET /*`                       | `get-default`                         | SPA fallback, vhost support                                                |
+| Route                           | Handler                               | Purpose                                                                    |
+| ------------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
+| `/__shell` (WS upgrade)         | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                         |
+| `GET /__session`                | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie |
+| `GET /file/<path>`              | `get-file`                            | Stream file from VFS (ETag via sha256)                                     |
+| `PUT /file/<path>`              | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME       |
+| `POST /file/<dir>/?name=`       | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`          |
+| `POST /archive`                 | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it           |
+| `GET /archive/<token>`          | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                     |
+| `PUT\|POST /file/dev/<device>`  | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key      |
+| `GET /file/dev/<device>?key=…`  | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input    |
+| `POST /file/dev/<device>/<ep>`  | `dev-write`                           | A value: appended to a log or a track, or written to a control             |
+| `GET /file/dev/<device>/<s>`    | `get-file` → `stream`                 | A frame of a stream now, from its driver (a JPEG, never cached)            |
+| `/stream/dev/<device>/<s>` (WS) | `stream`                              | Watch a stream live: passed through to where its driver says               |
+| `GET /*`                        | `get-default`                         | SPA fallback, vhost support                                                |
 
 **Device keys.** A device cannot sign in, so what it writes to `/file/dev/<device>` carries its key
 (`handlers/dev-write.ts`): `Authorization: Bearer <key>`, or `key=` in the query for a client that

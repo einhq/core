@@ -1,10 +1,12 @@
 import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
+import { NODE_TYPE_STREAM } from '../../../vfs/types/device.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import type { DownloadLog } from '../download-log.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
 import { fileBody } from './file-body.ts';
+import { streamFrameResponse } from './stream.ts';
 
 type GetFileOptions = {
   /**
@@ -35,6 +37,9 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   // (ein/core#437). Both calls still check read access on the node itself.
   const entry = await config.vfs.resolvePath(access, vfsPath);
   const node = await config.vfs.get<FileAttrs>(access, entry);
+
+  // A camera's stream keeps no bytes: what is read of it is a frame its device gives now.
+  if (node.type === NODE_TYPE_STREAM) return await streamFrameResponse(config, access, entry.vfsAbsPath, responseHeaders, req.method === 'HEAD');
 
   // Two shapes of a rendition nobody finished writing, both answered as absent and both
   // decided before the ETag and Cache-Control below — a 404 is not a cacheable rendition,
