@@ -806,7 +806,8 @@ sums are `lib/pan-zoom.ts`, pure: fitting, centring a point, keeping the box's m
 zooming about a point. The listeners are native, on the box, because the wheel's must not be passive;
 so they run before an element's own React handlers, and the page's `ignore(target)` keeps a press on
 something of its own (a node dragged on a canvas) from moving the drawing. The family tree draws with
-it, as do modules' canvases.
+it, as do modules' canvases. Behind the drawing, `HatGround` (components) lays the hat tiling, outlined
+only and barely, as the family tree's ground; it stays put while the drawing moves.
 
 **`SectionStream` holds the reader in place.** Its geometry is `lib/section-stream.ts`, pure: a
 section's top is its index times the closed height (and gap), plus what the open sections above it

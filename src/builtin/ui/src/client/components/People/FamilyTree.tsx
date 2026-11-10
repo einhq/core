@@ -1,9 +1,9 @@
 import { ActionIcon, Box, Loader, Stack, Text, Tooltip } from '@mantine/core';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { IconFocusCentered, IconMaximize, IconMinimize, IconZoomScan } from '@tabler/icons-react';
-import { memo, type ReactNode, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_HEIGHT, CARD_WIDTH, type FamilyGraph, type FamilyLines, type FamilyNode, layoutFamily } from '../../lib/family-layout.ts';
-import { layoutHatField } from '../../lib/hat-field.ts';
+import { HatGround } from '../EntityDetail/HatGround.tsx';
 import { type FamilyDirection, FamilyTreeCard } from './FamilyTreeCard.tsx';
 import { Dialog } from '../Surface/Dialog.tsx';
 import { usePanZoom } from '../../hooks/usePanZoom.ts';
@@ -16,8 +16,6 @@ const MIN_VIEWPORT_HEIGHT = 180;
 /** The inline box's border, which `border-box` takes out of the height it is given. */
 const VIEWPORT_BORDER = 2;
 const CORNER_RADIUS = 10;
-/** How strongly the hat tiles behind the drawing are outlined: a texture, not a picture. */
-const HAT_GROUND_OPACITY = 0.07;
 /** How wide a family's lines are to the pointer, wider than they are drawn. */
 const LINE_HIT_WIDTH = 12;
 /** A lit family's lines and the outline of its people's cards. */
@@ -81,22 +79,6 @@ const familyPath = ({ parents, fromY, coupleY, trunkX, siblingY, children, toY }
     barPath(siblingY, [{ x: trunkX, end: trunkTop }, ...children.map((x) => ({ x, end: toY }))]),
   ].join(' ');
 };
-
-/**
- * The ground behind the drawing: the hat tiling the page headers are cut from, outlined only and
- * barely, so the box reads as a surface without the tiles competing with the cards. It stays put
- * while the drawing is dragged over it, so it is laid out once per box size, not once per frame.
- */
-const HatGround = memo(function HatGround({ width, height, seed }: { width: number; height: number; seed: string }) {
-  const tiles = useMemo(() => (width > 0 && height > 0 ? layoutHatField(width, height, seed, 'backdrop').tiles : []), [width, height, seed]);
-  return (
-    <svg width={width} height={height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden='true'>
-      <g fill='none' stroke='var(--mantine-color-text)' strokeWidth={1} opacity={HAT_GROUND_OPACITY}>
-        {tiles.map((tile, index) => <path key={index} d={tile.d} />)}
-      </g>
-    </svg>
-  );
-});
 
 export type FamilyTreeProps = {
   graph: FamilyGraph | null;

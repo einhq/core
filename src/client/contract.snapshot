@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.8
+MODULE_API_VERSION 0.14.9
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -67,6 +67,7 @@ src/builtin/ui/src/client/components/mod.ts GRID_GAP ea376360d1f6
 src/builtin/ui/src/client/components/mod.ts GeoBounds fa41bfcc8bfd east=fb4ff6c4ec0a,north=31b6f63818f1,south=0330942ce773,west=21744fa5482d
 src/builtin/ui/src/client/components/mod.ts GuidePageList b442fdd28ecc @signature=e33cbda23dff,pages=bc771936e8f1
 src/builtin/ui/src/client/components/mod.ts HatField e9715c8ecaa6 @signature=e88436d88720,backdrop=75d2e08758d9,color=501eb658075f,kind=c2166ef41324,pattern=1c45d7add5c6
+src/builtin/ui/src/client/components/mod.ts HatGround 0a752fffac0f
 src/builtin/ui/src/client/components/mod.ts HeaderChoice 8abc5d076ade @signature=036e0ae507b2,disabled=afdef89e0b9b,label=52f9b8b83044,onChange=9f54af0b3372,options=f050aa75715d,value=9c19b817e1d4,variant=fc676df8952b
 src/builtin/ui/src/client/components/mod.ts HeaderChoiceOption f7e4357e5fdc icon=a13250a7ad68,label=af04505f402e,value=5647ee15e4bf
 src/builtin/ui/src/client/components/mod.ts HeaderChoiceProps 19d87142c7ff disabled=31a4a7656b0d,label=af04505f402e,onChange=6c8049023f89,options=f053f071b13c,value=5647ee15e4bf,variant=295305bad42b
