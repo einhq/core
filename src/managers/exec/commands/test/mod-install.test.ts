@@ -9,7 +9,8 @@
  * release for another core's module API gives way to the newest for this one's; a ref — a tag, or a
  * commit's id whole or cut short — pins the commit; an update a dependent does not accept is
  * refused unless forced; --missing and --no-setup, as boot runs it, leave an installed module
- * alone and set nothing up; an update of a module's pages alone leaves its services running; a module the deployment provides, one for another core and a
+ * alone and set nothing up, and replace one this core cannot run, and its dependency, with the
+ * newest releases it can; an update of a module's pages alone leaves its services running; a module the deployment provides, one for another core and a
  * repository that holds no module leave nothing behind; a private repository is read with its
  * host's token; an install goes on when the session that asked for it ends, another is refused
  * while it runs, the same one is joined, and mod status says how it stands; and mod remove takes an
@@ -287,6 +288,30 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals((await client.execJson<ModuleEntry[]>('mod-list')).find((module) => module.name === 'reef')?.installed?.commit, runnable);
       assertEquals(await run('$MOD_PATH/reef/bin/reef'), 'reef 0.1.1');
       await client.execString('mod-remove --force reef');
+    });
+
+    await t.step('--missing replaces an installed module this core cannot run with the newest release it can, its dependency too', async () => {
+      const placed = await install('lagoon');
+      assert(placed.success, placed.error);
+      // As after an update of core that changed the module API: both ask for one it does not provide,
+      // and lagoon for a reef older than any this core runs.
+      await client.execString(`echo '{"name":"reef","version":"0.1.1","coreApi":"^99.0.0"}' > $MOD_INSTALL_PATH/reef/mod.json`);
+      await client.execString(
+        `echo '{"name":"lagoon","version":"0.9.0","coreApi":"^99.0.0","dependencies":{"reef":"<0.1.0"}}' > $MOD_INSTALL_PATH/lagoon/mod.json`,
+      );
+
+      const said = await run(`mod install --missing --no-setup ${forge.url('acme')}/module-lagoon ${forge.url('acme')}/module-reef`);
+      assertStringIncludes(said, 'lagoon 0.9.0 is installed and needs core API ^99.0.0, and this core provides ');
+      assertStringIncludes(said, 'reef 0.1.1 is installed and needs core API ^99.0.0');
+      assertStringIncludes(said, 'reef is installed; left as it is');
+      const modules = await client.execJson<ModuleEntry[]>('mod-list');
+      const placedNow = modules.filter((module) => ['reef', 'lagoon'].includes(module.name)).map((module) => [module.name, module.version, module.installed?.ref]);
+      assertEquals(placedNow.sort(), [
+        ['lagoon', '1.0.0', 'main'],
+        ['reef', '0.1.1', 'v0.1.1'],
+      ]);
+      assertEquals(await run('$MOD_PATH/reef/bin/reef'), 'reef 0.1.1');
+      await client.execString('mod-remove --force lagoon && mod-remove --force reef');
     });
 
     await t.step('an install goes on without the session that asked for it, one at a time, and mod status says how it stands', async () => {

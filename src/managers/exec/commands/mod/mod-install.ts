@@ -23,10 +23,16 @@
  * A service that reads the modules' drop-ins (a module's `dropIns`) and runs is restarted last
  * when a module put in place adds or changes some it reads, once every one is linked.
  *
- * Boot installs the modules the deployment asks for (`INSTALL_MODULES`) with `--missing`, which
- * leaves any module installed already as it is without asking a forge, and `--no-setup`, which
- * leaves the setting up to boot's own `mod setup --all` and the starting of services to its last
- * step.
+ * A module installed at a release this core cannot run — written for another module API, as after
+ * an update of core that changed it — counts as missing: as a dependency it is replaced by the
+ * newest release in the range asked for, and the modules depending on it need not accept the one
+ * that replaces it.
+ *
+ * Boot installs the modules the deployment asks for (`INSTALL_MODULES`), and the repositories of
+ * those installed, with `--missing`, which leaves an installed module this core runs as it is
+ * without asking a forge and replaces one it cannot run with the newest release it can; and with
+ * `--no-setup`, which leaves the setting up to boot's own `mod setup --all` and the starting of
+ * services to its last step.
  *
  * The work is the installer's (`src/modules/installer.ts`): one install at a time, in a shell of its
  * own, so it goes on when the session that asked for it ends. `mod install` starts it and follows
@@ -117,6 +123,9 @@ const say = async (run: Run, line: string): Promise<void> => {
   if (!run.cmd.json) await run.cmd.write(`${line}\n`);
 };
 
+/** Whether this core provides the module API `manifest` asks for. */
+const runs = (manifest: ModuleManifest): boolean => checkCoreApi(manifest).errors.length === 0;
+
 /** Whether `version` is in `range`; a version or range that does not parse is not held against it. */
 const accepts = (version: string | undefined, range: string): boolean => {
   if (!version || !canParse(version)) return true;
@@ -198,7 +207,7 @@ const olderCompatible = async (run: Run, repository: Repository, refs: Refs, tak
       repository,
       candidates,
       run.tokens,
-      (manifest) => checkCoreApi(manifest).errors.length === 0,
+      runs,
       within(run.cmd, FORGE_TIMEOUT_MS),
     );
     return found?.release.tag;
@@ -225,10 +234,13 @@ const refuseDeployed = async (run: Run, name: string): Promise<void> => {
   }
 };
 
-/** The installed modules that depend on `name`, with the range each accepts. */
+/**
+ * The installed modules that depend on `name`, with the range each accepts. One this core cannot
+ * run is left out: it is replaced before it runs again, and what replaces it asks anew.
+ */
 const dependentsOf = async (run: Run, name: string): Promise<[string, string][]> =>
   [...(await readManifests(run.cmd.sys.vfs, run.cmd.access, run.modules)).values()]
-    .filter((manifest) => manifest.name !== name && manifest.dependencies?.[name] !== undefined)
+    .filter((manifest) => manifest.name !== name && manifest.dependencies?.[name] !== undefined && runs(manifest))
     .map((manifest) => [manifest.name, manifest.dependencies![name]]);
 
 /**
@@ -249,11 +261,18 @@ const installTarget = async (
   const vfs = cmd.sys.vfs;
   // The module it is named for, which the repository's mod.json confirms once it is fetched.
   const expected = target.kind === 'name' ? target.name : moduleNameOf(target.repository);
-  if (run.missing && await vfs.exists(cmd.access, join(run.modules, expected, 'mod.json'))) {
+  const installed = await readModJson(vfs, cmd.access, join(run.modules, expected));
+  if (run.missing && installed && runs(installed)) {
     await say(run, `${expected} is installed; left as it is`);
     return undefined;
   }
   await refuseDeployed(run, expected);
+  if (installed && !runs(installed)) {
+    await say(
+      run,
+      `${[expected, installed.version].filter(Boolean).join(' ')} is installed and needs core API ${installed.coreApi}, and this core provides ${MODULE_API_VERSION}`,
+    );
+  }
   const { repository, refs } = located ?? await locate(run, target, near);
   const resolved = resolveRef(refs, target.ref, range) ?? await resolveAbbreviated(run, repository, target.ref);
   if (!resolved) {
@@ -263,7 +282,9 @@ const installTarget = async (
   }
 
   const current = await readInstallRecord(vfs, cmd.access, join(run.store, expected));
-  if (!run.force && current?.repository === repository.repository && current.commit === resolved.commit && await linksTo(run, expected)) {
+  // One this core cannot run is fetched again all the same, for a release it can run instead.
+  const same = current?.repository === repository.repository && current.commit === resolved.commit && (!installed || runs(installed));
+  if (!run.force && same && await linksTo(run, expected)) {
     await say(run, `${expected} is installed at ${short(resolved.commit)} (${resolved.ref}) already`);
     return undefined;
   }
@@ -336,9 +357,10 @@ const installTarget = async (
     run.visiting.add(name);
     try {
       for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
-        let version = (await readModJson(vfs, cmd.access, join(run.modules, dependency)))?.version;
+        const present = await readModJson(vfs, cmd.access, join(run.modules, dependency));
+        let version = present && runs(present) ? present.version : undefined;
         if (version === undefined) {
-          await say(run, `${name} needs ${dependency} ${range}, which is not installed`);
+          await say(run, `${name} needs ${dependency} ${range}${present ? '' : ', which is not installed'}`);
           version = (await installTarget(run, { kind: 'name', name: dependency }, repository, range))?.version ?? undefined;
           version ??= (await readModJson(vfs, cmd.access, join(run.store, dependency)))?.version;
         }
@@ -598,7 +620,11 @@ modInstall.spec = {
       type: 'bool' as const,
       description: 'Fetch again what is installed at the same commit, and update even when an installed module does not accept the new version',
     },
-    { name: 'missing', type: 'bool' as const, description: 'Install only modules not installed at all, leaving an installed one as it is without asking its forge' },
+    {
+      name: 'missing',
+      type: 'bool' as const,
+      description: 'Install only modules not installed, or installed at a release this core cannot run, leaving any other installed one as it is without asking its forge',
+    },
     {
       name: 'groups',
       type: 'string' as const,

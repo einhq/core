@@ -303,9 +303,12 @@ the next install to clear.
 
 **At boot.** A deployment that wants modules without anyone installing them names them in
 `INSTALL_MODULES` (names or addresses, separated by spaces; `make container-run INSTALL_MODULES=…`).
-Boot runs `mod install --missing --no-setup` with them after linking: `--missing` leaves a module
-installed already as it is, at whatever version, without asking its forge, so a boot is no update,
-and `--no-setup` leaves setting up to the `mod setup --all` after it and starting services to the
+Boot runs `mod install --missing --no-setup` with the repositories of the installed modules and
+then them, after linking: `--missing` leaves an installed module this core runs as it is, at
+whatever version, without asking its forge, so a boot is no update. One whose `coreApi` this core
+does not provide, as after an update of core that changed the module API, counts as missing, and is
+replaced by the newest release of its repository this core runs; its dependency too, and the
+modules depending on it that this core cannot run either need not accept the replacement. `--no-setup` leaves setting up to the `mod setup --all` after it and starting services to the
 last boot script, which runs once this boot's settings are written. A forge that does not answer
 costs that module, not the boot.
 

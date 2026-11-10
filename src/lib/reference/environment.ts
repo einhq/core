@@ -76,7 +76,7 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
     key: 'INSTALL_MODULES',
     kind: 'deployment',
     description:
-      'Modules boot installs with `mod install` when they are not installed: names or repository addresses, separated by spaces. One installed already is left as it is; `mod install` and the settings page update it.',
+      'Modules boot installs with `mod install` when they are not installed: names or repository addresses, separated by spaces. One installed already is left as it is, unless this core cannot run it: at each boot an installed module written for another module API is replaced by the newest release this core runs. `mod install` and the settings page update them.',
   },
   {
     key: 'INITIAL_ADMIN_PASSWORD',

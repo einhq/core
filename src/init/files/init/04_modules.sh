@@ -38,11 +38,20 @@ for mod in $(ls "$MOD_INSTALL_PATH"); do
   link "$MOD_INSTALL_PATH/$mod" "$MOD_PATH/$mod"
 done
 
-# The modules the deployment asks for and lacks, fetched into $MOD_INSTALL_PATH; one installed
-# already is left as it is. Setting them up is the next line's, and starting their services the
-# last boot script's, once this boot's settings are written.
-if [ -n "$INSTALL_MODULES" ]; then
-  mod install --missing --no-setup $INSTALL_MODULES || echo "some of INSTALL_MODULES could not be installed; continuing boot"
+# The modules the deployment asks for and lacks, fetched into $MOD_INSTALL_PATH, and each installed
+# one this core cannot run, as after an update of core that changed the module API, replaced from
+# its repository by the newest release this core runs; any other installed one is left as it is,
+# without asking a forge. The installed ones go first, so a name in INSTALL_MODULES finds its
+# module whole. Setting them up is the next line's, and starting their services the last boot
+# script's, once this boot's settings are written.
+installed=
+for mod in $(ls "$MOD_INSTALL_PATH"); do
+  [ -e "$MOD_INSTALL_PATH/$mod/.install.json" ] || continue
+  [ ! -e "$DEV_MODULES_PATH/$mod/mod.json" ] || continue
+  installed="$installed $(jq -r .repository "$MOD_INSTALL_PATH/$mod/.install.json")"
+done
+if [ -n "$installed$INSTALL_MODULES" ]; then
+  mod install --missing --no-setup $installed $INSTALL_MODULES || echo "some modules could not be installed or replaced; continuing boot"
 fi
 
 # Set up in dependency order, not the alphabetical order `ls` gives.
