@@ -155,7 +155,14 @@ deviceConfig.spec = {
     "Show what a device's driver was given, or change it (name=value, name= to take one away) and have the driver take it up; changing is for members of the devices group",
   args: [
     { name: 'device', type: 'string' as const, description: "the device's name" },
-    { name: 'field', type: 'string' as const, description: 'name=value for its driver; name= takes it away; none shows the config', variadic: true, writes: true },
+    {
+      name: 'field',
+      type: 'string' as const,
+      description: 'name=value for its driver; name= takes it away; none shows the config',
+      optional: true,
+      variadic: true,
+      writes: true,
+    },
   ],
   examples: ['device-config front-door', "device-config front-door password='n3w pass'", 'device-config front-door sub='],
   returns: 'DeviceConfigAnswer',
