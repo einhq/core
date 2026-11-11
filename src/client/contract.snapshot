@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.14
+MODULE_API_VERSION 0.14.15
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -1048,6 +1048,7 @@ src/lib/api/mod.ts CrawlCoverage dd91f9013e82 candidates=b2ccc562f3d9,covered=e7
 src/lib/api/mod.ts DEVICES_GROUPNAME d4c3ad057218
 src/lib/api/mod.ts DatabaseTable 61fba3aa4efc bytes=23e3d4379f17,name=6d0c36381511
 src/lib/api/mod.ts DeviceAttrs d53aa33ade99 class=0132fdb7df03,config=c8f07568cc8c,driver=ce98b477b7ab,firmware=0483ab272056,label=af04505f402e,mac=7d8596abd9f3,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,online=9267f296d3cb,serial=bf03e537c2a1,url=823ee7e982b4
+src/lib/api/mod.ts DeviceConfigAnswer cb3315a1defc config=55464c4d43ce,device=dc9837b78932,driver=44a866087c7a,fields=fd588f790508,running=d600d52ce08c,secrets=6292069495ed
 src/lib/api/mod.ts DeviceCreated 278efdfdb507 device=dc9837b78932,path=3fd20668ef6e
 src/lib/api/mod.ts DeviceFix 32b8a1fa6f4f accuracy=5b21861c8c04,alt=a9f9640f2bc6,course=0d2ecf1c577d,lat=ab04728f0de4,lng=7ef8fe750a12,speed=7d1cef515c3c
 src/lib/api/mod.ts DeviceHistory cb115e75b84a bucket=b1c88b1c0747,device=dc9837b78932,endpoint=eaa5bd497523,fixes=b9e7baf6f0bc,readings=87b14327771c,type=3c24dca901cd,unit=a31f90e44103

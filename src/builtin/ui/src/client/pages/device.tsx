@@ -7,6 +7,7 @@ import { Chart, EmptyState, EntityDetailHeader, HeaderChoice, PageLoader, RouteP
 import { useAccessIds, useCommand, usePolledCommand } from '@ein/ui/hooks';
 import { shq } from '@ein/ui/lib';
 import { execCommand, notify, type PanelEntry, panelRoute, panelsOf } from '@ein/ui/signals';
+import { DeviceConfig } from '../components/Devices/DeviceConfig.tsx';
 import { DeviceEditModal } from '../components/Devices/DeviceEditModal.tsx';
 import { DeviceKey } from '../components/Devices/DeviceKey.tsx';
 import { EndpointTile } from '../components/Devices/EndpointTile.tsx';
@@ -178,7 +179,7 @@ function useDevicesMember(): boolean {
 const latestText = (endpoint: EndpointSummary): string =>
   endpoint.track ? `${endpoint.track.points.toLocaleString()} ${endpoint.track.points === 1 ? 'fix' : 'fixes'}` : readingText(endpoint.last?.value, endpoint.unit);
 
-function Info({ info }: { info: DeviceInfo }) {
+function Info({ info, member, onChanged }: { info: DeviceInfo; member: boolean; onChanged: () => void }) {
   const driver = info.driver ? `${info.driver}${info.driverRunning === false ? ' (not running)' : ''}` : undefined;
   const rows: [string, string | undefined][] = [
     ['Name', info.name],
@@ -244,6 +245,12 @@ function Info({ info }: { info: DeviceInfo }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
+      {info.driver && (
+        <Box>
+          <Text fw={500} mb='xs'>Config</Text>
+          <DeviceConfig device={info.name} member={member} onSaved={onChanged} />
+        </Box>
+      )}
       {info.input && (
         <Box>
           <Text fw={500} mb='xs'>Device key</Text>
@@ -258,8 +265,8 @@ function Info({ info }: { info: DeviceInfo }) {
  * A device under `/dev`: its endpoints as they are now (Overview), their history over the span the
  * header chooses (History), what it is (Info), and the tabs modules give it (`device.tabs` panels,
  * each drawing its route with the device's path for `{path}`). The tab is in the URL (`?tab=`).
- * Members of the devices group rename it and its endpoints with Edit (`DeviceEditModal`), and
- * forget it from ⋮.
+ * Members of the devices group rename it and its endpoints with Edit (`DeviceEditModal`), change
+ * what its driver was given on Info (`DeviceConfig`), and forget it from ⋮.
  */
 export default function DevicePage() {
   useSignals();
@@ -337,7 +344,7 @@ export default function DevicePage() {
           <History info={info} span={span} />
         </Tabs.Panel>
         <Tabs.Panel value='info'>
-          <Info info={info} />
+          <Info info={info} member={member} onChanged={refresh} />
         </Tabs.Panel>
         {panels.map((panel) => (
           <Tabs.Panel key={panel.id} value={panel.id}>

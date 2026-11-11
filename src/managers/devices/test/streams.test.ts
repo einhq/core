@@ -1,15 +1,15 @@
 /**
  * A camera's streams on a booted EiN, through a stub driver: a secret config field kept in the
- * device's `.secret` for the administrator alone, a stream endpoint shown with what it is, a frame
- * read with `cat` and over HTTP for whoever may read it, the live socket passed through to where the
- * driver says with its credentials, the stream's address for a service, and nothing appended to a
- * stream.
+ * device's `.secret` for the administrator alone and changed with `device-config`, a stream endpoint
+ * shown with what it is, a frame read with `cat` and over HTTP for whoever may read it, the live
+ * socket passed through to where the driver says with its credentials, the stream's address for a
+ * service, and nothing appended to a stream.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
 import { accessOfUid } from '../../../lib/auth/member-gids.ts';
-import type { DeviceInfo, DeviceSummary } from '../../../lib/api/devices.ts';
+import type { DeviceConfigAnswer, DeviceInfo, DeviceSummary } from '../../../lib/api/devices.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../testing/mod.ts';
 import type { DriverStream } from '../types.ts';
 
@@ -31,6 +31,7 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
     return response;
   });
   const asked: DriverStream[] = [];
+  const setUp: string[] = [];
   const unregister = devices.registerDriver('stub-camera', {
     description: 'a camera for the test',
     config: [
@@ -38,6 +39,7 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       { name: 'password', label: 'Password', type: 'string', secret: true },
     ],
     async setup(device) {
+      setUp.push(device);
       await devices.ensureEndpoint(ADMIN_ACCESS, device, 'main', 'stream', { label: 'Main stream', codec: 'h264', width: 1280, height: 720 });
       await devices.ensureEndpoint(ADMIN_ACCESS, device, 'sub', 'stream', { label: 'Smaller stream', width: 640, height: 360 });
     },
@@ -75,6 +77,24 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       assertEquals(info.config, { url: 'rtsp://192.0.2.10/main' });
       assertEquals(await devices.secret(ADMIN_ACCESS, 'front-door'), { password: 's3cret' });
       await testCommands(anna).shouldFailWith('cat /dev/front-door/.secret', 'denied');
+    });
+
+    await t.step("device-config changes the driver's config and its secret, and sets the device up again", async () => {
+      const shown = await anna.execJson<DeviceConfigAnswer>('device-config front-door');
+      assertEquals([shown.driver, shown.running, shown.config, shown.secrets], ['stub-camera', true, { url: 'rtsp://192.0.2.10/main' }, ['password']]);
+      assertEquals(shown.fields.map((field) => field.name), ['url', 'password']);
+      const before = setUp.length;
+      const changed = await anna.execJson<DeviceConfigAnswer>("device-config front-door url=rtsp://192.0.2.11/main password='n3w pass'");
+      assertEquals([changed.config, changed.secrets], [{ url: 'rtsp://192.0.2.11/main' }, ['password']]);
+      assertEquals(await devices.secret(ADMIN_ACCESS, 'front-door'), { password: 'n3w pass' });
+      assertEquals(setUp.length, before + 1);
+      assertEquals(await anna.execString('JSON_OUTPUT=0 device-config front-door'), 'url=rtsp://192.0.2.11/main\npassword=(secret)\n');
+      await testCommands(anna).shouldFailWith('device-config front-door colour=red', 'takes no colour');
+      await testCommands(anna).shouldFailWith('device-config front-door url=', 'needs url');
+      await testCommands(bo).shouldFailWith('device-config front-door password=x', 'devices');
+      await anna.execString('device-config front-door password=');
+      assertEquals(await devices.secret(ADMIN_ACCESS, 'front-door'), {});
+      await anna.execString('device-config front-door password=s3cret');
     });
 
     await t.step('a stream is shown with what it is, and a card shows a frame of the smallest', async () => {

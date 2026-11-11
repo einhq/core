@@ -64,7 +64,7 @@ export type Driver = {
   description: string;
   /** The module that brings it; core's own leave it out. */
   module?: string;
-  /** What a person gives when making a device with it (`device-create --config`). */
+  /** What a person gives when making a device with it (`device-create --config`) or changes later (`device-config`). */
   config?: DriverConfigField[];
   /** Raw input written to one of its devices; refuses what it cannot read by throwing. */
   input?(raw: DriverInput): Promise<DriverAnswer | void>;
@@ -72,7 +72,10 @@ export type Driver = {
   write?(command: DriverWrite): Promise<void>;
   /** One of its devices is being forgotten: let go of what would make it again. */
   forget?(device: string): Promise<void>;
-  /** A person made one of its devices (`device-create`): give it the endpoints it has from the start. */
+  /**
+   * A person made one of its devices (`device-create`) or changed its config (`device-config`): give
+   * it the endpoints it has, and take up its config as it is now. Throws what is wrong with the config.
+   */
   setup?(device: string): Promise<void>;
   /** One frame of one of its devices' streams, as it is now; throws when the device does not give one. */
   frame?(stream: DriverStream): Promise<StreamFrame>;
@@ -124,8 +127,8 @@ export interface ModuleDevices {
   /** Remove the device and everything under it, its endpoints' history included. */
   forget(access: Access, device: string): Promise<void>;
   /**
-   * What a person gave the device's driver that is secret (`device-create --config` of a field the
-   * driver declares `secret`), from the device's `.secret`: empty when there is none. The caller
+   * What a person gave the device's driver that is secret (`device-create --config` or `device-config`
+   * of a field the driver declares `secret`), from the device's `.secret`: empty when there is none. The caller
    * must be the administrator, as a driver's service is.
    */
   secret(access: Access, device: string): Promise<Record<string, string>>;

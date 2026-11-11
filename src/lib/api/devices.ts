@@ -56,7 +56,7 @@ export type DeviceAttrs = {
   url?: string;
   /** Whether it answers, when its driver can tell. */
   online?: boolean;
-  /** What a person gave its driver (`device-create --config`); secrets are in `.secret`, never here. */
+  /** What a person gave its driver (`device-create --config`, `device-config`); secrets are in `.secret`, never here. */
   config?: Record<string, string>;
 };
 
@@ -207,6 +207,22 @@ export type DeviceInfo = DeviceSummary & {
 
 /** `device-create`: the device made. */
 export type DeviceCreated = { device: string; path: string };
+
+/**
+ * `device-config`: what a person gave a device's driver, and what the driver asks for. A secret
+ * field is named among `secrets` once it is set, and its value never shown.
+ */
+export type DeviceConfigAnswer = {
+  device: string;
+  driver: string;
+  /** Whether the driver runs now: only then is it known which fields are secret, and the config changed. */
+  running: boolean;
+  /** What the driver asks for; empty while it does not run. */
+  fields: DriverConfigField[];
+  config: Record<string, string>;
+  /** The secret fields that are set. */
+  secrets: string[];
+};
 
 /**
  * `device-key`: whether the device may write to `/file/dev/<device>` without signing in, and the

@@ -1,11 +1,11 @@
 import { join } from '@std/path';
 import { ADMIN_ACCESS } from '../../../../lib/access/constants.ts';
 import { verifyAccess } from '../../../../lib/access/verify-access.ts';
-import { type DeviceAttrs, type DeviceCreated, type DeviceKeyAnswer, deviceName } from '../../../../lib/api/devices.ts';
+import { type DeviceAttrs, type DeviceConfigAnswer, type DeviceCreated, type DeviceKeyAnswer, deviceName } from '../../../../lib/api/devices.ts';
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
 import { DEV_PATH, devicePath } from '../../../../lib/paths.ts';
 import { isDeviceName, newDeviceKey, readDeviceKey, removeDeviceKey } from '../../../devices/mod.ts';
-import { NODE_TYPE_DEVICE } from '../../../../vfs/types/device.ts';
+import { type DeviceNodeAttrs, NODE_TYPE_DEVICE } from '../../../../vfs/types/device.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { assertDevicesMember, fail, parseTarget, qrSvg } from './lib.ts';
@@ -87,6 +87,78 @@ deviceCreate.spec = {
     "device-create 'Porch' --driver webhook --class button --config events=button",
   ],
   returns: 'DeviceCreated: device, path',
+};
+
+/**
+ * What a person gave a device's driver, shown to whoever reads the device (a secret field by its name
+ * alone), or changed with `name=value` by a member of the `devices` group (an empty value takes a
+ * field away): the driver's secret fields to the device's `.secret`, the rest to its attrs, then the
+ * driver's `setup` again so it takes the change. Changed only while its driver runs, which says which
+ * fields are secret.
+ */
+export const deviceConfig = async (cmd: Command): CmdReturn => {
+  const unknown: string[] = [];
+  const flags = parseArgs(cmd.args, { unknown: collectUnknownFlags(unknown) });
+  if (await reportUnknownFlags(cmd, unknown)) return 1;
+  const target = parseTarget(String(flags._[0] ?? ''));
+  const pairs = flags._.slice(1).map(String);
+  if (!target || target.endpoint) return await fail(cmd, 'device-config', 'usage: device-config <device> [name=value …]');
+  const { device } = target;
+  try {
+    if (pairs.length > 0) await assertDevicesMember(cmd);
+    const node = await cmd.sys.vfs.get<DeviceNodeAttrs>(cmd.access, devicePath(device));
+    if (node.type !== NODE_TYPE_DEVICE) throw new Error(`${device} is not a device`);
+    const manager = cmd.sys.devices;
+    if (!manager) throw new Error('devices are not running here');
+    const name = node.attrs.driver;
+    if (!name) throw new Error(`${device} has no driver, so nothing takes a config`);
+    const driver = manager.driver(name);
+    const fields = driver?.config ?? [];
+    const config = { ...node.attrs.config };
+    const secret = await manager.secret(ADMIN_ACCESS, device);
+    if (pairs.length > 0) {
+      if (!driver) throw new Error(`the driver ${name} is not running, so which of its config is secret is not known: start its module first`);
+      const secretFields = new Set(fields.filter((field) => field.secret).map((field) => field.name));
+      const known = new Set(fields.map((field) => field.name));
+      for (const pair of pairs) {
+        const at = pair.indexOf('=');
+        if (at < 1) throw new Error(`a config field is name=value, not '${pair}'`);
+        const field = pair.slice(0, at);
+        if (!known.has(field)) throw new Error(`${name} takes no ${field}; it takes ${[...known].join(', ') || 'no config'}`);
+        const into = secretFields.has(field) ? secret : config;
+        if (pair.length === at + 1) delete into[field];
+        else into[field] = pair.slice(at + 1);
+      }
+      for (const field of fields) {
+        if (field.required && !(field.name in config) && !(field.name in secret)) throw new Error(`${name} needs ${field.name} (${field.label})`);
+      }
+      await cmd.sys.vfs.update(ADMIN_ACCESS, devicePath(device), { attrs: { config } });
+      if (pairs.some((pair) => secretFields.has(pair.slice(0, pair.indexOf('='))))) await manager.setSecret(device, secret);
+      await driver.setup?.(device);
+    }
+    const answer: DeviceConfigAnswer = { device, driver: name, running: driver !== undefined, fields, config, secrets: Object.keys(secret).sort() };
+    if (cmd.json) await cmd.writeJSON(answer satisfies DeviceConfigAnswer);
+    else {
+      for (const [field, value] of Object.entries(config)) await cmd.writeLn(`${field}=${value}`);
+      for (const field of answer.secrets) await cmd.writeLn(`${field}=(secret)`);
+    }
+    return 0;
+  } catch (error) {
+    return await fail(cmd, 'device-config', error);
+  }
+};
+
+deviceConfig.spec = {
+  name: 'device-config',
+  effect: 'read' as const,
+  description:
+    "Show what a device's driver was given, or change it (name=value, name= to take one away) and have the driver take it up; changing is for members of the devices group",
+  args: [
+    { name: 'device', type: 'string' as const, description: "the device's name" },
+    { name: 'field', type: 'string' as const, description: 'name=value for its driver; name= takes it away; none shows the config', variadic: true, writes: true },
+  ],
+  examples: ['device-config front-door', "device-config front-door password='n3w pass'", 'device-config front-door sub='],
+  returns: 'DeviceConfigAnswer',
 };
 
 /** Name a device or an endpoint: what its page and cards call it. For members of the `devices` group. */

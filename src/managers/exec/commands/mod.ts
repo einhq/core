@@ -73,7 +73,7 @@ import { label, labels } from './node/label.ts';
 import { logAppend } from './node/log-append.ts';
 import { logRead } from './node/log-read.ts';
 import { deviceHistory, devices, deviceShow } from './devices/read.ts';
-import { deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
+import { deviceConfig, deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
 import { relate, unrelate } from './node/relate.ts';
 import { relationsGuard } from './node/relations-guard.ts';
 import { star } from './node/star.ts';
@@ -330,6 +330,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   deviceShow,
   deviceHistory,
   deviceCreate,
+  deviceConfig,
   deviceLabel,
   deviceForget,
   deviceKey,
