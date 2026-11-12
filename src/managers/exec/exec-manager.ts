@@ -1,5 +1,5 @@
 import { ulid } from '@std/ulid';
-import { ADMIN_ACCESS, isAdmin, isGuest, verifyAccess } from '../../lib/access/mod.ts';
+import { ADMIN_ACCESS, isAdmin, isGuest, isVisitor, verifyAccess } from '../../lib/access/mod.ts';
 import { guestMayBrowse } from '../../lib/config/mod.ts';
 import { Deferred, deferred } from '../../lib/async/mod.ts';
 import { JSONObject } from '../../types.ts';
@@ -9,6 +9,7 @@ import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { commandVariables } from '../shell/variables.ts';
 import { Cmd, NoTerminalError } from './cmd.ts';
 import { Command } from './command.ts';
+import { callWrites } from './effect.ts';
 import { COMMAND_NAMES } from './commands/mod.ts';
 import { ExecutionManager, ExecutionManagerConfig, SignalOpts } from './execution-manager.ts';
 import { SIGKILL_EXIT_CODE, Signal, signalExitCode } from './signal.ts';
@@ -165,6 +166,15 @@ export class ExecManager implements ExecutionManager {
       const wantsJson = command.env.JSON_OUTPUT === '1';
       await command.write(wantsJson ? JSON.stringify(cmd.spec) : await this.formatHelp(command, cmd.spec));
       return { id, done: finish(0) };
+    }
+
+    // Someone who has not signed in — the guest, or whoever holds a share link — changes nothing.
+    // The VFS refuses them every write, but a command may check who asks and then write as the
+    // administrator, or check only the groups, so a call its spec says writes is refused here
+    // (ein/core#1202). What a visitor must run to sign in or open a link says `guest`.
+    if (!cmd.spec.guest && isVisitor(opts.access) && (await callWrites(cmd.spec, opts.args)).length > 0) {
+      await command.writeError(`${name}: sign in first\n`);
+      return { id, done: finish(126) };
     }
 
     // SIGPIPE ends the command whatever it makes of the failed write, quietly

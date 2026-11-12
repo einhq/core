@@ -1105,6 +1105,16 @@ while `get-default` still serves it the site's own pages (`site`). The Web UI se
 (`user-whoami` tells it `guestBrowsing`; see [UI](architecture/ui.md#signing-in-and-the-guest)),
 and the assistant's language model serves neither it nor a link's visitor (`mayUseModel`).
 
+**A visitor changes nothing through a command either.** A command may check who asks and then
+write as the administrator (`user-update` on one's own account), or check only the groups (the
+`device-*` commands, `ssh`), so the VFS refusing a visitor's writes is not enough. The exec manager
+refuses a visitor — the guest, browsing or not, and a share link's holder (`isVisitor`) — any call
+whose spec says it writes, by its own spec and words (`callWrites` in
+[effect.ts](../src/managers/exec/effect.ts): `effect: 'write'`, a `writes` flag, argument or
+expression word, unless a `dryRun` flag makes it report), with `sign in first`, unless the spec
+is `guest: true`; a group's routed subcommand, and a command one runs, are judged as they start.
+`assertDevicesMember` and `sshAllowed` refuse visitors as well.
+
 **The other bits are the system's.** They give everyone — the guest and anyone signed in — the
 public surface every principal needs to run: `/`, `/etc`, the commands, the UI bundles, the
 modules' files. Content never uses them to share: `/archive` and `/archive/tags` are `0771` (made

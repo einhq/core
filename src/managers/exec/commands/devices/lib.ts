@@ -2,7 +2,7 @@
 
 import qrcode from 'qrcode-generator';
 import { DEVICES_GROUPNAME } from '../../../../lib/access/constants.ts';
-import { isAdmin } from '../../../../lib/access/verify-access.ts';
+import { isAdmin, isVisitor } from '../../../../lib/access/verify-access.ts';
 import type { DeviceValue } from '../../../../lib/api/devices.ts';
 import { groupGid } from '../../../../lib/auth/member-gids.ts';
 import { DEV_PATH } from '../../../../lib/paths.ts';
@@ -25,9 +25,11 @@ export const fail = async (cmd: Command, name: string, error: unknown): Promise<
   return 1;
 };
 
-/** Refuse anyone but an administrator or a member of the `devices` group. */
+/** Refuse anyone but an administrator or a member of the `devices` group who has signed in. */
 export const assertDevicesMember = async (cmd: Command): Promise<void> => {
   if (isAdmin(cmd.access)) return;
+  // Someone who has not signed in changes nothing, whatever groups their access carries.
+  if (isVisitor(cmd.access)) throw new Error('sign in first');
   const gid = await groupGid(cmd.sys.vfs, DEVICES_GROUPNAME);
   if (gid === undefined || !cmd.access.gids.includes(gid)) throw new Error(`only the ${DEVICES_GROUPNAME} group's members make, name and forget devices`);
 };

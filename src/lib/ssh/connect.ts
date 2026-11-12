@@ -6,7 +6,7 @@
 
 import { Client } from 'ssh2';
 import { ADMIN_ACCESS, SSH_GROUPNAME } from '../access/constants.ts';
-import { isAdmin } from '../access/verify-access.ts';
+import { isAdmin, isVisitor } from '../access/verify-access.ts';
 import type { Access } from '../access/types.ts';
 import { GROUPS_PATH } from '../paths.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
@@ -82,10 +82,12 @@ function keyLabel(type: string): string {
 
 /**
  * Whether this user may open outbound connections: the admin, or a member of
- * the `ssh` group. The group's gid is looked up, since it is assigned at boot.
+ * the `ssh` group who has signed in. The group's gid is looked up, since it is
+ * assigned at boot.
  */
 export async function sshAllowed(vfs: NodeVFS, access: Access): Promise<boolean> {
   if (isAdmin(access)) return true;
+  if (isVisitor(access)) return false;
   try {
     const group = await vfs.get(ADMIN_ACCESS, `${GROUPS_PATH}/${SSH_GROUPNAME}`);
     const gid = group.attrs.gid;

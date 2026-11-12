@@ -82,14 +82,13 @@ const takesValue = (flag: CmdFlagDef | undefined): boolean => !!flag && flag.typ
 
 /** One command, as its spec says: the reasons it writes, or none when it only reads. */
 const judgeCommand = async (node: CommandNode, specOf: SpecLookup): Promise<string[]> => {
-  const reasons: string[] = [];
   const words = (node.suffix ?? []).filter((part): part is Word => part.type === 'Word').map((word) => word.text);
   const name = node.name?.text;
   // A bare assignment, `X=1`, runs nothing.
-  if (name === undefined) return reasons;
-  if (!name || /[$`]/.test(name)) return [...reasons, 'the command is named by an expansion'];
-  if (READ_BUILTINS.has(name)) return reasons;
-  if (asksHelp(words)) return reasons;
+  if (name === undefined) return [];
+  if (!name || /[$`]/.test(name)) return ['the command is named by an expansion'];
+  if (READ_BUILTINS.has(name)) return [];
+  if (asksHelp(words)) return [];
 
   let spec = await specOf(name);
   let args = words;
@@ -97,20 +96,29 @@ const judgeCommand = async (node: CommandNode, specOf: SpecLookup): Promise<stri
   if (spec?.group) {
     const sub = words.find((word) => !word.startsWith('-'));
     const routed = sub ? await specOf(`${name}-${sub}`) : undefined;
-    if (!routed) return [...reasons, `${name} ${sub ?? ''}`.trim() + ' is not a known subcommand'];
+    if (!routed) return [`${name} ${sub ?? ''}`.trim() + ' is not a known subcommand'];
     spec = routed;
     args = words.slice(words.indexOf(sub!) + 1);
-    if (asksHelp(args)) return reasons;
+    if (asksHelp(args)) return [];
   }
-  if (!spec) return [...reasons, `${name} is not a known command`];
-  if (spec.effect === undefined) return [...reasons, `${spec.name} does not say whether it changes anything`];
+  if (!spec) return [`${name} is not a known command`];
+  return await callReasons(spec, args, specOf);
+};
+
+/**
+ * One call of `spec` with `args`: the reasons it writes. A command it runs — an argument that
+ * `runs` one, an expression word that does — is judged with `specOf`, and left out without it.
+ */
+const callReasons = async (spec: CmdSpec, args: string[], specOf?: SpecLookup): Promise<string[]> => {
+  if (spec.effect === undefined) return [`${spec.name} does not say whether it changes anything`];
 
   const flags = new Map((spec.flags ?? []).map((flag) => [flag.name, flag]));
   // A dry run reports what the command would do and does none of it.
   const dryRun = args.some((word) => word.startsWith('-') && flagNames(word).some((flagName) => flags.get(flagName)?.dryRun));
-  if (dryRun) return reasons;
-  if (spec.effect === 'write') return [...reasons, `${spec.name} changes something`];
+  if (dryRun) return [];
+  if (spec.effect === 'write') return [`${spec.name} changes something`];
 
+  const reasons: string[] = [];
   // An expression's words count wherever they stand, and the command one runs is judged as any other.
   const expressionWords = new Map((spec.words ?? []).map((def) => [def.word, def]));
   if (expressionWords.size > 0) {
@@ -125,7 +133,7 @@ const judgeCommand = async (node: CommandNode, specOf: SpecLookup): Promise<stri
       if (!def.runs) continue;
       const end = args.findIndex((word, at) => at > i && def.runs!.includes(word));
       const [inner, ...innerArgs] = args.slice(i + 1, end === -1 ? undefined : end);
-      if (inner !== undefined) {
+      if (inner !== undefined && specOf) {
         const suffix = innerArgs.map((text): Word => ({ type: 'Word', text }));
         reasons.push(...await judgeCommand({ type: 'Command', name: { type: 'Word', text: inner }, suffix }, specOf));
       }
@@ -167,15 +175,22 @@ const judgeCommand = async (node: CommandNode, specOf: SpecLookup): Promise<stri
   if (runsAt !== -1 && positional.length > runsAt) {
     const [inner, ...innerArgs] = positional.splice(runsAt);
     const suffix = innerArgs.map((text): Word => ({ type: 'Word', text }));
-    reasons.push(...await judgeCommand({ type: 'Command', name: { type: 'Word', text: inner }, suffix }, specOf));
+    if (specOf) reasons.push(...await judgeCommand({ type: 'Command', name: { type: 'Word', text: inner }, suffix }, specOf));
   }
   (spec.args ?? []).forEach((arg: CmdArgDef, index) => {
     if (positional.length <= index || !arg.writes) return;
-    if (arg.writes === true) reasons.push(`${spec!.name} with ${arg.name} changes something`);
-    else if (arg.writes.includes(positional[index])) reasons.push(`${spec!.name} ${positional[index]} changes something`);
+    if (arg.writes === true) reasons.push(`${spec.name} with ${arg.name} changes something`);
+    else if (arg.writes.includes(positional[index])) reasons.push(`${spec.name} ${positional[index]} changes something`);
   });
   return reasons;
 };
+
+/**
+ * The reasons a call of `spec` with `args` changes something, by its own spec alone, for a guard
+ * that sees each command as it starts: a group's routed subcommand and a command this one runs are
+ * judged when they start in turn. A dry run changes nothing; a spec without `effect` writes.
+ */
+export const callWrites = async (spec: CmdSpec, args: string[]): Promise<string[]> => spec.group || asksHelp(args) ? [] : await callReasons(spec, args);
 
 /** Every Command and Redirect in a parse, wherever it sits: lists, pipes, loops, bodies, substitutions. */
 const walk = (value: unknown, visit: (node: { type: string }) => void): void => {
