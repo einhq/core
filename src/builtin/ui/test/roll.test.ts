@@ -18,3 +18,9 @@ Deno.test('rows out of order, or at or past the copy, are not stops of their own
 Deno.test('a list whose first row does not start at its top still rests at its top first', () => {
   assertEquals(rollStops([12, 60], 100), [0, 12, 60, 100]);
 });
+
+Deno.test('a single line, however long, has no line to roll to', () => {
+  // How RollingList asks whether a list has more than one line, before its copy is drawn.
+  assertEquals(rollStops([0, 0.3, 0], Infinity).length, 2);
+  assertEquals(rollStops([0, 96], Infinity).length, 3);
+});

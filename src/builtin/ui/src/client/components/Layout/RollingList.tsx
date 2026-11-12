@@ -34,10 +34,10 @@ type Props = {
 };
 
 /**
- * A list for a screen nobody scrolls: rows that fit stand still; rows that do not fit roll, a line
- * at a time — a pause, then the next line glides up (left, for `x`) while the one leaving fades out
- * at the box's start and those coming fade in at its end — and after the last line the first comes
- * round again, below a hairline. It moves by a composited transform, and runs on from a copy of the
+ * A list for a screen nobody scrolls: rows that fit stand still, as does a single line too long for
+ * the box; rows that do not fit roll, a line at a time — a pause, then the next line glides up
+ * (left, for `x`) while the one leaving fades out at the box's start and those coming fade in at
+ * its end — and after the last line the first comes round again, below a hairline. It moves by a composited transform, and runs on from a copy of the
  * list drawn after it, so the loop never jumps. It stands still while the pointer moves over it,
  * and fades from line to line rather than moving for someone who asks for reduced motion.
  */
@@ -62,15 +62,17 @@ export function RollingList({ children, axis = 'y', gap = '0.6em', lines, style,
     if (!frame || !list) return;
     const room = across ? frame.clientWidth : frame.clientHeight;
     const length = across ? list.scrollWidth : list.scrollHeight;
-    const overflows = length > room + 1;
-    setRolling(overflows);
-    if (!overflows || !second.current) return;
     const origin = list.getBoundingClientRect();
     const startOf = (element: Element) => {
       const rect = element.getBoundingClientRect();
       return across ? rect.left - origin.left : rect.top - origin.top;
     };
-    const next = rollStops([...list.children].map(startOf), startOf(second.current));
+    const starts = [...list.children].map(startOf);
+    // One line too long for the box would only roll round to itself: it stands still, cut off.
+    const overflows = length > room + 1 && rollStops(starts, Infinity).length > 2;
+    setRolling(overflows);
+    if (!overflows || !second.current) return;
+    const next = rollStops(starts, startOf(second.current));
     setStops((was) => (was.length === next.length && was.every((stop, i) => Math.abs(stop - next[i]) < 0.5) ? was : next));
   }, [across]);
 
