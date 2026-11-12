@@ -74,6 +74,16 @@ const resolveMemberGids = async (vfs: ModuleVFS, access: Access, username: strin
 };
 
 /**
+ * The gids a session of the account carries, from its primary group and the groups it is linked
+ * into: those, and `USERS_GID` unless the account is taken out of everyone (`everyone: false`),
+ * which also drops a membership link into `users`. The primary group counts whatever.
+ */
+export const sessionGids = (attrs: UserAttrs, memberGids: GroupId[]): GroupId[] => {
+  const everyone = attrs.everyone !== false;
+  return [...new Set([...(everyone ? [USERS_GID] : []), attrs.gid, ...memberGids.filter((gid) => everyone || gid !== USERS_GID)])];
+};
+
+/**
  * The access a signed-in session of `username` carries, whichever way it
  * signed in (the shell's `login`, SSH, SFTP). `userNode` is the account's own,
  * the user node at `<USERS_PATH>/<username>`.
@@ -81,7 +91,7 @@ const resolveMemberGids = async (vfs: ModuleVFS, access: Access, username: strin
  * The primary group is the account's `gid` attr, which is what makes
  * `user set-primary-group` mean anything and what nodes created with an
  * explicit `gid: access.gid` get. `gids` holds it, `USERS_GID`, which every
- * signed-in person carries by design, and every group the user is linked into,
+ * signed-in person carries unless taken out of everyone (`sessionGids`), and every group the user is linked into,
  * so group ownership and group ACL entries take effect — `verifyAccess`
  * consults `gids`, never `gid`. This is only as correct as the gid on the
  * account. See ein/core#270.
@@ -96,7 +106,7 @@ export const userAccess = async (
   return {
     uid: userNode.attrs.uid,
     gid: userNode.attrs.gid,
-    gids: [...new Set([USERS_GID, userNode.attrs.gid, ...memberGids])],
+    gids: sessionGids(userNode.attrs, memberGids),
   };
 };
 

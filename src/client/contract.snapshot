@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.20
+MODULE_API_VERSION 0.14.21
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -316,7 +316,7 @@ src/builtin/ui/src/client/hooks/mod.ts UseLabelsResult c78535763d32 error=badebb
 src/builtin/ui/src/client/hooks/mod.ts UseLogFollowOptions d4ccebcaa13c keep=5ce89753f209,paused=7b48c6c6be06,tail=66dae11bbc83
 src/builtin/ui/src/client/hooks/mod.ts UseMentionCompleteResult 5b3031814a17 loading=6ab16fe49a65,suggestions=e54a6e36a033
 src/builtin/ui/src/client/hooks/mod.ts UseSearchResult 2742c454bc95 anchorIndex=62f9385f57ec,answeredAnchor=6e2a832bb55d,error=badebb2f202e,hasMore=3aca7751948a,hasNewer=01188f9023da,loadMore=82a33b0077dd,loading=6ab16fe49a65,outcome=3cffdc57bc38,reload=0ac07539df7a,removeResults=174fff673fcd,results=9f4851bbc345,seams=72b307e78637,topSentinelRef=28b41b7e38e1
-src/builtin/ui/src/client/hooks/mod.ts UserEntry 70b370991c46 description=644be3c4d4da,email=36b3d99fd26f,gid=99f9950dc824,hasPassword=19d4637c3a4d,inactive=99060b4ec8f1,mustResetPassword=64ce8f4f6e42,personPath=5ad26cc58ba7,role=4dd1913383ce,title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
+src/builtin/ui/src/client/hooks/mod.ts UserEntry a588377032d0 description=644be3c4d4da,email=36b3d99fd26f,everyone=dfcb820b6044,gid=99f9950dc824,hasPassword=19d4637c3a4d,inactive=99060b4ec8f1,mustResetPassword=64ce8f4f6e42,personPath=5ad26cc58ba7,role=4dd1913383ce,title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
 src/builtin/ui/src/client/hooks/mod.ts VerticalWindow 8ab8d01ff351 bottom=94309b541786,top=53cbd27c99c3
 src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_IDLE_MS ab6d0b9f6050
 src/builtin/ui/src/client/hooks/mod.ts WINDOW_SCROLL_LIVE_MS 788cba558ddc
@@ -972,7 +972,7 @@ src/client/mod.ts ToolParameterSchema a3d15af2d756 description=c4833b0d92ac,item
 src/client/mod.ts ToolSchema 2e707f82cedc description=c4833b0d92ac,name=6d0c36381511,parameters=0a75cab0287f
 src/client/mod.ts TrackSummary 27a5d46f549c bbox=344e610c302e,firstTs=31a2357dd2a8,lastTs=182dd5369c80,points=e56ba6c8a255
 src/client/mod.ts UNLISTED_ATTR 51f4fee69c37
-src/client/mod.ts UserAttrs 4135d96d102a
+src/client/mod.ts UserAttrs 0e053f0f3061
 src/client/mod.ts UserId 701cc16d35f7
 src/client/mod.ts WithinMatch 8f507a04a664
 src/client/mod.ts accessOfUser a696de759e3a 0|f564a7144c6e=f564a7144c6e,1|175dd1db44d3=175dd1db44d3,2|336e2b46aff6=336e2b46aff6,@signature=e14aa4d341bf
@@ -1200,7 +1200,7 @@ src/lib/api/mod.ts ServiceEntry 3ec188cdee97 description=c4833b0d92ac,detail=296
 src/lib/api/mod.ts SessionEntry 0a56c775c77c activeAt=10b4d0185fa4,command=6921422266e7,cwd=fb782f68dd39,from=c8d7e716465d,origin=091872a95b05,since=4272066b42ba,tty=6de472af68af,uid=d8def3ee020e,user=f5dd46b51dfb
 src/lib/api/mod.ts ShareException da5cc431f443 name=6d0c36381511,path=3fd20668ef6e,preset=3c5e7e298ab8,type=e22be5ee8605
 src/lib/api/mod.ts ShareGrant ad6a70787dd7 id=1fc1576a213d,kind=2e3b33b5a162,level=81cfde6ff39f,members=43fa641cea6c,name=6d0c36381511,path=c29ab32b39f5,personPath=5ad26cc58ba7,role=9af6fa252533,source=649202b27368,title=22df3e6ba489
-src/lib/api/mod.ts ShareInfo d06dfae2e03e canEdit=1edb6ed8f779,default=c8dd03d2b9d0,displayAccounts=8a3cab968af0,effective=cf9e07daad54,everyone=5123733d3737,exceptionCount=04e9865a691d,exceptions=a38692766260,grants=70b5b2720f03,group=497aad8b8698,groups=59c16ac5b524,guestBrowsing=b8a77d59247a,links=94bd6505b471,mode=63788613056a,owner=c77e63c95c80,path=3fd20668ef6e,pinned=38fda2e5a754,preset=3c5e7e298ab8,title=f6007128d157,type=e22be5ee8605,users=d0e4d80a33c4
+src/lib/api/mod.ts ShareInfo ee2d92f95d91 canEdit=1edb6ed8f779,default=c8dd03d2b9d0,displayAccounts=f5d88a1a5d08,effective=cf9e07daad54,everyone=5123733d3737,exceptionCount=04e9865a691d,exceptions=a38692766260,grants=70b5b2720f03,group=497aad8b8698,groups=59c16ac5b524,guestBrowsing=b8a77d59247a,links=94bd6505b471,mode=63788613056a,owner=c77e63c95c80,path=3fd20668ef6e,pinned=38fda2e5a754,preset=3c5e7e298ab8,title=f6007128d157,type=e22be5ee8605,users=d0e4d80a33c4
 src/lib/api/mod.ts ShareLevel 0d275fe9c0bd
 src/lib/api/mod.ts ShareLink 20ce760c41ca as=98ccab85a111,createdAt=87095eba9b73,createdBy=ed0cecea75e7,expiresAt=7f1dc30637cf,id=752fa5797ebe,lastOpenedAt=9e428ce495ec,opened=faccf25e1802,path=3fd20668ef6e,token=b981849f23f2
 src/lib/api/mod.ts ShareLinkCreated 7da871f57f63 failed=759801f9d7dc,link=1f1e39651667,pinned=886265bda2ab,updated=9a2d615ca6b3
@@ -1231,7 +1231,7 @@ src/lib/api/mod.ts UnzipAnswer 2f20a29a31ac archive=270d78b1fb08,bytes=23e3d4379
 src/lib/api/mod.ts UserCreated 597ca45b2a3b gid=99f9950dc824,groups=df5ef28e2a7f,home=13c085edd514,path=3fd20668ef6e,uid=fccc8afd13b7,username=02356e67b2c7
 src/lib/api/mod.ts UserDeleted 6dacedd9ea1f acl=c7ffee0503ce,deleted=5b710ceef869,group=e98e7ac7af56,owned=20065c00487e,to=bd9c65f3bbc6,uid=fccc8afd13b7
 src/lib/api/mod.ts UserElevated da30c6384797 elevated=c08944558ef8
-src/lib/api/mod.ts UserEntry 70b370991c46 description=644be3c4d4da,email=36b3d99fd26f,gid=99f9950dc824,hasPassword=19d4637c3a4d,inactive=99060b4ec8f1,mustResetPassword=64ce8f4f6e42,personPath=5ad26cc58ba7,role=4dd1913383ce,title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
+src/lib/api/mod.ts UserEntry a588377032d0 description=644be3c4d4da,email=36b3d99fd26f,everyone=dfcb820b6044,gid=99f9950dc824,hasPassword=19d4637c3a4d,inactive=99060b4ec8f1,mustResetPassword=64ce8f4f6e42,personPath=5ad26cc58ba7,role=4dd1913383ce,title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7
 src/lib/api/mod.ts UserId 701cc16d35f7
 src/lib/api/mod.ts UserInactive 88883091bf0c inactive=99060b4ec8f1,username=02356e67b2c7
 src/lib/api/mod.ts UserResolved 3bcf1429f6be title=22df3e6ba489,uid=fccc8afd13b7,username=02356e67b2c7

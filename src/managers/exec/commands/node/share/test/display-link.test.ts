@@ -3,12 +3,13 @@
  * as that account sees it — its groups, its home — to a visitor who never signs in, who still
  * writes nothing. Only the account itself or an administrator makes one, never as an account that
  * is or may become an administrator; it opens nothing once the account may no longer be shown as,
- * once it has expired, or once it is turned off, and a deleted account's links go with it.
+ * once it has expired, or once it is turned off, and a deleted account's links go with it. An
+ * account taken out of everyone reads, and shows, nothing shared with every account.
  */
 
 import { assert, assertEquals } from '@std/assert';
 import { ADMIN_ACCESS } from '../../../../../../lib/access/mod.ts';
-import type { ShareInfo, ShareLink, ShareLinkCreated, Whoami } from '../../../../../../lib/api/mod.ts';
+import type { ShareInfo, ShareLink, ShareLinkCreated, UserEntry, Whoami } from '../../../../../../lib/api/mod.ts';
 import { LINKS_PATH, SESSIONS_PATH } from '../../../../../../lib/paths.ts';
 import { createTestContext, testCommands } from '../../../../../../testing/mod.ts';
 import type { SessionAttrs } from '../../../../../../vfs/types/session.ts';
@@ -47,6 +48,10 @@ Deno.test({
       await cmd.shouldSucceed('echo "only anna" > /home/anna/secret.txt && chown anna /home/anna/secret.txt && chmod 0600 /home/anna/secret.txt');
       // Shared with the account itself, which no link of it may take away.
       await cmd.shouldSucceed('echo "for display" > /archive/boards/notes.txt && chmod 0700 /archive/boards/notes.txt && acl -m u:display:r /archive/boards/notes.txt');
+      // Shared with every account.
+      await cmd.shouldSucceed(
+        'echo "for everyone" > /archive/boards/everyone.txt && chown admin:users /archive/boards/everyone.txt && chmod 0640 /archive/boards/everyone.txt',
+      );
     });
 
     await t.step('an administrator makes one as an account a link may show things as, and no other', async () => {
@@ -111,6 +116,32 @@ Deno.test({
       } finally {
         visitor.close();
       }
+    });
+
+    await t.step('taken out of everyone, the account shows nothing shared with every account', async () => {
+      const opened = async (line: string) => {
+        const visitor = await testCtx.server.createShellClient({ login: false });
+        try {
+          await visitor.exec(`share-link open ${display!.link.token}`);
+          return (await visitor.exec(line)).success;
+        } finally {
+          visitor.close();
+        }
+      };
+      const everyone = async () => (await admin.execJson<UserEntry[]>('user-list')).find((user) => user.username === 'display')?.everyone;
+      const offered = async () =>
+        (await admin.execJson<ShareInfo>('share-info /archive/boards/kitchen.yaml')).displayAccounts.find((account) => account.username === 'display')?.everyone;
+
+      assertEquals([await opened('cat /archive/boards/everyone.txt'), await everyone(), await offered()], [true, true, true]);
+      await cmd.shouldSucceed('group-remove-member users display');
+      assertEquals([await opened('cat /archive/boards/everyone.txt'), await everyone(), await offered()], [false, false, false]);
+      // Its own groups still count.
+      assertEquals(await opened('cat /groups/household/todos/shopping.md'), true);
+      await cmd.shouldFailWith('group-remove-member users display', 'not a member');
+
+      await cmd.shouldSucceed('group-add-member users display');
+      assertEquals([await opened('cat /archive/boards/everyone.txt'), await everyone()], [true, true]);
+      await cmd.shouldFailWith('group-add-member users display', 'already a member');
     });
 
     await t.step('expired, it reads nothing of the account’s, and turned off, nothing at all', async () => {

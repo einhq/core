@@ -21,6 +21,7 @@ const user = (username: string, uid: number, extra: Partial<UserEntry> = {}): Us
   uid,
   gid: uid,
   inactive: false,
+  everyone: true,
   mustResetPassword: false,
   hasPassword: true,
   ...extra,
@@ -29,7 +30,7 @@ const user = (username: string, uid: number, extra: Partial<UserEntry> = {}): Us
 const group = (groupname: string, gid: number, extra: Partial<GroupEntry> = {}): GroupEntry => ({ groupname, gid, ...extra });
 
 const admin = user('admin', 0, { role: 'administrator', title: 'Administrator' });
-const guest = user('guest', 1001, { role: 'guest', hasPassword: false });
+const guest = user('guest', 1001, { role: 'guest', hasPassword: false, everyone: false });
 const anna = user('anna', 1004, { title: 'Anna Andersson' });
 const bo = user('bo', 1005, { title: 'Bo Berg' });
 
@@ -76,6 +77,11 @@ Deno.test('everyone who signs in belongs to the everyone group, the guest does n
   assertEquals(membershipOf(anna, users), 'automatic');
   // Linked into `users` at boot, which gives a guest session nothing.
   assertEquals(membershipOf(guest, users), 'none');
+});
+
+Deno.test('an account taken out of everyone is no member of it, unless it is its primary group', () => {
+  assertEquals(membershipOf({ ...bo, everyone: false }, users), 'none');
+  assertEquals(membershipOf({ ...bo, everyone: false, gid: 1002 }, users), 'primary');
 });
 
 Deno.test('the primary group counts with or without a link, before a link', () => {

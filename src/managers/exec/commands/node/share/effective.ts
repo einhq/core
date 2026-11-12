@@ -1,6 +1,6 @@
 import { join } from '@std/path';
-import { ADMIN_ACCESS, ADMIN_UID, USERS_GID, verifyAccess } from '../../../../../lib/access/mod.ts';
-import { memberNames } from '../../../../../lib/auth/member-gids.ts';
+import { ADMIN_ACCESS, ADMIN_UID, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { memberNames, sessionGids } from '../../../../../lib/auth/member-gids.ts';
 import type { Access, AccessLevel } from '../../../../../lib/access/mod.ts';
 import { MaskACL, MaskGroup, MaskOther, MaskOwner } from '../../../../../lib/mode/mod.ts';
 import type { GroupId, Ownership, ShareLevel, UserId } from '../../../../../lib/mode/mod.ts';
@@ -49,8 +49,8 @@ type Directory = {
  * groups per user, which is what login pays for a single person and what a
  * sharing preview over the whole user list must not.
  *
- * `gids` is assembled the way `Shell.login` assembles it: `USERS_GID`, which
- * every signed-in person carries, then the account's `gid` attr, then the
+ * `gids` is assembled the way `Shell.login` assembles it (`sessionGids`): `USERS_GID`
+ * unless the account is taken out of everyone, the account's `gid` attr, then the
  * memberships — never the user node's ownership group, which says who may edit
  * the account, not what it signs in with. That is not a nicety — a preview built from anything else
  * would disagree with what the server goes on to enforce, and agreeing with it
@@ -110,13 +110,7 @@ export const readDirectory = async (
     title: entry.node.attrs.name,
     inactive: entry.node.attrs.inactive === true,
     gid: entry.node.attrs.gid,
-    gids: [
-      ...new Set([
-        USERS_GID,
-        entry.node.attrs.gid,
-        ...groups.filter((group) => group.members.includes(entry.name)).map((group) => group.gid),
-      ]),
-    ],
+    gids: sessionGids(entry.node.attrs, groups.filter((group) => group.members.includes(entry.name)).map((group) => group.gid)),
   }));
 
   return { groups, users };

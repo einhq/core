@@ -1,7 +1,9 @@
 import type { MembershipChanged } from '../../../../lib/api/users.ts';
+import { GUEST_UID } from '../../../../lib/access/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { groupRole } from '../../../../lib/auth/roles.ts';
 import { GroupAttrs } from '../../../../vfs/types/group.ts';
-import { UserAttrs } from '../../../../vfs/types/user.ts';
+import { isUserNode, UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -36,17 +38,29 @@ export const groupRemoveMember = async (cmd: Command): CmdReturn => {
       return 1;
     }
 
+    // Every account but the guest is in everyone, linked or not: taking one out marks the account
+    // as well as removing its link, which alone changes nothing.
+    let takenOut = false;
+    if (groupRole(groupname, group.attrs.gid) === 'everyone' && isUserNode(user) && user.attrs.uid !== GUEST_UID && user.attrs.everyone !== false) {
+      if (user.attrs.gid === group.attrs.gid) {
+        await cmd.writeError(`group remove-member: '${groupname}' is the primary group of '${username}'\n`);
+        return 1;
+      }
+      await cmd.sys.vfs.update<UserAttrs>(cmd.access, userPath, { attrs: { everyone: false } });
+      takenOut = true;
+    }
+
     const membershipLinkPath = `${groupPath}/users/${username}`;
 
     try {
       await cmd.sys.vfs.unlink(cmd.access, membershipLinkPath, `${groupPath}/users`, { readlink: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('not found')) {
+      if (!message.includes('not found')) throw error;
+      if (!takenOut) {
         await cmd.writeError(`group remove-member: user '${username}' is not a member of group '${groupname}'\n`);
         return 1;
       }
-      throw error;
     }
 
     if (cmd.json) {
@@ -67,7 +81,7 @@ groupRemoveMember.spec = {
   name: 'group-remove-member',
   admin: true,
   effect: 'write' as const,
-  description: 'Remove a user from a group',
+  description: 'Remove a user from a group; from users (everyone), take the account out of what is shared with every account',
   args: [
     {
       name: 'group',

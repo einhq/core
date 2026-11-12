@@ -32,15 +32,15 @@ type Membership = 'automatic' | 'primary' | 'member' | 'none';
 
 /**
  * How `user` belongs to `group`:
- * - `automatic`: the `everyone` group, which every account that signs in is in; never the guest,
- *   whose sessions carry only its own group;
  * - `primary`: its primary group, which counts without a membership link (and with one);
+ * - `automatic`: the `everyone` group, which every account that signs in is in without a link,
+ *   unless an administrator took it out; never the guest, whose sessions carry only its own group;
  * - `member`: linked into the group;
  * - `none`.
  */
 export const membershipOf = (user: UserEntry, group: GroupEntry): Membership => {
-  if (group.role === 'everyone') return user.role === 'guest' ? 'none' : 'automatic';
   if (user.gid === group.gid) return 'primary';
+  if (group.role === 'everyone') return user.everyone ? 'automatic' : 'none';
   if (group.members?.includes(user.username)) return 'member';
   return 'none';
 };

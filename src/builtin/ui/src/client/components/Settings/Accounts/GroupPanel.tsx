@@ -28,7 +28,8 @@ type GroupPanelProps = {
 const ROLE_TEXT: Record<GroupRole, (name: string) => string> = {
   administrators: (name) =>
     `The administrator's own group, as root's is on Linux. Being in ${name} does not make anyone an administrator, and gives no write to the system's own folders and settings.`,
-  everyone: (name) => `Every account that signs in belongs to ${name}. Sharing with ${name} shares with all of them.`,
+  everyone: (name) =>
+    `Every account that signs in belongs to ${name}, but those taken out of it, such as an account for a screen. Sharing with ${name} shares with all of them.`,
   ssh: () => 'Its members may use ssh, scp and ssh-copy-id to reach other machines.',
   sudo: () =>
     'Its members may become the administrator for one sign-in by choosing Administer in the account menu and entering their password again. Taking someone out of the group ends that at once.',
@@ -49,8 +50,8 @@ const listOf = (items: ReactNode[]): ReactNode =>
 
 /**
  * One group, edited in place: its title and description, who is in it, its shared home, and
- * deleting it. Built-in groups say what they are for and cannot be deleted; `everyone` lists nobody
- * to add or remove, since every account that signs in is in it. Only `everyone` of the built-in
+ * deleting it. Built-in groups say what they are for and cannot be deleted; `everyone` lists every
+ * account ticked, and unticking one takes it out. Only `everyone` of the built-in
  * groups, and no account's own group, may have a home.
  */
 export function GroupPanel({ group, users, groups, run, onDeleted, onOpenUser }: GroupPanelProps) {
@@ -155,10 +156,6 @@ function MembersSection({ group, users, run, onOpenUser }: SectionProps & { user
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
-  if (group.role === 'everyone') {
-    return <PanelSection title='Members' lead={`Everyone who signs in belongs to ${group.groupname}; there is nobody to add or remove.`} />;
-  }
-
   const byName = new Map(users.map((user) => [user.username, user]));
   const primaryOf = users.filter((user) => membershipOf(user, group) === 'primary');
   // The guest only while it is linked here, to be taken out; its groups give it nothing.
@@ -209,7 +206,14 @@ function MembersSection({ group, users, run, onOpenUser }: SectionProps & { user
   };
 
   return (
-    <PanelSection title='Members' lead='Changes apply the next time each person signs in.' error={error} onDismiss={() => setError(null)}>
+    <PanelSection
+      title='Members'
+      lead={group.role === 'everyone'
+        ? 'Every account is in it without being added. Untick one to keep it out of what is shared with everyone; changes apply the next time it signs in or opens its link.'
+        : 'Changes apply the next time each person signs in.'}
+      error={error}
+      onDismiss={() => setError(null)}
+    >
       <Checklist items={items} onToggle={apply} label={`Members of ${group.groupname}`} what='people' resetKey={group.groupname} />
 
       {primaryOf.length > 0 && (

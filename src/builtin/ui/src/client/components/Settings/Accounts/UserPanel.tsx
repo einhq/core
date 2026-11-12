@@ -196,7 +196,7 @@ function GroupsSection({ user, users, groups, signedInNow, run }: SectionProps &
   const noteFor = (group: GroupEntry, kind: ReturnType<typeof membershipOf>): string | undefined => {
     if (group === own) return kind === 'primary' ? 'their own group, primary' : 'their own group';
     if (kind === 'primary') return 'primary group';
-    if (kind === 'automatic') return 'everyone who signs in';
+    if (group.role === 'everyone') return kind === 'none' ? 'taken out of what is shared with everyone' : 'everyone who signs in';
     if (isPersonalGroup(group, users)) return `${group.groupname}'s own group`;
     return undefined;
   };
@@ -210,7 +210,7 @@ function GroupsSection({ user, users, groups, signedInNow, run }: SectionProps &
       label: title,
       description: title === group.groupname ? undefined : group.groupname,
       checked: target ?? kind !== 'none',
-      disabled: kind === 'primary' || kind === 'automatic',
+      disabled: kind === 'primary',
       note: noteFor(group, kind),
       busy: target !== undefined,
     };

@@ -15,6 +15,11 @@ export type UserAttrs = NodeAttrs & {
   description?: string;
   inactive?: boolean;
   /**
+   * False takes the account out of the everyone group (`users`): its sessions, and links that show
+   * things as it, carry no `USERS_GID` unless `users` is its primary group. Absent, it is in.
+   */
+  everyone?: boolean;
+  /**
    * When true the user has no usable password (e.g. imported from the old
    * system) and must set one via a reset before they can authenticate. Cleared
    * once a password is set. Every auth site checks it through `loginRefusal`.

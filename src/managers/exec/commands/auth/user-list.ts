@@ -45,6 +45,7 @@ export const userList = async (cmd: Command): CmdReturn => {
           ...(u.node.attrs.email ? { email: u.node.attrs.email } : {}),
           description: u.node.attrs.description,
           inactive: u.node.attrs.inactive || false,
+          everyone: role !== 'guest' && u.node.attrs.everyone !== false,
           mustResetPassword: u.node.attrs.mustResetPassword === true,
           ...(hasPassword !== undefined ? { hasPassword } : {}),
           ...(personPath ? { personPath } : {}),

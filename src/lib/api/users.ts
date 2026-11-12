@@ -18,6 +18,11 @@ export type UserEntry = {
   email?: string;
   description?: string;
   inactive: boolean;
+  /**
+   * Whether it is in the everyone group (`users`) and reads what is shared with every account; an
+   * administrator takes it out with `group-remove-member users <username>`. Never the guest.
+   */
+  everyone: boolean;
   /** No sign-in is accepted until a password is set (`user-passwd`), which clears it. */
   mustResetPassword: boolean;
   /** Whether a password is set. Reported to an administrator only. */
@@ -56,7 +61,8 @@ export type GroupEntry = {
  * - `administrators` (`admin`, gid 0) is the administrator's own group, as root's is on Linux:
  *   its members may read the system tree but write none of it, and are no administrators.
  * - `guests` (`guest`) is the guest account's own group.
- * - `everyone` (`users`) holds every account that signs in, linked or not.
+ * - `everyone` (`users`) holds every account that signs in, linked or not, but those an
+ *   administrator takes out of it.
  * - `ssh` may use `ssh`, `scp` and `ssh-copy-id` to reach other machines.
  * - `sudo` may make a sign-in of theirs an administrator's by entering their password again.
  */

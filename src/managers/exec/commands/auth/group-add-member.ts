@@ -1,9 +1,10 @@
 import { join } from '@std/path';
 import type { MembershipChanged } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { groupRole } from '../../../../lib/auth/roles.ts';
 import { GroupAttrs } from '../../../../vfs/types/group.ts';
 import { NODE_TYPE_SOFTLINK } from '../../../../vfs/types/softlink.ts';
-import { UserAttrs } from '../../../../vfs/types/user.ts';
+import { isUserNode, UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -34,6 +35,10 @@ export const groupAddMember = async (cmd: Command): CmdReturn => {
       throw new Error(`user '${username}' not found`);
     }
 
+    // Putting back an account taken out of everyone clears its mark, linked already or not.
+    const putBack = groupRole(groupname, group.attrs.gid) === 'everyone' && isUserNode(user) && user.attrs.everyone === false;
+    if (putBack) await cmd.sys.vfs.update<UserAttrs>(cmd.access, userPath, { attrs: { everyone: null } });
+
     const membershipPath = join(groupPath, 'users');
 
     try {
@@ -55,10 +60,10 @@ export const groupAddMember = async (cmd: Command): CmdReturn => {
       const message = error instanceof Error ? error.message : String(error);
 
       if (message.includes('exists') || message.includes('duplicate key')) {
-        throw new Error(`user '${username}' is already a member of group '${groupname}'`);
+        if (!putBack) throw new Error(`user '${username}' is already a member of group '${groupname}'`);
+      } else {
+        throw error;
       }
-
-      throw error;
     }
 
     if (cmd.json) {
@@ -79,7 +84,7 @@ groupAddMember.spec = {
   name: 'group-add-member',
   admin: true,
   effect: 'write' as const,
-  description: 'Add a user to a group',
+  description: 'Add a user to a group; to users (everyone), put back an account taken out of it',
   args: [
     {
       name: 'group',

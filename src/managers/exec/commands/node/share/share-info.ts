@@ -1,6 +1,6 @@
 import { basename, resolve } from '@std/path';
 import { parseArgs } from '../../../../../lib/args/mod.ts';
-import { ADMIN_UID, isAdmin, isLinkUid, isPinned, isVisitor, resolveDefaultOwnership, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { ADMIN_UID, isAdmin, isLinkUid, isPinned, isVisitor, resolveDefaultOwnership, USERS_GID, verifyAccess } from '../../../../../lib/access/mod.ts';
 import { accountNamed, displayRefusal } from '../../../../../lib/auth/display-account.ts';
 import { groupRole } from '../../../../../lib/auth/roles.ts';
 import { guestMayBrowse } from '../../../../../lib/config/mod.ts';
@@ -72,6 +72,7 @@ export const shareInfo = async (cmd: Command): CmdReturn => {
           username: user.username,
           ...(user.title ? { title: user.title } : {}),
           ...(user.uid === cmd.access.uid ? { you: true } : {}),
+          everyone: user.gids.includes(USERS_GID),
         });
       }
     }

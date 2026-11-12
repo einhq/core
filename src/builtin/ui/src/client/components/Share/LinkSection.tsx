@@ -164,7 +164,8 @@ function NewDisplayLink({ noun, accounts, busy, onCreate }: {
         </ThemeIcon>
         <Text size='sm' c='dimmed'>
           A screen shows the {noun}{' '}
-          as an account sees it. An administrator makes one for screens: an account in the groups whose things it should show, and not an administrator.
+          as an account sees it. An administrator makes one for screens: an account in the groups whose things it should show, out of the Users group, and not an
+          administrator.
         </Text>
       </Group>
     );
@@ -211,6 +212,13 @@ function NewDisplayLink({ noun, accounts, busy, onCreate }: {
         <Alert color='yellow' icon={<IconAlertTriangle size={16} />} ml={44} p='xs'>
           <Text size='xs'>Anyone with the link can read everything you can read in EiN. An account made for screens is safer.</Text>
         </Alert>
+      )}
+      {chosen && !chosen.you && chosen.everyone && (
+        <Text size='xs' c='dimmed' ml={44}>
+          {name}{' '}
+          is in the Users group, so the link also reads everything shared with everyone with an account. An administrator can untick Users on the account in Settings →
+          Accounts.
+        </Text>
       )}
     </Stack>
   );

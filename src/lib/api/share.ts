@@ -47,7 +47,14 @@ export type ShareInfo = {
    * caller's own when a link may show things as it, and for an administrator every such account.
    * Empty for a caller who may not change the node.
    */
-  displayAccounts: { uid: UserId; username: string; title?: string; you?: boolean }[];
+  displayAccounts: {
+    uid: UserId;
+    username: string;
+    title?: string;
+    you?: boolean;
+    /** Whether it is in the everyone group, and so reads what is shared with every account. */
+    everyone: boolean;
+  }[];
   /**
    * Nodes below this one that keep their own sharing (`share-set --pin`), so a change made here
    * does not reach them — the first `EXCEPTIONS_SHOWN` the caller can read, of `exceptionCount`.

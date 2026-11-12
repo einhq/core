@@ -71,6 +71,7 @@ Deno.test({
         title: 'Anna Andersson',
         description: 'Keeps the photos',
         inactive: false,
+        everyone: true,
         mustResetPassword: false,
         hasPassword: false,
         personPath: '/archive/people/Anna',
