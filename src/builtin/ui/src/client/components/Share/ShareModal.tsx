@@ -3,9 +3,10 @@ import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ShareInfo, ShareSetResult } from '@ein/api';
 import { useAccessIds } from '../../hooks/useAccessIds.ts';
-import { useShare, useShareHolder } from '../../hooks/useShare.ts';
+import { type LinkExpiry, useShare, useShareHolder } from '../../hooks/useShare.ts';
 import { countOf } from '../../lib/count-of.ts';
 import { buildShareCommand, defaultDraft, draftVisibility, openingDraft, privateDraft, type ShareDraft } from '../../lib/share.ts';
+import { shareLinkOf } from '../../signals/module-ui.ts';
 import { noteSharingChanged } from '../../signals/share.ts';
 import type { HatPattern } from '../EntityDetail/HatField.tsx';
 import { PageLoader } from '../Layout/PageLoader.tsx';
@@ -40,9 +41,6 @@ const PATTERNS: Record<string, HatPattern> = {
   track: 'track',
   file: 'media',
 };
-
-/** The types whose page reads nothing outside the node, so a link can open one on its own. */
-const LINKABLE = new Set(['album']);
 
 /** A titled part of the dialog. */
 export function ShareSection({ title, aside, children }: { title: ReactNode; aside?: ReactNode; children: ReactNode }) {
@@ -168,7 +166,9 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
   if (!info || !draft) return null;
 
   const editable = info.canEdit;
-  const noun = nounOf(info.type);
+  // Whether a link may open it, and how, is the module's whose node it is to say.
+  const linkKind = shareLinkOf(info.type, info.path);
+  const noun = linkKind?.noun ?? nounOf(info.type);
   const ownerName = info.owner.title ?? info.owner.username ?? `user ${info.owner.uid}`;
   // The owner a save leaves it with: the configured one, when the draft gives it that.
   const defaultOwner = draft.defaultOwner && info.default.uid !== info.owner.uid ? info.users.find((user) => user.uid === info.default.uid) : undefined;
@@ -211,9 +211,9 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
     }
   };
 
-  const createLink = () =>
+  const createLink = (expiry?: LinkExpiry, as?: string) =>
     write(async () => {
-      const created = await share.createLink();
+      const created = await share.createLink(expiry, as);
       return created.failed > 0 ? { text: `The link does not open ${countOf(created.failed, 'item', 'items')} inside that you may not change.`, warn: true } : null;
     });
 
@@ -273,13 +273,15 @@ export function SharePanel({ path, enabled, onClose, onInfo }: SharePanelProps) 
           />
         </ShareSection>
 
-        {(LINKABLE.has(info.type) || info.links.length > 0) && (
-          <ShareSection title='Share with a link'>
+        {(linkKind !== undefined || info.links.length > 0) && (
+          <ShareSection title={linkKind?.shows === 'account' ? 'Show it on a screen' : 'Share with a link'}>
             <LinkSection
               links={info.links}
               editable={editable}
               noun={noun}
               exceptions={info.exceptionCount}
+              shows={linkKind?.shows ?? 'node'}
+              accounts={info.displayAccounts}
               onCreate={createLink}
               onExpiry={(id, expiry) => write(async () => (await share.setLinkExpiry(id, expiry), null))}
               onRemove={(id) => write(async () => (await share.removeLink(id), null))}

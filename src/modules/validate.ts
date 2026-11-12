@@ -104,6 +104,19 @@ export const checkUi = (manifest: ModuleManifest): ValidationResult => {
       }
     }
   }
+  const shareLinks = (manifest.ui as { shareLinks?: unknown } | undefined)?.shareLinks;
+  if (shareLinks !== undefined) {
+    if (typeof shareLinks !== 'object' || shareLinks === null || Array.isArray(shareLinks)) {
+      errors.push(`${manifest.name}: ui.shareLinks must map node types or folders to how a link opens them`);
+    } else {
+      for (const [key, kind] of Object.entries(shareLinks)) {
+        if (key.startsWith('/') && (!key.endsWith('/') || key === '/')) errors.push(`${manifest.name}: ui.shareLinks['${key}'] names a folder, so it ends with /`);
+        const { shows, noun } = (typeof kind === 'object' && kind !== null ? kind : {}) as { shows?: unknown; noun?: unknown };
+        if (shows !== 'node' && shows !== 'account') errors.push(`${manifest.name}: ui.shareLinks['${key}'].shows must be 'node' or 'account'`);
+        if (noun !== undefined && (typeof noun !== 'string' || noun === '')) errors.push(`${manifest.name}: ui.shareLinks['${key}'].noun must be a word`);
+      }
+    }
+  }
 
   return { errors, warnings: [] };
 };

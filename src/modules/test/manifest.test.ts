@@ -136,6 +136,14 @@ Deno.test('module UI validation', async (t) => {
     assertEquals(checkUi(mod('m', { ui: bad })).errors.length, 3);
   });
 
+  await t.step('ui.shareLinks names a type or a folder, and whether a link shows the node or an account', () => {
+    const ok = { shareLinks: { album: { shows: 'node' }, '/archive/boards/': { shows: 'account', noun: 'board' } } } as ModuleManifest['ui'];
+    assertEquals(checkUi(mod('m', { ui: ok })).errors, []);
+    const bad = { shareLinks: { album: { shows: 'everyone' }, '/archive/boards': { shows: 'node' }, board: { shows: 'node', noun: '' } } };
+    assertEquals(checkUi(mod('m', { ui: bad } as unknown as Partial<ModuleManifest>)).errors.length, 3);
+    assertEquals(checkUi(mod('m', { ui: { shareLinks: ['album'] } } as unknown as Partial<ModuleManifest>)).errors.length, 1);
+  });
+
   await t.step('routes that are not a map of at least one route are rejected', () => {
     assertEquals(checkUi(mod('m', { ui: { routes: {} } })).errors.length, 1);
     assertEquals(checkUi(mod('m', { ui: { routes: 'ui/app' } } as unknown as Partial<ModuleManifest>)).errors.length, 1);

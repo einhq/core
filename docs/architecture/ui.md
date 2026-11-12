@@ -415,7 +415,14 @@ a 401 it loads `/login?next=<the page>` as a new document ([The session cookie](
 A share link lands on `/s/<token>` (`pages/shared-link.tsx`), drawn outside the frame like the
 login page: it runs `share-link open <token> --session` and loads the page of what the link opens
 afresh (`openRoute`), so that page is read as the link, or says the link no longer works and
-offers signing in. A visitor's session acts as one link, the one opened last, which `user-whoami` gives
+offers signing in. The tab remembers the token and the page in `sessionStorage`
+(`rememberShareLink`): a screen left on the page whose session lapsed — a dashboard on a wall —
+loads `/s/<token>` again rather than asking to sign in (`linkToReopen`, at most once a minute, only
+on that page), and signing in forgets it. Which nodes the sharing dialog offers a link for, and
+whether the link shows the node as an account sees it, is the modules' to say (`ui.shareLinks`,
+read into `shareLinkKinds` with the manifest; `shareLinkOf`): for a display link the dialog's
+**Show it on a screen** asks **Shows it as** — the accounts `share-info` offers in
+`displayAccounts` — and for how long, no end date first, and says what whoever holds it can read. A visitor's session acts as one link, the one opened last, which `user-whoami` gives
 (`heldLinks`), answering as the guest; someone signed in stays themselves and sees what their account
 does; while visitors may not browse, a visitor holding it (`linkVisitor`) is let onto the
 pages under what it opens (`withinRoute` against `heldLinkRoutes`) and nowhere else: any other page,

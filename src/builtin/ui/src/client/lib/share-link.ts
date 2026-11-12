@@ -33,6 +33,51 @@ export const withinRoute = (pathname: string, route: string): boolean => {
   return here === base || here.startsWith(`${base}/`);
 };
 
+/** Where this tab keeps the share link it opened, so a screen whose session lapsed opens it again. */
+const REMEMBERED_KEY = 'ein.shareLink';
+
+/** How long after reopening a link the tab waits before trying again, so a link that keeps failing does not loop. */
+const REOPEN_PAUSE_MS = 60_000;
+
+type Remembered = { token: string; route: string; reopenedAt?: number };
+
+const readRemembered = (): Remembered | undefined => {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(REMEMBERED_KEY) ?? 'null');
+    return value && typeof value.token === 'string' && typeof value.route === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const writeRemembered = (value: Remembered | undefined): void => {
+  try {
+    if (value) sessionStorage.setItem(REMEMBERED_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(REMEMBERED_KEY);
+  } catch {
+    // Storage refused (a private window): the tab just does not reopen the link by itself.
+  }
+};
+
+/** Keep the link this tab opened and the page it opens, for `linkToReopen`. */
+export const rememberShareLink = (token: string, route: string): void => writeRemembered({ token, route });
+
+/** Forget the link this tab opened: it no longer works, or someone signed in. */
+export const forgetShareLink = (): void => writeRemembered(undefined);
+
+/**
+ * The token of the link this tab opened, when `pathname` is under the page it opens and the tab has
+ * not tried it again within the last minute — what a screen whose session lapsed opens again rather
+ * than asking to sign in. Marks the try.
+ */
+export const linkToReopen = (pathname: string, now = Date.now()): string | undefined => {
+  const remembered = readRemembered();
+  if (!remembered || !withinRoute(pathname, remembered.route)) return undefined;
+  if (remembered.reopenedAt !== undefined && now - remembered.reopenedAt < REOPEN_PAUSE_MS) return undefined;
+  writeRemembered({ ...remembered, reopenedAt: now });
+  return remembered.token;
+};
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** How long a link may be set to work for, from now; null for no end date. */

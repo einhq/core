@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals-react';
 import { uiRuntime } from '@ui/shared';
-import type { ModuleRoute, SearchableKind, UiManifest } from '@ui/ui-cache';
+import type { ModuleRoute, ModuleUi, SearchableKind, UiManifest } from '@ui/ui-cache';
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
 import { loadAccessIds } from '../hooks/useAccessIds.ts';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
@@ -61,6 +61,29 @@ export const onPageChange = (listener: (location: Location, action: NavigationTy
  */
 export const nodeRoutes = signal<Record<string, string>>({});
 
+/**
+ * Which nodes a share link may open, and how, from every module's `ui.shareLinks`: by type, or by
+ * a folder a node is under. Filled when the manifest is read.
+ */
+export const shareLinkKinds = signal<Record<string, ShareLinkKind>>({});
+
+/** How a share link opens a node, as the module whose node it is says. */
+export type ShareLinkKind = NonNullable<ModuleUi['shareLinks']>[string];
+
+/** The key of `table` a node is under — the longest folder, else its type — as `ui.open` and `ui.shareLinks` key them. */
+const keyFor = (table: Record<string, unknown>, type: string, path: string): string | undefined => {
+  const folder = Object.keys(table)
+    .filter((key) => key.startsWith('/') && key.endsWith('/') && path.startsWith(key) && path.length > key.length)
+    .sort((a, b) => b.length - a.length)[0];
+  return folder ?? (type in table ? type : undefined);
+};
+
+/** How a share link opens the node, or undefined when no installed module offers a link for it. */
+export const shareLinkOf = (type: string, path: string): ShareLinkKind | undefined => {
+  const key = keyFor(shareLinkKinds.value, type, path);
+  return key === undefined ? undefined : shareLinkKinds.value[key];
+};
+
 /** Endpoints a device's page opens for: what a device under `/dev` holds. */
 const ENDPOINT_TYPES = new Set(['log', 'track', 'control', 'stream']);
 
@@ -80,10 +103,9 @@ const coreRoute = (type: string, path: string): string | null => {
 export const openRoute = (type: string, path: string): string | null => {
   const own = coreRoute(type, path);
   if (own) return own;
-  const folder = Object.keys(nodeRoutes.value)
-    .filter((key) => key.startsWith('/') && key.endsWith('/') && path.startsWith(key) && path.length > key.length)
-    .sort((a, b) => b.length - a.length)[0];
-  const template = nodeRoutes.value[folder ?? type];
+  const key = keyFor(nodeRoutes.value, type, path);
+  const folder = key?.startsWith('/') ? key : undefined;
+  const template = key === undefined ? undefined : nodeRoutes.value[key];
   if (!template) return null;
   const segments = path.split('/');
   const rest = folder ? path.slice(folder.length).replace(/\.[^./]+$/, '') : '';
@@ -135,6 +157,7 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
       // rebuilds them at every boot, so this is a shell deployed without restarting EiN.
       const runtime = uiRuntime().id;
       if (manifest) nodeRoutes.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.open ?? {}));
+      if (manifest) shareLinkKinds.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.shareLinks ?? {}));
       if (manifest) moduleRoutePaths.value = new Set(Object.values(manifest.modules).flatMap((entry) => entry.routes.map((route) => route.path)));
       if (manifest) searchableKinds.value = Object.values(manifest.modules).flatMap((entry) => entry.search ?? []);
       if (manifest && manifest.runtime !== runtime) {

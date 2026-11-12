@@ -24,7 +24,8 @@ type UseShareResult = {
   /** Send a draft; resolves with the counts so the caller can report them. */
   save: (draft: ShareDraft, opts?: ShareSaveOptions) => Promise<ShareSetResult>;
   /** Make a link; without an expiry it works for the server's default time. */
-  createLink: (expiry?: LinkExpiry) => Promise<ShareLinkCreated>;
+  /** `as`: the account a display link shows the node as (`share-link create --as`). */
+  createLink: (expiry?: LinkExpiry, as?: string) => Promise<ShareLinkCreated>;
   setLinkExpiry: (id: string, expiry: LinkExpiry) => Promise<void>;
   removeLink: (id: string) => Promise<void>;
   /** Share nodes below this one as this one is, and let its changes reach them again. */
@@ -81,9 +82,9 @@ export function useShare(path: string | undefined, enabled = true): UseShareResu
     return result;
   }, [path, fetchInfo]);
 
-  const createLink = useCallback(async (expiry?: LinkExpiry) => {
+  const createLink = useCallback(async (expiry?: LinkExpiry, as?: string) => {
     if (!path) throw new Error('no node to share');
-    const created = await execCommand<ShareLinkCreated>(`share-link create ${shq(path)}${expiryFlag(expiry)}`);
+    const created = await execCommand<ShareLinkCreated>(`share-link create ${shq(path)}${expiryFlag(expiry)}${as ? ` --as ${shq(as)}` : ''}`);
     await refreshParts();
     return created;
   }, [path, refreshParts]);

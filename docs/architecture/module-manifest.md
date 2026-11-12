@@ -31,6 +31,7 @@ adds to the machinery core already has.
 | `indexes`           | archive   | database indexes on node attrs it queries                                                 | `mod setup`               |
 | `ui.routes`         | browser   | its pages, by route                                                                       | `ui-build`                |
 | `ui.open`           | browser   | which route opens a node of a type                                                        | `ui-build`                |
+| `ui.shareLinks`     | browser   | which nodes a share link may open, and whether it shows them as an account sees them      | `ui-build`                |
 
 "Acts at" says when the field matters. `mod setup` runs for every module at each boot, in
 dependency order, so a `mod setup` field takes effect on the next deploy. "Runtime" means core
@@ -301,6 +302,21 @@ files of a module's own that are plain files to the VFS.
 `{rest}` is the path after the folder without its extension (`hall-light` for
 `/etc/automations/hall-light.yaml`, `media%2Fgpu-hot` for a deeper one). The longest folder a node
 is under wins, and wins over its type.
+
+### `ui.shareLinks`
+
+Which nodes the sharing dialog offers a share link for, keyed as `ui.open` is — a node type, or a
+folder starting and ending with `/`, the longest winning — and how the link opens one:
+
+```json
+"shareLinks": { "album": { "shows": "node" }, "/archive/dashboards/": { "shows": "account", "noun": "dashboard" } }
+```
+
+`node` is a link that opens the node and what is below it, for a page that shows nothing from
+elsewhere (an album). `account` is a display link (`share-link create --as`): the page shows what
+other modules hold, so the link shows it as an account the person sharing picks sees it, and the
+dialog asks which. `noun` is what the dialog calls the node. A node no module names gets no link
+in the dialog; `share-link` itself makes one for any node its caller may change.
 
 ## Not in the manifest: the module's folders
 

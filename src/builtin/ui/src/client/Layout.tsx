@@ -43,7 +43,7 @@ import { loadRenditions } from './signals/renditions.ts';
 import { checkSession, watchSession } from './signals/session-check.ts';
 import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
-import { isShareLinkPage, withinRoute } from './lib/share-link.ts';
+import { forgetShareLink, isShareLinkPage, linkToReopen, shareLinkUrl, withinRoute } from './lib/share-link.ts';
 import { cssVariablesResolver, theme } from '@ein/ui/theme';
 import type { ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -213,8 +213,17 @@ function Frame({ children }: Props) {
     // Which page shows a link's node comes with the modules' manifest, which may be on its way;
     // until it is in, the page may yet turn out to be under the link.
     if (confined && !routesKnown) return void loadUiManifest();
+    // A screen whose link's session lapsed — a dashboard on a wall nobody signs in at — opens the
+    // link again rather than asking to sign in; a link that no longer works says so on its page.
+    const reopen = linkToReopen(location.pathname);
+    if (reopen) return void globalThis.location.replace(shareLinkUrl('', reopen));
     navigate(loginUrlFor(location.pathname + location.search + location.hash), { replace: true });
   }, [authChecked, mustSignIn, isLoginPage, confined, routesKnown, navigate]);
+
+  // Someone signed in is no longer the screen a link opened.
+  useEffect(() => {
+    if (authenticated) forgetShareLink();
+  }, [authenticated]);
 
   // Someone signed in keeps a cookie that signs them in, or is sent to sign in again: the socket
   // stays signed in after the cookie the pictures need has gone. Moving between pages is using

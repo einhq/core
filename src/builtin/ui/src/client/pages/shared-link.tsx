@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { HatField } from '../components/EntityDetail/HatField.tsx';
 import { EinMark } from '../components/Layout/EinMark.tsx';
+import { forgetShareLink, rememberShareLink } from '../lib/share-link.ts';
 import { loadUiManifest, openRoute } from '../signals/module-ui.ts';
 import { openShareLink } from '../signals/user.ts';
 
@@ -26,8 +27,12 @@ export default function SharedLinkPage() {
         const opened = await openShareLink(token);
         // Which page shows a node is the modules' to say, in the manifest.
         await loadUiManifest();
-        if (!cancelled) globalThis.location.replace(openRoute(opened.type, opened.path) ?? '/');
+        const route = openRoute(opened.type, opened.path) ?? '/';
+        // A screen left on the page opens the link again should its session lapse.
+        rememberShareLink(token, route);
+        if (!cancelled) globalThis.location.replace(route);
       } catch {
+        forgetShareLink();
         if (!cancelled) setFailed(true);
       }
     })();

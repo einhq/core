@@ -28,6 +28,8 @@ export type ModuleUi = {
   routes: ModuleRoute[];
   /** Which of its routes opens a node of a type (`mod.json` `ui.open`): `{ "person": "/people/{name}" }`. */
   open?: Record<string, string>;
+  /** Which nodes a share link may open, and how (`mod.json` `ui.shareLinks`): `{ "album": { "shows": "node" } }`. */
+  shareLinks?: Record<string, { shows: 'node' | 'account'; noun?: string }>;
   /** Its node types the Search page finds (`mod.json` `nodeTypes` marked `searchable`), in their order. */
   search?: SearchableKind[];
   /**

@@ -1,5 +1,5 @@
 import { assertEquals } from '@std/assert';
-import { expiryText, isShareLinkPage, openedText, shareLinkUrl, withinRoute } from '../share-link.ts';
+import { expiryText, forgetShareLink, isShareLinkPage, linkToReopen, openedText, rememberShareLink, shareLinkUrl, withinRoute } from '../share-link.ts';
 
 const album = `/albums/${encodeURIComponent('/archive/albums/Sommar')}`;
 
@@ -39,4 +39,16 @@ Deno.test('share link: how often it was opened, and when last', () => {
   assertEquals(openedText(4, NOW - DAY, NOW), 'Opened 4 times, last yesterday');
   assertEquals(openedText(4, NOW - 3 * DAY, NOW), 'Opened 4 times, last 3 days ago');
   assertEquals(openedText(9, NOW - 20 * DAY, NOW).startsWith('Opened 9 times, last on '), true);
+});
+
+Deno.test('share link: a screen whose session lapsed opens its link again, once a minute at most, and only on its page', () => {
+  const board = `/dashboards/${encodeURIComponent('Kitchen')}`;
+  rememberShareLink('AbC123', board);
+  assertEquals(linkToReopen('/people/Anna_Andersson', 1_000), undefined);
+  assertEquals(linkToReopen(board, 1_000), 'AbC123');
+  // Tried just now: a link that keeps failing does not loop.
+  assertEquals(linkToReopen(board, 30_000), undefined);
+  assertEquals(linkToReopen(board, 62_000), 'AbC123');
+  forgetShareLink();
+  assertEquals(linkToReopen(board, 200_000), undefined);
 });

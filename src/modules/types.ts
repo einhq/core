@@ -114,8 +114,19 @@ export type ModuleManifest = {
      * without its extension. The longest such folder wins, and wins over the node's type.
      */
     open?: Record<string, string>;
+    /**
+     * Which nodes a share link may open, keyed as `open` is (a type, or a folder starting and ending
+     * with `/`): a node whose page shows nothing outside it gets a link that opens just it
+     * (`"album": { "shows": "node" }`); one whose page shows what other modules hold gets a link that
+     * shows it as an account sees it (`"/archive/dashboards/": { "shows": "account" }`, a display
+     * link). `noun` is what the sharing dialog calls it. A node no module names gets no link.
+     */
+    shareLinks?: Record<string, ShareLinkKind>;
   };
 };
+
+/** How a share link opens a node a module names in `ui.shareLinks`. */
+export type ShareLinkKind = { shows: 'node' | 'account'; noun?: string };
 
 export const MOD_JSON_NAME = 'mod.json';
 
@@ -127,7 +138,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.14.17';
+export const MODULE_API_VERSION = '0.14.18';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];

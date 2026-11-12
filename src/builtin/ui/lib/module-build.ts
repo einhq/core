@@ -35,7 +35,7 @@ import { type ModuleBuild, type ModuleRoute, type ModuleUi, type SearchableKind,
 import type { NodeTypeDoc } from '@ein/api';
 
 /** Bumped when what a build produces changes for the same sources. */
-const BUILD_FORMAT = 3;
+const BUILD_FORMAT = 4;
 
 const STAGE_ROOT = '/tmp/ein-ui';
 
@@ -43,7 +43,7 @@ type Manifest = {
   name: string;
   imports?: Record<string, string>;
   exports?: Record<string, string>;
-  ui?: { routes?: Record<string, string>; open?: Record<string, string> };
+  ui?: { routes?: Record<string, string>; open?: Record<string, string>; shareLinks?: ModuleUi['shareLinks'] };
   nodeTypes?: Partial<NodeTypeDoc>[];
 };
 
@@ -383,6 +383,7 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
       ...(cssName ? { css: fileUrl(`${dir}/${cssName}`) } : {}),
       routes: generated.routes,
       ...(manifest.ui?.open ? { open: manifest.ui.open } : {}),
+      ...(manifest.ui?.shareLinks ? { shareLinks: manifest.ui.shareLinks } : {}),
       ...(search.length ? { search } : {}),
     };
     await writeVfsFile(cmd, dir, 'build.json', new TextEncoder().encode(`${JSON.stringify(build, null, 2)}\n`), { mimetype: 'application/json' });
@@ -455,6 +456,7 @@ export const writeUiManifest = async (cmd: Command, modules: string[]): Promise<
       ...(build.css ? { css: build.css } : {}),
       routes: build.routes,
       ...(build.open ? { open: build.open } : {}),
+      ...(build.shareLinks ? { shareLinks: build.shareLinks } : {}),
       ...(build.search ? { search: build.search } : {}),
       ...(gids ? { gids } : {}),
     };
