@@ -84,9 +84,9 @@ Deno.test({
       assertStringIncludes(info, '0.1.0');
     });
 
-    await t.step("the archive root it declares is created, the admin's and the users group's", async () => {
+    await t.step("the archive root it declares is created, the admin's and the users group's, which others only pass through", async () => {
       const root = await vfs.get(ADMIN_ACCESS, '/archive/fixtures');
-      assertEquals([root.type, root.props.mode, root.props.uid, root.props.gid], ['directory', 0o775, ADMIN_UID, USERS_GID]);
+      assertEquals([root.type, root.props.mode, root.props.uid, root.props.gid], ['directory', 0o771, ADMIN_UID, USERS_GID]);
     });
 
     await t.step('etc/ files are copied and not overwritten on re-setup', async () => {

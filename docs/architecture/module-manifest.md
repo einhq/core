@@ -239,8 +239,9 @@ the choice is left out. The kind must be one the `search` command takes as `--ki
 
 The directories directly under `/archive` the module's content lives in:
 `["/archive/people", "/archive/albums", …]`. `mod setup` creates a missing one, owned by the
-administrator and the users group, mode 775; nothing ever removes one, so uninstalling a module
-does not delete content. No root may be declared by two modules. The module names its roots for
+administrator and the users group, mode 771: everyone signed in may add content to it, and others,
+a share link's holder among them, only pass through to what is shared with them. Nothing ever
+removes one, so uninstalling a module does not delete content. No root may be declared by two modules. The module names its roots for
 its own code and its dependents (archive's `@archive/paths`).
 
 ### `indexes`
