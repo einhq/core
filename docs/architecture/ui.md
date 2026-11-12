@@ -54,6 +54,9 @@ thousand; the signals are published from them at most every 250 ms:
   failed file is counted and retried; `isUploading`;
 - `uploadBatchDone` — once the queue drains, the target directories that took a file (the
   directories given, not the folders made under them);
+- `uploadReading` — drops whose files are still being read, before any is queued, counted by
+  `readDroppedFiles`, the `getFilesFromEvent` every `Dropzone` that queues uploads is given (a
+  dropped folder is walked to its last file first, which for thousands of files takes a while);
 - `cancelUploads()`, `retryFailed()`, `clearFinished()`.
 
 `UploadDropzone` (`@ein/ui/components`) is the drop target. With `path` (what a page's
@@ -62,7 +65,9 @@ and `openFolderRef` (a folder, an `<input webkitdirectory>`); the page header of
 picker as Upload a folder under ⋮ when the action has `keepFolders`. With `targets`, a drag of files
 raises an overlay of tiles, one per target, and the files go into the one they are dropped on. The
 top bar's `UploadIndicator` shows the summary, each target's progress, the files in flight, the
-failures, and Cancel, Retry failed and Clear.
+failures, and Cancel, Retry failed and Clear. While a drop is read, the drop overlay stays up saying
+"Reading the dropped files…" and the indicator spins with the same words, so a large drop answers
+at once.
 
 Module API 54.0.0 (a major version) removed `uploadQueue`, `UploadItem`, `overallProgress`,
 `activeUploadsCount`, `cancelUpload` and `clearCompleted`, and moved `UploadTarget` from

@@ -4,6 +4,7 @@ import { useSignals } from '@preact/signals-react/runtime';
 import { useWebSocket, useXtermMedia } from '@ein/ui/hooks';
 import {
   addToQueue,
+  readDroppedFiles,
   registerTerminalTerminator,
   resetCopiedTerminalWorkspace,
   setTabConnected,
@@ -234,6 +235,7 @@ export function TerminalInstance({ tabId, isActive, initialCommand }: Props) {
   return (
     <Dropzone
       onDrop={handleUpload}
+      getFilesFromEvent={readDroppedFiles}
       activateOnClick={false}
       activateOnKeyboard={false}
       dragEventsBubbling={false}

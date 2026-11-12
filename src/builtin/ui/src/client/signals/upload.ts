@@ -1,4 +1,5 @@
 import { computed, type ReadonlySignal, signal } from '@preact/signals-react';
+import { fromEvent } from 'file-selector';
 import { fileUrl } from '../lib/file-url.ts';
 import { shq } from '../lib/shquote.ts';
 import {
@@ -24,6 +25,7 @@ const summaryByTarget = signal<Readonly<Record<string, UploadTargetSummary>>>({}
 const inFlight = signal<readonly UploadInFlight[]>([]);
 const failures = signal<readonly UploadFailure[]>([]);
 const batchDone = signal<{ dirs: string[]; at: number } | null>(null);
+const reading = signal(0);
 
 /** Every file queued since the last `clearFinished`, counted by where it stands. */
 export const uploadSummary: ReadonlySignal<UploadCounts> = summary;
@@ -43,6 +45,23 @@ export const uploadFailures: ReadonlySignal<readonly UploadFailure[]> = failures
 
 /** Files are queued or being sent. */
 export const isUploading = computed(() => summary.value.queued + summary.value.active > 0);
+
+/**
+ * Drops whose files are still being read, before any of them is queued. A dropped folder is walked
+ * first, which for thousands of files takes a while.
+ */
+export const uploadReading: ReadonlySignal<number> = reading;
+
+/**
+ * A `Dropzone`'s `getFilesFromEvent`: what it reads files with by default (file-selector's
+ * `fromEvent`), with a drop (React's event or the DOM's) counted in `uploadReading` while its files
+ * are read.
+ */
+export function readDroppedFiles(event: { type?: string } | FileSystemFileHandle[]): Promise<Array<File | DataTransferItem>> {
+  if (Array.isArray(event) || event.type !== 'drop') return fromEvent(event);
+  reading.value++;
+  return fromEvent(event).finally(() => reading.value--);
+}
 
 /**
  * Set once the queue drains, naming every target directory that took a file — the directory
@@ -116,6 +135,8 @@ const queue = createUploadQueue<File>({
  */
 export function addToQueue(files: File[], target: UploadTarget, options?: UploadOptions): void {
   queue.add(files, target, options);
+  // Shown at once rather than at the next tick of the counts: someone just dropped or picked these.
+  publish();
 }
 
 /** Stop uploading: the files being sent are aborted and the queued ones dropped. */

@@ -4,10 +4,23 @@ import { IconLoader2, IconUpload } from '@tabler/icons-react';
 import { countOf } from '../../lib/count-of.ts';
 import { formatBytes } from '../../lib/format.ts';
 import { type UploadCounts, uploadFiles } from '../../lib/upload-queue.ts';
-import { cancelUploads, clearFinished, isUploading, retryFailed, uploadActive, uploadFailures, uploadSummary, uploadSummaryByTarget } from '../../signals/upload.ts';
+import {
+  cancelUploads,
+  clearFinished,
+  isUploading,
+  retryFailed,
+  uploadActive,
+  uploadFailures,
+  uploadReading,
+  uploadSummary,
+  uploadSummaryByTarget,
+} from '../../signals/upload.ts';
 
 /** How far `counts` are, 0–100, by bytes. */
 const percentOf = (counts: UploadCounts): number => counts.bytesTotal > 0 ? Math.min(100, (counts.bytesDone / counts.bytesTotal) * 100) : 0;
+
+/** What the button and the panel say while dropped files are read, before they are queued. */
+const READING = 'Reading the dropped files…';
 
 /** "1,204 of 3,000", or "3,000 uploaded" once nothing waits. */
 const progressText = (counts: UploadCounts): string => {
@@ -18,14 +31,17 @@ const progressText = (counts: UploadCounts): string => {
 /**
  * The top bar's upload button: a ring of how far the uploads are while they run, and a panel of
  * them: the files in all, each target's progress (a staging category, an album), the files being
- * sent, the last failures, and Cancel, Retry and Clear. Nothing while no file was queued since the
- * last Clear.
+ * sent, the last failures, and Cancel, Retry and Clear. While a drop's files are read it spins and
+ * says so, before the first of them is queued. Nothing while no file was queued since the last
+ * Clear and none is being read.
  */
 export function UploadIndicator() {
   useSignals();
   const summary = uploadSummary.value;
   const uploading = isUploading.value;
-  if (uploadFiles(summary) === 0) return null;
+  const reading = uploadReading.value > 0;
+  const queued = uploadFiles(summary) > 0;
+  if (!queued && !reading) return null;
   const targets = Object.entries(uploadSummaryByTarget.value);
   const active = uploadActive.value;
   const failures = uploadFailures.value;
@@ -34,9 +50,9 @@ export function UploadIndicator() {
   return (
     <Popover position='bottom-end' withArrow shadow='md'>
       <Popover.Target>
-        <Tooltip label={uploading ? `Uploading ${progressText(summary)}` : 'Uploads'}>
+        <Tooltip label={uploading ? `Uploading ${progressText(summary)}` : reading ? READING : 'Uploads'}>
           <ActionIcon variant='subtle' size='lg' style={{ position: 'relative' }} aria-label='Uploads'>
-            {uploading
+            {uploading || reading
               ? (
                 <>
                   <RingProgress size={32} thickness={3} sections={[{ value: percent, color: 'blue' }]} rootColor='transparent' />
@@ -50,14 +66,17 @@ export function UploadIndicator() {
 
       <Popover.Dropdown>
         <Stack gap='sm' w={320}>
-          <Stack gap={2}>
-            <Text size='sm' fw={500}>{uploading ? `Uploading ${progressText(summary)}` : progressText(summary)}</Text>
-            <Text size='xs' c='dimmed'>
-              {formatBytes(summary.bytesDone)} of {formatBytes(summary.bytesTotal)}
-              {summary.failed > 0 ? ` · ${summary.failed.toLocaleString()} failed` : ''}
-              {summary.renamed > 0 ? ` · ${summary.renamed.toLocaleString()} saved under a new name, theirs was taken` : ''}
-            </Text>
-          </Stack>
+          {reading && <Text size='sm' fw={500}>{READING}</Text>}
+          {queued && (
+            <Stack gap={2}>
+              <Text size='sm' fw={500}>{uploading ? `Uploading ${progressText(summary)}` : progressText(summary)}</Text>
+              <Text size='xs' c='dimmed'>
+                {formatBytes(summary.bytesDone)} of {formatBytes(summary.bytesTotal)}
+                {summary.failed > 0 ? ` · ${summary.failed.toLocaleString()} failed` : ''}
+                {summary.renamed > 0 ? ` · ${summary.renamed.toLocaleString()} saved under a new name, theirs was taken` : ''}
+              </Text>
+            </Stack>
+          )}
 
           {targets.map(([root, counts]) => (
             <Stack key={root} gap={2}>
@@ -99,7 +118,7 @@ export function UploadIndicator() {
           <Group justify='flex-end' gap='xs'>
             {uploading && <Button size='compact-xs' variant='default' onClick={cancelUploads}>Cancel</Button>}
             {summary.failed > 0 && <Button size='compact-xs' variant='light' onClick={retryFailed}>Retry failed</Button>}
-            {!uploading && <Button size='compact-xs' variant='subtle' onClick={clearFinished}>Clear</Button>}
+            {!uploading && queued && <Button size='compact-xs' variant='subtle' onClick={clearFinished}>Clear</Button>}
           </Group>
         </Stack>
       </Popover.Dropdown>

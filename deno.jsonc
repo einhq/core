@@ -66,6 +66,9 @@
     "@mantine/core": "npm:@mantine/core@9.6.2",
     "@mantine/dates": "npm:@mantine/dates@9.6.2",
     "@mantine/dropzone": "npm:@mantine/dropzone@9.6.2",
+    // What @mantine/dropzone reads a drop with; named here so signals/upload.ts can count the drops
+    // being read. Pinned to the version react-dropzone takes.
+    "file-selector": "npm:file-selector@5.0.1",
     "@mantine/hooks": "npm:@mantine/hooks@9.6.2",
     // @mantine/dates' peer dependency. Listed explicitly rather than left to peer resolution,
     // so the bundle cannot depend on how Deno happens to hoist it.

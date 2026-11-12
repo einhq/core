@@ -1,10 +1,10 @@
-import { Box, getDefaultZIndex, Group, Portal, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, getDefaultZIndex, Group, Loader, Portal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { Dropzone } from '@mantine/dropzone';
 import { useSignals } from '@preact/signals-react/runtime';
 import { IconFolder, IconUpload } from '@tabler/icons-react';
 import { type ComponentProps, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import type { UploadTarget } from '../../lib/upload-queue.ts';
-import { addToQueue, uploadBatchDone } from '../../signals/upload.ts';
+import { addToQueue, readDroppedFiles, uploadBatchDone, uploadReading } from '../../signals/upload.ts';
 
 /** An `<input>` that picks a folder, with everything in it, rather than files. */
 const FOLDER_INPUT = { webkitdirectory: '' } as ComponentProps<'input'>;
@@ -92,6 +92,9 @@ function useLanded(paths: UploadTarget[], onUploaded: (() => void) | undefined) 
  *
  * With `targets`, a drag of files raises a tile for each, and the files go where they are dropped.
  *
+ * A drop's files are read before they are queued, a dropped folder walked to its last file; until
+ * then the overlay stays up and says so.
+ *
  * Every route queues the same way; the queue, its progress and cancelling are the header's
  * `UploadIndicator`, which is already global.
  */
@@ -138,14 +141,15 @@ function WindowDrop({ path, name, keepFolders, disabled, openRef, openFolderRef,
         active={!disabled}
         openRef={openRef}
         onDrop={queue}
+        getFilesFromEvent={readDroppedFiles}
         // The overlay is the whole window, so its message belongs in the middle of
         // it rather than tucked under the top edge, where Mantine leaves it.
         styles={{ inner: { height: '100%' } }}
       >
         <Group justify='center' align='center' gap='xl' style={{ height: '100%', minHeight: 220, pointerEvents: 'none' }}>
-          <IconUpload size={52} stroke={1.5} />
+          {uploadReading.value > 0 ? <Loader size={52} /> : <IconUpload size={52} stroke={1.5} />}
           <Stack gap={4}>
-            <Text size='xl'>Drop files to upload</Text>
+            <Text size='xl'>{uploadReading.value > 0 ? 'Reading the dropped files…' : 'Drop files to upload'}</Text>
             {label && (
               <Text size='sm' c='dimmed'>
                 Into {label}
@@ -199,7 +203,8 @@ function DropTiles({ targets, keepFolders, disabled, track }: TilesProps & { tra
     };
   }, [disabled]);
 
-  if (depth === 0 || disabled) return null;
+  const reading = uploadReading.value > 0;
+  if ((depth === 0 && !reading) || disabled) return null;
   return (
     <Portal>
       <Box
@@ -212,38 +217,51 @@ function DropTiles({ targets, keepFolders, disabled, track }: TilesProps & { tra
           overflow: 'auto',
         }}
       >
-        <Stack gap='lg' maw={960} mx='auto' mt='10vh'>
-          <Stack gap={4} align='center'>
-            <Text size='xl'>Drop the files on where they go</Text>
-            {keepFolders && <Text size='sm' c='dimmed'>Folders keep their structure.</Text>}
+        {reading ? <ReadingDrop /> : (
+          <Stack gap='lg' maw={960} mx='auto' mt='10vh'>
+            <Stack gap={4} align='center'>
+              <Text size='xl'>Drop the files on where they go</Text>
+              {keepFolders && <Text size='sm' c='dimmed'>Folders keep their structure.</Text>}
+            </Stack>
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing='md'>
+              {targets.map((target) => (
+                <Dropzone
+                  key={typeof target.path === 'string' ? target.path : target.label}
+                  activateOnClick={false}
+                  radius='md'
+                  p='xl'
+                  getFilesFromEvent={readDroppedFiles}
+                  onDrop={(files) => {
+                    setDepth(0);
+                    if (files.length > 0) addToQueue(files, track(target.path), { keepFolders, label: target.label });
+                  }}
+                >
+                  <Stack gap={4} align='center' style={{ pointerEvents: 'none' }}>
+                    <Dropzone.Accept>
+                      <IconUpload size={36} stroke={1.5} />
+                    </Dropzone.Accept>
+                    <Dropzone.Idle>
+                      <IconFolder size={36} stroke={1.5} />
+                    </Dropzone.Idle>
+                    <Text fw={600} ta='center'>{target.label}</Text>
+                    {target.description && <Text size='xs' c='dimmed' ta='center'>{target.description}</Text>}
+                  </Stack>
+                </Dropzone>
+              ))}
+            </SimpleGrid>
           </Stack>
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing='md'>
-            {targets.map((target) => (
-              <Dropzone
-                key={typeof target.path === 'string' ? target.path : target.label}
-                activateOnClick={false}
-                radius='md'
-                p='xl'
-                onDrop={(files) => {
-                  setDepth(0);
-                  if (files.length > 0) addToQueue(files, track(target.path), { keepFolders, label: target.label });
-                }}
-              >
-                <Stack gap={4} align='center' style={{ pointerEvents: 'none' }}>
-                  <Dropzone.Accept>
-                    <IconUpload size={36} stroke={1.5} />
-                  </Dropzone.Accept>
-                  <Dropzone.Idle>
-                    <IconFolder size={36} stroke={1.5} />
-                  </Dropzone.Idle>
-                  <Text fw={600} ta='center'>{target.label}</Text>
-                  {target.description && <Text size='xs' c='dimmed' ta='center'>{target.description}</Text>}
-                </Stack>
-              </Dropzone>
-            ))}
-          </SimpleGrid>
-        </Stack>
+        )}
       </Box>
     </Portal>
+  );
+}
+
+/** The tiles' overlay once files were dropped on one, until they are queued. */
+function ReadingDrop() {
+  return (
+    <Stack gap='md' align='center' mt='30vh'>
+      <Loader />
+      <Text size='xl'>Reading the dropped files…</Text>
+    </Stack>
   );
 }
