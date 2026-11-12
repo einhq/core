@@ -1,5 +1,7 @@
 import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
+import type { Access } from '../../../lib/access/mod.ts';
+import type { Node, NodeEntry } from '../../../vfs/mod.ts';
 import { NODE_TYPE_STREAM } from '../../../vfs/types/device.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import type { DownloadLog } from '../download-log.ts';
@@ -28,6 +30,37 @@ type GetFileOptions = {
   from?: string;
 };
 
+const RENDITION_PATH = /^(.+)\/thumbnails\/([^/]+)$/;
+
+/**
+ * For a file's own rendition, `<file>/thumbnails/<name>`, the same rendition of the picture its
+ * `shown` attr names (a restored copy among its versions); undefined when the file shows itself,
+ * or that picture has no rendition of the name, so the file's own is served.
+ */
+async function shownRendition(
+  config: HttpServerConfig,
+  access: Access,
+  vfsPath: string,
+  node: Node<FileAttrs>,
+): Promise<{ entry: NodeEntry; node: Node<FileAttrs> } | undefined> {
+  const match = node.attrs.sourceId ? RENDITION_PATH.exec(vfsPath) : null;
+  if (!match) return undefined;
+  const [, filePath, name] = match;
+  const file = await config.vfs.get<FileAttrs>(access, filePath).catch(() => undefined);
+  const shown = file?.attrs.shown;
+  if (!file || typeof shown !== 'string' || node.attrs.sourceId !== file.id) return undefined;
+  if (shown.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')) return undefined;
+  try {
+    const picture = await config.vfs.get<FileAttrs>(access, `${filePath}/${shown}`);
+    if (picture.attrs.sourceId !== file.id) return undefined;
+    const entry = await config.vfs.resolvePath(access, `${filePath}/${shown}/thumbnails/${name}`);
+    const rendition = await config.vfs.get<FileAttrs>(access, entry);
+    return rendition.attrs.size ? { entry, node: rendition } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function handleGetFile(config: HttpServerConfig, req: Request, url: URL, opts: GetFileOptions = {}): Promise<Response> {
   const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
   if (!opts.site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
@@ -35,8 +68,12 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   // Resolved once for both the `get` and the `open` below: a static asset's path runs through
   // softlinks and a mount, and every softlink restarts the walk from the root
   // (ein/core#437). Both calls still check read access on the node itself.
-  const entry = await config.vfs.resolvePath(access, vfsPath);
-  const node = await config.vfs.get<FileAttrs>(access, entry);
+  let entry = await config.vfs.resolvePath(access, vfsPath);
+  let node = await config.vfs.get<FileAttrs>(access, entry);
+  if (!url.searchParams.has('original')) {
+    const shown = await shownRendition(config, access, vfsPath, node);
+    if (shown) ({ entry, node } = shown);
+  }
 
   // A camera's stream keeps no bytes: what is read of it is a frame its device gives now.
   if (node.type === NODE_TYPE_STREAM) return await streamFrameResponse(config, access, entry.vfsAbsPath, responseHeaders, req.method === 'HEAD');

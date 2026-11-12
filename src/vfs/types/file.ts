@@ -34,6 +34,14 @@ export type FileAttrs = NodeAttrs & {
 
   /** ID of the source file this is a version of (for generated versions) */
   sourceId?: NodeId;
+
+  /**
+   * A picture derived from this file, by its path under it (`versions/restored-1.png`), whose
+   * renditions are served in place of the file's own: `/file/<file>/thumbnails/<name>` answers
+   * with that picture's rendition of the name, unless asked with `?original`. Only what is shown
+   * changes; the file's bytes, and everything read from it, stay its own.
+   */
+  shown?: string;
 };
 
 export const NODE_TYPE_FILE: NodeType = 'file';

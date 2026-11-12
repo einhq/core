@@ -390,6 +390,42 @@ Deno.test({
       assertEquals(res.status, 404);
     });
 
+    await t.step("a file's `shown` picture stands in for its renditions, unless the original is asked for", async () => {
+      const put = async (path: string, body: string) => {
+        const res = await fetch(`${baseUrl}/file${path}`, { method: 'PUT', headers: { cookie }, body: new TextEncoder().encode(body) });
+        await res.body?.cancel();
+      };
+      const get = async (path: string) => {
+        const res = await fetch(`${baseUrl}/file${path}`, { headers: { cookie } });
+        return res.ok ? await res.text() : res.status;
+      };
+      await put('/tmp/print.png', 'the original');
+      const file = await vfs.get(ADMIN_ACCESS, '/tmp/print.png');
+      await vfs.ensure(ADMIN_ACCESS, 'directory', '/tmp/print.png', 'thumbnails');
+      for (const name of ['grid.webp', 'thumb.webp']) {
+        await put(`/tmp/print.png/thumbnails/${name}`, `original ${name}`);
+        await vfs.update(ADMIN_ACCESS, `/tmp/print.png/thumbnails/${name}`, { attrs: { sourceId: file.id } });
+      }
+      await vfs.ensure(ADMIN_ACCESS, 'directory', '/tmp/print.png', 'versions');
+      await put('/tmp/print.png/versions/restored-1.png', 'the copy');
+      const copy = await vfs.update(ADMIN_ACCESS, '/tmp/print.png/versions/restored-1.png', { attrs: { sourceId: file.id } });
+      await vfs.ensure(ADMIN_ACCESS, 'directory', '/tmp/print.png/versions/restored-1.png', 'thumbnails');
+      await put('/tmp/print.png/versions/restored-1.png/thumbnails/grid.webp', 'copy grid.webp');
+      await vfs.update(ADMIN_ACCESS, '/tmp/print.png/versions/restored-1.png/thumbnails/grid.webp', { attrs: { sourceId: copy.id } });
+
+      assertEquals(await get('/tmp/print.png/thumbnails/grid.webp'), 'original grid.webp');
+      await vfs.update(ADMIN_ACCESS, '/tmp/print.png', { attrs: { shown: 'versions/restored-1.png' } });
+      assertEquals(await get('/tmp/print.png/thumbnails/grid.webp'), 'copy grid.webp');
+      assertEquals(await get('/tmp/print.png/thumbnails/grid.webp?original'), 'original grid.webp');
+      assertEquals(await get('/tmp/print.png/thumbnails/thumb.webp'), 'original thumb.webp', "a size the copy lacks is the file's own");
+      assertEquals(await get('/tmp/print.png'), 'the original', 'the file itself is its own bytes');
+
+      await vfs.update(ADMIN_ACCESS, '/tmp/print.png', { attrs: { shown: '../hello.txt' } });
+      assertEquals(await get('/tmp/print.png/thumbnails/grid.webp'), 'original grid.webp', 'only a picture under the file is shown');
+      await vfs.update(ADMIN_ACCESS, '/tmp/print.png', { attrs: { shown: 'versions/restored-2.png' } });
+      assertEquals(await get('/tmp/print.png/thumbnails/grid.webp'), 'original grid.webp', 'a copy since deleted shows the file');
+    });
+
     await t.step('GET of missing file returns 404', async () => {
       const res = await fetch(`${baseUrl}/file/tmp/does-not-exist.txt`, { headers: { cookie } });
       assertEquals(res.status, 404);
