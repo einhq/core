@@ -14,10 +14,10 @@ import { isUserNode, type UserAttrs } from '../../vfs/types/user.ts';
 import { isMemberOf, userAccess } from './member-gids.ts';
 
 /** The groups whose members no link shows things as. */
-export const PRIVILEGED_GROUPS = [ADMIN_GROUPNAME, SUDO_GROUPNAME, SSH_GROUPNAME] as const;
+const PRIVILEGED_GROUPS = [ADMIN_GROUPNAME, SUDO_GROUPNAME, SSH_GROUPNAME] as const;
 
 /** An account by its name and user node. */
-export type Account = { username: string; node: Node<UserAttrs> };
+type Account = { username: string; node: Node<UserAttrs> };
 
 /** The account named `username`, read as the administrator; undefined when there is none. */
 export const accountNamed = async (vfs: ModuleVFS, username: string): Promise<Account | undefined> => {

@@ -126,7 +126,7 @@ export type ModuleManifest = {
 };
 
 /** How a share link opens a node a module names in `ui.shareLinks`. */
-export type ShareLinkKind = { shows: 'node' | 'account'; noun?: string };
+type ShareLinkKind = { shows: 'node' | 'account'; noun?: string };
 
 export const MOD_JSON_NAME = 'mod.json';
 
