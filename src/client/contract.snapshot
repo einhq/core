@@ -754,6 +754,7 @@ src/builtin/ui/src/client/signals/mod.ts nextTerminalTab df01802e180a
 src/builtin/ui/src/client/signals/mod.ts nodeClipboard 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodeDragPaths 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodeRoutes 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts nodeTypeLooks 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodesCurrent 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodesPropertiesOpen 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nodesPropertiesPath 0a752fffac0f
@@ -763,6 +764,7 @@ src/builtin/ui/src/client/signals/mod.ts noteOutsideEdit df01802e180a
 src/builtin/ui/src/client/signals/mod.ts noteSharingChanged c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts notify 817908abef83 0|41a599ff613a=41a599ff613a,@signature=d98f1d450c30
 src/builtin/ui/src/client/signals/mod.ts notifyProgress 5c333c7fefb7 0|ae0dd6371acf=ae0dd6371acf,@signature=6cdd6ed3774d
+src/builtin/ui/src/client/signals/mod.ts nounOf 3c392a124ac5 0|336e2b46aff6=336e2b46aff6,@signature=0d55205e77cc
 src/builtin/ui/src/client/signals/mod.ts offerLightboxList b1cb1f3d8557 0|74a96c6a6bb8=74a96c6a6bb8,@signature=e97a7606062b
 src/builtin/ui/src/client/signals/mod.ts onOutsideEdit 075ec8024074 0|c1d58a2d45e9=c1d58a2d45e9,@signature=40f4ac307bcf
 src/builtin/ui/src/client/signals/mod.ts onPageChange 7270185e6f78 0|441200a305c9=441200a305c9,@signature=4f7134bf8a74
@@ -783,6 +785,7 @@ src/builtin/ui/src/client/signals/mod.ts pageShown 88ad6ac9c700
 src/builtin/ui/src/client/signals/mod.ts panelRoute 221d81d7acfb
 src/builtin/ui/src/client/signals/mod.ts panelsOf b22c58dff461 0|336e2b46aff6=336e2b46aff6,@signature=421505b970ef
 src/builtin/ui/src/client/signals/mod.ts parseTerminalWorkspace 788f61e7591a 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,@signature=fa98ef4bf891
+src/builtin/ui/src/client/signals/mod.ts patternOf 019f2e2feb4f 0|336e2b46aff6=336e2b46aff6,@signature=80d237290fe0
 src/builtin/ui/src/client/signals/mod.ts phoneGridColumns 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts prefetchRoute 79066b5784da 0|336e2b46aff6=336e2b46aff6,@signature=3a2cf293b720
 src/builtin/ui/src/client/signals/mod.ts prevMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
@@ -1140,7 +1143,7 @@ src/lib/api/mod.ts NodeOwnership 0d8b9cf127d6 acl=7168135aef88,gid=65495816f804,
 src/lib/api/mod.ts NodePath 86e54873a4c8
 src/lib/api/mod.ts NodePosition ff209251b8da error=03c9a5b2b69b,name=c67d65ad40bc,path=3fd20668ef6e,position=8870c743784f,type=78a1710d1c03
 src/lib/api/mod.ts NodeTypeCategory 50c61cace6fe
-src/lib/api/mod.ts NodeTypeDoc cbf94b1f0f03 category=4a108656163b,description=c4833b0d92ac,label=af04505f402e,plural=4bc9f5e1b940,root=838c9c8573b4,searchable=8b4a5d52edac,type=e22be5ee8605
+src/lib/api/mod.ts NodeTypeDoc 1ee25a0cb32b category=4a108656163b,description=c4833b0d92ac,label=af04505f402e,noun=6f39b669639f,pattern=a3121dc8af77,plural=4bc9f5e1b940,root=838c9c8573b4,searchable=8b4a5d52edac,type=e22be5ee8605
 src/lib/api/mod.ts NodeTypeGrowth 9651fab7cf8c months=96cfca46a8f0,total=08c7a0b849b7,totalBytes=d9605855ffba,type=e22be5ee8605,years=e9723bd38428
 src/lib/api/mod.ts NodeTypeReference 96e70a9a9255 category=51bd90ce51c5,count=56355d434a33,description=644be3c4d4da,label=995d88c00ff2,owner=e042e7caef36,type=e22be5ee8605
 src/lib/api/mod.ts OnThisDayEntry 0f79d809163e path=c29ab32b39f5,route=66a673b16b8a,source=0c6e4d4f274b,title=f6007128d157,year=2483b032582a

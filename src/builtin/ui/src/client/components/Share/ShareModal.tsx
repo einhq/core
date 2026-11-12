@@ -6,41 +6,15 @@ import { useAccessIds } from '../../hooks/useAccessIds.ts';
 import { type LinkExpiry, useShare, useShareHolder } from '../../hooks/useShare.ts';
 import { countOf } from '../../lib/count-of.ts';
 import { buildShareCommand, defaultDraft, draftVisibility, openingDraft, privateDraft, type ShareDraft } from '../../lib/share.ts';
-import { shareLinkOf } from '../../signals/module-ui.ts';
+import { nounOf, patternOf, shareLinkOf } from '../../signals/module-ui.ts';
 import { noteSharingChanged } from '../../signals/share.ts';
-import type { HatPattern } from '../EntityDetail/HatField.tsx';
+import { isHatPattern } from '../EntityDetail/HatField.tsx';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { Dialog, DialogActions } from '../Surface/Dialog.tsx';
 import { ExceptionsSection } from './ExceptionsSection.tsx';
 import { LinkSection } from './LinkSection.tsx';
 import { PeopleEditor } from './PeopleEditor.tsx';
 import { VISIBILITY, VisibilityBadge } from './SharingChip.tsx';
-
-/** What a node is called in a sentence, by its type. */
-const NOUNS: Record<string, string> = {
-  album: 'album',
-  directory: 'folder',
-  person: 'person',
-  location: 'place',
-  camera: 'camera',
-  device: 'device',
-  track: 'track',
-  file: 'file',
-};
-
-const nounOf = (type: string): string => NOUNS[type] ?? 'item';
-
-/** The pattern of a type's pages, which its sharing dialog is headed in. */
-const PATTERNS: Record<string, HatPattern> = {
-  album: 'album',
-  directory: 'system',
-  person: 'person',
-  location: 'location',
-  camera: 'camera',
-  device: 'device',
-  track: 'track',
-  file: 'media',
-};
 
 /** A titled part of the dialog. */
 export function ShareSection({ title, aside, children }: { title: ReactNode; aside?: ReactNode; children: ReactNode }) {
@@ -89,13 +63,14 @@ type ShareModalProps = {
  */
 export function ShareModal({ path, opened, onClose }: ShareModalProps) {
   const [shown, setShown] = useState<{ title: string; type: string } | null>(null);
+  const pattern = shown ? patternOf(shown.type) : undefined;
   return (
     <Dialog
       opened={opened}
       onClose={onClose}
       title={shown ? `Share “${shown.title}”` : 'Share'}
       icon='share'
-      pattern={(shown && PATTERNS[shown.type]) ?? 'mixed'}
+      pattern={isHatPattern(pattern) ? pattern : 'mixed'}
       size='lg'
     >
       <SharePanel path={path} enabled={opened} onClose={onClose} onInfo={setShown} />

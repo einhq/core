@@ -79,6 +79,9 @@ const ACCENTS = {
   mixed: [[.05, '#339af0'], [.25, '#da77f2'], [.45, '#38d9a9'], [.62, '#22b8cf'], [.8, '#51cf66'], [.98, '#f06595']],
 } as const satisfies Record<string, string | readonly (readonly [number, string])[]>;
 
+/** Whether `name` is a pattern's, as a module names one in its manifest. */
+export const isHatPattern = (name: string | undefined): name is HatPattern => name !== undefined && Object.hasOwn(ACCENTS, name);
+
 /** A pattern's accent as one colour: `mixed`'s first stop. */
 export const patternAccent = (pattern: HatPattern): string => {
   const accent: string | readonly (readonly [number, string])[] = ACCENTS[pattern];

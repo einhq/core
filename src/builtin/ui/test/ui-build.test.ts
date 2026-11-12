@@ -65,7 +65,17 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
         ui: { routes: { ...routes, ...extra } },
         nodeTypes: [
           { type: 'thing', label: 'Thing', category: 'content', root: '/archive/things', searchable: true, description: 'A thing.' },
-          { type: 'gadget', label: 'Gadget', category: 'content', root: '/archive/gadgets', searchable: true, plural: 'Gizmos', description: 'A gadget.' },
+          {
+            type: 'gadget',
+            label: 'Gadget',
+            category: 'content',
+            root: '/archive/gadgets',
+            searchable: true,
+            plural: 'Gizmos',
+            noun: 'gizmo',
+            pattern: 'album',
+            description: 'A gadget.',
+          },
           { type: 'part', label: 'Part', category: 'content', root: '/archive/parts', description: 'Not searched for.' },
         ],
       }),
@@ -109,6 +119,10 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
 
     await t.step('lists the node types marked searchable, by their plural', () => {
       assertEquals(manifest!.modules.uifix.search, [{ kind: 'thing', label: 'Things' }, { kind: 'gadget', label: 'Gizmos' }]);
+    });
+
+    await t.step('names every node type, by its noun or its label, with its pattern', () => {
+      assertEquals(manifest!.modules.uifix.types, { thing: { noun: 'thing' }, gadget: { noun: 'gizmo', pattern: 'album' }, part: { noun: 'part' } });
     });
 
     await t.step('its CSS modules carry the module name', async () => {

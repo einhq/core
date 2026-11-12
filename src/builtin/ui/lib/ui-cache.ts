@@ -19,6 +19,9 @@ export type ModuleRoute = { id: string; path: string };
 /** A node type the Search page finds, and what its choice of what to show is called: `{ kind: 'person', label: 'People' }`. */
 export type SearchableKind = { kind: string; label: string };
 
+/** What the shell calls a node of a type in a sentence, and the pattern of its pages: `{ noun: 'place', pattern: 'location' }`. */
+export type NodeTypeLook = { noun: string; pattern?: string };
+
 /** One module in the manifest. */
 export type ModuleUi = {
   /** The bundle's URL (`/file/var/cache/ui/<module>/<hash>.js`). */
@@ -30,6 +33,8 @@ export type ModuleUi = {
   open?: Record<string, string>;
   /** Which nodes a share link may open, and how (`mod.json` `ui.shareLinks`): `{ "album": { "shows": "node" } }`. */
   shareLinks?: Record<string, { shows: 'node' | 'account'; noun?: string }>;
+  /** Its node types, by type (`mod.json` `nodeTypes`): what the shell calls one, and the pattern its dialogs are headed in. */
+  types?: Record<string, NodeTypeLook>;
   /** Its node types the Search page finds (`mod.json` `nodeTypes` marked `searchable`), in their order. */
   search?: SearchableKind[];
   /**

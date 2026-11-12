@@ -31,6 +31,10 @@ export type NodeTypeDoc = {
   searchable?: boolean;
   /** What a reader calls several of them — "People"; the label with an `s` when not given. */
   plural?: string;
+  /** What a sentence calls one — "place" for a location; the label in lower case when not given. */
+  noun?: string;
+  /** The pattern (`HatPattern`) of the type's pages, which a dialog about one of its nodes is headed in — `album`. */
+  pattern?: string;
 };
 
 /**

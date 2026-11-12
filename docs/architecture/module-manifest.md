@@ -14,24 +14,24 @@ adds to the machinery core already has.
 
 ## At a glance
 
-| Field               | Group     | In one line                                                                               | Acts at                   |
-| ------------------- | --------- | ----------------------------------------------------------------------------------------- | ------------------------- |
-| `name`              | identity  | the module's name; also its alias prefix (`@archive/…`)                                   | always                    |
-| `version`           | identity  | its semver version, which dependents' ranges are checked against                          | `mod setup`               |
-| `description`       | identity  | one sentence for `mod list` and the docs                                                  | display                   |
-| `author`, `license` | identity  | free text                                                                                 | display                   |
-| `coreApi`           | identity  | the range of core's module contract it is written against                                 | `mod setup`               |
-| `exports`           | code      | the files other modules may import                                                        | load / check              |
-| `imports`           | code      | its own private aliases and external packages                                             | load / check              |
-| `dependencies`      | code      | modules it needs: their exports and commands                                              | `mod setup`               |
-| `config.options`    | settings  | the settings it owns, shown on the settings page                                          | `mod setup`               |
-| `environment`       | reference | environment variables it reads, documented                                                | docs                      |
-| `nodeTypes`         | reference | the node types it defines, documented; what an `@` completes to and the Search page finds | docs, runtime, `ui-build` |
-| `roots`             | archive   | directories under `/archive` its content lives in                                         | `mod setup`               |
-| `indexes`           | archive   | database indexes on node attrs it queries                                                 | `mod setup`               |
-| `ui.routes`         | browser   | its pages, by route                                                                       | `ui-build`                |
-| `ui.open`           | browser   | which route opens a node of a type                                                        | `ui-build`                |
-| `ui.shareLinks`     | browser   | which nodes a share link may open, and whether it shows them as an account sees them      | `ui-build`                |
+| Field               | Group     | In one line                                                                                                         | Acts at                   |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `name`              | identity  | the module's name; also its alias prefix (`@archive/…`)                                                             | always                    |
+| `version`           | identity  | its semver version, which dependents' ranges are checked against                                                    | `mod setup`               |
+| `description`       | identity  | one sentence for `mod list` and the docs                                                                            | display                   |
+| `author`, `license` | identity  | free text                                                                                                           | display                   |
+| `coreApi`           | identity  | the range of core's module contract it is written against                                                           | `mod setup`               |
+| `exports`           | code      | the files other modules may import                                                                                  | load / check              |
+| `imports`           | code      | its own private aliases and external packages                                                                       | load / check              |
+| `dependencies`      | code      | modules it needs: their exports and commands                                                                        | `mod setup`               |
+| `config.options`    | settings  | the settings it owns, shown on the settings page                                                                    | `mod setup`               |
+| `environment`       | reference | environment variables it reads, documented                                                                          | docs                      |
+| `nodeTypes`         | reference | the node types it defines: documented, what an `@` completes to and the Search page finds, what the shell calls one | docs, runtime, `ui-build` |
+| `roots`             | archive   | directories under `/archive` its content lives in                                                                   | `mod setup`               |
+| `indexes`           | archive   | database indexes on node attrs it queries                                                                           | `mod setup`               |
+| `ui.routes`         | browser   | its pages, by route                                                                                                 | `ui-build`                |
+| `ui.open`           | browser   | which route opens a node of a type                                                                                  | `ui-build`                |
+| `ui.shareLinks`     | browser   | which nodes a share link may open, and whether it shows them as an account sees them                                | `ui-build`                |
 
 "Acts at" says when the field matters. `mod setup` runs for every module at each boot, in
 dependency order, so a `mod setup` field takes effect on the next deploy. "Runtime" means core
@@ -232,6 +232,16 @@ the choice is left out. The kind must be one the `search` command takes as `--ki
 
 ```json
 { "type": "person", "label": "Person", "category": "content", "root": "/archive/people", "searchable": true, "plural": "People", "description": "…" }
+```
+
+`ui-build` carries every type into the UI manifest as the module's `types`, for the shell to name
+a node it does not know: its `noun` is what a sentence calls one (the sharing dialog's "Share
+like the place"), the label in lower case when not given, and its `pattern` is the `HatPattern`
+of its pages, which a dialog about one of its nodes is headed in; without one, or with a name the
+kit has no pattern for, the dialog takes the mixed one.
+
+```json
+{ "type": "location", "label": "Location", "noun": "place", "pattern": "location", "category": "content", "description": "…" }
 ```
 
 ## The archive

@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals-react';
 import { uiRuntime } from '@ui/shared';
-import type { ModuleRoute, ModuleUi, SearchableKind, UiManifest } from '@ui/ui-cache';
+import type { ModuleRoute, ModuleUi, NodeTypeLook, SearchableKind, UiManifest } from '@ui/ui-cache';
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
 import { loadAccessIds } from '../hooks/useAccessIds.ts';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
@@ -84,6 +84,26 @@ export const shareLinkOf = (type: string, path: string): ShareLinkKind | undefin
   return key === undefined ? undefined : shareLinkKinds.value[key];
 };
 
+/** Core's own node types the shell names in a sentence, and the patterns of their pages. */
+const CORE_TYPES: Record<string, NodeTypeLook> = {
+  directory: { noun: 'folder', pattern: 'system' },
+  file: { noun: 'file', pattern: 'media' },
+  device: { noun: 'device', pattern: 'device' },
+  track: { noun: 'track', pattern: 'track' },
+};
+
+/**
+ * What the shell calls a node of each type, and the pattern of its pages, from every module's
+ * `nodeTypes` over core's own. Filled when the manifest is read.
+ */
+export const nodeTypeLooks = signal<Record<string, NodeTypeLook>>(CORE_TYPES);
+
+/** What a sentence calls a node of `type`: "item" for a type neither core nor an installed module names. */
+export const nounOf = (type: string): string => nodeTypeLooks.value[type]?.noun ?? 'item';
+
+/** The pattern of `type`'s pages, as its module names it, or undefined. */
+export const patternOf = (type: string): string | undefined => nodeTypeLooks.value[type]?.pattern;
+
 /** Endpoints a device's page opens for: what a device under `/dev` holds. */
 const ENDPOINT_TYPES = new Set(['log', 'track', 'control', 'stream']);
 
@@ -159,6 +179,7 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
       if (manifest) nodeRoutes.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.open ?? {}));
       if (manifest) shareLinkKinds.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.shareLinks ?? {}));
       if (manifest) moduleRoutePaths.value = new Set(Object.values(manifest.modules).flatMap((entry) => entry.routes.map((route) => route.path)));
+      if (manifest) nodeTypeLooks.value = Object.assign({}, ...Object.values(manifest.modules).map((entry) => entry.types ?? {}), CORE_TYPES);
       if (manifest) searchableKinds.value = Object.values(manifest.modules).flatMap((entry) => entry.search ?? []);
       if (manifest && manifest.runtime !== runtime) {
         console.warn(`module bundles were built for UI runtime ${manifest.runtime}, this shell is ${runtime}: run ui-build --all`);

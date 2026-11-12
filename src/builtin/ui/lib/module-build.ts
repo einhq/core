@@ -31,7 +31,17 @@ import { dirname, join, normalize } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { moduleGroupGids } from '../../../modules/audience.ts';
 import { SHARED_GLOBAL, sharedSpecifiers, uiRuntime } from './shared.ts';
-import { type ModuleBuild, type ModuleRoute, type ModuleUi, type SearchableKind, UI_CACHE_PATH, UI_LICENCES_PATH, UI_MANIFEST_PATH, type UiManifest } from './ui-cache.ts';
+import {
+  type ModuleBuild,
+  type ModuleRoute,
+  type ModuleUi,
+  type NodeTypeLook,
+  type SearchableKind,
+  UI_CACHE_PATH,
+  UI_LICENCES_PATH,
+  UI_MANIFEST_PATH,
+  type UiManifest,
+} from './ui-cache.ts';
 import type { NodeTypeDoc } from '@ein/api';
 
 /** Bumped when what a build produces changes for the same sources. */
@@ -53,6 +63,19 @@ const searchableOf = (manifest: Manifest): SearchableKind[] =>
     doc?.searchable === true && typeof doc.type === 'string' && typeof doc.root === 'string'
       ? [{ kind: doc.type, label: typeof doc.plural === 'string' && doc.plural ? doc.plural : `${doc.label ?? doc.type}s` }]
       : []
+  );
+
+/** Each of the module's `nodeTypes` with a label: its noun (the label in lower case when it names none) and its pages' pattern. */
+const typesOf = (manifest: Manifest): Record<string, NodeTypeLook> =>
+  Object.fromEntries(
+    (manifest.nodeTypes ?? []).flatMap((doc) =>
+      typeof doc?.type === 'string' && typeof doc.label === 'string'
+        ? [[doc.type, {
+          noun: typeof doc.noun === 'string' && doc.noun ? doc.noun : doc.label.toLowerCase(),
+          ...(typeof doc.pattern === 'string' && doc.pattern ? { pattern: doc.pattern } : {}),
+        }]]
+        : []
+    ),
   );
 
 export type BuildOutcome =
@@ -295,6 +318,7 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
     const { sources, aliases } = await collectSources(reader, modulePath, manifest, routes, new Set(Object.keys(shared)));
 
     const search = searchableOf(manifest);
+    const types = typesOf(manifest);
     const key = await sha256(JSON.stringify([
       BUILD_FORMAT,
       runtime.id,
@@ -302,6 +326,7 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
       module,
       manifest.ui,
       search,
+      types,
       [...aliases].sort(),
       [...sources].sort(([a], [b]) => a.localeCompare(b)),
     ]));
@@ -385,6 +410,7 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
       ...(manifest.ui?.open ? { open: manifest.ui.open } : {}),
       ...(manifest.ui?.shareLinks ? { shareLinks: manifest.ui.shareLinks } : {}),
       ...(search.length ? { search } : {}),
+      ...(Object.keys(types).length ? { types } : {}),
     };
     await writeVfsFile(cmd, dir, 'build.json', new TextEncoder().encode(`${JSON.stringify(build, null, 2)}\n`), { mimetype: 'application/json' });
 
@@ -458,6 +484,7 @@ export const writeUiManifest = async (cmd: Command, modules: string[]): Promise<
       ...(build.open ? { open: build.open } : {}),
       ...(build.shareLinks ? { shareLinks: build.shareLinks } : {}),
       ...(build.search ? { search: build.search } : {}),
+      ...(build.types ? { types: build.types } : {}),
       ...(gids ? { gids } : {}),
     };
   }

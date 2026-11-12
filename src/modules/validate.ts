@@ -201,6 +201,10 @@ export const checkReference = (manifest: ModuleManifest): ValidationResult => {
     else if (doc.searchable !== undefined && typeof doc.searchable !== 'boolean') warnings.push(`${manifest.name}: node type '${doc.type}': searchable must be true or false`);
     else if (doc.searchable && doc.root === undefined) warnings.push(`${manifest.name}: node type '${doc.type}': a searchable type needs a root`);
     else if (doc.plural !== undefined && (typeof doc.plural !== 'string' || !doc.plural)) warnings.push(`${manifest.name}: node type '${doc.type}': plural must be a name`);
+    else if (doc.noun !== undefined && (typeof doc.noun !== 'string' || !doc.noun)) warnings.push(`${manifest.name}: node type '${doc.type}': noun must be a word`);
+    else if (doc.pattern !== undefined && (typeof doc.pattern !== 'string' || !doc.pattern)) {
+      warnings.push(`${manifest.name}: node type '${doc.type}': pattern must be a pattern's name`);
+    }
   }
   for (const doc of manifest.environment ?? []) {
     if (!doc?.key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(doc.key)) warnings.push(`${manifest.name}: invalid environment key '${doc?.key}'`);

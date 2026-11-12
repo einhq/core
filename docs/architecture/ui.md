@@ -420,7 +420,9 @@ offers signing in. The tab remembers the token and the page in `sessionStorage`
 loads `/s/<token>` again rather than asking to sign in (`linkToReopen`, at most once a minute, only
 on that page), and signing in forgets it. Which nodes the sharing dialog offers a link for, and
 whether the link shows the node as an account sees it, is the modules' to say (`ui.shareLinks`,
-read into `shareLinkKinds` with the manifest; `shareLinkOf`): for a display link the dialog's
+read into `shareLinkKinds` with the manifest; `shareLinkOf`), and so is what it calls the node and
+the pattern it is headed in (`nodeTypes`' `noun` and `pattern`, read into `nodeTypeLooks`; core
+names its own folders, files, devices and tracks): for a display link the dialog's
 **Show it on a screen** asks **Shows it as** — the accounts `share-info` offers in
 `displayAccounts` — and for how long, no end date first, and says what whoever holds it can read. A visitor's session acts as one link, the one opened last, which `user-whoami` gives
 (`heldLinks`), answering as the guest; someone signed in stays themselves and sees what their account

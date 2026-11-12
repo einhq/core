@@ -134,8 +134,12 @@ Deno.test('checkReference: malformed descriptions warn, a non-array is an error'
   assertEquals(checkReference({ ...base, nodeTypes: {} } as unknown as ModuleManifest).errors, ['m: nodeTypes must be an array']);
   const warned = checkReference({
     ...base,
-    nodeTypes: [{ type: 'x', label: 'X', description: 'An x.', category: 'weird' }],
+    nodeTypes: [
+      { type: 'x', label: 'X', description: 'An x.', category: 'weird' },
+      { type: 'y', label: 'Y', description: 'A y.', category: 'content', noun: '' },
+      { type: 'z', label: 'Z', description: 'A z.', category: 'content', pattern: 7 },
+    ],
     environment: [{ key: 'bad key', kind: 'option', description: 'd' }, { key: 'OK', kind: 'nowhere', description: 'd' }],
   } as unknown as ModuleManifest);
-  assertEquals(warned.warnings.length, 3);
+  assertEquals(warned.warnings.length, 5);
 });
