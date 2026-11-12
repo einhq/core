@@ -145,7 +145,7 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
 
       if (msg.type === 'exec') {
         if (typeof msg.command === 'string') {
-          await this.handleExec(msg.id, msg.command, msg.json !== false);
+          await this.handleExec(msg.id, msg.command, msg.json !== false, typeof msg.stdin === 'string' ? msg.stdin : undefined);
         }
       } else if (msg.type?.startsWith('vfs.')) {
         await this.handleVfsMessage(msg);
@@ -179,9 +179,10 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
   /**
    * Handle exec message - execute command and return result. With `json` false the script
    * runs without `JSON_OUTPUT` and its stdout comes back as the text a terminal would show:
-   * the chat drawer's approval card is for a person, not a parser.
+   * the chat drawer's approval card is for a person, not a parser. `stdin` is what the script
+   * reads as its stdin: text a command takes as `-`, which no command string has to carry.
    */
-  private async handleExec(id: string, command: string, json = true): Promise<void> {
+  private async handleExec(id: string, command: string, json = true, stdin?: string): Promise<void> {
     const controller = new AbortController();
     this.execs.set(id, controller);
     let captured;
@@ -190,6 +191,7 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
         maxOutputBytes: API_SHELL_MAX_CAPTURE_BYTES,
         timeoutMs: API_SHELL_EXEC_TIMEOUT_MS,
         signal: controller.signal,
+        stdin,
         ...(json ? {} : { env: { JSON_OUTPUT: null } }),
       });
     } finally {

@@ -1,7 +1,7 @@
 /**
  * API shell WebSocket exec: command output larger than the capture pipe
- * capacity (64KB) must be returned, not deadlock the exec, and `exec.cancel`
- * hangs up one running exec.
+ * capacity (64KB) must be returned, not deadlock the exec, a script reads the exec's `stdin`,
+ * and `exec.cancel` hangs up one running exec.
  */
 
 import { assert, assertEquals, assertLess } from '@std/assert';
@@ -69,6 +69,15 @@ Deno.test({
       assertEquals(raw.output, 'out\n');
       assert(raw.stderr?.includes('Node not found: /tmp/text-mode/x'), raw.stderr);
       assertEquals(raw.exitCode, 1);
+    });
+
+    await t.step('stdin is what the script reads, larger than a pipe holds or left unread', async () => {
+      const text = 'x'.repeat(200_000);
+      assertEquals(await shell.execJson('wc -c', { stdin: text }), 200_000);
+      // A script that never reads it ends as it would without.
+      assertEquals(await shell.execString('echo done', { stdin: text }), 'done\n');
+      // The next exec without stdin is not handed the rest.
+      assertEquals(await shell.execString('echo again'), 'again\n');
     });
 
     await t.step('stops a command at its deadline and leaves the shell reusable', async () => {

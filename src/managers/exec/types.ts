@@ -36,6 +36,8 @@ export type RunAndCaptureOptions = {
    * deadline, and the call returns whatever the script left when it stopped.
    */
   signal?: AbortSignal;
+  /** What the script reads as its stdin, to its end; without it the script reads the context's. */
+  stdin?: string;
   /** Called as the script's output is drained, stdout or stderr: it is still saying something. */
   onOutput?: () => void;
   /**

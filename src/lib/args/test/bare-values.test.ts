@@ -1,6 +1,6 @@
 /**
- * An empty value after an option is that option's value, not a positional: `--text '' <file>`
- * clears the text of `<file>`.
+ * An empty value or a lone `-` after an option is that option's value, not a positional:
+ * `--text '' <file>` clears the text of `<file>`, and `--body -` reads the body from stdin.
  */
 
 import { assertEquals } from '@std/assert';
@@ -13,6 +13,12 @@ Deno.test('an empty value after a long option is its value', () => {
 Deno.test('an empty value after a short option, alias or not, is its value', () => {
   assertEquals(parseArgs(['-t', '', '/a/b'], { string: ['t'] }), { _: ['/a/b'], t: '' });
   assertEquals(parseArgs(['-t', '', '/a/b'], { string: ['text'], alias: { t: 'text' } }), { _: ['/a/b'], t: '', text: '' });
+});
+
+Deno.test('a lone - after an option that takes a value is its value', () => {
+  assertEquals(parseArgs(['add', '/a/b', '--body', '-'], { string: ['body'] }), { _: ['add', '/a/b'], body: '-' });
+  assertEquals(parseArgs(['-d', '-', 'x'], { string: ['d'] }), { _: ['x'], d: '-' });
+  assertEquals(parseArgs(['-v', '-'], { boolean: ['v'] }), { _: ['-'], v: true });
 });
 
 Deno.test('a boolean, an undeclared option and anything after -- keep an empty argument as a positional', () => {

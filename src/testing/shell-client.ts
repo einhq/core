@@ -23,6 +23,8 @@ export type ExecOptions = {
   json?: boolean;
   /** Aborting sends `exec.cancel` for this exec; the result is still the exec's own answer. */
   signal?: AbortSignal;
+  /** What the command reads as its stdin. */
+  stdin?: string;
 };
 
 export class ShellClient {
@@ -109,7 +111,12 @@ export class ShellClient {
    * Execute a command and wait for result
    */
   exec(command: string, options: ExecOptions = {}): Promise<CommandResult> {
-    return this.request({ type: 'exec', command, ...(options.json === false ? { json: false } : {}) }, options);
+    return this.request({
+      type: 'exec',
+      command,
+      ...(options.json === false ? { json: false } : {}),
+      ...(options.stdin !== undefined ? { stdin: options.stdin } : {}),
+    }, options);
   }
 
   /** Send a VFS message (`vfs.get`, `vfs.children`, …) with `params` and wait for its result. */

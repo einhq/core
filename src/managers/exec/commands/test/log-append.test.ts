@@ -27,6 +27,14 @@ Deno.test({
       assertEquals(r2.id > r1.id, true);
     });
 
+    await t.step('--data - reads the entry from stdin', async () => {
+      const r = await client.execJson<{ id: number }>('log-append /applog --data -', { stdin: '{"value":30}\n' });
+      assertEquals(typeof r.id, 'number');
+      await cmd.shouldSucceed(`echo '{"value":40}' | log-append /applog --data -`);
+      const content = await client.execString('cat /applog');
+      assertEquals(content.trim().split('\n').map((l) => JSON.parse(l)), [{ value: 10 }, { value: 20 }, { value: 30 }, { value: 40 }]);
+    });
+
     await t.step('rejects a non-log target', async () => {
       await cmd.shouldSucceed('mkfile /notalog');
       await cmd.shouldFailWith(`log-append /notalog --data '{"x":1}'`, 'not a log');

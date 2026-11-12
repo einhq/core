@@ -8,6 +8,7 @@ import type { CmdReturn } from '../../types.ts';
  * Append a single JSON entry to a log node, optionally at an explicit timestamp.
  *
  *   log-append <log-path> --data '{"value":42}' [--at 2018-01-01T00:00:00Z]
+ *   echo '{"value":42}' | log-append <log-path> --data -
  *
  * `--at` backdates the entry, for a historical series or a baseline at timestamp 0.
  * Without it the entry is stamped with the current time.
@@ -15,16 +16,17 @@ import type { CmdReturn } from '../../types.ts';
 export const logAppend = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { string: ['data', 'at'] });
   const target = flags._[0] as string | undefined;
-  const raw = flags.data ?? (flags._[1] as string | undefined);
+  const given = flags.data ?? (flags._[1] as string | undefined);
 
   if (!target) {
     await cmd.writeError('log-append: missing log path\n');
     return 1;
   }
-  if (raw === undefined) {
+  if (given === undefined) {
     await cmd.writeError('log-append: missing --data\n');
     return 1;
   }
+  const raw = given === '-' ? await cmd.stdin.text() : given;
 
   let data: unknown;
   try {
@@ -68,10 +70,10 @@ logAppend.spec = {
   description: 'Append a JSON entry to a log, optionally at an explicit (backdated) timestamp',
   args: [
     { name: 'log', type: 'path' as const, description: 'VFS path to the log node' },
-    { name: 'data', type: 'string' as const, description: 'JSON entry (alternative to --data)' },
+    { name: 'data', type: 'string' as const, description: 'JSON entry (alternative to --data); - reads it from stdin' },
   ],
   flags: [
-    { name: 'data', type: 'string' as const, description: 'JSON payload for the entry' },
+    { name: 'data', type: 'string' as const, description: 'JSON payload for the entry; - reads it from stdin' },
     { name: 'at', type: 'string' as const, description: 'ISO timestamp to backdate the entry to' },
   ],
 };

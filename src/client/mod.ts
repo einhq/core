@@ -93,10 +93,11 @@ export interface Command {
   progress(fraction: number): void;
 
   /**
-   * Run a script and capture its output. Quote interpolated paths with `shq`. Past `timeoutMs` the
-   * script is stopped and the result has `timedOut` set.
+   * Run a script and capture its output. Quote interpolated paths with `shq`; text a command takes
+   * as `-` goes in as `stdin`, which the script reads as its stdin. Past `timeoutMs` the script is
+   * stopped and the result has `timedOut` set.
    */
-  execute(script: string, opts?: { timeoutMs?: number }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
+  execute(script: string, opts?: { timeoutMs?: number; stdin?: string }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
   /** Run a script inline, streaming its output to this command's stdout/stderr. */
   executeInline(script: string): Promise<number>;
 }

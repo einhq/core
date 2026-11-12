@@ -207,12 +207,16 @@ function sendRequest<T>(
  * Execute a shell command and return the result
  * @param command The command to execute
  * @param opts.signal Aborting it hangs the command up on the server and rejects with an `AbortError`
+ * @param opts.stdin What the command reads as its stdin: text it takes as `-` (`comment add <path> --body -`)
  * @returns Promise resolving to the command output (parsed as JSON)
  */
-export async function execCommand<T>(command: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
+export async function execCommand<T>(command: string, opts: { signal?: AbortSignal; stdin?: string } = {}): Promise<T> {
   await ensureConnected();
 
-  return sendRequest<T>({ type: 'exec', command }, { signal: opts.signal, cancel: (id) => ({ type: 'exec.cancel', params: [id] }) });
+  return sendRequest<T>(
+    { type: 'exec', command, ...(opts.stdin !== undefined ? { stdin: opts.stdin } : {}) },
+    { signal: opts.signal, cancel: (id) => ({ type: 'exec.cancel', params: [id] }) },
+  );
 }
 
 /**

@@ -1563,7 +1563,8 @@ Two WebSocket modes on `/__shell`:
   deleted, every terminal under it ends with `terminal-exit`, and the UI's `logout()` also replaces
   its stored workspace with a fresh, closed one. Clients without `terminalId` keep the legacy
   one-socket lifetime.
-- **API** — JSON `{ id, command }` → JSON `{ id, result }` (used by UI hooks), `exec.cancel [id]` —
+- **API** — JSON `{ id, command, stdin? }` → JSON `{ id, result }` (used by UI hooks; `stdin` is
+  text the command reads as its stdin, such as `comment add <path> --body -`), `exec.cancel [id]` —
   which hangs up that running exec as Ctrl-C would, and with it every script the command started
   through `cmd.execute`, so a superseded search stops and its EMS requests close — plus `vfs.*`
   methods (incl. `vfs.subscribe` node-event push) and `log.follow`/`log.unfollow` — a log tail that streams

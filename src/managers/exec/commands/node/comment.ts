@@ -1,10 +1,10 @@
 /**
  * Comments: markdown files on the `db` storage tier under `<owner>/comments/<slug>`.
  * The body is the file content, the author is `props.uid` and the time
- * `props.birthtime`. Owners are any node (files, albums, people).
+ * `props.birthtime`. Owners are any node (files, albums, people). `--body -` reads the
+ * body from stdin, for multi-line text.
  */
 
-import { decodeBase64 } from '@std/encoding/base64';
 import { resolve } from '@std/path';
 import { ulid } from '@std/ulid';
 import { isAdmin } from '../../../../lib/access/mod.ts';
@@ -17,7 +17,7 @@ import type { CommentEntry } from '../../../../lib/api/comments.ts';
 
 import { COMMENT_MIMETYPE, commentAuthors, COMMENTS_DIR, readComments } from '../../../../lib/comments/mod.ts';
 
-const USAGE = 'Usage: comment <list|add|remove> <path> [--body <text> | --body-base64 <b64>] [<slug>]';
+const USAGE = 'Usage: comment <list|add|remove> <path> [--body <text>|-] [<slug>]';
 
 const commentList = async (cmd: Command, path: string): Promise<number> => {
   const entries = await readComments(cmd, path);
@@ -100,7 +100,7 @@ const commentRemove = async (cmd: Command, path: string, slug: string): Promise<
 };
 
 export const comment = async (cmd: Command): CmdReturn => {
-  const flags = parseArgs(cmd.args, { string: ['body', 'body-base64'] });
+  const flags = parseArgs(cmd.args, { string: ['body'] });
   const [sub, pathArg, slugArg] = flags._;
 
   if (!sub || !pathArg) {
@@ -114,8 +114,7 @@ export const comment = async (cmd: Command): CmdReturn => {
       case 'list':
         return await commentList(cmd, path);
       case 'add': {
-        const encoded = flags['body-base64'];
-        const body = encoded ? new TextDecoder().decode(decodeBase64(encoded)) : (flags.body ?? '');
+        const body = flags.body === '-' ? await cmd.stdin.text() : (flags.body ?? '');
         return await commentAdd(cmd, path, body);
       }
       case 'remove': {
@@ -146,7 +145,6 @@ comment.spec = {
     { name: 'slug', type: 'string' as const, description: 'comment slug (remove)' },
   ],
   flags: [
-    { name: 'body', type: 'string' as const, description: 'comment body (add)' },
-    { name: 'body-base64', type: 'string' as const, description: 'base64-encoded comment body (add)' },
+    { name: 'body', type: 'string' as const, description: 'comment body (add); - reads it from stdin' },
   ],
 };

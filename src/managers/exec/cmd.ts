@@ -352,8 +352,12 @@ export class Cmd implements Command {
     scriptRunOf(this._opts.ctx).onProgress?.(Math.min(1, Math.max(0, fraction)));
   }
 
-  async execute(script: string, opts: { timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
-    const { code, stdout, stderr, errorCode } = await this._opts.tty.runAndCapture(script, this.opts.ctx, { signal: this.hangUp.signal, timeoutMs: opts.timeoutMs });
+  async execute(script: string, opts: { timeoutMs?: number; stdin?: string } = {}): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
+    const { code, stdout, stderr, errorCode } = await this._opts.tty.runAndCapture(script, this.opts.ctx, {
+      signal: this.hangUp.signal,
+      timeoutMs: opts.timeoutMs,
+      stdin: opts.stdin,
+    });
     return { code, stdout, stderr, ...(errorCode === 'EXEC_TIMEOUT' ? { timedOut: true } : {}) };
   }
 

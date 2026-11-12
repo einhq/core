@@ -40,14 +40,15 @@ const valueTakingNames = (options: ArgsOptions): Set<string> => {
 const valueTakingLetters = (names: Set<string>): Set<string> => new Set([...names].filter((name) => name.length === 1));
 
 /**
- * Attach an empty value to the option before it, so `--text ''` becomes `--text=` and `-t ''`
- * becomes `-t=`.
+ * Attach an empty value or a lone `-` to the option before it, so `--text ''` becomes `--text=`,
+ * `-t ''` becomes `-t=` and `--body -` becomes `--body=-`.
  *
- * `@std/cli` does not take an empty next argument as an option's value: it sets the option to
- * `''` and keeps the empty argument as a positional, so `file-set-description --text '' <file>`
- * would read `''` as the file, where the caller means "clear it".
+ * `@std/cli` takes neither as an option's value: it sets the option to `''` and keeps the argument
+ * as a positional, so `file-set-description --text '' <file>` would read `''` as the file, where
+ * the caller means "clear it", and `comment add <path> --body -` would add an empty comment, where
+ * the caller means "read it from stdin".
  */
-const attachEmptyValues = (args: string[], names: Set<string>): string[] => {
+const attachBareValues = (args: string[], names: Set<string>): string[] => {
   if (names.size === 0) {
     return args;
   }
@@ -59,8 +60,9 @@ const attachEmptyValues = (args: string[], names: Set<string>): string[] => {
     const arg = args[i];
     literal ||= arg === '--';
     const name = literal ? undefined : /^--?([^-=][^=]*)$/.exec(arg)?.[1];
-    if (name !== undefined && names.has(name) && (arg.startsWith('--') || name.length === 1) && args[i + 1] === '') {
-      out.push(`${arg}=`);
+    const value = args[i + 1];
+    if (name !== undefined && names.has(name) && (arg.startsWith('--') || name.length === 1) && (value === '' || value === '-')) {
+      out.push(`${arg}=${value}`);
       i++;
       continue;
     }
@@ -150,7 +152,7 @@ export const parseArgs = typedPositionals(
   ((args: string[], options?: ArgsOptions) => {
     const names = valueTakingNames(options);
     return stdParseArgs(
-      splitAttachedValues(attachEmptyValues(args, names), valueTakingLetters(names)),
+      splitAttachedValues(attachBareValues(args, names), valueTakingLetters(names)),
       withNegatableBooleans(withStringPositionals(options)),
     );
   }) as typeof stdParseArgs,

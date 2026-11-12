@@ -987,9 +987,10 @@ export class Shell implements TtyIf {
       this.activeAt = Date.now();
       await this.refreshSettings();
     }
-    if (opts.env || opts.attribution || opts.onProgress) {
-      // A subshell of the caller's context, so the variables, the attribution and the progress
-      // callback reach the script and nothing else. What the caller's own run set is kept.
+    if (opts.env || opts.attribution || opts.onProgress || opts.stdin !== undefined) {
+      // A subshell of the caller's context, so the variables, the attribution, the progress
+      // callback and the stdin reach the script and nothing else. What the caller's own run set
+      // is kept.
       ctx = ctx.subContext();
       if (opts.env) ctx.setLocalEnv(opts.env);
       if (opts.attribution || opts.onProgress) {
@@ -1043,7 +1044,16 @@ export class Shell implements TtyIf {
     if (opts.signal?.aborted) hangUp();
     else opts.signal?.addEventListener('abort', hangUp, { once: true });
 
+    let stdinPipe: string | undefined;
     try {
+      if (opts.stdin !== undefined) {
+        const pipe = stdinPipe = await this.pipeOpen();
+        // Written detached, as a here-string is: text larger than the pipe holds goes in only as
+        // the script reads it, and what it never reads is dropped when the pipe is removed.
+        this.pipeWrite(pipe, opts.stdin).then(() => this.pipeClose(pipe)).catch(() => {});
+        ctx.redirectStdin(pipe);
+      }
+
       const result = await this.executor.executeAndCapture(script, ctx, {
         signal: controller.signal,
         captureBudget,
@@ -1073,6 +1083,10 @@ export class Shell implements TtyIf {
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
       opts.signal?.removeEventListener('abort', hangUp);
+      if (stdinPipe) {
+        await this.pipeCloseRead(stdinPipe).catch(() => {});
+        await this.pipeRemove(stdinPipe).catch(() => {});
+      }
       await this.persist();
     }
   }

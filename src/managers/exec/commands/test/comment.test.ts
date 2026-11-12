@@ -5,7 +5,6 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { encodeBase64 } from '@std/encoding/base64';
 import { createTestContext, testCommands } from '../../../../testing/mod.ts';
 import type { CommentEntry } from '../../../../lib/comments/mod.ts';
 
@@ -37,9 +36,10 @@ Deno.test({
       assertEquals(mimetype.includes('text/markdown'), true, mimetype);
     });
 
-    await t.step('--body-base64 carries multi-line text', async () => {
-      const body = 'line one\nline "two"\nline \'three\'';
-      await cmd.shouldSucceed(`comment add /scratch/photo.txt --body-base64 ${encodeBase64(body)}`);
+    await t.step('--body - reads multi-line text from stdin', async () => {
+      const body = '- line one\nline "two"\nline \'three\'';
+      const added = await client.exec('comment add /scratch/photo.txt --body -', { stdin: body });
+      assertEquals(added.success, true, added.error);
 
       const comments = await client.execJson<CommentEntry[]>('comment list /scratch/photo.txt');
       assertEquals(comments.length, 2);

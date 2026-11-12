@@ -84,8 +84,11 @@ export interface Command {
    */
   progress(fraction: number): void;
 
-  /** Run a script and capture its output; past `timeoutMs` it is stopped, with `timedOut` set. */
-  execute(script: string, opts?: { timeoutMs?: number }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
+  /**
+   * Run a script and capture its output; past `timeoutMs` it is stopped, with `timedOut` set. With
+   * `stdin`, the script reads that text as its stdin.
+   */
+  execute(script: string, opts?: { timeoutMs?: number; stdin?: string }): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>;
   /**
    * Run a script in this command's context, its output the command's. Its stdin is the command's,
    * or with `terminalStdin` the terminal's input; without a terminal (no `tty`) that is refused.
