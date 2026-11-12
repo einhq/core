@@ -173,7 +173,7 @@ export default function SystemPage() {
             {info && <Text size='sm' c='gray.2'>up {formatUptime(info.uptimeMs)}</Text>}
           </Group>
         }
-        title='System dashboard'
+        title='System status'
         tabs={
           <Tabs.List>
             <Tabs.Tab value='overview' leftSection={<IconGauge size={16} />}>Overview</Tabs.Tab>

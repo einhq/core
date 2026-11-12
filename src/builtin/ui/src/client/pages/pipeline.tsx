@@ -13,7 +13,7 @@ const STATUS_TABS = ['all', 'running', 'completed', 'failed', 'cancelled'] as co
 const formatTime = (ts?: number) => ts ? formatDateTime(ts) : '-';
 
 /** The pages above a pipeline's: the system dashboard and its Work tab, which lists the pipelines. */
-export const SYSTEM_TRAIL = [{ label: 'System dashboard', to: '/system' }, { label: 'Work', to: '/system?tab=work' }];
+export const SYSTEM_TRAIL = [{ label: 'System status', to: '/system' }, { label: 'Work', to: '/system?tab=work' }];
 
 export default function PipelineDetailPage() {
   const { pipeline } = useParams<{ pipeline: string }>();

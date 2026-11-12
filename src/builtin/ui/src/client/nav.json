@@ -43,8 +43,8 @@
       "id": "ui.dashboard",
       "admin": true,
       "section": "system",
-      "label": "Dashboard",
-      "icon": "dashboard",
+      "label": "Status",
+      "icon": "activity-heartbeat",
       "to": "/system",
       "order": 20
     },
