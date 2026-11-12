@@ -20,6 +20,7 @@ export * from './Map/mod.ts';
 export * from './People/mod.ts';
 export * from './Share/mod.ts';
 export * from './Cover/mod.ts';
+export * from './Devices/mod.ts';
 export * from './Search/mod.ts';
 export * from './Chart/mod.ts';
 export * from './Docs/mod.ts';

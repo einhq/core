@@ -16,7 +16,7 @@ type Fix = NonNullable<DeviceHistory['fixes']>[number];
 
 const failed = (error: unknown) => notify({ message: error instanceof Error ? error.message : String(error), color: 'red' });
 
-type TileProps = {
+export type EndpointTileProps = {
   /** The device's name. */
   device: string;
   /** What the device is (`boat`, `car`, …): a boat's speed is in knots. */
@@ -24,8 +24,8 @@ type TileProps = {
   endpoint: EndpointSummary;
   /** After a control was written: the page reads the device again. */
   onChanged: () => void;
-  /** Open the History tab at this endpoint. */
-  onHistory: (endpoint: string) => void;
+  /** Open the History tab at this endpoint; without it a track's tile offers no history. */
+  onHistory?: (endpoint: string) => void;
   /** A log's line under its value, in place of when it was read: what a page knows that the device does not. */
   hint?: string;
   /** A log's colour for its value, such as how close a share in use is to its ceiling. */
@@ -37,7 +37,7 @@ type TileProps = {
  * event, a track's last day on a small map, a stream's picture as it is now, or a control to switch,
  * set or press.
  */
-export function EndpointTile(props: TileProps) {
+export function EndpointTile(props: EndpointTileProps) {
   const { endpoint } = props;
   if (endpoint.type === 'track') return <TrackTile {...props} />;
   if (endpoint.type === 'stream') return <StreamTile {...props} />;
@@ -75,7 +75,7 @@ function useSparkline(device: string, endpoint: EndpointSummary): { at: number; 
   return series;
 }
 
-function LogTile({ device, endpoint, hint, accent }: TileProps) {
+function LogTile({ device, endpoint, hint, accent }: EndpointTileProps) {
   const series = useSparkline(device, endpoint);
   return (
     <StatTile
@@ -102,7 +102,7 @@ const streamText = (stream: EndpointSummary['stream']): string =>
   ].filter(Boolean).join(' · ');
 
 /** A stream's picture, a frame its device gives, asked for again every ten seconds while the page is seen. */
-function StreamTile({ device, endpoint }: TileProps) {
+function StreamTile({ device, endpoint }: EndpointTileProps) {
   const visible = useDocumentVisibility() === 'visible';
   const [tick, setTick] = useState(() => Date.now());
   const [failed, setFailed] = useState(false);
@@ -190,7 +190,7 @@ const motionText = (fix: Fix, deviceClass?: string): string =>
     fix.course !== undefined ? `${Math.round(fix.course)}°` : undefined,
   ].filter(Boolean).join(' · ');
 
-function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
+function TrackTile({ device, deviceClass, endpoint, onHistory }: EndpointTileProps) {
   const fixes = useLastDay(device, endpoint);
   const points = endpoint.track?.points ?? 0;
   const last = points > 0 ? fixes?.at(-1) : undefined;
@@ -233,7 +233,7 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: TileProps) {
           <Text size='xs' c='dimmed'>
             {endpoint.track?.lastAt ? `${fixTimeText(endpoint.track.lastAt)}, ${agoText(endpoint.track.lastAt)}` : ''}
           </Text>
-          {points > 0 && (
+          {points > 0 && onHistory && (
             <Anchor component='button' size='xs' onClick={() => onHistory(endpoint.name)}>
               Over time
             </Anchor>
@@ -272,7 +272,7 @@ const waiting = (endpoint: EndpointSummary): boolean => {
   return !sameValue(last.value, requested.value) && Date.parse(last.at) < Date.parse(requested.at);
 };
 
-function ControlTile({ endpoint, onChanged }: TileProps) {
+function ControlTile({ endpoint, onChanged }: EndpointTileProps) {
   const [busy, setBusy] = useState(false);
   const schema: ControlSchema = endpoint.schema ?? { type: 'text' };
   const pending = waiting(endpoint);

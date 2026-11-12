@@ -5,7 +5,7 @@ import { execCommand } from '../signals/shell-client.ts';
 const POLL_MS = 10_000;
 
 /**
- * Run one command now and every 10s after, keeping its latest answer.
+ * Run one command now and every `everyMs` after (10 s unless told), keeping its latest answer.
  *
  * For numbers that change on a clock with no node event behind them — host metrics, disk,
  * services — so there is nothing to subscribe to. The system dashboard runs one of these per
@@ -17,7 +17,7 @@ const POLL_MS = 10_000;
  * which is how a dashboard tab nobody has open stops costing anything. The last answer is kept
  * while disabled, so coming back to a tab shows it at once and refreshes it.
  */
-export function usePolledCommand<T>(command: string, enabled = true) {
+export function usePolledCommand<T>(command: string, enabled = true, everyMs = POLL_MS) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -48,7 +48,7 @@ export function usePolledCommand<T>(command: string, enabled = true) {
     };
 
     refetch();
-    const timer = setInterval(tick, POLL_MS);
+    const timer = setInterval(tick, everyMs);
 
     // Coming back to the tab should show current numbers, not the last frame
     // from before it was hidden.
@@ -61,7 +61,7 @@ export function usePolledCommand<T>(command: string, enabled = true) {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [refetch, enabled]);
+  }, [refetch, enabled, everyMs]);
 
   return { data, loading, error, refetch };
 }

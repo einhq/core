@@ -33,6 +33,8 @@ export * from './useXtermMedia.ts';
 export * from './useSystem.ts';
 export * from './useStats.ts';
 export * from './useCommand.ts';
+export * from './useLocalDay.ts';
+export * from './useWakeLock.ts';
 export * from './useLogFollow.ts';
 export * from './useLogTail.ts';
 export * from './useMentionComplete.ts';

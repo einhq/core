@@ -1,19 +1,10 @@
 import { Alert, Box, Container, Text } from '@mantine/core';
 import type { EventEntry, NewsEntry, OnThisDayEntry } from '@ein/api';
 import { EntityDetailHeader, TablerIcon } from '@ein/ui/components';
-import { useCommand } from '@ein/ui/hooks';
+import { useCommand, useLocalDay } from '@ein/ui/hooks';
 import { HomeEvents } from '../components/Home/HomeEvents.tsx';
 import { HomeNews } from '../components/Home/HomeNews.tsx';
 import { HomeOnThisDay } from '../components/Home/HomeOnThisDay.tsx';
-
-/**
- * Today on the viewer's own clock, `YYYY-MM-DD`. The commands default to the server's (UTC) day,
- * which for somebody east of Greenwich is still yesterday for the first hours after midnight.
- */
-const localDate = (): string => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
 
 /**
  * The page at `/`, edge to edge: the header band every listing page has, then this day in
@@ -25,7 +16,7 @@ const localDate = (): string => {
  * page-wide spinner would hold all of it back for the slowest.
  */
 export default function HomePage() {
-  const today = localDate();
+  const today = useLocalDay();
   const onThisDay = useCommand<OnThisDayEntry[]>(`onthisday ${today.slice(5)}`);
   const news = useCommand<NewsEntry[]>('news');
   const events = useCommand<EventEntry[]>(`events --today ${today}`);
