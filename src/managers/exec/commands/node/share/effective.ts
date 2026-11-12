@@ -28,7 +28,7 @@ type UserSummary = {
   uid: UserId;
   title?: string;
   inactive: boolean;
-  /** The user node's own group — what a session takes as its primary gid. */
+  /** The account's `gid` attr — what a session takes as its primary gid. */
   gid: GroupId;
   /** Every gid this user's session would carry, in the order login builds them. */
   gids: GroupId[];
@@ -50,8 +50,9 @@ type Directory = {
  * sharing preview over the whole user list must not.
  *
  * `gids` is assembled the way `Shell.login` assembles it: `USERS_GID`, which
- * every signed-in person carries, then the user node's own primary group, then
- * the memberships. That is not a nicety — a preview built from anything else
+ * every signed-in person carries, then the account's `gid` attr, then the
+ * memberships — never the user node's ownership group, which says who may edit
+ * the account, not what it signs in with. That is not a nicety — a preview built from anything else
  * would disagree with what the server goes on to enforce, and agreeing with it
  * is the only reason the preview is worth showing.
  */
@@ -108,11 +109,11 @@ export const readDirectory = async (
     uid: entry.node.attrs.uid,
     title: entry.node.attrs.name,
     inactive: entry.node.attrs.inactive === true,
-    gid: entry.node.props.gid,
+    gid: entry.node.attrs.gid,
     gids: [
       ...new Set([
         USERS_GID,
-        entry.node.props.gid,
+        entry.node.attrs.gid,
         ...groups.filter((group) => group.members.includes(entry.name)).map((group) => group.gid),
       ]),
     ],

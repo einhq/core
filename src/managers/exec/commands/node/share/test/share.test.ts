@@ -203,6 +203,31 @@ Deno.test({
       }
     });
 
+    await t.step("share-info counts an account by the groups it signs in with, not its node's group", async () => {
+      // The user node is owned by gid 0 (`admin`) on a real install; that says who may edit the account,
+      // not what it signs in with, so it must not put the account in the admin group.
+      await cmd.shouldSucceed('chown :0 /etc/users/anna');
+      await cmd.shouldSucceed('mkdir -p /adm');
+      await cmd.shouldSucceed('chown :0 /adm');
+      await cmd.shouldSucceed('chmod 0770 /adm');
+
+      const info = await client.execJson<{
+        effective: { username: string }[];
+        users: { username: string; gids: number[] }[];
+      }>('share-info /adm');
+      const anna = await testCtx.server.createShellClient({ username: 'anna', password: 'secret1' });
+      try {
+        const whoami = await anna.execJson<{ gids: number[] }>('user-whoami');
+        const preview = info.users.find((user) => user.username === 'anna')?.gids;
+        assertEquals(preview?.toSorted(), whoami.gids.toSorted());
+        assertEquals(whoami.gids.includes(0), false);
+        assertEquals(info.effective.some((entry) => entry.username === 'anna'), false);
+        assertEquals((await anna.exec('ls /adm')).success, false);
+      } finally {
+        anna.close();
+      }
+    });
+
     await t.step('the reason names the group that actually granted it', async () => {
       // The shape the real corpus is in: the node's group is `users`, which
       // every session carries, and write comes from an access-list entry for a
