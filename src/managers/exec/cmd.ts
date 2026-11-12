@@ -106,7 +106,8 @@ export class Cmd implements Command {
     if (this.onSignalHandler) {
       Promise.resolve(this.onSignalHandler(signal)).catch((error) => logger.error('signal handler error', error));
     } else if (this._forground && signal === 'SIGINT') {
-      await this.writeError('^C\n');
+      // The echo is the terminal's courtesy: a stderr already closed or gone takes none.
+      await this.writeError('^C\n').catch(() => {});
     }
   }
 

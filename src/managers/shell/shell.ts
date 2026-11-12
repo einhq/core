@@ -600,7 +600,7 @@ export class Shell implements TtyIf {
         this.activeAt = Date.now();
       },
       onInterrupt: () => {
-        this.config.cem.interrupt(this.name);
+        this.config.cem.interrupt(this.name).catch((error) => logger.warn('interrupting failed', { tty: this.name, error: (error as Error).message }));
       },
     });
     await this.inputMonitor.start();
