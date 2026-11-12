@@ -1,11 +1,14 @@
 import { GroupId, UserId } from '../mode/mod.ts';
 
 /**
- * The share link an access acts as, having opened it: its uid's access-list entries let it read
- * and pass through, until `expiresAt` (epoch ms) when there is one.
+ * The share link an access acts as, having opened it: the link's own uid, whose access-list
+ * entries let it read and pass through what it opens, until `expiresAt` (epoch ms) when there is
+ * one. A link that shows things as an account (`share-link create --as`) gives the access that
+ * account's uid and groups as well; the link's own `uid` is then not the access's.
  */
 export type HeldLink = {
   id: string;
+  uid?: UserId;
   expiresAt?: number;
 };
 
@@ -31,7 +34,11 @@ export type Access = {
    * sign-in or sign-out, or leaving the group takes it away.
    */
   elevated?: boolean;
-  /** Set when the access is a share link's principal (`uid` is the link's): which link, and until when. */
+  /**
+   * Set when the access acts through a share link: which link, and until when. The access is the
+   * link's principal (`uid` is the link's), or the account the link shows things as. Either way it
+   * has not signed in, and never writes.
+   */
   link?: HeldLink;
 };
 

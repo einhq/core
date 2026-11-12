@@ -57,6 +57,16 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Sessions',
   },
   {
+    key: 'CFG_LINK_SESSION_EXPIRES_SEC',
+    scope: 'system',
+    type: 'number',
+    default: '2592000',
+    label: 'Share link session expiry',
+    description:
+      "How long a browser that opened a share link keeps it while unused: its cookie, and its session after its last activity. Never past the link's own end. A screen showing a dashboard is rarely reloaded, so this is longer than a sign-in's.",
+    group: 'Sessions',
+  },
+  {
     key: 'CFG_TERMINAL_RECONNECT_GRACE_SEC',
     scope: 'system',
     type: 'number',

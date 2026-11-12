@@ -36,3 +36,17 @@ Deno.test('reachAdmits judges groups and a share link against the caller', () =>
   assertEquals(reachAdmits(formula, { ...link, link: { id: 'l', expiresAt: 1 } }), false);
   assertEquals(reachNamed(formula), { uids: [5, LINK_UID_BASE + 1], gids: [] });
 });
+
+Deno.test('reachAdmits lets an account a link shows things as through as itself and as the link, while the link lasts', () => {
+  const household = reachAny([[[['g:7300']]]]);
+  const linked = reachAny([[[[`a:${LINK_UID_BASE + 2}`]]]]);
+  const display = (expiresAt?: number) => ({
+    uid: 1003,
+    gid: 1003,
+    gids: [1003, 7300],
+    link: { id: 'k2', uid: LINK_UID_BASE + 2, ...(expiresAt !== undefined ? { expiresAt } : {}) },
+  });
+  assertEquals([reachAdmits(household, display()), reachAdmits(linked, display())], [true, true]);
+  assertEquals([reachAdmits(household, display(1)), reachAdmits(linked, display(1))], [false, false]);
+  assertEquals(reachAdmits(REACH_EVERYONE, display(1)), true);
+});

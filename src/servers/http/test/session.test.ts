@@ -5,7 +5,7 @@
 
 import { PIPELINES_PATH, SESSIONS_PATH } from '../../../lib/paths.ts';
 import { assertEquals } from '@std/assert';
-import { ADMIN_ACCESS, GUEST_GID, GUEST_UID } from '../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, GUEST_GID, GUEST_UID, LINK_UID_BASE } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
@@ -168,6 +168,20 @@ Deno.test({
         await admin.exec('config unset CFG_SESSION_MAX_AGE_SEC && config unset CFG_SESSION_EXPIRES_SEC');
         admin.close();
       }
+    });
+
+    await t.step("a session holding a share link keeps its cookie as long as a link's session lasts, never past the link", async () => {
+      const LINK = LINK_UID_BASE + 9;
+      const maxAge = async (link: { id: string; uid: number; expiresAt?: number }) => {
+        const { cookie: held } = await harness.createHttpSession({ uid: LINK, gid: LINK, gids: [], link });
+        const res = await fetch(`${baseUrl}/`, { headers: { ...NAVIGATION, cookie: held } });
+        await res.arrayBuffer();
+        return Number((res.headers.get('set-cookie') ?? '').match(/Max-Age=(\d+)/)?.[1]);
+      };
+      // A screen showing a dashboard is rarely reloaded: thirty days unless the settings say otherwise.
+      assertEquals(await maxAge({ id: 'k9', uid: LINK }), 2592000);
+      const left = await maxAge({ id: 'k8', uid: LINK, expiresAt: Date.now() + 3_600_000 });
+      assertEquals(left > 3500 && left <= 3600, true, String(left));
     });
 
     await t.step('the cookie is Secure only when a proxy reports HTTPS', async () => {

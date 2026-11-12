@@ -4,6 +4,7 @@ import { ADMIN_ACCESS, USERS_GROUPNAME } from '../access/constants.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 import { ETC_PATH, MOD_PATH } from '../paths.ts';
 import { parseRc } from './rc-file.ts';
+import { getConfigOption } from './registry.ts';
 import { environmentPath, moduleConfigDir, secretsPath, systemConfigPath, userConfigPath } from './paths.ts';
 
 /** Enough of a command to read against — core's `Command` and a module's both satisfy it. */
@@ -177,4 +178,13 @@ export const readModuleSettings = async (vfs: ModuleVFS, access: Access, etcPath
     }
   }
   return settings;
+};
+
+/**
+ * A positive number of seconds from `settings`, or the option's default when it is unset or
+ * unusable: a lifetime read from the system's files, never from a caller's environment.
+ */
+export const secondsSetting = (settings: Record<string, string>, key: string): number => {
+  const seconds = Number(settings[key]);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : Number(getConfigOption(key)!.default);
 };

@@ -2,7 +2,7 @@ import { basename, dirname, join } from '@std/path';
 import { ulid } from '@std/ulid';
 import { Access, ADMIN_ACCESS, GUEST_ACCESS, GUEST_GID, GUEST_UID, isGuest, storedAccess } from '../../lib/access/mod.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
-import { getConfigOption, guestMayBrowse, readSettings } from '../../lib/config/mod.ts';
+import { guestMayBrowse, readSettings, secondsSetting } from '../../lib/config/mod.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { Node, NodePath, NodeVFS } from '../../vfs/mod.ts';
 import { isSessionNode, NODE_TYPE_SESSION, SessionAttrs } from '../../vfs/types/session.ts';
@@ -50,13 +50,9 @@ type SessionLifetimes = {
   cookieMaxAgeSec: number;
   /** A new session's `expiresSec`: how long after its last activity `session-reap` collects it. */
   expiresSec: number;
+  /** Both, for a session that holds a share link: a screen showing one is rarely reloaded. */
+  linkExpiresSec: number;
 };
-
-/** A positive number of seconds from the settings, or the option's default when it is unset or unusable. */
-function secondsSetting(settings: Record<string, string>, key: string): number {
-  const seconds = Number(settings[key]);
-  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : Number(getConfigOption(key)!.default);
-}
 
 /**
  * The lifetimes as the settings say now, so a change applies from the next
@@ -68,7 +64,19 @@ async function sessionLifetimes(config: SessionConfig): Promise<SessionLifetimes
   return {
     cookieMaxAgeSec: secondsSetting(settings, 'CFG_SESSION_MAX_AGE_SEC'),
     expiresSec: secondsSetting(settings, 'CFG_SESSION_EXPIRES_SEC'),
+    linkExpiresSec: secondsSetting(settings, 'CFG_LINK_SESSION_EXPIRES_SEC'),
   };
+}
+
+/**
+ * How long the cookie of a session acting as `stored` is kept: a session holding a share link keeps
+ * it as long as such a session lasts, and never past the link's own end.
+ */
+function cookieAge(lifetimes: SessionLifetimes, stored: unknown): number {
+  const { link } = storedAccess(stored);
+  if (!link) return lifetimes.cookieMaxAgeSec;
+  const left = link.expiresAt === undefined ? Infinity : Math.max(0, Math.floor((link.expiresAt - Date.now()) / 1000));
+  return Math.min(lifetimes.linkExpiresSec, left);
 }
 
 /**
@@ -207,8 +215,7 @@ export async function getSession(
     // one cookie lifetime after it was first minted. Only the document response
     // and `/__session` do this: they are not cached, and they cost one header
     // per navigation rather than one per asset.
-    const { cookieMaxAgeSec } = await sessionLifetimes(config);
-    issueCookie(config, headers, responseHeaders, sessionIdent.name, sessionNode.attrs.secret, cookieMaxAgeSec);
+    issueCookie(config, headers, responseHeaders, sessionIdent.name, sessionNode.attrs.secret, cookieAge(await sessionLifetimes(config), sessionNode.attrs.access));
   }
 
   if (!sessionNode && opts.create === false) {

@@ -96,8 +96,11 @@ export interface Command {
   executeInline(script: string, opts?: { terminalStdin?: boolean }): Promise<number>;
   login(username: string, password: string, session?: boolean): Promise<void>;
   logout(session?: boolean): Promise<void>;
-  /** Act as a share link's principal from now on, in this shell and with `session` in its session. */
-  actAsLink(access: Access, session?: boolean): Promise<void>;
+  /**
+   * Act as a share link from now on, in this shell and with `session` in its session, which then
+   * lasts `expiresSec` after its last activity.
+   */
+  actAsLink(access: Access, session?: boolean, expiresSec?: number): Promise<void>;
   /** Add an event to the access log as this shell's: its account, session, client address and origin. */
   recordAccess(input: TtyAccessInput): Promise<void>;
   /** Make this shell's sign-in an administrator's, and with `session` its session's (`user-elevate`). */

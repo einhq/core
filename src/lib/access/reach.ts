@@ -114,9 +114,14 @@ export const reachThrough = (reach: ReachFormula, through: Grantees): ReachFormu
 /** Who gets to a node by any of its ways down. */
 export const reachAny = (formulas: ReachFormula[]): ReachFormula => normalizeReach(formulas.flat());
 
-/** Whether `access` is one of `grantee`, judged now; administrators are left to the caller. */
+/**
+ * Whether `access` is one of `grantee`, judged now; administrators are left to the caller. What
+ * an access acting through a share link is granted — as the link, or as the account it shows
+ * things as — counts only while the link is live.
+ */
 const admits = (grantee: Grantee, access: Access, live: boolean): boolean => {
   if (grantee === ANYONE) return true;
+  if (!live) return false;
   const id = Number(grantee.slice(2));
   switch (grantee[0]) {
     case 'u':
@@ -124,7 +129,7 @@ const admits = (grantee: Grantee, access: Access, live: boolean): boolean => {
     case 'g':
       return access.gids.includes(id);
     case 'a':
-      return access.uid === id && live;
+      return access.uid === id || access.link?.uid === id;
     default:
       return false;
   }
@@ -148,8 +153,9 @@ export const reachNamed = (formula: ReachFormula): { uids: number[]; gids: numbe
 };
 
 /**
- * What an access is judged by when a reach is evaluated: who it is, its groups, and whether its
- * share link is live. Two accesses with the same key are admitted by the same formulas.
+ * What an access is judged by when a reach is evaluated: who it is, its groups, its share link's
+ * own uid, and whether that link is live. Two accesses with the same key are admitted by the same
+ * formulas.
  */
 export const reachAccessKey = (access: Access, now = Date.now()): string =>
-  `${access.uid}|${[...new Set(access.gids)].sort((a, b) => a - b).join(',')}|${access.link === undefined || linkLive(access, now) ? 1 : 0}`;
+  `${access.uid}|${[...new Set(access.gids)].sort((a, b) => a - b).join(',')}|${access.link?.uid ?? ''}|${access.link === undefined || linkLive(access, now) ? 1 : 0}`;

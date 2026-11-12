@@ -1,6 +1,7 @@
 import { basename, resolve } from '@std/path';
 import { parseArgs } from '../../../../../lib/args/mod.ts';
 import { ADMIN_UID, isAdmin, isLinkUid, isPinned, isVisitor, resolveDefaultOwnership, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { accountNamed, displayRefusal } from '../../../../../lib/auth/display-account.ts';
 import { groupRole } from '../../../../../lib/auth/roles.ts';
 import { guestMayBrowse } from '../../../../../lib/config/mod.ts';
 import { isDefaultShare, levelFromMode, MaskACL, MaskGroup, MaskOther, MaskOwner, sharePreset } from '../../../../../lib/mode/mod.ts';
@@ -52,10 +53,28 @@ export const shareInfo = async (cmd: Command): CmdReturn => {
     const canEdit = verifyAccess(cmd.access, node.props, 'w');
 
     const names = await userNames(cmd.sys.vfs, cmd.env.USERS_PATH);
-    const links: ShareLink[] = (await allLinks(cmd))
-      .filter((entry) => entry.node.attrs.target === node.id)
-      .map((entry) => describeLink(entry.name, entry.node.attrs, path, canEdit, names))
-      .sort((a, b) => b.createdAt - a.createdAt);
+    const links: ShareLink[] = (await Promise.all(
+      (await allLinks(cmd))
+        .filter((entry) => entry.node.attrs.target === node.id)
+        .map((entry) => describeLink(cmd.sys.vfs, entry.name, entry.node.attrs, path, canEdit, names)),
+    )).sort((a, b) => b.createdAt - a.createdAt);
+
+    // Whom a link the caller makes may show the node as: their own account, or for an
+    // administrator any account a link may show things as.
+    const displayAccounts: ShareInfo['displayAccounts'] = [];
+    if (canEdit) {
+      for (const user of users) {
+        if (user.uid !== cmd.access.uid && !isAdmin(cmd.access)) continue;
+        const account = await accountNamed(cmd.sys.vfs, user.username);
+        if (!account || await displayRefusal(cmd.sys.vfs, account)) continue;
+        displayAccounts.push({
+          uid: user.uid,
+          username: user.username,
+          ...(user.title ? { title: user.title } : {}),
+          ...(user.uid === cmd.access.uid ? { you: true } : {}),
+        });
+      }
+    }
 
     const exceptions = await exceptionsBelow(cmd, path);
 
@@ -153,6 +172,7 @@ export const shareInfo = async (cmd: Command): CmdReturn => {
       })),
       guestBrowsing: await guestMayBrowse(cmd.sys.vfs),
       links,
+      displayAccounts,
       exceptions: exceptions.shown,
       exceptionCount: exceptions.count,
     };

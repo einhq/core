@@ -40,7 +40,28 @@ Deno.test("a link's entries stop granting once it expires", () => {
 Deno.test("a stored access keeps the link a link's principal acts as, in no group, and nothing malformed", () => {
   assertEquals(storedAccess({ uid: LINK, gid: 5, gids: [1002], link: { id: 'k1', expiresAt: 5 } }), { uid: LINK, gid: LINK, gids: [], link: { id: 'k1', expiresAt: 5 } });
   assertEquals(storedAccess({ uid: LINK, gid: LINK, gids: [], link: { id: 'k1', expiresAt: 'soon' } }).link, { id: 'k1' });
-  // A link's uid without its link, or a link on an account, is not a link's principal.
+  // A link's uid without its link is not a link's principal.
   assertEquals(storedAccess({ uid: LINK, gid: LINK, gids: [] }).uid, GUEST_UID);
-  assertEquals('link' in storedAccess({ uid: 1003, gid: 1003, gids: [1003], link: { id: 'k1' } }), false);
+});
+
+// A link that shows things as account 1003, a member of group 7300.
+const display = (expiresAt?: number) => ({ uid: 1003, gid: 1003, gids: [1003, 7300], link: { id: 'k2', uid: LINK, ...(expiresAt !== undefined ? { expiresAt } : {}) } });
+
+Deno.test('a link shown as an account reads what the account and the link read, while it lasts, and never writes', () => {
+  const household = { uid: 0, gid: 7300, mode: 0o770 };
+  const own = { uid: 1003, gid: 1003, mode: 0o700 };
+  const shared = { uid: 0, gid: 0, mode: 0o700, acl: [{ uid: 1003, mode: 0o5 }] };
+  for (const node of [household, own, shared, album]) assertEquals(verifyAccess(display(), node, 'r'), true);
+  for (const node of [household, own, shared, album]) assertEquals(verifyAccess(display(), node, 'w'), false);
+  // Expired, it keeps the other bits, which are the system's, and nothing of the account's.
+  for (const node of [household, own, shared, album]) assertEquals(verifyAccess(display(Date.now() - 1), node, 'r'), false);
+  assertEquals(verifyAccess(display(Date.now() - 1), { uid: 1003, gid: 1003, mode: 0o704 }, 'r'), true);
+});
+
+Deno.test('a stored access keeps the link an account is shown through, and a malformed one is the guest', () => {
+  assertEquals(storedAccess({ uid: 1003, gid: 1003, gids: [1003, 7300], link: { id: 'k2', uid: LINK, expiresAt: 5 } }), display(5));
+  assertEquals(storedAccess({ uid: 1003, gid: 1003, gids: [1003], link: { id: '' } }).uid, GUEST_UID);
+  // Only a link's own uid is kept as the link's: an account's is not one.
+  assertEquals(storedAccess({ uid: 1003, gid: 1003, gids: [1003], link: { id: 'k2', uid: 1004 } }).link, { id: 'k2' });
+  assertEquals(storedAccess({ ...display(), elevated: true }).elevated, undefined);
 });

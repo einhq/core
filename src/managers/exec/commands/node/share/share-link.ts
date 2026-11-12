@@ -1,7 +1,7 @@
 /**
  * share-link — links that open a node, and everything below it, without signing in.
  *
- *   share-link create <path> [--expires <date>|--never]   make one; it expires in 30 days unless told
+ *   share-link create <path> [--expires <date>|--never] [--as <user>]   make one; it expires in 30 days unless told
  *   share-link list [<path>]                              a node's links, or every link you made
  *   share-link set <id> --expires <date>|--never          change when one expires
  *   share-link remove <id>                                turn one off
@@ -15,11 +15,18 @@
  * session — in place of any link opened before, so they read what this one opens and nothing
  * else; someone signed in stays themselves. Turning one off releases its uid from every node,
  * wherever they went since, and sends whoever acts as it back to the guest.
+ *
+ * A link made `--as` an account shows things as that account sees them, for a screen that never
+ * signs in: whoever opens it reads what the link opens and what the account reads, and like any
+ * visitor writes nothing. Only the account itself, or an administrator, makes one, and never as
+ * an account a link may not show things as (`displayRefusal`); one that may no longer opens nothing.
  */
 
 import { join, resolve } from '@std/path';
 import { parseArgs } from '../../../../../lib/args/mod.ts';
-import { ADMIN_ACCESS, ADMIN_UID, isAdmin, isVisitor, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, isAdmin, isVisitor, verifyAccess } from '../../../../../lib/access/mod.ts';
+import { accountNamed, displayRefusal } from '../../../../../lib/auth/display-account.ts';
+import { readSettings, secondsSetting } from '../../../../../lib/config/mod.ts';
 import type { ShareLink, ShareLinkCreated, ShareLinkOpened } from '../../../../../lib/api/share.ts';
 import { isToken, newToken, sameToken } from '../../../../../lib/token/mod.ts';
 import { NODE_TYPE_SHARE_LINK, type ShareLinkAttrs } from '../../../../../vfs/types/share-link.ts';
@@ -36,6 +43,7 @@ import {
   linkId,
   newLinkUid,
   readLink,
+  removeLink,
   targetPath,
   titleOf,
   updateHeld,
@@ -43,7 +51,7 @@ import {
 } from './links.ts';
 import { applySubtree } from './walk.ts';
 
-const USAGE = 'Usage: share-link <create|list|set|remove|open|reap> [<path>|<id>|<token>] [--expires <date>|--never] [--session]';
+const USAGE = 'Usage: share-link <create|list|set|remove|open|reap> [<path>|<id>|<token>] [--expires <date>|--never] [--as <user>] [--session]';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -57,17 +65,6 @@ const parseExpiry = (flags: { expires?: string; never?: boolean }): number | nul
   return at;
 };
 
-/**
- * Turn a link off: its uid off every node, its record gone, and every session and shell acting as
- * it the guest again.
- */
-const removeLink = async (cmd: Command, id: string, uid: number): Promise<number> => {
-  const released = await cmd.sys.vfs.releaseOwner(ADMIN_ACCESS, { kind: 'uid', id: uid, to: ADMIN_UID });
-  await cmd.sys.vfs.unlink(ADMIN_ACCESS, join(cmd.env.LINKS_PATH, id), cmd.env.LINKS_PATH);
-  await updateHeld(cmd, id);
-  return released.acl;
-};
-
 /** Whether the caller may change the link `link` opens: whoever may change the node, or, once it is gone, whoever made the link. */
 const mayManage = async (cmd: Command, link: ShareLinkAttrs): Promise<boolean> => {
   if (isAdmin(cmd.access)) return true;
@@ -78,7 +75,7 @@ const mayManage = async (cmd: Command, link: ShareLinkAttrs): Promise<boolean> =
 };
 
 export const shareLink = async (cmd: Command): CmdReturn => {
-  const flags = parseArgs(cmd.args, { string: ['expires'], boolean: ['never', 'session'] });
+  const flags = parseArgs(cmd.args, { string: ['expires', 'as'], boolean: ['never', 'session'] });
   const [sub, arg] = flags._;
   const fail = async (message: string): Promise<number> => {
     await cmd.writeError(`share-link: ${message}\n`);
@@ -94,6 +91,16 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       const node = await cmd.sys.vfs.get(cmd.access, path);
       if (!verifyAccess(cmd.access, node.props, 'w')) return await fail(`${path}: only someone who may change it can share it by link`);
 
+      const account = flags.as === undefined ? undefined : await accountNamed(cmd.sys.vfs, flags.as);
+      if (flags.as !== undefined) {
+        if (!account) return await fail(`--as ${flags.as}: no such account`);
+        if (account.node.attrs.uid !== cmd.access.uid && !isAdmin(cmd.access)) {
+          return await fail(`--as ${flags.as}: only an administrator makes a link that shows things as another account`);
+        }
+        const refusal = await displayRefusal(cmd.sys.vfs, account);
+        if (refusal) return await fail(`--as ${flags.as}: ${refusal}`);
+      }
+
       const expiry = parseExpiry(flags);
       const now = Date.now();
       const expiresAt = expiry === undefined ? now + DEFAULT_LINK_DAYS * DAY_MS : expiry ?? undefined;
@@ -105,6 +112,7 @@ export const shareLink = async (cmd: Command): CmdReturn => {
         token,
         uid,
         target: node.id,
+        ...(account ? { as: account.node.attrs.uid } : {}),
         createdBy: cmd.access.uid,
         createdAt: now,
         ...(expiresAt !== undefined ? { expiresAt } : {}),
@@ -128,13 +136,13 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       }
 
       const created: ShareLinkCreated = {
-        link: describeLink(id, attrs, path, true, await userNames(cmd.sys.vfs, cmd.env.USERS_PATH)),
+        link: await describeLink(cmd.sys.vfs, id, attrs, path, true, await userNames(cmd.sys.vfs, cmd.env.USERS_PATH)),
         updated: result.updated,
         pinned: result.pinned,
         failed: result.failed,
       };
       if (cmd.json) await cmd.writeJSON(created satisfies ShareLinkCreated);
-      else await cmd.writeLn(`/s/${token}  opens ${path}${expiresAt ? ` until ${new Date(expiresAt).toISOString()}` : ''}`);
+      else await cmd.writeLn(`/s/${token}  opens ${path}${account ? ` as ${account.username}` : ''}${expiresAt ? ` until ${new Date(expiresAt).toISOString()}` : ''}`);
       return 0;
     }
 
@@ -148,7 +156,7 @@ export const shareLink = async (cmd: Command): CmdReturn => {
         if (node ? link.target !== node.id : link.createdBy !== cmd.access.uid && !isAdmin(cmd.access)) continue;
         const path = await targetPath(cmd, link);
         if (!path) continue;
-        links.push(describeLink(entry.name, link, path, await mayManage(cmd, link), names));
+        links.push(await describeLink(cmd.sys.vfs, entry.name, link, path, await mayManage(cmd, link), names));
       }
       links.sort((a, b) => b.createdAt - a.createdAt);
 
@@ -156,7 +164,8 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       else {
         for (const link of links) {
           const until = link.expiresAt ? new Date(link.expiresAt).toISOString() : 'never';
-          await cmd.writeLn(`${link.id}  ${link.path}  expires ${until}  opened ${link.opened}${link.token ? `  /s/${link.token}` : ''}`);
+          const shows = link.as ? `  as ${link.as.name ?? link.as.uid}${link.as.refusal ? ` (opens nothing: ${link.as.refusal})` : ''}` : '';
+          await cmd.writeLn(`${link.id}  ${link.path}${shows}  expires ${until}  opened ${link.opened}${link.token ? `  /s/${link.token}` : ''}`);
         }
       }
       return 0;
@@ -182,7 +191,7 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       });
       await updateHeld(cmd, arg, heldLink(arg, updated.attrs));
 
-      const link = describeLink(arg, updated.attrs, await targetPath(cmd, updated.attrs) ?? '', true, await userNames(cmd.sys.vfs, cmd.env.USERS_PATH));
+      const link = await describeLink(cmd.sys.vfs, arg, updated.attrs, await targetPath(cmd, updated.attrs) ?? '', true, await userNames(cmd.sys.vfs, cmd.env.USERS_PATH));
       if (cmd.json) await cmd.writeJSON(link satisfies ShareLink);
       else await cmd.writeLn(`${arg} expires ${link.expiresAt ? new Date(link.expiresAt).toISOString() : 'never'}`);
       return 0;
@@ -201,8 +210,15 @@ export const shareLink = async (cmd: Command): CmdReturn => {
       if (!path) return await fail(dead);
       const node = await cmd.sys.vfs.get(ADMIN_ACCESS, path);
 
+      // A link that shows things as an account no longer may once the account is gone, disabled,
+      // or in a group whose members no link shows things as.
+      const access = await linkAccess(cmd.sys.vfs, id, record.attrs);
+      if (!access) return await fail(dead);
+
       // Someone signed in stays themselves: what they may see is their own account's to say.
-      if (isVisitor(cmd.access)) await cmd.actAsLink(linkAccess(id, record.attrs), flags.session);
+      if (isVisitor(cmd.access)) {
+        await cmd.actAsLink(access, flags.session, secondsSetting(await readSettings(cmd, ADMIN_ACCESS, { user: false }), 'CFG_LINK_SESSION_EXPIRES_SEC'));
+      }
       await cmd.sys.vfs.update<ShareLinkAttrs>(ADMIN_ACCESS, join(cmd.env.LINKS_PATH, id), {
         attrs: { opened: record.attrs.opened + 1, lastOpenedAt: Date.now() },
       });
@@ -252,8 +268,19 @@ shareLink.spec = {
   flags: [
     { name: 'expires', type: 'string' as const, description: 'create and set: when the link stops working, a date or epoch ms (default: 30 days)' },
     { name: 'never', type: 'bool' as const, description: 'create and set: the link does not expire' },
+    {
+      name: 'as',
+      type: 'user' as const,
+      description:
+        "create: the link shows things as this account sees them, read-only, for a screen that never signs in (yours, or for an administrator one that is not an administrator's)",
+    },
     { name: 'session', type: 'bool' as const, description: 'open: act as the link in the whole session, not just this shell' },
   ],
-  examples: ['share-link create /archive/albums/Exempelalbum', 'share-link list /archive/albums/Exempelalbum', 'share-link remove 0123456789abcdef'],
+  examples: [
+    'share-link create /archive/albums/Exempelalbum',
+    'share-link create /archive/dashboards/Kitchen.yaml --as display --never',
+    'share-link list /archive/albums/Exempelalbum',
+    'share-link remove 0123456789abcdef',
+  ],
   returns: 'create: the link and how many nodes it reached (ShareLinkCreated); list: ShareLink[]; set: ShareLink; open: what it opens (ShareLinkOpened).',
 };

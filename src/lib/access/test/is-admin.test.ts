@@ -13,6 +13,11 @@ Deno.test('anyone else is not', () => {
   assertEquals(isAdmin({ uid: 1001, gid: 1001, gids: [1001, ADMIN_GID] }), false);
 });
 
+Deno.test('nothing acting through a share link is, whatever it carries', () => {
+  assertEquals(isAdmin({ uid: ADMIN_UID, gid: ADMIN_GID, gids: [ADMIN_GID], link: { id: 'k1' } }), false);
+  assertEquals(isAdmin({ uid: 3000, gid: 3000, gids: [3000], elevated: true, admin: true, link: { id: 'k1' } }), false);
+});
+
 Deno.test('a stored access keeps who it is and never the admin flag', () => {
   assertEquals(storedAccess({ uid: 3000, gid: 3000, gids: [3000, 1002], sid: 's1', admin: true }), { uid: 3000, gid: 3000, gids: [3000, 1002], sid: 's1' });
   assertEquals(isAdmin(storedAccess({ uid: 3000, gid: 3000, gids: [3000], admin: true })), false);

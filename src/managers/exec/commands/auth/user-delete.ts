@@ -10,6 +10,7 @@ import { UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { endSessionsOf } from './sessions.ts';
+import { removeLinksShownAs } from '../node/share/links.ts';
 
 export const userDelete = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
@@ -92,6 +93,8 @@ export const userDelete = async (cmd: Command): CmdReturn => {
     }
 
     await endSessionsOf(cmd, userUid);
+    // A link that showed things as the account opens nothing now; it goes with the account.
+    await removeLinksShownAs(cmd, userUid);
 
     const group = await deleteOwnGroup(cmd, username, userUid, heir.gid);
 

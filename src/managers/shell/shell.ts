@@ -57,6 +57,7 @@ import {
   type HeldLink,
   isAdmin,
   isGuest,
+  isLinkUid,
   isVisitor,
   storedAccess,
   SUDO_GROUPNAME,
@@ -553,8 +554,9 @@ export class Shell implements TtyIf {
         this.ctx.getEnv().USERS_PATH,
       );
       const userEntry = users.find((entry) => isUserNode(entry.node) && entry.node.attrs.uid === this.access!.uid);
-      // A share link's principal has no account: it goes by the guest's name and home.
-      const username = this.access.link ? GUEST_USERNAME : userEntry?.name || this.access.uid.toString();
+      // A share link's principal has no account: it goes by the guest's name and home. A link that
+      // shows things as an account goes by the account's.
+      const username = isLinkUid(this.access.uid) ? GUEST_USERNAME : userEntry?.name || this.access.uid.toString();
       const home = homePath(username);
       this.ctx.setEnv({
         USER: username,
@@ -1180,18 +1182,30 @@ export class Shell implements TtyIf {
   }
 
   /**
-   * Act as a share link's principal (`access`): this shell — and with `session`, every connection
-   * of its session from then on — reads what the link opens and nothing an earlier link did, and
-   * opening the same one again takes up a changed expiry.
+   * Act as a share link (`access`): this shell — and with `session`, every connection of its
+   * session from then on — reads what the link opens and nothing an earlier link did, and opening
+   * the same one again takes up a changed expiry. A link that shows things as an account goes by
+   * that account's name and home and sources its setup, as signing in would; any other goes by the
+   * guest's. With `session`, the session lasts `expiresSec` after its last activity.
    */
-  async actAsLink(access: Access, session?: boolean): Promise<void> {
+  async actAsLink(access: Access, session?: boolean, expiresSec?: number): Promise<void> {
     this.access = this.inSession(access);
-    this.ctx.setEnv({ UID: access.uid.toString(), GID: String(access.gid) });
+    const account = isLinkUid(access.uid) ? undefined : await this.accountOf(access.uid);
+    const username = account?.name ?? GUEST_USERNAME;
+    const env = { USER: username, HOME: homePath(username), UID: access.uid.toString(), GID: String(access.gid) };
+    this.ctx.setEnv(env);
+    if (account) await this.sourceBashrc();
     await this.persist();
 
     if (session) {
+      const sessionNode = await this.config.vfs.get<SessionAttrs>(ADMIN_ACCESS, this.config.sessionPath);
       await this.config.vfs.update<SessionAttrs>(ADMIN_ACCESS, this.config.sessionPath, {
-        attrs: { lastActivity: Date.now(), access: this.access },
+        attrs: {
+          lastActivity: Date.now(),
+          access: this.access,
+          env: { ...(sessionNode.attrs.env || {}), ...env },
+          ...(expiresSec ? { expiresSec } : {}),
+        },
       });
     }
   }

@@ -7,6 +7,11 @@ export type ShareLinkAttrs = NodeAttrs & {
   token: string;
   /** The link's principal, from `LINK_UID_BASE` up: what it opens grants this uid, and whoever opens it acts as it. */
   uid: UserId;
+  /**
+   * The account the link shows things as (`share-link create --as`): whoever opens it reads what
+   * that account reads, besides what the link opens, and still writes nothing.
+   */
+  as?: UserId;
   /** Id of the node the link opens, with everything below it. */
   target: string;
   createdBy: UserId;

@@ -43,6 +43,12 @@ export type ShareInfo = {
   /** The share links that open this node; their tokens only for a caller who may change it. */
   links: ShareLink[];
   /**
+   * The accounts a link the caller makes may show this node as (`share-link create --as`): the
+   * caller's own when a link may show things as it, and for an administrator every such account.
+   * Empty for a caller who may not change the node.
+   */
+  displayAccounts: { uid: UserId; username: string; title?: string; you?: boolean }[];
+  /**
    * Nodes below this one that keep their own sharing (`share-set --pin`), so a change made here
    * does not reach them — the first `EXCEPTIONS_SHOWN` the caller can read, of `exceptionCount`.
    */
@@ -76,6 +82,12 @@ export type ShareLink = {
   /** How many times it was opened, and when last. */
   opened: number;
   lastOpenedAt?: number;
+  /**
+   * The account the link shows things as (`--as`): whoever opens it reads what that account
+   * reads. `refusal` says why it opens nothing any more: the account is gone, disabled, or in a
+   * group whose members a link never shows things as.
+   */
+  as?: { uid: UserId; name?: string; refusal?: string };
 };
 
 /** What `share-link create` answers: the new link, and how far through the node it reached. */

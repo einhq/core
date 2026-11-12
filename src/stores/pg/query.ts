@@ -210,16 +210,20 @@ const scopeSql = (scope: SqlScope & { notWithinBy?: AttrRef }, params: ParamList
 
 /**
  * Whether the node row `row` grants `reader` read, as `verifyAccess` decides it: owner, group and
- * other bits, then the access list. A share link's own entries stop granting once it has expired.
+ * other bits, then the access list. What a share link grants — its own entries, and the owner,
+ * group and entries of the account it shows things as — stops once it has expired, leaving the
+ * other bits.
  *
  * The access list is asked with one jsonpath test rather than a subquery over its elements: a
  * correlated subquery keeps an aggregate over the whole table from running in parallel workers.
  */
 export const readsSql = (row: string, reader: Access, params: ParamList): string => {
+  if (reader.link !== undefined && !linkLive(reader)) return `(${row}.mode & 4 <> 0)`;
   const uid = params.bind(reader.uid);
   const gids = params.bind(reader.gids);
+  const uids = [...new Set([reader.uid, ...(reader.link?.uid !== undefined ? [reader.link.uid] : [])])];
   const named = [
-    ...(reader.link === undefined || linkLive(reader) ? [`@.uid == ${Math.trunc(reader.uid)}`] : []),
+    ...uids.map((id) => `@.uid == ${Math.trunc(id)}`),
     ...reader.gids.map((gid) => `@.gid == ${Math.trunc(gid)}`),
   ];
   const acl = named.length === 0 ? '' : `

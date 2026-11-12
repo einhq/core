@@ -1,7 +1,8 @@
 import { encodeHex } from '@std/encoding';
 import { basename, join } from '@std/path';
-import { type Access, ADMIN_ACCESS, GUEST_ACCESS, type HeldLink, LINK_UID_BASE, linkLive } from '../../../../../lib/access/mod.ts';
+import { type Access, ADMIN_ACCESS, ADMIN_UID, GUEST_ACCESS, type HeldLink, LINK_UID_BASE, linkLive } from '../../../../../lib/access/mod.ts';
 import type { HeldShareLink, ShareLink } from '../../../../../lib/api/share.ts';
+import { accountOfUid, displayAccess, displayRefusal } from '../../../../../lib/auth/display-account.ts';
 import type { Node, NodeChildEntry, NodeVFS } from '../../../../../vfs/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../../../vfs/types/session.ts';
 import { isShareLinkNode, type ShareLinkAttrs } from '../../../../../vfs/types/share-link.ts';
@@ -37,8 +38,16 @@ export const allLinks = async (cmd: Command): Promise<NodeChildEntry<ShareLinkAt
 export const newLinkUid = async (cmd: Command): Promise<number> =>
   (await allLinks(cmd)).reduce((highest, entry) => Math.max(highest, entry.node.attrs.uid), LINK_UID_BASE - 1) + 1;
 
-/** The access of someone who opened the link `id`: its principal, in no group. */
-export const linkAccess = (id: string, link: ShareLinkAttrs): Access => ({ uid: link.uid, gid: link.uid, gids: [], link: heldLink(id, link) });
+/**
+ * The access of someone who opened the link `id`: its principal, in no group, or for a link that
+ * shows things as an account (`as`), that account's uid and groups beside the link's own uid.
+ * Undefined when the account is gone or a link may no longer show things as it.
+ */
+export const linkAccess = async (vfs: NodeVFS, id: string, link: ShareLinkAttrs): Promise<Access | undefined> => {
+  if (link.as === undefined) return { uid: link.uid, gid: link.uid, gids: [], link: heldLink(id, link) };
+  const account = await displayAccess(vfs, link.as);
+  return account && { uid: account.uid, gid: account.gid, gids: account.gids, link: heldLink(id, link) };
+};
 
 /** The guest's access, for a session or shell whose link was turned off. */
 const guestAccess = (): Access => ({ ...GUEST_ACCESS, gids: [...GUEST_ACCESS.gids] });
@@ -74,8 +83,12 @@ export const heldShareLinks = async (cmd: Command): Promise<HeldShareLink[]> => 
 /** Whether a link's time is up at `now`. */
 export const isExpired = (link: ShareLinkAttrs, now = Date.now()): boolean => link.expiresAt !== undefined && link.expiresAt <= now;
 
-/** What a session holding the link carries for it: its id and when it stops granting. */
-export const heldLink = (id: string, link: ShareLinkAttrs): HeldLink => link.expiresAt === undefined ? { id } : { id, expiresAt: link.expiresAt };
+/** What a session holding the link carries for it: its id, its own uid, and when it stops granting. */
+export const heldLink = (id: string, link: ShareLinkAttrs): HeldLink => ({
+  id,
+  uid: link.uid,
+  ...(link.expiresAt !== undefined ? { expiresAt: link.expiresAt } : {}),
+});
 
 /** A creator's name as the dialog shows it, by uid: the user's title, else the user name. */
 export const userNames = async (vfs: NodeVFS, usersPath: string): Promise<Map<number, string>> => {
@@ -84,7 +97,14 @@ export const userNames = async (vfs: NodeVFS, usersPath: string): Promise<Map<nu
 };
 
 /** A link as the commands answer about it, at `path`; its token only when `withToken`. */
-export const describeLink = (id: string, link: ShareLinkAttrs, path: string, withToken: boolean, names: Map<number, string>): ShareLink => ({
+export const describeLink = async (
+  vfs: NodeVFS,
+  id: string,
+  link: ShareLinkAttrs,
+  path: string,
+  withToken: boolean,
+  names: Map<number, string>,
+): Promise<ShareLink> => ({
   id,
   path,
   ...(withToken ? { token: link.token } : {}),
@@ -93,7 +113,15 @@ export const describeLink = (id: string, link: ShareLinkAttrs, path: string, wit
   ...(link.expiresAt !== undefined ? { expiresAt: link.expiresAt } : {}),
   opened: link.opened,
   ...(link.lastOpenedAt !== undefined ? { lastOpenedAt: link.lastOpenedAt } : {}),
+  ...(link.as !== undefined ? { as: await shownAs(vfs, link.as, names) } : {}),
 });
+
+/** The account a link shows things as, by name, and why it no longer may when it may not. */
+const shownAs = async (vfs: NodeVFS, uid: number, names: Map<number, string>): Promise<NonNullable<ShareLink['as']>> => {
+  const account = await accountOfUid(vfs, uid);
+  const refusal = account ? await displayRefusal(vfs, account) : 'the account is gone';
+  return { uid, ...(names.has(uid) ? { name: names.get(uid) } : {}), ...(refusal ? { refusal } : {}) };
+};
 
 /**
  * Change the link `id` wherever someone acts as it: `replacement`, a changed expiry, in its place,
@@ -114,4 +142,26 @@ export const updateHeld = async (cmd: Command, id: string, replacement?: HeldLin
   }
 
   await updateHeldLinks(id, replacement);
+};
+
+/**
+ * Turn a link off: its uid off every node, its record gone, and every session and shell acting as
+ * it the guest again. Answers how many access-list entries it took away.
+ */
+export const removeLink = async (cmd: Command, id: string, uid: number): Promise<number> => {
+  const released = await cmd.sys.vfs.releaseOwner(ADMIN_ACCESS, { kind: 'uid', id: uid, to: ADMIN_UID });
+  await cmd.sys.vfs.unlink(ADMIN_ACCESS, join(cmd.env.LINKS_PATH, id), cmd.env.LINKS_PATH);
+  await updateHeld(cmd, id);
+  return released.acl;
+};
+
+/** Turn off every link that shows things as the account `uid`, which is going: answers how many. */
+export const removeLinksShownAs = async (cmd: Command, uid: number): Promise<number> => {
+  let removed = 0;
+  for (const entry of await allLinks(cmd)) {
+    if (entry.node.attrs.as !== uid) continue;
+    await removeLink(cmd, entry.name, entry.node.attrs.uid);
+    removed++;
+  }
+  return removed;
 };

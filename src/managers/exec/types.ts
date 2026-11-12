@@ -120,8 +120,8 @@ export interface TtyIf extends ShellIf {
 
   logout(session?: boolean): Promise<void>;
 
-  /** Act as a share link's principal in this tty and, with `session`, in its session (`share-link open`). */
-  actAsLink(access: Access, session?: boolean): Promise<void>;
+  /** Act as a share link in this tty and, with `session`, in its session, which then lasts `expiresSec` (`share-link open`). */
+  actAsLink(access: Access, session?: boolean, expiresSec?: number): Promise<void>;
 
   /** Add an event to the access log as this tty's: its account, session, client address and origin. */
   recordAccess(input: TtyAccessInput): Promise<void>;

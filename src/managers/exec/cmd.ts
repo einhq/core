@@ -378,8 +378,8 @@ export class Cmd implements Command {
     return this._opts.tty.logout(session);
   }
 
-  async actAsLink(access: Access, session?: boolean): Promise<void> {
-    return this._opts.tty.actAsLink(access, session);
+  async actAsLink(access: Access, session?: boolean, expiresSec?: number): Promise<void> {
+    return this._opts.tty.actAsLink(access, session, expiresSec);
   }
 
   async recordAccess(input: TtyAccessInput): Promise<void> {
