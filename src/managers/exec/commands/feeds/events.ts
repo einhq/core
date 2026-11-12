@@ -1,6 +1,6 @@
 /**
  * events — what falls on the days around a date, from every `events-*` command on PATH, in date
- * order.
+ * order, or from only the providers `--source` names.
  *
  * The limit keeps milestones first, then the nearest, across all providers. Cutting on nearness
  * alone would drop a golden wedding three weeks out for a dozen ordinary birthdays tomorrow.
@@ -33,7 +33,7 @@ const readEvent = (raw: Record<string, unknown>, source: string): EventEntry | u
 
 export const events = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
-  const flags = parseArgs(cmd.args, { string: ['today', 'days-ahead', 'days-past', 'limit'], unknown: collectUnknownFlags(unknown) });
+  const flags = parseArgs(cmd.args, { string: ['today', 'days-ahead', 'days-past', 'limit', 'source'], collect: ['source'], unknown: collectUnknownFlags(unknown) });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
 
   const numbers: Record<string, number> = {};
@@ -54,8 +54,9 @@ export const events = async (cmd: Command): CmdReturn => {
   const ahead = numbers['days-ahead'];
   const past = numbers['days-past'];
   const limit = numbers.limit;
+  const sources = flags.source.length > 0 ? flags.source : undefined;
   const gathered = limit > 0
-    ? await gather(cmd, 'events', `--today ${today} --days-ahead ${ahead} --days-past ${past} --limit ${limit}`, readEvent)
+    ? await gather(cmd, 'events', `--today ${today} --days-ahead ${ahead} --days-past ${past} --limit ${limit}`, readEvent, sources)
     : { entries: [], providers: 0, answered: 0 };
   const failed = gatheredFailure(cmd, gathered);
   if (failed !== undefined) return failed;
@@ -90,12 +91,14 @@ events.spec = {
     { name: 'days-ahead', type: 'number' as const, description: `how far forward to look (default ${DEFAULT_DAYS_AHEAD})` },
     { name: 'days-past', type: 'number' as const, description: `how far back to look (default ${DEFAULT_DAYS_PAST})` },
     { name: 'limit', type: 'number' as const, description: `entries returned across all providers; milestones, then the nearest, survive the cut (default ${DEFAULT_LIMIT})` },
+    { name: 'source', type: 'string' as const, repeatable: true, description: 'ask only this provider, the name after events- such as anniversaries (repeatable)' },
   ],
   examples: [
     'events',
     'events --days-ahead 0 --days-past 0',
     'events --today 2026-12-24 --days-ahead 7',
+    'events --source anniversaries --source todo',
   ],
   returns:
-    'the entries of every events-* provider in the window, in date order: the day, what, whether it is a milestone, the node it is about, which provider, and the route that draws it.',
+    'the entries of every events-* provider, or of those --source names, in the window, in date order: the day, what, whether it is a milestone, the node it is about, which provider, and the route that draws it.',
 };

@@ -39,16 +39,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * Ask each `<feed>-*` provider `question` under `JSON_OUTPUT=1` and keep what `read` makes of each
  * entry that has a `title` and a `route`. A provider that fails, or answers anything but a list,
  * is named on stderr and adds nothing; so is an entry `read` refuses. The others still count: one
- * module's trouble does not empty the feed.
+ * module's trouble does not empty the feed. With `sources`, only the providers of those names
+ * (what follows the dash) are asked, and a name no provider has is said on stderr.
  */
 export const gather = async <T>(
   cmd: Command,
   feed: string,
   question: string,
   read: (raw: Record<string, unknown>, source: string) => T | undefined,
+  sources?: string[],
 ): Promise<Gathered<T>> => {
   const prefix = `${feed}-`;
-  const providers = await commandsNamed(cmd.sys.vfs, cmd.env.PATH ?? '', prefix);
+  const onPath = await commandsNamed(cmd.sys.vfs, cmd.env.PATH ?? '', prefix);
+  const providers = sources === undefined ? onPath : onPath.filter((provider) => sources.includes(provider.slice(prefix.length)));
+  for (const source of sources ?? []) {
+    if (!onPath.includes(`${prefix}${source}`)) await cmd.writeError(`${feed}: no provider ${prefix}${source}\n`);
+  }
   // Read-only and independent of each other, so they run together rather than back to back.
   const runs = await Promise.all(providers.map(async (provider) => ({ provider, run: await cmd.execute(`JSON_OUTPUT=1 ${provider} ${question}`) })));
   if (cmd.interrupted) return { entries: [], providers: providers.length, answered: 0 };

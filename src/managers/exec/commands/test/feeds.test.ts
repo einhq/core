@@ -106,6 +106,17 @@ Deno.test({ name: 'news, events and onthisday', sanitizeResources: false, saniti
       assertEquals(narrow.map((entry) => entry.title.split(',')[0]), ['today', 'tomorrow']);
     });
 
+    await t.step('events --source asks only the providers it names, and says which it has none of', async () => {
+      const beta = await shell.execJson<EventEntry[]>('events --today 2026-09-02 --source beta --limit 1');
+      // The cut is made among beta's alone: alpha's tomorrow does not push out beta's today.
+      assertEquals(beta.map((entry) => [entry.source, entry.title]), [['beta', 'today']]);
+      const both = await shell.execJson<EventEntry[]>('events --today 2026-09-02 --source alpha --source beta');
+      assertEquals(both.length, 4);
+      const text = await shell.execString('events --today 2026-09-02 --source gamma 2>&1', { json: false });
+      assertStringIncludes(text, 'events: no provider events-gamma');
+      assertEquals(await shell.execJson<EventEntry[]>('events --today 2026-09-02 --source gamma'), []);
+    });
+
     await t.step('onthisday: newest year first; a provider answering no list is named and skipped', async () => {
       const entries = await shell.execJson<OnThisDayEntry[]>('onthisday 09-02 --limit 5');
       assertEquals(entries.map((entry) => [entry.year, entry.source]), [[2019, 'alpha'], [2010, 'alpha']]);
