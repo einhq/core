@@ -9,6 +9,7 @@
 
 import { isFileKind, type Kind } from '../kinds/mod.ts';
 import type { AttrCondition, AttrRef } from '../../vfs/query.ts';
+import { DOCUMENT_MIMETYPES } from '../media/original.ts';
 import type { NodeType } from '../../vfs/node.ts';
 
 export { FILE_KINDS, isFileKind, isKind, type Kind, kindConditions, MEDIA_KIND_PREFIX, MEDIA_KINDS, NOT_DERIVED } from '../kinds/mod.ts';
@@ -46,17 +47,6 @@ export const TAKEN_AT: AttrRef = 'takenAt';
  * unchanged.
  */
 export const TAKEN_AT_UTC: AttrRef = 'takenAtUtc';
-
-const DOCUMENT_MIMETYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.oasis.opendocument.text',
-  'application/rtf',
-  'text/plain',
-  'text/markdown',
-  'text/html',
-];
 
 /**
  * A node's content kind: a file's by its mimetype (none for a file that is no media or
