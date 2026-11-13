@@ -201,6 +201,8 @@ export type SearchAppliedFilters = {
   within: string | null;
   /** The attrs every answer lacks (`--missing`), as named. */
   missing: string[];
+  /** The values every answer holds (`--has`), each `<attr>=<value>` as given. */
+  has: string[];
   /** The picture `--like` ranked by, resolved to an absolute path. */
   like: string | null;
   sort: string;

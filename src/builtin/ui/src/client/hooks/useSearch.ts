@@ -168,6 +168,7 @@ export function buildSearchCommand(
   if (filters.under) parts.push('--under', shq(filters.under));
   if (filters.within) parts.push('--within', shq(filters.within));
   for (const name of filters.missing ?? []) parts.push('--missing', shq(name));
+  for (const entry of filters.has ?? []) parts.push('--has', shq(entry));
   if (filters.like) parts.push('--like', shq(filters.like));
   if (filters.creator !== undefined) parts.push('--creator', String(filters.creator));
   if (filters.sort) parts.push('--sort', filters.sort);
@@ -205,6 +206,7 @@ export function hasAnyFilter(filters: SearchFilters): boolean {
       filters.under ||
       filters.within ||
       filters.missing?.length ||
+      filters.has?.length ||
       filters.like ||
       filters.creator !== undefined,
   );

@@ -81,6 +81,11 @@ export type SearchFilters = {
    */
   missing?: string[];
   /**
+   * Only what holds each of these values, `<attr>=<value>` (`search --has`): the attr is the
+   * value, or a list holding it.
+   */
+  has?: string[];
+  /**
    * Media that looks like this picture, by path (`search --like`): an archive file, or one put
    * in /tmp to search with. It ranks instead of `query`; the other filters narrow it.
    */

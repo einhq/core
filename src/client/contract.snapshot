@@ -291,7 +291,7 @@ src/builtin/ui/src/client/hooks/mod.ts SaveResult 395143686f4a failed=df406be6f2
 src/builtin/ui/src/client/hooks/mod.ts ScrollRoot 5bda1b761b61
 src/builtin/ui/src/client/hooks/mod.ts SearchBox 95c28823cc85 commit=414630d40055,dismissUnresolved=f9adb6df0e18,interpretation=584a40c4366f,mentions=d6f494331a28,parsing=0cf6434ac5d0,patch=40be22d64453,setMentions=fa14af8e21be,setText=b8e7687ac111,text=d5eca4c0c5b1,unresolved=72f07d08e616
 src/builtin/ui/src/client/hooks/mod.ts SearchBoxOptions 80b767888c7b apply=caecc79189f5,filters=10cb41c88697,natural=6825f3183f4d
-src/builtin/ui/src/client/hooks/mod.ts SearchFilters ab93304f5f6e creator=cfb929ba573e,fromYear=7067dd2062ca,kinds=7a3280e1c516,like=514e389ffdb6,missing=53d7407758ee,query=23f371a19ad9,region=5c2642d2c499,sort=3733cb94e7a5,subjectNames=2e4322551195,subjects=1ed8f44cc897,tags=fab45b4451f8,toYear=791f9a1159b3,under=c404cf6f02e7,within=39e6d6dcaf93
+src/builtin/ui/src/client/hooks/mod.ts SearchFilters 126b63c2e915 creator=cfb929ba573e,fromYear=7067dd2062ca,has=56607079c22d,kinds=7a3280e1c516,like=514e389ffdb6,missing=53d7407758ee,query=23f371a19ad9,region=5c2642d2c499,sort=3733cb94e7a5,subjectNames=2e4322551195,subjects=1ed8f44cc897,tags=fab45b4451f8,toYear=791f9a1159b3,under=c404cf6f02e7,within=39e6d6dcaf93
 src/builtin/ui/src/client/hooks/mod.ts SearchKind dbf58acbb31b
 src/builtin/ui/src/client/hooks/mod.ts SearchOutcome be885f20def1 clientMs=f4282ea30d07,serverMs=d14032bd4c40,subjects=370bb1c7eddb,warnings=9e8d69c3a0d6
 src/builtin/ui/src/client/hooks/mod.ts SearchRegion 3d56097530ea
@@ -461,7 +461,7 @@ src/builtin/ui/src/client/lib/mod.ts SEARCH_KINDS e0a377c02e93
 src/builtin/ui/src/client/lib/mod.ts SEARCH_SORTS ed3229e1334f
 src/builtin/ui/src/client/lib/mod.ts SORT_KEYS 38349d469bd5
 src/builtin/ui/src/client/lib/mod.ts SearchDetail 567c12e6208f label=af04505f402e,value=5647ee15e4bf
-src/builtin/ui/src/client/lib/mod.ts SearchFilters ab93304f5f6e creator=cfb929ba573e,fromYear=7067dd2062ca,kinds=7a3280e1c516,like=514e389ffdb6,missing=53d7407758ee,query=23f371a19ad9,region=5c2642d2c499,sort=3733cb94e7a5,subjectNames=2e4322551195,subjects=1ed8f44cc897,tags=fab45b4451f8,toYear=791f9a1159b3,under=c404cf6f02e7,within=39e6d6dcaf93
+src/builtin/ui/src/client/lib/mod.ts SearchFilters 126b63c2e915 creator=cfb929ba573e,fromYear=7067dd2062ca,has=56607079c22d,kinds=7a3280e1c516,like=514e389ffdb6,missing=53d7407758ee,query=23f371a19ad9,region=5c2642d2c499,sort=3733cb94e7a5,subjectNames=2e4322551195,subjects=1ed8f44cc897,tags=fab45b4451f8,toYear=791f9a1159b3,under=c404cf6f02e7,within=39e6d6dcaf93
 src/builtin/ui/src/client/lib/mod.ts SearchKind dbf58acbb31b
 src/builtin/ui/src/client/lib/mod.ts SearchRegion 3d56097530ea
 src/builtin/ui/src/client/lib/mod.ts SearchSort 28616296884e
@@ -1185,7 +1185,7 @@ src/lib/api/mod.ts ReachMismatch 1dccb9967873 byPath=6449a374f07f,byReach=4bcb12
 src/lib/api/mod.ts RelationAttrs e6411206cd02 relation=98f66278c4b9
 src/lib/api/mod.ts RenditionKind 841bbd2055f9
 src/lib/api/mod.ts RenditionTable 4e8a2e97d29f audio=3381d0f28bb4,image=4d210ce30ecc,storyboard=83c36bb52a72,video=ebc1ae0b9464
-src/lib/api/mod.ts SearchAppliedFilters 57a658d07bd0 creator=47956d2275eb,dateFromQuery=0333b930c1a2,from=53663ea434d3,kinds=47ee7f719d18,like=1e1dcee6bb58,missing=dd2ed7888329,occasion=3aa4c7328b79,region=055c8c38a1a0,sort=f05d841982c8,subjectNames=14204a7360ad,subjects=ce3983d48a9e,tags=b1b2b0ee4fa5,to=0c314d304b17,under=1b55ebce20ec,within=589817095bad
+src/lib/api/mod.ts SearchAppliedFilters bf006dcea6eb creator=47956d2275eb,dateFromQuery=0333b930c1a2,from=53663ea434d3,has=4c0d2ef92a27,kinds=47ee7f719d18,like=1e1dcee6bb58,missing=dd2ed7888329,occasion=3aa4c7328b79,region=055c8c38a1a0,sort=f05d841982c8,subjectNames=14204a7360ad,subjects=ce3983d48a9e,tags=b1b2b0ee4fa5,to=0c314d304b17,under=1b55ebce20ec,within=589817095bad
 src/lib/api/mod.ts SearchChannel d4f221ff6839
 src/lib/api/mod.ts SearchFacetsResponse 5bfe9e866f5d days=7778bb379c1a,kinds=e84a0e44e45e,labels=2f7739fad6be,months=5576981f5691,range=593b85884ea6,total=08c7a0b849b7,truncated=ee81b8046300,years=d281e1971a11
 src/lib/api/mod.ts SearchGroupsResponse 3736e9f13a20 groups=46f0d5c7f01a,total=08c7a0b849b7,truncated=ee81b8046300,unnamed=216882d06403

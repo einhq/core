@@ -10,8 +10,8 @@
  * facets that query can carry. Whatever drives, nothing in an unlisted tree is
  * an answer unless the subtree asked for is inside it, or a container links it
  * (`unlisted.ts`); the text providers that can are told the trees, so they spend no hits on them.
- * An attr asked to be missing (`--missing`) is a condition of the store query
- * when the timeline drives, and a test of each node otherwise.
+ * An attr asked to be missing (`--missing`) or to hold a value (`--has`) is a condition of the
+ * store query when the timeline drives, and a test of each node otherwise.
  *
  * `-l` is a **page size**, never a scan budget. The refill loop keeps pulling
  * from the driver until the page is full or `--max-scan` is reached, which is
@@ -352,6 +352,7 @@ const VALUE_FLAGS = [
   'like',
   'at',
   'missing',
+  'has',
 ];
 
 /**
@@ -1003,7 +1004,7 @@ export const search = async (cmd: Command): CmdReturn => {
     string: VALUE_FLAGS,
     // Without `collect`, @std/cli keeps only the LAST occurrence of a repeated
     // flag — so `--tag a --tag b` would silently mean just `b`.
-    collect: ['tag', 'kind', 'fields', 'subject', 'subject-name', 'missing'],
+    collect: ['tag', 'kind', 'fields', 'subject', 'subject-name', 'missing', 'has'],
     boolean: ['facets', 'layout', 'include-stacked', 'undated'],
     alias: { l: 'limit' },
   });
@@ -1047,7 +1048,7 @@ export const search = async (cmd: Command): CmdReturn => {
   // Attrs a match lacks: a store condition each, which a timeline carries into its own query and
   // any other driver tests on the node it reads.
   const missing = [...new Set(asArray(flags.missing).map((name) => name.trim()).filter(Boolean))];
-  const missingConditions: AttrCondition[] = [];
+  const attrConditions: AttrCondition[] = [];
   for (const name of missing) {
     const ref = attrRefOf(name);
     try {
@@ -1056,7 +1057,22 @@ export const search = async (cmd: Command): CmdReturn => {
       await cmd.writeError(`search: --missing '${name}' is not an attr name (letters, digits and _, a dot between nested ones)\n`);
       return 1;
     }
-    missingConditions.push({ ref, op: 'missing' });
+    attrConditions.push({ ref, op: 'missing' });
+  }
+  // Attrs a match holds a value in: the value itself, or one of a list's members.
+  const has = [...new Set(asArray(flags.has).map((entry) => entry.trim()).filter(Boolean))];
+  for (const entry of has) {
+    const at = entry.indexOf('=');
+    const ref = attrRefOf(entry.slice(0, Math.max(at, 0)).trim());
+    const value = entry.slice(at + 1);
+    try {
+      if (at < 1 || value === '') throw new Error('no value');
+      assertValidAttrRef(ref);
+    } catch {
+      await cmd.writeError(`search: --has '${entry}' is not <attr>=<value> (an attr name of letters, digits and _, a dot between nested ones)\n`);
+      return 1;
+    }
+    attrConditions.push({ ref, op: 'has', value });
   }
 
   // Time window. --after/--before are synonyms of --from/--to.
@@ -1271,6 +1287,7 @@ export const search = async (cmd: Command): CmdReturn => {
     for (const raw of subjectNameArgs) args.push('--subject-name', shq(raw));
     for (const tag of tags) args.push('--tag', shq(tag));
     for (const name of missing) args.push('--missing', shq(name));
+    for (const entry of has) args.push('--has', shq(entry));
     // Joined, so a negative coordinate is not read as another flag.
     if (fromRaw !== undefined) args.push(`--from=${shq(fromRaw)}`);
     if (toRaw !== undefined) args.push(`--to=${shq(toRaw)}`);
@@ -1339,7 +1356,7 @@ export const search = async (cmd: Command): CmdReturn => {
 
   const hasFilter = query !== '' || like !== undefined || tags.length > 0 || kinds.length > 0 ||
     from !== undefined || to !== undefined || occasion !== undefined || region !== undefined ||
-    creator !== undefined || subjectGroups.length > 0 || under !== undefined || within !== undefined || undated || missing.length > 0;
+    creator !== undefined || subjectGroups.length > 0 || under !== undefined || within !== undefined || undated || missing.length > 0 || has.length > 0;
 
   // Sort: score only means something with a text query or a picture to rank by, and time only
   // means something for kinds that have one — a browse of albums, devices or tracks sorted by a
@@ -1651,7 +1668,7 @@ export const search = async (cmd: Command): CmdReturn => {
       ...kindConditions(kinds),
       ...matchConditions,
       ...(undated ? [{ ref: TAKEN_AT_UTC, op: 'missing' } as AttrCondition] : []),
-      ...missingConditions,
+      ...attrConditions,
     ];
     const types: NodeType[] | undefined = kinds.length > 0 ? kindNodeTypes(kinds) : undefined;
     // Nothing timeless has a capture time, and orderBy excludes rows missing the
@@ -1729,7 +1746,7 @@ export const search = async (cmd: Command): CmdReturn => {
   const needsTime = (from !== undefined || to !== undefined || occasion !== undefined) && driverSatisfies !== 'timeline' && !holding;
   const needsRegion = pictureRegion !== undefined && driverSatisfies !== 'geo' && !regionPrefiltered;
   const needsUndated = undated && driverSatisfies !== 'timeline';
-  const missingAsPredicates = driverSatisfies === 'timeline' ? [] : missingConditions;
+  const attrsAsPredicates = driverSatisfies === 'timeline' ? [] : attrConditions;
   const matchGroupsAsPredicates = matchesPushedDown ? [] : matchGroups;
 
   // Membership sets for the subjects that are not driving, so `--subject
@@ -1784,7 +1801,7 @@ export const search = async (cmd: Command): CmdReturn => {
     }
 
     if (needsUndated && node.attrs.takenAtUtc != null) return false;
-    if (missingAsPredicates.some((condition) => !matchesCondition(node.attrs, condition))) return false;
+    if (attrsAsPredicates.some((condition) => !matchesCondition(node.attrs, condition))) return false;
 
     if (needsTime) {
       // The wall clock, matching the store-side `timeConditions` this stands in for. What has no
@@ -2060,6 +2077,7 @@ export const search = async (cmd: Command): CmdReturn => {
           under: under ?? null,
           within: within ?? null,
           missing,
+          has,
           like: like ?? null,
           sort,
           /** A date lifted out of the query text, when one was. */
@@ -2163,6 +2181,12 @@ search.spec = {
       repeatable: true,
     },
     {
+      name: 'has',
+      type: 'string' as const,
+      description: 'only what holds this value in an attr, as <attr>=<value>: the attr is the value, or a list holding it (labels=sea); repeatable, each must hold',
+      repeatable: true,
+    },
+    {
       name: 'like',
       type: 'path' as const,
       description:
@@ -2207,6 +2231,7 @@ search.spec = {
     'search --within /home/anna/staging/files --sort time',
     'search --within /home/anna/staging/files --undated --facets',
     'search --within /home/anna/staging/files --missing duplicate.deferred',
+    'search --has labels=sea --kind photo',
   ],
   returns:
     'a page of matching media, each with its path, name and date; with --group-by the albums (or other containers) holding the matches, or the people in them, instead, counted and dated; with --facets per-year, per-kind and per-label counts.',
