@@ -1,7 +1,7 @@
 import { ActionBar, Button, Menu, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronUp, IconDownload, IconLinkOff, IconTrash } from '@tabler/icons-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { MediaItem } from '../../signals/album.ts';
 import { closeLightboxWithoutReturn, currentMediaItem, mediaRestored } from '../../signals/album.ts';
 import type { MediaSelection } from '../../hooks/useMediaSelection.ts';
@@ -18,6 +18,9 @@ import { SelectionActionButton, SelectionBarContext, type SelectionBarContextVal
 
 /** Paths per `rm`. Keeps one failure local and the command line sane. */
 const REMOVE_CHUNK = 50;
+
+/** Room the bar leaves on each side of it before its buttons fold into one menu. */
+const BAR_GUTTER = 16;
 
 /**
  * What a component that owns a selection hands to the page supplying `actions`.
@@ -70,7 +73,21 @@ export function MediaSelectionBar({ selection, items, onRemoved, actions, remova
   const access = useAccessIds();
   // The same width the lightbox calls narrow: side by side, the buttons need about twice a
   // phone's width, so there they fold into one menu and the bar keeps to count, menu, clear.
-  const narrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
+  const phone = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
+  // Wider, they fold too when a page offers more of them than the window holds: the width they
+  // need is measured while they are side by side, and they come back once the window has it.
+  const [bar, setBar] = useState<HTMLDivElement | null>(null);
+  const [needed, setNeeded] = useState(0);
+  const [viewport, setViewport] = useState(() => globalThis.innerWidth);
+  useEffect(() => {
+    const onResize = () => setViewport(globalThis.innerWidth);
+    globalThis.addEventListener('resize', onResize);
+    return () => globalThis.removeEventListener('resize', onResize);
+  }, []);
+  const narrow = phone || needed + 2 * BAR_GUTTER > viewport;
+  useLayoutEffect(() => {
+    if (bar && !narrow) setNeeded(bar.scrollWidth);
+  });
   const barContext = useMemo<SelectionBarContextValue>(() => ({ layout: narrow ? 'menu' : 'bar', reportError: setError }), [narrow]);
 
   if (selection.count === 0 && !busy) return null;
@@ -182,6 +199,7 @@ export function MediaSelectionBar({ selection, items, onRemoved, actions, remova
   return (
     <>
       <ActionBar
+        ref={setBar}
         opened={selection.count > 0 || busy}
         onClose={selection.clear}
         aria-label='Media selection actions'
