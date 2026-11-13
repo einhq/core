@@ -1799,8 +1799,8 @@ html.mrx-railed .mrx-page-scrollbar {
   visibility: visible;
 }
 
-.terminal-pane.maximized {
-  height: 100vh;
+.terminal-pane:not(.maximized) {
+  border-bottom: 1px solid var(--mrx-hairline);
 }
 
 .terminal-content {

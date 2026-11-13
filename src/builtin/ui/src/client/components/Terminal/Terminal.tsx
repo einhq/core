@@ -41,7 +41,7 @@ export function Terminal() {
   }, [isOpen]);
 
   return (
-    <div ref={paneRef} className={`terminal-pane ${isOpen ? 'open' : ''}`} style={{ height: `${height}vh` }}>
+    <div ref={paneRef} className={`terminal-pane ${isOpen ? 'open' : ''} ${height === 100 ? 'maximized' : ''}`} style={{ height: `${height}vh` }}>
       <div className='terminal-content'>
         {workspaceOwned && tabs.map((tab) => (
           <div
