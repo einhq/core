@@ -1072,7 +1072,9 @@ export const search = async (cmd: Command): CmdReturn => {
       await cmd.writeError(`search: --has '${entry}' is not <attr>=<value> (an attr name of letters, digits and _, a dot between nested ones)\n`);
       return 1;
     }
-    attrConditions.push({ ref, op: 'has', value });
+    // The attr being there is implied, and stated for an index partial on it (one a module
+    // declares for an attr few files carry) to serve the query: the planner cannot see it in `has`.
+    attrConditions.push({ ref, op: 'exists' }, { ref, op: 'has', value });
   }
 
   // Time window. --after/--before are synonyms of --from/--to.
