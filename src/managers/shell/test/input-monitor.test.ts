@@ -1,7 +1,7 @@
 /**
  * The input monitor ends a typed line with LF in cooked mode, as a terminal's ICRNL does, and
  * forwards the bytes unchanged in raw mode, where the line editor reads them. In cooked mode
- * Ctrl-D marks end of file after what was typed before it.
+ * Ctrl-D marks end of file after what was typed before it. Without a terminal nothing is a key.
  */
 
 import { assertEquals } from '@std/assert';
@@ -9,7 +9,7 @@ import { InputMonitor, type TerminalMode } from '../input-monitor.ts';
 import type { ResourceHandleIf } from '../../../registries/types.ts';
 
 /** What the monitor passes on for what was typed, with `<EOF>` where it marks end of file. */
-async function forward(mode: TerminalMode, typed: string): Promise<string> {
+async function forward(mode: TerminalMode, typed: string, terminal = true): Promise<string> {
   let send!: ReadableStreamDefaultController<Uint8Array>;
   const readable = new ReadableStream<Uint8Array>({ start: (c) => (send = c) });
   const written: string[] = [];
@@ -20,12 +20,14 @@ async function forward(mode: TerminalMode, typed: string): Promise<string> {
         written.push(new TextDecoder().decode(bytes));
         return Promise.resolve(bytes.length);
       },
+      writeEOF: () => Promise.resolve(),
       markEOF: () => {
         written.push('<EOF>');
       },
       dropEOFMarks: () => {},
     },
-    onInterrupt: () => {},
+    terminal,
+    onInterrupt: () => written.push('<INT>'),
   });
   monitor.setMode(mode);
   await monitor.start();
@@ -53,4 +55,12 @@ Deno.test('cooked mode turns Ctrl-D into an end-of-file mark after what came bef
 
 Deno.test('raw mode forwards Ctrl-D unchanged', async () => {
   assertEquals(await forward('raw', '\x04'), '\x04');
+});
+
+Deno.test('cooked mode turns Ctrl-C into an interrupt', async () => {
+  assertEquals(await forward('cooked', 'a\x03b'), '<INT>ab');
+});
+
+Deno.test('without a terminal no byte is a key', async () => {
+  assertEquals(await forward('cooked', 'a\x03\x04\rb', false), 'a\x03\x04\rb');
 });

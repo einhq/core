@@ -265,16 +265,16 @@ export class Cmd implements Command {
     }
   }
 
-  async write(data: string) {
-    if (data && this._stdout) {
+  async write(data: string | Uint8Array) {
+    if (data.length > 0 && this._stdout) {
       await this.writeTo(this._stdout, data);
     }
   }
 
   /** Write to one of the command's outputs. One nothing reads any more sends it SIGPIPE, as in bash. */
-  private async writeTo(handle: ResourceHandleIf, data: string) {
+  private async writeTo(handle: ResourceHandleIf, data: string | Uint8Array) {
     try {
-      await handle.write(this.encoder.encode(data));
+      await handle.write(typeof data === 'string' ? this.encoder.encode(data) : data);
     } catch (error) {
       if (error instanceof BrokenPipeError) {
         await this.kill('SIGPIPE');

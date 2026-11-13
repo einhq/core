@@ -596,6 +596,9 @@ export class Shell implements TtyIf {
     this.inputMonitor = new InputMonitor({
       rawStdin: rawStdinHandle,
       filteredStdin: filteredStdinHandle,
+      // The shell has a terminal as `cmd.hasTerminal` says it; any other input, such as an ssh
+      // exec's, is a pipe, which may carry a binary file.
+      terminal: this.launchEnv.TERM === '1',
       onInput: () => {
         this.activeAt = Date.now();
       },

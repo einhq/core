@@ -22,14 +22,10 @@ const LOG_BATCH = 1000;
 /** How much of a frame is written at a time. */
 const FRAME_CHUNK = 65_536;
 
-/** Stdin to stdout as it arrives, until it ends or the command is interrupted. */
+/** Stdin's bytes to stdout as they arrive, until it ends or the command is interrupted. */
 const catStdin = async (cmd: Command): CmdReturn => {
-  const decoder = new TextDecoder();
-  for await (const chunk of cmd.stdin.chunks()) await cmd.write(decoder.decode(chunk, { stream: true }));
-  if (cmd.interrupted) return signalExitCode(cmd.signal ?? 'SIGINT');
-  const rest = decoder.decode();
-  if (rest) await cmd.write(rest);
-  return 0;
+  for await (const chunk of cmd.stdin.chunks()) await cmd.write(chunk);
+  return cmd.interrupted ? signalExitCode(cmd.signal ?? 'SIGINT') : 0;
 };
 
 type CatFlags = { s: boolean; l: boolean; t: boolean };

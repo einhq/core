@@ -563,6 +563,8 @@ export class SSHServer {
             await handle.write(value);
           }
         }
+        // The client sent EOF: what reads the handle reads to its end, as `cat > file < photo.jpg` needs.
+        await handle.writeEOF();
       } catch (_err) {
         // Stream closed
       } finally {

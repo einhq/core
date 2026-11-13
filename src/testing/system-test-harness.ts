@@ -461,12 +461,17 @@ export class SystemTestHarness {
     return { client, sftp };
   }
 
-  /** Run a command over SSH and collect output */
-  async runSSH(command: string, opts?: { username?: string; password?: string }): Promise<SSHExecResult> {
+  /** Run a command over SSH, without a terminal, and collect output; `stdin` is sent and then ended. */
+  async runSSH(command: string, opts?: { username?: string; password?: string; stdin?: Uint8Array }): Promise<SSHExecResult> {
     const client = await this.connectSSH(opts);
 
     try {
       const channel = await client.exec(command);
+      if (opts?.stdin) {
+        const writer = channel.writable.getWriter();
+        await writer.write(opts.stdin);
+        await writer.close();
+      }
       const decoder = new TextDecoder();
       const stderrDecoder = new TextDecoder();
       let stdout = '';

@@ -70,7 +70,8 @@ export interface Command {
    * stdin is the data it works through.
    */
   prompt(prompt?: string, echoMode?: EchoMode, instead?: string, opts?: { terminal?: boolean }): Promise<string>;
-  write(data: string): Promise<void>;
+  /** Write text, or bytes as they are, to stdout. */
+  write(data: string | Uint8Array): Promise<void>;
   writeLn(data: string): Promise<void>;
   writeJSON(data: any, pretty?: boolean): Promise<void>;
   writeYAML(data: any): Promise<void>;
