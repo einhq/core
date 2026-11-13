@@ -43,6 +43,7 @@ import { loadRenditions } from './signals/renditions.ts';
 import { checkSession, watchSession } from './signals/session-check.ts';
 import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
+import { isInvitePage } from './lib/invite.ts';
 import { forgetShareLink, isShareLinkPage, linkToReopen, shareLinkUrl, withinRoute } from './lib/share-link.ts';
 import { cssVariablesResolver, theme } from '@ein/ui/theme';
 import type { ReactNode } from 'react';
@@ -94,8 +95,9 @@ function Frame({ children }: Props) {
 
   const matches = useMatches();
   const isLoginPage = location.pathname === '/login';
-  // Where a share link lands: open to anyone, drawn outside the frame like the sign-in page.
-  const isLinkPage = isShareLinkPage(location.pathname);
+  // Where a share link or a sign-in link lands: open to anyone, drawn outside the frame like the
+  // sign-in page.
+  const isLinkPage = isShareLinkPage(location.pathname) || isInvitePage(location.pathname);
   // A page says what it is on its route, the shell's (routes.tsx) or a module's, in its `handle`:
   // `fullBleed: true`, drawn edge to edge — any other page gets the `md` gutter (`.mrx-page`) —
   // and `signedIn: true`, a page of the reader's own or one that only writes, which the guest is

@@ -23,7 +23,7 @@ export type UserEntry = {
    * administrator takes it out with `group-remove-member users <username>`. Never the guest.
    */
   everyone: boolean;
-  /** No sign-in is accepted until a password is set (`user-passwd`), which clears it. */
+  /** No sign-in is accepted until a password is set (`user-passwd`, or with a sign-in link, `user-invite`), which clears it. */
   mustResetPassword: boolean;
   /** Whether a password is set. Reported to an administrator only. */
   hasPassword?: boolean;
@@ -359,3 +359,20 @@ export type ModuleSetup = {
   /** Why it failed; empty when `ok`. */
   problems: string[];
 };
+
+/**
+ * `user-invite`: the account's sign-in link while it works — the token goes after `/invite/` on
+ * this site — or none.
+ */
+export type UserInvite = {
+  username: string;
+  token?: string;
+  createdAt?: number;
+  expiresAt?: number;
+};
+
+/**
+ * `user-invite-accept`: the account a sign-in link is for, so the page can greet them by it, and
+ * once they chose a password with it, whether this shell is now signed in as it.
+ */
+export type UserInviteAccepted = { username: string; title?: string; signedIn: boolean };

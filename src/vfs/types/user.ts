@@ -21,8 +21,9 @@ export type UserAttrs = NodeAttrs & {
   everyone?: boolean;
   /**
    * When true the user has no usable password (e.g. imported from the old
-   * system) and must set one via a reset before they can authenticate. Cleared
-   * once a password is set. Every auth site checks it through `loginRefusal`.
+   * system) and cannot authenticate until one is set, by an administrator or
+   * with a sign-in link (`user-invite`), which clears it. Every auth site checks
+   * it through `loginRefusal`.
    */
   mustResetPassword?: boolean;
 };
@@ -55,3 +56,21 @@ export const loginRefusal = (attrs: UserAttrs): string | undefined => {
   if (requiresPasswordReset(attrs)) return PASSWORD_RESET_REQUIRED;
   return undefined;
 };
+
+/**
+ * A sign-in link an administrator made for an account (`user-invite`), its child `.invite`: mode
+ * 0600 and the administrator's, like its `.password`. Whoever opens `/invite/<token>` before it
+ * expires chooses the account's password, which spends it.
+ */
+export const NODE_TYPE_USER_INVITE: NodeType = 'user-invite';
+
+export type UserInviteAttrs = NodeAttrs & {
+  token: string;
+  createdBy: UserId;
+  createdAt: number;
+  expiresAt: number;
+};
+
+/** Whether a node is an account's sign-in link: a `user-invite` node with its token and expiry. */
+export const isUserInviteNode = (node: Node): node is Node<UserInviteAttrs> =>
+  node.type === NODE_TYPE_USER_INVITE && typeof node.attrs.token === 'string' && typeof node.attrs.expiresAt === 'number';

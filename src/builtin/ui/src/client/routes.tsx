@@ -7,6 +7,7 @@ import DevicesPage from './pages/devices.tsx';
 import NewDevicePage, { handle as newDeviceHandle } from './pages/new-device.tsx';
 import DocsLayout, { DocPage, ModulePage } from './pages/docs.tsx';
 import HomePage from './pages/home.tsx';
+import InvitePage from './pages/invite.tsx';
 import LoginPage from './pages/login.tsx';
 import NodesPage from './pages/nodes.tsx';
 import InstanceDetailPage from './pages/pipeline-instance.tsx';
@@ -54,6 +55,8 @@ export const routes: RouteObject[] = [{
     { path: 'login', element: <LoginPage /> },
     // Where a share link lands; drawn outside the frame, like the sign-in page (`Layout`).
     { path: 's/:token', element: <SharedLinkPage /> },
+    // Where a sign-in link lands, to choose the account's password; drawn outside the frame too.
+    { path: 'invite/:token', element: <InvitePage /> },
     {
       path: 'docs',
       // The docs section draws its own header and gutters on every page under it.

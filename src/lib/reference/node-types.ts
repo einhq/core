@@ -140,4 +140,11 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     description:
       "The key a device carries to write to /file/dev/<device> without signing in, as a phone posting its position does: the device's child .key, readable by the administrator alone. `device-key` makes, shows and takes it away.",
   },
+  {
+    type: 'user-invite',
+    label: 'Sign-in link',
+    category: 'system',
+    description:
+      "A link an administrator makes for an account, with which its person chooses their own password once at /invite/<token> before it expires: the account's child .invite, readable by the administrator alone. `user-invite` makes, shows and takes it away.",
+  },
 ];

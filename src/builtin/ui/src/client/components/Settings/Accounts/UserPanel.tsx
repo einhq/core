@@ -1,12 +1,16 @@
-import { Anchor, Badge, Box, Button, Divider, Group, Loader, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from '@mantine/core';
-import { IconDeviceFloppy, IconKey, IconLock, IconLockOpen, IconTrash } from '@tabler/icons-react';
-import { type FormEvent, useEffect, useState } from 'react';
+import { ActionIcon, Anchor, Badge, Box, Button, Divider, Group, Loader, PasswordInput, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
+import { IconCheck, IconCopy, IconDeviceFloppy, IconKey, IconLink, IconLinkOff, IconLock, IconLockOpen, IconTrash } from '@tabler/icons-react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { emailProblem, normalizeEmail } from '@ein/api';
-import type { GroupEntry, MembershipChanged, PrimaryGroupSet, SessionEntry, UserDeleted, UserEntry, UserInactive, UserUpdated } from '@ein/api';
+import type { GroupEntry, MembershipChanged, PrimaryGroupSet, SessionEntry, UserDeleted, UserEntry, UserInactive, UserInvite, UserUpdated } from '@ein/api';
 import { accountOption, accountStatus, displayName, isPersonalGroup, membershipOf, personalGroupOf, signedIn } from '../../../lib/accounts.ts';
 import { describeNodeError } from '../../../lib/access.ts';
+import { copyText } from '../../../lib/clipboard.ts';
 import { countOf } from '../../../lib/count-of.ts';
+import { inviteUrl } from '../../../lib/invite.ts';
+import { expiryText } from '../../../lib/share-link.ts';
 import { shq } from '../../../lib/shquote.ts';
+import { execCommand } from '../../../signals/shell-client.ts';
 import { notify } from '../../../signals/notify.ts';
 import { AccountAvatar } from './AccountAvatar.tsx';
 import { Checklist, type ChecklistItem } from './Checklist.tsx';
@@ -39,8 +43,8 @@ const StatusBadge = ({ color, children }: { color: string; children: string }) =
 const SessionDot = () => <Box component='span' w={6} h={6} bg='var(--mantine-color-teal-filled)' style={{ display: 'inline-block', flex: 'none', borderRadius: '50%' }} />;
 
 /**
- * One account, edited in place: its profile, its groups and primary group, its password, where
- * it is signed in now, and disabling or deleting it. The administrator is never disabled or
+ * One account, edited in place: its profile, its groups and primary group, its password and a
+ * link to choose one with, where it is signed in now, and disabling or deleting it. The administrator is never disabled or
  * deleted; the guest is shown only, since it has no password and its groups give it nothing.
  */
 export function UserPanel({ user, users, groups, sessions, run, passwordError, onDeleted, onOpenPermissions }: UserPanelProps) {
@@ -86,6 +90,8 @@ export function UserPanel({ user, users, groups, sessions, run, passwordError, o
       <GroupsSection user={user} users={users} groups={groups} signedInNow={open.length > 0} run={run} />
       <Divider />
       <PasswordSection user={user} run={run} initialError={passwordError} />
+      <Divider />
+      <InviteSection user={user} />
       <Divider />
       <SignInSection user={user} users={users} groups={groups} sessions={open} run={run} onDeleted={onDeleted} />
     </Stack>
@@ -304,7 +310,9 @@ function PasswordSection({ user, run, initialError }: SectionProps & { initialEr
   return (
     <PanelSection
       title='Password'
-      lead={waiting ? `${name} can't sign in until a password is set.` : `Set a new password for ${name}. Their current one stops working.`}
+      lead={waiting
+        ? `${name} can't sign in until a password is set: set one here, or send them a sign-in link to choose their own.`
+        : `Set a new password for ${name}. Their current one stops working.`}
       error={error}
       onDismiss={() => setError(null)}
     >
@@ -336,6 +344,104 @@ function PasswordSection({ user, run, initialError }: SectionProps & { initialEr
           {done && <Done>Password set</Done>}
         </Group>
       </Stack>
+    </PanelSection>
+  );
+}
+
+/**
+ * The account's sign-in link (`user-invite`): made, its address copied to send however the
+ * administrator likes, made anew or taken away. Whoever opens it chooses the account's password.
+ */
+function InviteSection({ user }: { user: UserEntry }) {
+  const name = displayName(user);
+  const [invite, setInvite] = useState<UserInvite | null>(null);
+  const [busy, setBusy] = useState<'new' | 'off' | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  // Read again when the password changes, which a link chosen with it does as it spends it.
+  useEffect(() => {
+    let cancelled = false;
+    execCommand<UserInvite>(`user-invite ${shq(user.username)}`).then(
+      (found) => !cancelled && setInvite(found),
+      (err) => !cancelled && setError(describeNodeError(err)),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [user.username, user.hasPassword, user.mustResetPassword]);
+
+  const change = async (what: 'new' | 'off') => {
+    setBusy(what);
+    setError(null);
+    try {
+      setInvite(await execCommand<UserInvite>(`user-invite ${shq(user.username)} --${what}`));
+    } catch (err) {
+      setError(describeNodeError(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const url = invite?.token ? inviteUrl(globalThis.location.origin, invite.token) : undefined;
+  const copy = async () => {
+    if (!url) return;
+    if (!(await copyText(url, input.current))) {
+      notify({ message: 'The browser would not copy the link: it is selected for you to copy.', color: 'yellow' });
+      return;
+    }
+    notify({ message: 'Link copied to clipboard' });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <PanelSection
+      title='Sign-in link'
+      lead={`A link ${name} opens to choose their own password, which also shows them their username. Send it however you like; it works once.`}
+      error={error}
+      onDismiss={() => setError(null)}
+    >
+      {url && (
+        <Stack gap={6} maw={520}>
+          <TextInput
+            ref={input}
+            readOnly
+            value={url}
+            onClick={copy}
+            aria-label='The sign-in link; click to copy it'
+            rightSectionPointerEvents='all'
+            rightSection={
+              <Tooltip label={copied ? 'Copied' : 'Copy link'} withArrow>
+                <ActionIcon variant='subtle' color={copied ? 'teal' : 'gray'} onClick={copy} aria-label='Copy link'>
+                  {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+                </ActionIcon>
+              </Tooltip>
+            }
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', cursor: 'pointer' } }}
+          />
+          <Text size='xs' c='dimmed'>{expiryText(invite?.expiresAt)}</Text>
+        </Stack>
+      )}
+      <Group gap='sm'>
+        <Button
+          variant='default'
+          leftSection={<IconLink size={16} />}
+          loading={busy === 'new'}
+          disabled={invite === null || busy !== null || user.inactive}
+          onClick={() => change('new')}
+        >
+          {url ? 'Make a new link' : 'Make a sign-in link'}
+        </Button>
+        {url && (
+          <Button variant='subtle' color='red' leftSection={<IconLinkOff size={16} />} loading={busy === 'off'} disabled={busy !== null} onClick={() => change('off')}>
+            Turn off
+          </Button>
+        )}
+      </Group>
+      {user.inactive && <Note>Enable sign-in before making a link.</Note>}
+      {url && <Note>A new link stops this one working.</Note>}
     </PanelSection>
   );
 }

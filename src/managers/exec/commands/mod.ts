@@ -24,6 +24,7 @@ import { userExists } from './auth/user-exists.ts';
 import { userGroups } from './auth/user-groups.ts';
 import { userId } from './auth/user-id.ts';
 import { userInfo } from './auth/user-info.ts';
+import { userInvite, userInviteAccept } from './auth/user-invite.ts';
 import { userList } from './auth/user-list.ts';
 import { userPasswd } from './auth/user-passwd.ts';
 import { userResolve } from './auth/user-resolve.ts';
@@ -217,6 +218,8 @@ export const COMMAND_NAMES: CmdFunction[] = [
   userGroups,
   userId,
   userInfo,
+  userInvite,
+  userInviteAccept,
   userList,
   userPasswd,
   userResolve,
