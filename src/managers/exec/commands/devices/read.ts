@@ -12,16 +12,18 @@ const AGGREGATES: HistoryAggregate[] = ['avg', 'min', 'max', 'sum', 'count', 'fi
 
 /**
  * Every device the caller may see: its name, label, whether it answers and its main value; with
- * `--class`, those of the classes it names. With `--drivers`, the drivers instead: core's and those
- * modules' services have registered.
+ * words, those whose name or label holds one of them; with `--class`, those of the classes it names.
+ * With `--drivers`, the drivers instead: core's and those modules' services have registered.
  */
 export const devices = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
   const flags = parseArgs(cmd.args, { boolean: ['online', 'drivers'], string: ['class'], unknown: collectUnknownFlags(unknown) });
   if (await reportUnknownFlags(cmd, unknown)) return 1;
   const classes = flags.class ? new Set(String(flags.class).split(',').map((name) => name.trim()).filter(Boolean)) : undefined;
+  const words = flags._.map((word) => String(word).toLowerCase()).filter(Boolean);
   try {
     const listed = (await listDevices(cmd.sys.vfs, cmd.access))
+      .filter((device) => !words.length || words.some((word) => device.name.toLowerCase().includes(word) || device.label.toLowerCase().includes(word)))
       .filter((device) => !flags.online || device.online === true)
       .filter((device) => !classes || (device.class !== undefined && classes.has(device.class)));
     if (flags.drivers) {
@@ -60,13 +62,20 @@ export const devices = async (cmd: Command): CmdReturn => {
 devices.spec = {
   name: 'devices',
   effect: 'read' as const,
-  description: `Every device under ${DEV_PATH} you may see: its name, label, whether it answers and its main value; or the drivers`,
+  description: `Every device under ${DEV_PATH} you may see, or those a word names: its name, label, whether it answers and its main value; or the drivers`,
+  args: [{
+    name: 'word',
+    type: 'string' as const,
+    optional: true,
+    variadic: true,
+    description: 'only the devices whose name or label holds this word, or any of several: lamp, hall',
+  }],
   flags: [
     { name: 'online', type: 'bool' as const, description: 'only the devices that answer now' },
     { name: 'class', type: 'string' as const, description: 'only the devices of these classes, separated by commas: host,storage' },
     { name: 'drivers', type: 'bool' as const, description: "the drivers running now instead: core's, and those modules' services registered" },
   ],
-  examples: ['devices', 'devices --online', 'devices --class host,storage', 'devices --drivers'],
+  examples: ['devices', 'devices lamp', 'devices --online', 'devices --class host,storage', 'devices --drivers'],
   returns: 'DeviceSummary[], or with --drivers DriverSummary[]',
 };
 

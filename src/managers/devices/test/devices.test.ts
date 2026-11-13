@@ -132,6 +132,7 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
 
       const lamp = (await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'lamp');
       assertEquals(lamp?.main, { endpoint: 'power', label: 'Power', value: 41.8, unit: 'W' });
+      assertEquals((await anna.execJson<DeviceSummary[]>('devices LAM no-such')).map((device) => device.name), ['lamp'], 'any word, in any case');
       // A value written by hand is appended, `>` as `>>`, and kept as `{ value }`.
       await admin.execString('echo 40.5 > /dev/lamp/power');
       assertEquals((await anna.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
