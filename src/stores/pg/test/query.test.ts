@@ -419,6 +419,34 @@ pgTest('time-ordered queries use the takenAtUtc index', async (t) => {
       }
     });
 
+    await t.step('a page of labelled nodes by time is read from the index partial on labels', async () => {
+      // `search --has labels=…` and `--tag` state `exists` beside `has`, which is what lets the
+      // partial index serve them; the statistics are what make the planner take it on fry, where a
+      // few thousand of three million rows carry labels — a table this small cannot show that.
+      const stats = await ctx.pool.query(`SELECT 1 FROM pg_statistic_ext WHERE stxname = $1`, [`${attrsTable}_labels_stats`]);
+      assertEquals(stats.rows.length, 1, 'statistics object for the labels expression is missing');
+
+      const sql = buildQuerySql(
+        {
+          where: [{ ref: 'labels', op: 'exists' }, { ref: 'labels', op: 'has', value: 'sea' }],
+          orderBy: { ref: takenAtUtc, dir: 'desc' },
+          limit: 60,
+        },
+        nodesTable,
+        attrsTable,
+      );
+      const client = await ctx.pool.connect();
+      try {
+        await client.query('SET enable_seqscan = off');
+        const explained = await client.query<{ 'QUERY PLAN': string }>(`EXPLAIN ${sql.text}`, sql.values);
+        const plan = explained.rows.map((r) => r['QUERY PLAN']).join('\n');
+        assert(plan.includes(`${attrsTable}_labels_time_idx`), `expected the labels index to serve the page:\n${plan}`);
+      } finally {
+        await client.query('RESET enable_seqscan').catch(() => {});
+        client.release();
+      }
+    });
+
     await t.step('index expression matches the query expression verbatim', async () => {
       // A mismatch here is how the plan above silently degrades in production,
       // where the row count means the planner picks whatever is cheapest.

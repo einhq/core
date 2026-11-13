@@ -650,7 +650,8 @@ const LABELED_PAGE = 1000;
  */
 const labeledNodes = async (cmd: Command, labels: string[]): Promise<Candidate[]> => {
   if (labels.length === 0) return [];
-  const where: AttrCondition[] = labels.map((label) => ({ ref: 'labels', op: 'has', value: label }));
+  // `exists` for the index partial on the attr (`labels_time`): the planner cannot see it in `has`.
+  const where: AttrCondition[] = [{ ref: 'labels', op: 'exists' }, ...labels.map((label): AttrCondition => ({ ref: 'labels', op: 'has', value: label }))];
   const found: Candidate[] = [];
   let after: NodeQueryCursor | undefined;
   for (;;) {

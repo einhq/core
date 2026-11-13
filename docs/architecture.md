@@ -1305,8 +1305,9 @@ events moved, relation pairs recreated on the destination rather than moved, sin
 peer link records an absolute path).
 
 **Labels/tags**: `label add/remove` keeps `attrs.labels` (string[]) on the node — the
-queryable source of truth, which `search --tag` (a `has` query) and the label counts (an `each`
-aggregate) read — and mirrors it as softlinks under `<tags>/<label>/` for browsing
+queryable source of truth, which `search --tag` and `--has labels=…` (a `has` query beside an
+`exists`, which core's `labels_time` index partial on the attr serves, with statistics on it) and
+the label counts (an `each` aggregate) read — and mirrors it as softlinks under `<tags>/<label>/` for browsing
 (`labels` lists the global registry: the labels with at least one link). The relations-guard also cleans a deleted node's tag
 links; `label prune` sweeps any dangling links manually. Users bookmark nodes with
 `star <path>` → softlinks in `$HOME/stars/`.

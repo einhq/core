@@ -88,7 +88,8 @@ import { attrRefOf, NAME_LANGUAGES, type NodeQueryCollation, type NodeQueryOrder
  * the order search sorts them by, one per language the archive can be in, the nodes whose
  * sharing is pinned, which `share info` lists, the unlisted directories, which library views
  * leave out (`src/lib/search/unlisted.ts`), and the directories that say which processing they
- * want, which every pipeline trigger naming a family asks (`src/lib/processing.ts`).
+ * want, which every pipeline trigger naming a family asks (`src/lib/processing.ts`), and the
+ * labelled nodes, which `search --tag` and `--has labels=…` ask for by time and by id.
  */
 const CORE_ATTR_INDEXES: IndexDecl[] = [
   ...NAME_LANGUAGES.map((language): IndexDecl => ({ name: `name_sorted_${language}`, on: ['name'], partial: 'name', collation: language })),
@@ -98,6 +99,10 @@ const CORE_ATTR_INDEXES: IndexDecl[] = [
   // How few directories carry it, without which a generic plan takes `exists` to hold for nearly
   // every row and joins the whole table by key rather than reading the index above.
   { name: 'processing_rows', on: ['processing'], using: 'statistics' },
+  // A few thousand nodes carry labels: without the statistics the planner takes `IS NULL` on them
+  // to hold for one row in two hundred, and walks the whole table in id or time order for a page.
+  { name: 'labels_time', on: ['takenAtUtc'], partial: 'labels' },
+  { name: 'labels', on: ['labels'], using: 'statistics' },
 ];
 
 /** A name already taken under the parent — the `(parent_id, name)` primary key. */

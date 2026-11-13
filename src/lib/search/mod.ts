@@ -2180,13 +2180,15 @@ search.spec = {
     {
       name: 'missing',
       type: 'string' as const,
-      description: 'only what lacks this attr, dotted for a nested one (duplicate.deferred); repeatable, each must be missing',
+      description:
+        'only what lacks this attr, dotted for a nested one (duplicate.deferred); repeatable, each must be missing. Quick on an attr core or a module keeps statistics on (labels, damage); on another one it may read the whole library',
       repeatable: true,
     },
     {
       name: 'has',
       type: 'string' as const,
-      description: 'only what holds this value in an attr, as <attr>=<value>: the attr is the value, or a list holding it (labels=sea); repeatable, each must hold',
+      description:
+        'only what holds this value in an attr, as <attr>=<value>: the attr is the value, or a list holding it (labels=sea); repeatable, each must hold. Quick on an attr core or a module indexes (labels, damage); on another one it may read the whole library',
       repeatable: true,
     },
     {
