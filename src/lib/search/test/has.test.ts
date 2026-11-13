@@ -36,10 +36,12 @@ Deno.test({
     await mkmedia('/scans/box/b.jpg', { ...captureTime('1972-05-01T10:00:00'), damage: ['scratches'], reading: { kind: 'slide' } });
     await mkmedia('/scans/box/c.jpg', { ...captureTime('1973-05-01T10:00:00'), damage: [], reading: { kind: 'print' } });
     await mkmedia('/scans/box/d.jpg', { ...captureTime('1974-05-01T10:00:00') });
+    // A scan nobody has dated yet.
+    await mkmedia('/scans/box/e.jpg', { damage: ['faded'] });
 
-    await t.step('the plain timeline: a list holding the value', async () => {
+    await t.step('the plain timeline: a list holding the value, the undated after the dated', async () => {
       const res = await client.execJson<SearchResponse>('search --kind photo --has damage=faded');
-      assertEquals(names(res), ['a.jpg']);
+      assertEquals(res.results.map((hit) => hit.path.split('/').pop()), ['a.jpg', 'e.jpg']);
       assertEquals(res.filters.has, ['damage=faded']);
       assertEquals(names(await client.execJson<SearchResponse>('search --kind photo --has damage=scratches')), ['b.jpg']);
     });
@@ -50,6 +52,7 @@ Deno.test({
 
     await t.step('repeated, every value is held; with --missing both hold', async () => {
       assertEquals(names(await client.execJson<SearchResponse>('search --within /scans --has damage=faded --has damage=dust')), ['a.jpg']);
+      assertEquals(names(await client.execJson<SearchResponse>('search --kind photo --has damage=faded --from 1970 --to 1975')), ['a.jpg']);
       assertEquals(names(await client.execJson<SearchResponse>('search --within /scans --has damage=faded --has damage=scratches')), []);
       assertEquals(names(await client.execJson<SearchResponse>('search --within /scans --has reading.kind=print --missing damage')), []);
     });

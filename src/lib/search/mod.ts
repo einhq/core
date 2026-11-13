@@ -1680,11 +1680,12 @@ export const search = async (cmd: Command): CmdReturn => {
     // Reading upward is the same keyset query run the other way from the token.
     const timeOrder = { ref: TAKEN_AT_UTC, dir: above ? (listDir === 'asc' ? 'desc' as const : 'asc' as const) : listDir };
     const order = undated ? undefined : sort === 'name' ? { ref: 'name', dir: 'asc' as const, collation: await nameLanguage(cmd) } : timeless ? undefined : timeOrder;
-    // A match subject (a device) and a subtree are membership views as much as
-    // timelines: with no explicit date window, retain their undated members after
-    // the ordered part instead of letting `orderBy` erase them. A name sort does the
-    // same for the nodes without a name, which a `location` is not guaranteed.
-    const includeUnordered = sort === 'name' || ((matchConditions.length > 0 || within !== undefined) && from === undefined && to === undefined);
+    // A match subject (a device), a subtree and a value held (`--has`: the scans found
+    // faded, mostly undated) are membership views as much as timelines: with no explicit
+    // date window, retain their undated members after the ordered part instead of letting
+    // `orderBy` erase them. A name sort does the same for the nodes without a name, which
+    // a `location` is not guaranteed.
+    const includeUnordered = sort === 'name' || ((matchConditions.length > 0 || within !== undefined || has.length > 0) && from === undefined && to === undefined);
     // A seek lands a reader in the middle of history, and what they do next is
     // scroll either way. The rows above the bound are the same query read the
     // other way from it, so they come in the same answer rather than a second
