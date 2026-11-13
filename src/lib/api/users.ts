@@ -372,7 +372,8 @@ export type UserInvite = {
 };
 
 /**
- * `user-invite-accept`: the account a sign-in link is for, so the page can greet them by it, and
- * once they chose a password with it, whether this shell is now signed in as it.
+ * `user-invite-accept`: the account a sign-in link is for, so the page can greet them by it and
+ * say what they sign in with — its username, or its e-mail address when it has one — and once
+ * they chose a password with it, whether this shell is now signed in as it.
  */
-export type UserInviteAccepted = { username: string; title?: string; signedIn: boolean };
+export type UserInviteAccepted = { username: string; title?: string; email?: string; signedIn: boolean };

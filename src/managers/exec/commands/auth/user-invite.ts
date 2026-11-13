@@ -92,10 +92,10 @@ export const userInviteAccept = async (cmd: Command): CmdReturn => {
     const account = await accountByInvite(cmd.sys.vfs, token);
     if (!account) return await fail(cmd, 'user-invite-accept', dead);
     const { username, userPath, userNode } = account;
-    const title = userNode.attrs.name;
+    const { name: title, email } = userNode.attrs;
 
     if (flags.password === undefined) {
-      const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), signedIn: false };
+      const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), ...(email ? { email } : {}), signedIn: false };
       if (cmd.json) await cmd.writeJSON(answer satisfies UserInviteAccepted);
       else await cmd.writeLn(`For ${username}${title ? ` (${title})` : ''}`);
       return 0;
@@ -110,7 +110,7 @@ export const userInviteAccept = async (cmd: Command): CmdReturn => {
     }
     await cmd.login(username, flags.password, flags.session);
 
-    const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), signedIn: true };
+    const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), ...(email ? { email } : {}), signedIn: true };
     if (cmd.json) await cmd.writeJSON(answer satisfies UserInviteAccepted);
     else await cmd.writeLn(`Password set; signed in as ${username}`);
     return 0;

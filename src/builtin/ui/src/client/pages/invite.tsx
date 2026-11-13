@@ -89,7 +89,14 @@ export default function InvitePage() {
                 <Stack gap={4}>
                   <Title order={2} size='h4'>Welcome{account.title ? `, ${account.title}` : ''}</Title>
                   <Text size='sm'>
-                    Your username is <b>{account.username}</b>. Choose a password to sign in with it; you can also sign in with your e-mail address if the account has one.
+                    Your username is <b>{account.username}</b>
+                    {account.email
+                      ? (
+                        <>
+                          , and you can sign in with your e-mail address <b>{account.email}</b> instead
+                        </>
+                      )
+                      : null}. Choose the password you will sign in with.
                   </Text>
                 </Stack>
 

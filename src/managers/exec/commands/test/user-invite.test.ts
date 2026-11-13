@@ -31,7 +31,7 @@ Deno.test({
 
   try {
     await t.step('setup: an imported account with no password, which may not sign in', async () => {
-      await cmd.shouldSucceed('user-create anna --title "Anna Andersson"');
+      await cmd.shouldSucceed('user-create anna --title "Anna Andersson" --email anna@example.com');
       await cmd.shouldSucceed('attrs -J mustResetPassword=true /etc/users/anna');
       await cmd.shouldSucceed('user-create bo');
       await cmd.shouldSucceed('user-passwd bo --new-password=bo-secret');
@@ -67,7 +67,12 @@ Deno.test({
       assertEquals((await visitor.exec(`user-invite-accept ${old.token}`)).success, false);
       assertEquals((await visitor.exec('user-invite-accept AAAAAAAAAAAAAAAAAAAAAA')).success, false);
       assertEquals((await visitor.exec('user-invite-accept not-a-token')).success, false);
-      assertEquals(await visitor.execJson<UserInviteAccepted>(`user-invite-accept ${current.token}`), { username: 'anna', title: 'Anna Andersson', signedIn: false });
+      assertEquals(await visitor.execJson<UserInviteAccepted>(`user-invite-accept ${current.token}`), {
+        username: 'anna',
+        title: 'Anna Andersson',
+        email: 'anna@example.com',
+        signedIn: false,
+      });
     });
 
     await t.step('choosing a password with it signs in, clears the gate and spends the link', async () => {
@@ -75,7 +80,7 @@ Deno.test({
       const visitor = await guest();
       assertEquals((await visitor.exec(`user-invite-accept ${token} --password=`)).success, false);
       const accepted = await visitor.execJson<UserInviteAccepted>(`user-invite-accept ${token} --password=anna-secret --session`);
-      assertEquals(accepted, { username: 'anna', title: 'Anna Andersson', signedIn: true });
+      assertEquals(accepted, { username: 'anna', title: 'Anna Andersson', email: 'anna@example.com', signedIn: true });
       assertEquals((await visitor.execJson<Whoami>('user-whoami')).username, 'anna');
 
       const anna = (await admin.execJson<UserEntry[]>('user-list')).find((entry) => entry.username === 'anna');
