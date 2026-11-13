@@ -199,6 +199,12 @@ export type ShellConfig = {
   origin?: ShellOrigin;
   /** The address of the client on the other end, when there is one. */
   from?: string;
+  /**
+   * Whether the shell's input comes from a terminal, whose keys (Ctrl-C, Ctrl-D, Enter) the input
+   * monitor reads; an interactive shell's always does, an ssh exec's when the client asked for a
+   * pty (`ssh -t`). Without one, stdin is a pipe and passes byte for byte.
+   */
+  terminal?: boolean;
 };
 
 /** No command by that name: the status is 127, as bash's. */
@@ -596,9 +602,7 @@ export class Shell implements TtyIf {
     this.inputMonitor = new InputMonitor({
       rawStdin: rawStdinHandle,
       filteredStdin: filteredStdinHandle,
-      // The shell has a terminal as `cmd.hasTerminal` says it; any other input, such as an ssh
-      // exec's, is a pipe, which may carry a binary file.
-      terminal: this.launchEnv.TERM === '1',
+      terminal: this.config.terminal ?? false,
       onInput: () => {
         this.activeAt = Date.now();
       },

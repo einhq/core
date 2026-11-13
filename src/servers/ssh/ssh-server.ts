@@ -277,8 +277,10 @@ export class SSHServer {
     let rows = 24;
     let cols = 80;
     let stdinHandle: ResourceHandleIf | null = null;
+    let pty = false;
 
     session.on('pty', (accept, _reject, info) => {
+      pty = true;
       rows = info.rows;
       cols = info.cols;
       accept?.();
@@ -384,6 +386,8 @@ export class SSHServer {
           sessionPath,
           origin: 'ssh-exec',
           from,
+          // `ssh -t host cmd`: its ^C interrupts the command. Without a pty stdin is a pipe.
+          terminal: pty,
           env: {
             ...this.config.env,
             USER: user.username,

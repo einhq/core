@@ -32,6 +32,7 @@ export class InteractiveShell extends Shell {
   constructor(config: ShellConfig) {
     super({
       ...config,
+      terminal: true,
       env: {
         ...config.env,
         TERM: '1',
