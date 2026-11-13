@@ -117,6 +117,24 @@ export async function runQueryConformance(t: Deno.TestContext, factory: QueryVfs
       assertEquals(names(entries), ['d.mp4', 'c.png', 'e.mp4']);
     });
 
+    await t.step('ranges matches inside any of its half-open ranges, and none matches nothing', async () => {
+      const ranged = (value: [string, string][]) =>
+        vfs.query(ADMIN_ACCESS, {
+          types: ['file'],
+          where: [{ ref: TAKEN_AT, op: 'ranges', value }, { ref: 'derived', op: 'ne', value: true }],
+          orderBy: { ref: TAKEN_AT, dir: 'asc' },
+          limit: 50,
+        });
+      // The coalesced manual date (f.jpg's 1996-07-07) is the one read; a range's end is outside it.
+      assertEquals(names(await ranged([['1995-06', '1995-07'], ['1996-07-07', '1996-07-08'], ['1998-11-20', '1998-11-21'], ['2010-05-05T12:00:01', '2011']])), [
+        'a.jpg',
+        'f.jpg',
+        'd.mp4',
+      ]);
+      assertEquals(names(await ranged([['1998-03-12', '1998-03-12T08:30:00']])), []);
+      assertEquals(names(await ranged([])), []);
+    });
+
     await t.step('exists and missing', async () => {
       const missing = await vfs.query(ADMIN_ACCESS, {
         types: ['file'],

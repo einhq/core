@@ -139,6 +139,10 @@ const conditionSql = (cond: AttrCondition, params: ParamList, column: string): s
       const lower = `${sortExpr} >= ${params.bind(cond.value)}`;
       return upper === undefined ? lower : `${lower} AND ${sortExpr} < ${params.bind(upper)}`;
     }
+    case 'ranges':
+      // No range matches nothing, as `in` with no values does.
+      if (cond.value.length === 0) return 'FALSE';
+      return `(${cond.value.map(([from, to]) => `(${sortExpr} >= ${params.bind(from)} AND ${sortExpr} < ${params.bind(to)})`).join(' OR ')})`;
     case 'contains':
       // `expr`, not `sortExpr`: ILIKE has no use for a byte collation, and the
       // trigram index is built on the uncollated projection — the two
@@ -324,7 +328,7 @@ export const buildQuerySql = (
     // independent and multiplies their selectivities, under-counting a seek by
     // the attr's null fraction all over again.
     const ranged = (query.where ?? []).some((cond) =>
-      JSON.stringify(cond.ref) === JSON.stringify(query.orderBy!.ref) && ['gte', 'gt', 'lte', 'lt', 'eq', 'prefix', 'in'].includes(cond.op)
+      JSON.stringify(cond.ref) === JSON.stringify(query.orderBy!.ref) && ['gte', 'gt', 'lte', 'lt', 'eq', 'prefix', 'in', 'ranges'].includes(cond.op)
     );
     if (!ranged) clauses.push(`(${attrTextExpr(query.orderBy!.ref, column)}) IS NOT NULL`);
   }

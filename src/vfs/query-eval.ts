@@ -96,6 +96,8 @@ export const matchesCondition = (attrs: NodeAttrs, cond: AttrCondition): boolean
       const upper = prefixUpperBound(cond.value);
       return actual >= cond.value && (upper === undefined || actual < upper);
     }
+    case 'ranges':
+      return actual !== undefined && cond.value.some(([from, to]) => actual >= from && actual < to);
     case 'contains': {
       if (actual === undefined) return false;
       // Case folded on both sides, matching the SQL side's ILIKE. Done with

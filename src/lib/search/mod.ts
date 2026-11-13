@@ -49,6 +49,7 @@ import {
   TAKEN_AT_UTC,
   timeConditions,
 } from './filters.ts';
+import { OCCASION_NAMES, occasionCondition } from './occasions.ts';
 import { parseBbox, parseCircle, parsePolygon, type Region, regionContains } from './geo.ts';
 import {
   type Candidate,
@@ -80,6 +81,8 @@ export type { SearchHit } from '../api/search.ts';
 const DEFAULT_LIMIT = 60;
 const MAX_LIMIT = 200;
 const DEFAULT_MAX_SCAN = 5000;
+/** The first year `--occasion` looks in without a window: older than any dated picture. */
+const EARLIEST_OCCASION_YEAR = 1850;
 /**
  * Hits one text search asks each provider for, per channel.
  *
@@ -328,6 +331,7 @@ const VALUE_FLAGS = [
   'tag',
   'from',
   'to',
+  'occasion',
   'after',
   'before',
   'creator',
@@ -1073,6 +1077,21 @@ export const search = async (cmd: Command): CmdReturn => {
    * "Autumn trip 2014" as much as it asks for that year's pictures (ein/core#971).
    */
   const namedDate = fromRaw !== undefined && fromRaw === toRaw ? fromRaw : undefined;
+  /**
+   * An occasion's days in every year of the window, or since the earliest year a picture is
+   * likely to carry when there is none: one more condition on the same wall clock.
+   */
+  let occasion: AttrCondition | undefined;
+  if (flags.occasion !== undefined) {
+    const firstYear = from !== undefined ? Number(from.slice(0, 4)) - 1 : EARLIEST_OCCASION_YEAR;
+    const lastYear = to !== undefined ? Number(to.slice(0, 4)) : new Date().getFullYear();
+    occasion = occasionCondition(flags.occasion, firstYear, lastYear);
+    if (occasion === undefined) {
+      await cmd.writeError(`search: '${flags.occasion}' is not an occasion (${OCCASION_NAMES.join(', ')})\n`);
+      return 1;
+    }
+  }
+  const timeWhere = [...timeConditions(from, to), ...(occasion ? [occasion] : [])];
 
   // Region
   let region: Region | undefined;
@@ -1220,8 +1239,8 @@ export const search = async (cmd: Command): CmdReturn => {
   }
   // What has no capture time: the undated tail of a timeline on its own, in the order it arrived.
   const undated = Boolean(flags.undated);
-  if (undated && (fromRaw !== undefined || toRaw !== undefined || flags.at !== undefined || flags.above !== undefined)) {
-    await cmd.writeError('search: --undated lists what has no date, so it takes no --from, --to, --at or --above\n');
+  if (undated && (fromRaw !== undefined || toRaw !== undefined || occasion !== undefined || flags.at !== undefined || flags.above !== undefined)) {
+    await cmd.writeError('search: --undated lists what has no date, so it takes no --from, --to, --occasion, --at or --above\n');
     return 1;
   }
   // Both list media: with no kind asked, the pictures, videos and recordings, not the
@@ -1244,7 +1263,7 @@ export const search = async (cmd: Command): CmdReturn => {
    */
   let holdingGroups: GroupTally[] | undefined;
   let holdingTruncated = false;
-  const pictureFiltered = subjectGroups.length > 0 || fromRaw !== undefined || toRaw !== undefined || region !== undefined || tags.length > 0;
+  const pictureFiltered = subjectGroups.length > 0 || fromRaw !== undefined || toRaw !== undefined || occasion !== undefined || region !== undefined || tags.length > 0;
   if (isTimeless(kinds) && pictureFiltered && within === undefined && !groupBy && !flags.facets && !flags.layout) {
     const args = ['JSON_OUTPUT=1', 'search', '--group-by', shq(kindNodeTypes(kinds).join(',')), '--kind', FILE_KINDS.join(','), '--max-scan', String(GROUP_MEMBER_SCAN)];
     for (const raw of subjectArgs) args.push('--subject', shq(raw));
@@ -1254,6 +1273,7 @@ export const search = async (cmd: Command): CmdReturn => {
     // Joined, so a negative coordinate is not read as another flag.
     if (fromRaw !== undefined) args.push(`--from=${shq(fromRaw)}`);
     if (toRaw !== undefined) args.push(`--to=${shq(toRaw)}`);
+    if (occasion !== undefined) args.push('--occasion', shq(flags.occasion!));
     for (const [name, value] of regionFlags) args.push(`--${name}=${shq(value!)}`);
     const { code, stdout, stderr } = await cmd.execute(args.join(' '));
     if (code !== 0) {
@@ -1271,7 +1291,7 @@ export const search = async (cmd: Command): CmdReturn => {
    * such a node has no subject or date of its own to meet the rest.
    */
   const ownHits: (Candidate & { name: string })[] = [];
-  const onlyPictureFilter = holdingGroups && subjectGroups.length === 0 && fromRaw === undefined && toRaw === undefined;
+  const onlyPictureFilter = holdingGroups && subjectGroups.length === 0 && fromRaw === undefined && toRaw === undefined && occasion === undefined;
   if (onlyPictureFilter && region && tags.length === 0) {
     const hits = (await geoSource(cmd, region, GEO_SCAN_LIMIT, 0)).items!.filter((hit) => hit.id !== undefined);
     const nodes = await cmd.sys.vfs.getNodesByIds(cmd.access, hits.map((hit) => hit.id!));
@@ -1317,7 +1337,7 @@ export const search = async (cmd: Command): CmdReturn => {
   const pictureRegion = holding ? undefined : region;
 
   const hasFilter = query !== '' || like !== undefined || tags.length > 0 || kinds.length > 0 ||
-    from !== undefined || to !== undefined || region !== undefined ||
+    from !== undefined || to !== undefined || occasion !== undefined || region !== undefined ||
     creator !== undefined || subjectGroups.length > 0 || under !== undefined || within !== undefined || undated || missing.length > 0;
 
   // Sort: score only means something with a text query or a picture to rank by, and time only
@@ -1626,7 +1646,7 @@ export const search = async (cmd: Command): CmdReturn => {
     // Timeline drives: time, kind and the match subjects push into the indexed store query.
     const where: AttrCondition[] = [
       NOT_DERIVED,
-      ...timeConditions(from, to),
+      ...timeWhere,
       ...kindConditions(kinds),
       ...matchConditions,
       ...(undated ? [{ ref: TAKEN_AT_UTC, op: 'missing' } as AttrCondition] : []),
@@ -1705,7 +1725,7 @@ export const search = async (cmd: Command): CmdReturn => {
   // last used years ago look empty.
   const matchesPushedDown = driverSatisfies === 'timeline';
   const needsCreator = creator !== undefined && driverSatisfies !== 'timeline';
-  const needsTime = (from !== undefined || to !== undefined) && driverSatisfies !== 'timeline' && !holding;
+  const needsTime = (from !== undefined || to !== undefined || occasion !== undefined) && driverSatisfies !== 'timeline' && !holding;
   const needsRegion = pictureRegion !== undefined && driverSatisfies !== 'geo' && !regionPrefiltered;
   const needsUndated = undated && driverSatisfies !== 'timeline';
   const missingAsPredicates = driverSatisfies === 'timeline' ? [] : missingConditions;
@@ -1772,6 +1792,7 @@ export const search = async (cmd: Command): CmdReturn => {
       if (!takenAt && !candidate.namesDate) return false;
       if (takenAt && from !== undefined && takenAt < from) return false;
       if (takenAt && to !== undefined && takenAt >= to) return false;
+      if (occasion !== undefined && !matchesCondition(node.attrs, occasion)) return false;
     }
 
     for (const group of matchGroupsAsPredicates) {
@@ -2023,6 +2044,7 @@ export const search = async (cmd: Command): CmdReturn => {
           tags,
           from: from ?? null,
           to: to ?? null,
+          occasion: flags.occasion ?? null,
           region: region ? region.shape : null,
           creator: creator ?? null,
           subjects: subjectGroups.filter((group) => group.name === undefined).map((group) => ({ kind: group.kind, path: group.subjects[0].path })),
@@ -2103,6 +2125,11 @@ search.spec = {
     { name: 'tag', type: 'string' as const, description: 'filter by label (repeatable, intersected)', repeatable: true },
     { name: 'from', type: 'string' as const, description: 'taken at/after this date (2020, 2020-05, 2020-05-01)' },
     { name: 'to', type: 'string' as const, description: 'taken before this date, exclusive (--to 2000 includes all of 2000)' },
+    {
+      name: 'occasion',
+      type: 'string' as const,
+      description: `taken on a holiday's days, every year of --from/--to (or every year): ${OCCASION_NAMES.join(', ')}`,
+    },
     { name: 'after', type: 'string' as const, description: 'alias for --from' },
     { name: 'before', type: 'string' as const, description: 'alias for --to' },
     { name: 'creator', type: 'string' as const, description: 'media created (uploaded or imported) by a user, by name or uid' },
@@ -2172,6 +2199,7 @@ search.spec = {
     'search --subject person:anna-exempel --subject person:bo-exempel --kind photo --sort -time',
     "search --subject-name 'person:anna' --kind video",
     'search --bbox=$(location-region Exempelstad --bbox-only) --from 2007 --to 2007',
+    'search --occasion midsummer --from 1995 --to 2000',
     'search --subject person:anna-exempel --group-by album',
     'search --under /archive/albums/Exempelalbum --group-by person',
     'search --like /archive/albums/Exempelalbum/files/IMG_0001.jpg --subject person:anna-exempel',

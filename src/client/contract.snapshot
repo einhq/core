@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.14.21
+MODULE_API_VERSION 0.14.22
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -869,7 +869,7 @@ src/client/mod.ts AccessLevel 12d0838a94fe
 src/client/mod.ts AggregateBucket 85af9db11fe4 count=56355d434a33,counts=5f124083708c,key=7347f33d782b,sum=30ba4b673467
 src/client/mod.ts AppendOptions a064baf44899 at=3624925df8ed,retained=069caf27baea
 src/client/mod.ts ArgCompleteType d91fb6b71d55
-src/client/mod.ts AttrCondition 53ce0a8389d4
+src/client/mod.ts AttrCondition 991f15a01a1e
 src/client/mod.ts AttrPathRef 6eddb394065c
 src/client/mod.ts AttrRef 37e9a696d3eb
 src/client/mod.ts BucketSample 5a15b6eafb32 at=8cd35eed1400,count=56355d434a33,value=15597e943851
@@ -1181,7 +1181,7 @@ src/lib/api/mod.ts ReachMismatch 1dccb9967873 byPath=6449a374f07f,byReach=4bcb12
 src/lib/api/mod.ts RelationAttrs e6411206cd02 relation=98f66278c4b9
 src/lib/api/mod.ts RenditionKind fc936da363c1
 src/lib/api/mod.ts RenditionTable 4e8a2e97d29f audio=3381d0f28bb4,image=4d210ce30ecc,storyboard=83c36bb52a72,video=ebc1ae0b9464
-src/lib/api/mod.ts SearchAppliedFilters 44b842494a4a creator=47956d2275eb,dateFromQuery=0333b930c1a2,from=53663ea434d3,kinds=47ee7f719d18,like=1e1dcee6bb58,missing=dd2ed7888329,region=055c8c38a1a0,sort=f05d841982c8,subjectNames=14204a7360ad,subjects=ce3983d48a9e,tags=b1b2b0ee4fa5,to=0c314d304b17,under=1b55ebce20ec,within=589817095bad
+src/lib/api/mod.ts SearchAppliedFilters 57a658d07bd0 creator=47956d2275eb,dateFromQuery=0333b930c1a2,from=53663ea434d3,kinds=47ee7f719d18,like=1e1dcee6bb58,missing=dd2ed7888329,occasion=3aa4c7328b79,region=055c8c38a1a0,sort=f05d841982c8,subjectNames=14204a7360ad,subjects=ce3983d48a9e,tags=b1b2b0ee4fa5,to=0c314d304b17,under=1b55ebce20ec,within=589817095bad
 src/lib/api/mod.ts SearchChannel d4f221ff6839
 src/lib/api/mod.ts SearchFacetsResponse 5bfe9e866f5d days=7778bb379c1a,kinds=e84a0e44e45e,labels=2f7739fad6be,months=5576981f5691,range=593b85884ea6,total=08c7a0b849b7,truncated=ee81b8046300,years=d281e1971a11
 src/lib/api/mod.ts SearchGroupsResponse 3736e9f13a20 groups=46f0d5c7f01a,total=08c7a0b849b7,truncated=ee81b8046300,unnamed=216882d06403

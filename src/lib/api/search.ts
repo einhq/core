@@ -186,6 +186,8 @@ export type SearchAppliedFilters = {
   tags: string[];
   from: string | null;
   to: string | null;
+  /** The holiday `--occasion` named, as given. */
+  occasion: string | null;
   region: unknown;
   /** The uid of the person who put the files in, when filtered on. */
   creator: number | null;

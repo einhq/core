@@ -41,6 +41,11 @@ export type AttrCondition =
   /** Rewritten to a `>= p AND < upperBound(p)` range so an index can serve it. */
   | { ref: AttrRef; op: 'prefix'; value: string }
   /**
+   * Inside any of these half-open byte ranges, each `[from, to)`: the same days of every year
+   * (`search --occasion`) as one condition an index can serve range by range.
+   */
+  | { ref: AttrRef; op: 'ranges'; value: [string, string][] }
+  /**
    * Case-insensitive substring match — the operator behind every name search
    * box. The one condition that is **not** a byte comparison: it folds case on
    * both sides, and LIKE metacharacters in the value are literal text.
