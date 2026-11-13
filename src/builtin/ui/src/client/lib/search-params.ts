@@ -76,6 +76,7 @@ export const filtersFromParams = (params: URLSearchParams): SearchFilters => {
   const tags = csv(params.get('tag'));
   const under = params.get('under')?.trim();
   const like = params.get('like')?.trim();
+  const has = params.getAll('has').map((entry) => entry.trim()).filter((entry) => entry.indexOf('=') > 0);
 
   return {
     ...(query ? { query } : {}),
@@ -88,6 +89,7 @@ export const filtersFromParams = (params: URLSearchParams): SearchFilters => {
     ...(regionFromParams(params) ? { region: regionFromParams(params) } : {}),
     ...(under ? { under } : {}),
     ...(like ? { like } : {}),
+    ...(has.length > 0 ? { has } : {}),
     ...(sort ? { sort } : {}),
   };
 };
@@ -112,6 +114,7 @@ export const paramsFromFilters = (filters: SearchFilters, extra: Record<string, 
   // An `@` pick of an album, kept in the URL like the rest.
   if (filters.under) params.set('under', filters.under);
   if (filters.like) params.set('like', filters.like);
+  for (const entry of filters.has ?? []) if (entry.trim()) params.append('has', entry.trim());
   if (filters.sort) params.set('sort', filters.sort);
 
   for (const [key, value] of Object.entries(extra)) {

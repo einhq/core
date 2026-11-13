@@ -95,3 +95,8 @@ Deno.test('a picture to look like survives the address bar, with the filters tha
   assertEquals(paramsFromFilters(filters).get('like'), '/archive/albums/Summer/files/IMG_0001.jpg');
   assertEquals(roundTrip(filters), filters);
 });
+
+Deno.test('the values attrs must hold survive the address bar, repeated; one that is not <attr>=<value> is dropped', () => {
+  assertEquals(roundTrip({ has: ['damage=faded', 'damage=dust'], kinds: ['photo'] }), { has: ['damage=faded', 'damage=dust'], kinds: ['photo'] });
+  assertEquals(filtersFromParams(new URLSearchParams('has=damage%3Dfaded&has=damage&has=%3Dfaded')), { has: ['damage=faded'] });
+});

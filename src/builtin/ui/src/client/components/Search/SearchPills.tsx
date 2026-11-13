@@ -4,7 +4,10 @@ import { gridUrl } from '../../lib/derivatives.ts';
 import { fileUrl } from '../../lib/file-url.ts';
 import { type SearchFilters, splitSubject } from '../../lib/search-filters.ts';
 
-/** What a pill needs a name for: a subject's kind (`person`, `location`, `camera`), or `album`. */
+/**
+ * What a pill needs a name for: a subject's kind (`person`, `location`, `camera`), `album`, or
+ * `has` for an `<attr>=<value>` the page set.
+ */
 export type PillKind = string;
 
 export type SearchPillsProps = {
@@ -19,7 +22,7 @@ export type SearchPillsProps = {
 export const hasPills = (filters: SearchFilters): boolean =>
   Boolean(
     filters.subjects?.length || filters.subjectNames?.length || filters.region || filters.tags?.length || filters.under || filters.like ||
-      filters.fromYear !== undefined || filters.toYear !== undefined,
+      filters.has?.length || filters.fromYear !== undefined || filters.toYear !== undefined,
   );
 
 const without = (list: string[] | undefined, value: string): string[] | undefined => {
@@ -80,6 +83,11 @@ export function SearchPills({ filters, onPatch, nameOf }: SearchPillsProps) {
       {(filters.tags ?? []).map((tag) => (
         <Pill key={`tag-${tag}`} withRemoveButton onRemove={() => onPatch({ tags: without(filters.tags, tag) })}>
           #{tag}
+        </Pill>
+      ))}
+      {(filters.has ?? []).map((entry) => (
+        <Pill key={`has-${entry}`} withRemoveButton onRemove={() => onPatch({ has: without(filters.has, entry) })}>
+          {nameOf('has', entry) ?? entry}
         </Pill>
       ))}
       {filters.under && (
