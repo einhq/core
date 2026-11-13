@@ -85,6 +85,33 @@ Deno.test('SignInThrottle', async (t) => {
     assertEquals(clock.slept, [1000]);
   });
 
+  await t.step('an address held back may sign in again and again once its backoff has passed', async () => {
+    const clock = fakeClock();
+    const throttle = new SignInThrottle(clock);
+    for (let i = 0; i < FREE_FAILURES + 7; i++) {
+      clock.advance(128_000);
+      await throttle.begin(`name-${i}`, '192.0.2.1');
+    }
+    clock.advance(128_000);
+    for (let i = 0; i < 3; i++) (await throttle.begin('anna', '192.0.2.1')).succeeded();
+    // The next failure is still the thirteenth, its backoff counted from it.
+    await throttle.begin('bo', '192.0.2.1');
+    await assertRejects(() => throttle.begin('anna', '192.0.2.1'), Error, 'try again in 256 s');
+  });
+
+  await t.step('a success leaves an attempt begun after it counted from when that began', async () => {
+    const clock = fakeClock();
+    const throttle = new SignInThrottle(clock);
+    await fail(throttle, FREE_FAILURES - 1, 'name', '192.0.2.1');
+    clock.advance(1000);
+    const right = await throttle.begin('anna', '192.0.2.1');
+    clock.advance(1000);
+    await throttle.begin('bo', '192.0.2.1');
+    right.succeeded();
+    clock.advance(500);
+    await assertRejects(() => throttle.begin('bo', '192.0.2.1'), Error, 'try again in 1 s');
+  });
+
   await t.step('attempts in flight count as failures', async () => {
     const throttle = new SignInThrottle(fakeClock());
     const begun = await Promise.allSettled(Array.from({ length: FREE_FAILURES + 3 }, (_, i) => throttle.begin(`name-${i}`, '192.0.2.1')));

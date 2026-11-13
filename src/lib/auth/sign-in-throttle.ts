@@ -9,7 +9,9 @@
  * slowed, by at most `ACCOUNT_DELAY_MAX_MS` per attempt and never refused, so guessing someone's
  * password badly cannot lock them out. A failure is answered no sooner than `FAILURE_ANSWER_MS` after
  * its check began, whatever the check cost. A success forgets its account's failures, not its address's,
- * so signing in to one's own account does not buy more guesses at another's.
+ * so signing in to one's own account does not buy more guesses at another's; at its address it takes
+ * back what its attempt counted, so the backoff runs from the last failure and a client that signs
+ * in again straight after a success is not held back.
  */
 
 import { createLogger } from '../../managers/logger/mod.ts';
@@ -30,7 +32,8 @@ const FAILURE_ANSWER_MS = 1000;
 /** Addresses or accounts kept, each; past it the expired go first, then the longest unseen. */
 const MAX_ENTRIES = 10_000;
 
-type Count = { failures: number; last: number };
+/** `by` is the attempt that counted last, so a success can tell whether another has begun since. */
+type Count = { failures: number; last: number; by: number };
 
 /** The time and the waiting a throttle uses: real ones, or a test's. */
 export type ThrottleClock = { now(): number; sleep(ms: number): Promise<void> };
@@ -52,6 +55,7 @@ const backoff = (failures: number, max: number): number => Math.min(1000 * 2 ** 
 export class SignInThrottle {
   private readonly addresses = new Map<string, Count>();
   private readonly accounts = new Map<string, Count>();
+  private attempts = 0;
 
   constructor(private readonly clock: ThrottleClock = realClock) {}
 
@@ -69,8 +73,10 @@ export class SignInThrottle {
     const ofAccount = this.current(this.accounts, account, now);
     const delay = ofAccount.failures >= FREE_FAILURES ? backoff(ofAccount.failures, ACCOUNT_DELAY_MAX_MS) : 0;
 
-    if (address !== undefined) this.fail(this.addresses, address, fromAddress!, now, { address });
-    this.fail(this.accounts, account, ofAccount, now, { account });
+    const attempt = ++this.attempts;
+    const addressLast = fromAddress?.last;
+    if (address !== undefined) this.fail(this.addresses, address, fromAddress!, now, attempt, { address });
+    this.fail(this.accounts, account, ofAccount, now, attempt, { account });
     if (delay > 0) await this.clock.sleep(delay);
 
     const start = this.clock.now();
@@ -85,7 +91,10 @@ export class SignInThrottle {
         settled = true;
         this.accounts.delete(account);
         const count = address === undefined ? undefined : this.addresses.get(address);
-        if (count) count.failures = Math.max(0, count.failures - 1);
+        if (!count) return;
+        count.failures = Math.max(0, count.failures - 1);
+        // Unless another attempt has begun since, the address's last failure is the one before this.
+        if (count.by === attempt) count.last = addressLast!;
       },
     };
   }
@@ -93,11 +102,11 @@ export class SignInThrottle {
   /** The count kept for `key`, or a fresh one when there is none or it is forgotten. */
   private current(counts: Map<string, Count>, key: string, now: number): Count {
     const count = counts.get(key);
-    return count && now - count.last <= FORGET_MS ? count : { failures: 0, last: now };
+    return count && now - count.last <= FORGET_MS ? count : { failures: 0, last: now, by: 0 };
   }
 
-  /** Count a failure for `key`, keeping `counts` in order of last failure and within `MAX_ENTRIES`. */
-  private fail(counts: Map<string, Count>, key: string, count: Count, now: number, label: Record<string, string>): void {
+  /** Count `attempt` as a failure for `key`, keeping `counts` in order of last attempt and within `MAX_ENTRIES`. */
+  private fail(counts: Map<string, Count>, key: string, count: Count, now: number, attempt: number, label: Record<string, string>): void {
     counts.delete(key);
     if (counts.size >= MAX_ENTRIES) {
       for (const [other, each] of counts) if (now - each.last > FORGET_MS) counts.delete(other);
@@ -105,6 +114,7 @@ export class SignInThrottle {
     }
     count.failures += 1;
     count.last = now;
+    count.by = attempt;
     counts.set(key, count);
     // At the first held-back failure, and then at each doubling, so a long run logs a few lines.
     const over = count.failures / FREE_FAILURES;
