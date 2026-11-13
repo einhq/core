@@ -6,7 +6,8 @@
 import type { Kind } from '../kinds/vocabulary.ts';
 import type { NodeOwnership } from './ids.ts';
 
-export type LayoutMediaKind = 'photo' | 'video' | 'audio';
+/** What a layout row is: a picture, a video, a recording or a document. */
+export type LayoutMediaKind = 'photo' | 'video' | 'audio' | 'document';
 
 export type LayoutIndexItem = {
   path: string;

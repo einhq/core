@@ -26,7 +26,7 @@ import type { ModuleVFS } from '../../vfs/node-vfs.ts';
 /** A table, and what was wrong in the file it was read from. */
 export type RenditionTableRead = { table: RenditionTable; warnings: string[] };
 
-const KINDS: RenditionKind[] = ['photo', 'video', 'audio'];
+const KINDS: RenditionKind[] = ['photo', 'video', 'audio', 'document'];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);

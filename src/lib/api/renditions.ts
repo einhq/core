@@ -1,22 +1,56 @@
 /**
- * The rendition table, `/etc/renditions.yaml`: the renditions made of every picture, video and
- * recording, each under the role it plays. Pages ask for a role, and the table says which file
+ * The rendition table, `/etc/renditions.yaml`: the renditions made of every picture, video,
+ * recording and document, each under the role it plays. Pages ask for a role, and the table says which file
  * holds it: a rendition is named after its box, so nothing a page asks for names a size.
  *
  * The roles the shell asks for: `image` `thumb` (a square crop), `grid`, `small`, `medium` and
  * `large` (sizes that keep the picture's shape); `video` `preview` (a grid tile's muted clip) and
  * `playback`; `audio` `playback`; and the `storyboard`. A role the table lacks is no rendition,
- * and a page shows the original in its place. Answered by `renditions`.
+ * and a page shows the original in its place. Answered by `renditions`. A document's picture is
+ * its first page, and a document a browser cannot show is converted to PDF beside it
+ * (`DOCUMENT_VIEW_FILE`), which the table does not name: it has no size to choose.
  *
  * With it, the rules the pages and the pipelines that make renditions must agree on, free of
  * imports so both run the same code: which file a role is, and which roles a picture gets.
  */
 
 /** The kinds of media a rendition is made of. */
-export type RenditionKind = 'photo' | 'video' | 'audio';
+export type RenditionKind = 'photo' | 'video' | 'audio' | 'document';
+
+/** The documents a picture of the first page is made of: a PDF, plain text and those converted to PDF. */
+export const RENDERED_DOCUMENT_MIMETYPES: readonly string[] = [
+  'application/pdf',
+  'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/msword',
+  'application/rtf',
+];
 
 /**
- * A still picture: a photo at a size, a video's poster frame, a recording's waveform.
+ * The documents converted to PDF for a viewer, which no browser shows: Word, OpenDocument and RTF.
+ * A PDF is shown as it is, and plain text as text.
+ */
+export const CONVERTED_DOCUMENT_MIMETYPES: readonly string[] = RENDERED_DOCUMENT_MIMETYPES.filter((mimetype) => mimetype !== 'application/pdf' && mimetype !== 'text/plain');
+
+/** The PDF a converted document is shown as, under its `thumbnails/`. */
+export const DOCUMENT_VIEW_FILE = 'view.pdf';
+
+/** The rendition kind of a mimetype, or undefined for one nothing is made of. */
+export const renditionKindOf = (mimetype: string): RenditionKind | undefined =>
+  mimetype.startsWith('image/')
+    ? 'photo'
+    : mimetype.startsWith('video/')
+    ? 'video'
+    : mimetype.startsWith('audio/')
+    ? 'audio'
+    : RENDERED_DOCUMENT_MIMETYPES.includes(mimetype)
+    ? 'document'
+    : undefined;
+
+/**
+ * A still picture: a photo at a size, a video's poster frame, a recording's waveform, a document's
+ * first page.
  * `<width>x<height>.avif`.
  */
 export type ImageRendition = {

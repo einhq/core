@@ -31,7 +31,7 @@ const truncatedResponse = (): SearchLayoutResponse => ({
   layout: EMPTY_LAYOUT,
 });
 
-const KIND_CODE: Record<LayoutMediaKind, number> = { photo: 0, video: 1, audio: 2 };
+const KIND_CODE: Record<LayoutMediaKind, number> = { photo: 0, video: 1, audio: 2, document: 3 };
 
 export function encodeLayoutIndex(items: readonly LayoutIndexItem[]): SearchLayoutIndex {
   const directories: string[] = [];

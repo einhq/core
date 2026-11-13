@@ -17,13 +17,16 @@
  *
  * Video carries both too, and two videos that are not a ladder: `playback` is what the lightbox
  * plays, `preview` the silent clip a grid tile hover-plays.
+ *
+ * A document's pictures are its first page, rendered at whatever size a box asks, so every role of
+ * its kind is made whatever the page's size. What a reader shows is `documentViewUrl`.
  */
 
-import { audioFileName, imageFileName, imageRolesOf, videoFileName } from '@ein/api';
+import { audioFileName, CONVERTED_DOCUMENT_MIMETYPES, DOCUMENT_VIEW_FILE, imageFileName, imageRolesOf, videoFileName } from '@ein/api';
 import { renditionTable } from '../signals/renditions.ts';
 import { fileUrl } from './file-url.ts';
 
-export type MediaKind = 'photo' | 'video' | 'audio';
+export type MediaKind = 'photo' | 'video' | 'audio' | 'document';
 
 /**
  * The picture as a viewer sees it — rotation and pixel aspect already applied — which is
@@ -71,6 +74,13 @@ const DISPLAY_ROLES = ['grid', 'small', 'medium'];
  * then jumping once the waveform decodes.
  */
 export const WAVEFORM_ASPECT = 3;
+
+/**
+ * The aspect a document's tile is laid out at before its page is known: a portrait A4 sheet, the
+ * commonest page. A document read since has its first page's size, in points, as its `width` and
+ * `height`.
+ */
+export const DOCUMENT_ASPECT = 1 / Math.SQRT2;
 
 /**
  * Codecs of the video rendition, for a `<source type>`. Being explicit lets a
@@ -237,8 +247,18 @@ export function displayUrl(path: string, type: MediaKind, hasThumbnails: boolean
   if (!hasThumbnails) return fileUrl(path);
   if (type === 'video') return table().video.playback ? renditionUrl(path, videoFileName(table().video.playback)) : fileUrl(path);
   if (type === 'audio') return table().audio.playback ? renditionUrl(path, audioFileName(table().audio.playback)) : fileUrl(path);
-  const role = rolesHad(DISPLAY_ROLES, 'photo', dims).at(-1);
+  const role = type === 'document' ? rolesHad(DISPLAY_ROLES, 'document').at(-1) : rolesHad(DISPLAY_ROLES, 'photo', dims).at(-1);
   return role ? renditionUrl(path, renditionName(role)!) : fileUrl(path);
+}
+
+/**
+ * What a reader shows of a document in the browser's own PDF reader: a PDF itself, or the PDF a
+ * Word, OpenDocument or RTF file was converted to (`DOCUMENT_VIEW_FILE`). '' for a document with
+ * neither, such as plain text, which is read as text, or one not converted yet.
+ */
+export function documentViewUrl(path: string, mimetype: string, hasThumbnails: boolean): string {
+  if (mimetype === 'application/pdf') return fileUrl(path);
+  return hasThumbnails && CONVERTED_DOCUMENT_MIMETYPES.includes(mimetype) ? renditionUrl(path, DOCUMENT_VIEW_FILE) : '';
 }
 
 /**

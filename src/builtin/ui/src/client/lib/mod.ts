@@ -14,7 +14,7 @@ export * from './text-match.ts';
 export * from './natural-search.ts';
 export { mediaItemFrom, type MediaRef } from './media-item.ts';
 export { fileUrl } from './file-url.ts';
-export { displayUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, renditionName, thumbnailUrl, VIDEO_SOURCE_TYPE, WAVEFORM_ASPECT } from './derivatives.ts';
+export { displayUrl, documentViewUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, renditionName, thumbnailUrl, VIDEO_SOURCE_TYPE, WAVEFORM_ASPECT } from './derivatives.ts';
 export * from './card-layout.ts';
 export * from './node-path.ts';
 export * from './node-mode.ts';

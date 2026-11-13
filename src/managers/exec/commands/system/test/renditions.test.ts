@@ -49,7 +49,7 @@ Deno.test({
       await writeTable(TABLE);
       const table = await client.execJson<RenditionTable>('renditions');
       assertEquals(Object.keys(table.image), ['thumb', 'large']);
-      assertEquals(table.image.thumb.kinds, ['photo', 'video', 'audio']);
+      assertEquals(table.image.thumb.kinds, ['photo', 'video', 'audio', 'document']);
       assertEquals(table.video.playback.audioBitrate, '128k');
 
       const text = await client.exec('renditions 2>&1', { json: false });

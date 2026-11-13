@@ -4,11 +4,11 @@ import { lightboxPathFromRoute, lightboxRoute } from '../lib/lightbox-route.ts';
 import { mediaItemFrom } from '../lib/media-item.ts';
 import { closeFullscreen, fullscreenPath, openFullscreen } from './surface.ts';
 
-/** A media file as the grids and the lightbox show it. */
+/** A media file or a document, as the grids and the lightbox show it. */
 export type MediaItem = {
   id: string;
   name: string;
-  type: 'photo' | 'video' | 'audio';
+  type: 'photo' | 'video' | 'audio' | 'document';
   mimetype: string;
   thumbnailUrl: string;
   fullUrl: string;

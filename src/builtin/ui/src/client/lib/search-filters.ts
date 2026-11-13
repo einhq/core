@@ -15,7 +15,7 @@ export const SEARCH_SORTS = ['score', 'time', '-time', 'name'] as const;
 export type SearchSort = typeof SEARCH_SORTS[number];
 
 /** Kinds that render as thumbnails; everything else stays a card. */
-export const MEDIA_KINDS: ReadonlySet<string> = new Set<SearchKind>(['photo', 'video', 'audio']);
+export const MEDIA_KINDS: ReadonlySet<string> = new Set<SearchKind>(['photo', 'video', 'audio', 'document']);
 
 /** The kinds that are files rather than the things holding them. */
 export const FILE_KINDS: readonly SearchKind[] = ['photo', 'video', 'audio', 'document'];

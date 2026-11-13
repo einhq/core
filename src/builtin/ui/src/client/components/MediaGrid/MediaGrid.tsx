@@ -15,7 +15,7 @@ import {
   squareLayout,
   tileRangeForVerticalWindow,
 } from '../../lib/justified-layout.ts';
-import { WAVEFORM_ASPECT } from '../../lib/derivatives.ts';
+import { DOCUMENT_ASPECT, WAVEFORM_ASPECT } from '../../lib/derivatives.ts';
 import { getAspect, rememberAspect } from '../../lib/aspect-cache.ts';
 import { versionOf } from '../../lib/derivative-version.ts';
 import { loadStars, starredPaths } from '../../signals/stars.ts';
@@ -202,8 +202,9 @@ export function MediaGrid({
     const list = items.map((item) => {
       // Audio has no stored dimensions and never will — its picture is a synthesised
       // waveform at a fixed aspect, so that is a better guess than the photo default and
-      // spares the grid a relayout when the image decodes.
-      const fallback = item.type === 'audio' ? WAVEFORM_ASPECT : DEFAULT_ASPECT;
+      // spares the grid a relayout when the image decodes. A document not read yet is likelier
+      // a page than a photo.
+      const fallback = item.type === 'audio' ? WAVEFORM_ASPECT : item.type === 'document' ? DOCUMENT_ASPECT : DEFAULT_ASPECT;
       const aspect = measured[item.path] ?? displayAspect(item) ?? fallback;
       shown.set(item.path, aspect);
       return aspect;

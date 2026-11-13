@@ -922,7 +922,8 @@ const THUMBNAILS_DIR = 'thumbnails';
 const DERIVATIVES_BATCH = 1000;
 
 /**
- * The complete, ordered metadata needed to lay out one source in the browser: a
+ * The complete, ordered metadata needed to lay out one source in the browser — its
+ * pictures, videos, recordings and documents — for a
  * container or a subject, which the server has already materialized and sorted,
  * or a subtree small enough (`countWithin` at most `CONTAINER_SCAN_LIMIT`) to read
  * whole from the time-ordered store query.
@@ -948,7 +949,7 @@ async function writeLayout(
     if (!node) return;
     const mimetype = node.attrs.mimetype as string | undefined;
     const kind = classify(node.type, mimetype);
-    if (kind !== 'photo' && kind !== 'video' && kind !== 'audio') return;
+    if (kind !== 'photo' && kind !== 'video' && kind !== 'audio' && kind !== 'document') return;
 
     const name = nameOf(node, candidate.path);
     items.push({

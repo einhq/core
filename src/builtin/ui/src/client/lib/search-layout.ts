@@ -4,7 +4,7 @@ export type { LayoutIndexRow as SearchLayoutRow, SearchLayoutIndex } from '@ein/
 type DecodedLayoutItem = {
   path: string;
   memberPath?: string;
-  kind: 'photo' | 'video' | 'audio';
+  kind: 'photo' | 'video' | 'audio' | 'document';
   type: 'file';
   name: string;
   mimetype?: string;
@@ -22,7 +22,7 @@ type DecodedLayoutItem = {
   hasDerivatives?: boolean;
 };
 
-const KINDS = ['photo', 'video', 'audio'] as const;
+const KINDS = ['photo', 'video', 'audio', 'document'] as const;
 const joinPath = (directory: string, name: string) => directory === '/' ? `/${name}` : `${directory}/${name}`;
 const positive = (value: number): number | undefined => value > 0 ? value : undefined;
 

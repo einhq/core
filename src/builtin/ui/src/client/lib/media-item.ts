@@ -8,7 +8,7 @@
  * placeholder when a thumbnail 404s, and the lightbox falls back to the original.
  */
 
-import type { NodeOwnership } from '@ein/api';
+import { type NodeOwnership, renditionKindOf } from '@ein/api';
 import type { MediaItem } from '../signals/album.ts';
 import { displayUrl, imageSrcSet, thumbnailUrl } from './derivatives.ts';
 import { displayDims } from './justified-layout.ts';
@@ -49,6 +49,7 @@ export type MediaRef = {
 const typeOf = (mimetype: string): MediaItem['type'] => {
   if (mimetype.startsWith('video/')) return 'video';
   if (mimetype.startsWith('audio/')) return 'audio';
+  if (renditionKindOf(mimetype) === 'document' || mimetype.startsWith('text/')) return 'document';
   return 'photo';
 };
 

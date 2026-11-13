@@ -1,6 +1,6 @@
 import { Box, Checkbox } from '@mantine/core';
 import { useLongPress } from '@mantine/hooks';
-import { IconHeartFilled, IconLock, IconMusic, IconPhoto, IconPlayerPlay, IconStack2 } from '@tabler/icons-react';
+import { IconFileText, IconHeartFilled, IconLock, IconMusic, IconPhoto, IconPlayerPlay, IconStack2 } from '@tabler/icons-react';
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import type { MediaItem } from '../../signals/album.ts';
 import { gridFallbackUrl, gridSrcSet, gridUrl } from '../../lib/derivatives.ts';
@@ -117,8 +117,10 @@ export function MediaTile({
   // has not reached. A tile that stays blank forever reads as a broken picture
   // rather than as one that has not been made yet.
   const [exhausted, setExhausted] = useState(false);
+  // A document's picture is its first page, and its original is no picture at all.
+  const isDocument = media.type === 'document';
   // The last step of the fallback chain: the original, unless it is not to be fetched.
-  const lastStep = originals ? 3 : 2;
+  const lastStep = originals && !isDocument ? 3 : 2;
   const isVideo = media.type === 'video';
   // Audio's picture is a rendered waveform, so everything below — the `<img>`, the
   // fallback chain, `onMeasure` — treats it exactly like a photo. Only the badge and the
@@ -128,7 +130,7 @@ export function MediaTile({
   const duration = formatClock(media.duration);
   // A waveform that has not been rendered yet should read as audio-not-made-yet, not as a
   // broken photo.
-  const PlaceholderIcon = isAudio ? IconMusic : IconPhoto;
+  const PlaceholderIcon = isAudio ? IconMusic : isDocument ? IconFileText : IconPhoto;
   const hasOverlay = overlay !== undefined && overlay !== null && overlay !== false;
 
   // Fallback chain, every step of it aspect-preserving: the grid rendition, then the next
@@ -144,8 +146,9 @@ export function MediaTile({
   // Dropping the ladder asks for the one rendition we are sure of.
   //
   // `dims` is the picture's own size when the node has one: a small picture has fewer
-  // sizes than the ladder, and the top one it has holds fewer pixels than its box says.
-  const dims = displayDims(media);
+  // sizes than the ladder, and the top one it has holds fewer pixels than its box says. A
+  // document's page is rendered at every size, whatever its own.
+  const dims = isDocument ? undefined : displayDims(media);
   const src = step === 0 || step === 1
     ? gridUrl(media.path, media.hasDerivatives)
     : step === 2
@@ -153,8 +156,8 @@ export function MediaTile({
     : fileUrl(media.path);
   const srcSet = step === 0 ? gridSrcSet(media.path, media.hasDerivatives, aspect, dims) : '';
   // Nothing to ask for: this step is the original (no renditions yet, or none small enough), and
-  // the original is not to be fetched.
-  const placeholderOnly = !originals && src === fileUrl(media.path);
+  // the original is not to be fetched or, a document's, cannot be drawn.
+  const placeholderOnly = (!originals || isDocument) && src === fileUrl(media.path);
 
   // A video the backfill has already reached, when nothing else is competing for the
   // reader's attention. `hasPreview` is false once a clip has 404'd, so a grid does not
@@ -362,6 +365,23 @@ export function MediaTile({
           }}
         >
           <PlaceholderIcon size={Math.max(18, Math.min(48, Math.round(Math.min(width, height) * 0.3)))} stroke={1.25} />
+        </Box>
+      )}
+
+      {isDocument && !placeholderOnly && !exhausted && (
+        <Box
+          style={{
+            position: 'absolute',
+            bottom: 6,
+            right: 6,
+            background: 'var(--mrx-scrim)',
+            borderRadius: 4,
+            padding: '2px 4px',
+            display: 'flex',
+            pointerEvents: 'none',
+          }}
+        >
+          <IconFileText size={14} color='white' />
         </Box>
       )}
 

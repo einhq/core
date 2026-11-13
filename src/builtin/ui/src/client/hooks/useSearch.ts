@@ -215,7 +215,7 @@ export function searchResultToMediaItem(result: SearchResult): MediaItem {
   // `kind` is the search command's own classification and outranks the mimetype.
   return mediaItemFrom({
     ...result,
-    type: result.kind === 'video' ? 'video' : result.kind === 'audio' ? 'audio' : 'photo',
+    type: result.kind === 'video' || result.kind === 'audio' || result.kind === 'document' ? result.kind : 'photo',
     score: result.score,
   });
 }

@@ -1,12 +1,23 @@
 /**
  * The rules over the rendition table that the pages and the pipelines making renditions share: a
  * role's file is named after its box, and a picture gets every `cover` role of its kind and the
- * `contain` roles up to the first box it fits inside, which holds it at its own size. The table's
- * file is read leaving out what it gets wrong.
+ * `contain` roles up to the first box it fits inside, which holds it at its own size; which kind a
+ * mimetype is, and which documents are converted to PDF. The table's file is read leaving out what
+ * it gets wrong.
  */
 
 import { assertEquals } from '@std/assert';
-import { audioFileName, imageFileName, imageRolesOf, NO_RENDITIONS, type RenditionTable, storyboardFileName, videoFileName } from '../renditions.ts';
+import {
+  audioFileName,
+  CONVERTED_DOCUMENT_MIMETYPES,
+  imageFileName,
+  imageRolesOf,
+  NO_RENDITIONS,
+  renditionKindOf,
+  type RenditionTable,
+  storyboardFileName,
+  videoFileName,
+} from '../renditions.ts';
 import { parseRenditionTable } from '../../media/renditions.ts';
 
 const ALL = ['photo', 'video', 'audio'] as RenditionTable['image'][string]['kinds'];
@@ -65,7 +76,7 @@ storyboard: { tile: 160, columns: 12, maxTiles: 240, minInterval: 1, quality: 55
   assertEquals(read.warnings, []);
   assertEquals(read.table, {
     image: {
-      thumb: { width: 320, height: 320, fit: 'cover', quality: 55, kinds: ['photo', 'video', 'audio'] },
+      thumb: { width: 320, height: 320, fit: 'cover', quality: 55, kinds: ['photo', 'video', 'audio', 'document'] },
       large: { width: 2560, height: 2560, fit: 'contain', quality: 60, kinds: ['photo'] },
     },
     video: {
@@ -96,11 +107,25 @@ storyboard: { tile: 160 }
   assertEquals(read.warnings, [
     'image.grid: needs fit: cover or contain',
     'image.small: needs a width and a height above 0',
-    'image.medium: kinds must be a list of photo, video, audio',
+    'image.medium: kinds must be a list of photo, video, audio, document',
     'video: not a list of roles',
     'audio.playback: needs a bitrate, such as 128k, and a sampleRate',
     'storyboard: needs a tile, columns, maxTiles and minInterval above 0, and a quality',
   ]);
+});
+
+Deno.test('a document is its own kind, and only what no browser shows is converted to PDF', () => {
+  assertEquals(renditionKindOf('image/heic'), 'photo');
+  assertEquals(renditionKindOf('video/mp4'), 'video');
+  assertEquals(renditionKindOf('audio/mpeg'), 'audio');
+  assertEquals(renditionKindOf('application/pdf'), 'document');
+  assertEquals(renditionKindOf('text/plain'), 'document');
+  assertEquals(renditionKindOf('application/msword'), 'document');
+  assertEquals(renditionKindOf('text/html'), undefined);
+  assertEquals(renditionKindOf('application/zip'), undefined);
+  assertEquals(CONVERTED_DOCUMENT_MIMETYPES.includes('application/pdf'), false);
+  assertEquals(CONVERTED_DOCUMENT_MIMETYPES.includes('text/plain'), false);
+  assertEquals(CONVERTED_DOCUMENT_MIMETYPES.includes('application/vnd.oasis.opendocument.text'), true);
 });
 
 Deno.test('a file that is not a table is no renditions, and an empty one says nothing', () => {
