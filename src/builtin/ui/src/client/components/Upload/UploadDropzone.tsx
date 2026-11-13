@@ -109,6 +109,9 @@ export function UploadDropzone(props: SingleProps | TilesProps) {
 function WindowDrop({ path, name, keepFolders, disabled, openRef, openFolderRef, track }: SingleProps & { track: (target: UploadTarget) => UploadTarget }) {
   const label = name || (typeof path === 'string' ? path.split('/').filter(Boolean).pop() || path : undefined);
   const folderInput = useRef<HTMLInputElement>(null);
+  // Mantine closes the overlay only when a drop gave files; one that gave none (an empty folder)
+  // remounts it instead, which closes it.
+  const [emptyDrops, setEmptyDrops] = useState(0);
   const queue = (files: File[]) => {
     if (files.length > 0) addToQueue(files, track(path), { keepFolders, ...(label ? { label } : {}) });
   };
@@ -138,9 +141,13 @@ function WindowDrop({ path, name, keepFolders, disabled, openRef, openFolderRef,
         />
       )}
       <Dropzone.FullScreen
+        key={emptyDrops}
         active={!disabled}
         openRef={openRef}
         onDrop={queue}
+        onDropAny={(accepted, rejected) => {
+          if (accepted.length === 0 && rejected.length === 0) setEmptyDrops((count) => count + 1);
+        }}
         getFilesFromEvent={readDroppedFiles}
         // The overlay is the whole window, so its message belongs in the middle of
         // it rather than tucked under the top edge, where Mantine leaves it.
