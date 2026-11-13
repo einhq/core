@@ -719,27 +719,6 @@ export class PgStore implements NodeStore {
         AS $$ SELECT to_timestamp(('x' || translate(left(id::text, 13), '-', ''))::bit(48)::bigint / 1000.0) $$
     `);
 
-    // A trail made when ids were text is set aside, with its indexes, as `<table>_v1`, for a
-    // one-off copy into this one (ein/core#1107).
-    const idType = await conn.query(
-      `SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'id'`,
-      [this.auditTable],
-    );
-    if (idType.rows.length > 0 && idType.rows[0].data_type !== 'uuid') {
-      await conn.query(`SET lock_timeout = '10s'`);
-      try {
-        const indexes = await conn.query<{ indexname: string }>(
-          `SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = $1`,
-          [this.auditTable],
-        );
-        for (const { indexname } of indexes.rows) await conn.query(`ALTER INDEX ${indexname} RENAME TO ${indexname}_v1`);
-        await conn.query(`ALTER TABLE ${this.auditTable} RENAME TO ${this.auditTable}_v1`);
-      } finally {
-        await conn.query(`RESET lock_timeout`);
-      }
-      logger.warn('audit trail with text ids set aside', { table: `${this.auditTable}_v1` });
-    }
-
     await conn.query(`
       CREATE TABLE IF NOT EXISTS ${this.auditTable} (
         id uuid PRIMARY KEY,

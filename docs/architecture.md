@@ -317,9 +317,7 @@ and 599 with text ids. A node's history (`--id`) is one index probe per chunk, c
 not, and `--record`, `--cause` and `--sid` are as cheap; a read in time order (newest first,
 `--after`, `--user`, a path) decompresses what it reads, 12–18 ms a day of records. So `audit`
 reads the last `AUDIT_RECENT_DAYS` unless given `--all`, a time range, or a record, node, session
-or cause to find, and the dashboard's Activity tab asks for older changes with a button. A trail
-made when ids were text is renamed `<prefix>_audit_v1`, its indexes with it, at boot, for a
-one-off copy into the new one.
+or cause to find, and the dashboard's Activity tab asks for older changes with a button.
 
 **Reading forward.** A query reads newest first; with `after: <id>` (`audit --after`) it reads the
 records after that id, oldest first, so a reader follows the trail by passing the last id it read,

@@ -1,8 +1,7 @@
 /**
  * PG tier: the audit trail lives in the write's own transaction and reads back filtered, its ULIDs
  * kept as uuids and its times read from them; a forward read (`after`) is a range of the primary
- * key however many records the trail holds, and compressed chunks answer as the recent ones do. A
- * trail made when ids were text is set aside.
+ * key however many records the trail holds, and compressed chunks answer as the recent ones do.
  * Gated by EIN_TEST_PG.
  */
 
@@ -116,40 +115,6 @@ pgTest('PgStore audit trail', async (t) => {
   } finally {
     await vfs.dispose();
     await routerManager.dispose();
-  }
-});
-
-pgTest('PgStore audit trail made when ids were text is set aside', async () => {
-  const ctx = pgTestContext();
-  const routerManager = new RouterManager();
-  await routerManager.init();
-  routerManager.release();
-
-  const table = `${ctx.prefix}_nodes_audit`;
-  await ctx.pool.query(`
-    CREATE TABLE ${table} (
-      id VARCHAR(26) PRIMARY KEY, at TIMESTAMPTZ NOT NULL, uid INTEGER NOT NULL, sid TEXT, cause VARCHAR(26),
-      op VARCHAR(16) NOT NULL, node_id TEXT NOT NULL, node_type VARCHAR(64) NOT NULL,
-      path TEXT NOT NULL, from_path TEXT, attrs JSONB, props JSONB
-    )
-  `);
-  await ctx.pool.query(`CREATE INDEX ${table}_uid_idx ON ${table} (uid, id)`);
-  await ctx.pool.query(`INSERT INTO ${table} (id, at, uid, op, node_id, node_type, path) VALUES ($1, now(), 0, 'create', $2, 'file', '/before')`, [ulid(), ulid()]);
-
-  const store = new PgStore({ pgPool: ctx.pool, name: ctx.prefix });
-  const vfs = new LocalNodeVFS(store, routerManager, { file: new MemoryFileRegistry() });
-  try {
-    await vfs.initialize();
-    await vfs.create(ADMIN_ACCESS, 'directory', '/', 'after');
-
-    assertEquals((await vfs.audit(ADMIN_ACCESS, {})).map((r) => r.path), ['/after']);
-    assertEquals((await ctx.pool.query(`SELECT path FROM ${table}_v1`)).rows, [{ path: '/before' }]);
-    const indexes = await ctx.pool.query(`SELECT indexname FROM pg_indexes WHERE tablename = $1 ORDER BY 1`, [`${table}_v1`]);
-    assertEquals(indexes.rows.map((r) => r.indexname), [`${table}_pkey_v1`, `${table}_uid_idx_v1`]);
-  } finally {
-    await vfs.dispose();
-    await routerManager.dispose();
-    await ctx.teardown();
   }
 });
 
