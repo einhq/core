@@ -132,6 +132,26 @@ Deno.test({
       await cmd.shouldSucceed(`share-link remove ${second.link.id}`);
     });
 
+    await t.step('where visitors may browse, a visitor holding a link sees only what the link opens', async () => {
+      await cmd.shouldSucceed('mkdir /visitors && echo hello > /visitors/note.txt');
+      await cmd.shouldSucceed("share-set /visitors --mode 0700 -b -m 'g:guest:rx'");
+      await cmd.shouldSucceed('config set CFG_GUEST_BROWSING true');
+      const guest = await testCtx.server.createShellClient({ login: false });
+      try {
+        assertEquals((await guest.exec('cat /visitors/note.txt')).success, true);
+        assertEquals((await guest.exec('cat /alb/files/a.txt')).success, false);
+
+        await guest.execJson<ShareLinkOpened>(`share-link open ${link().token} --session`);
+        assertEquals((await guest.exec('cat /alb/files/a.txt')).success, true);
+        assertEquals((await guest.exec('cat /visitors/note.txt')).success, false);
+        assertEquals((await guest.exec('ls /visitors')).success, false);
+      } finally {
+        await cmd.shouldSucceed('config unset CFG_GUEST_BROWSING');
+        guest.close();
+      }
+      await cmd.shouldSucceed('rm -r /visitors');
+    });
+
     await t.step('share-info lists the link, its token only for someone who may change the album, and what keeps its own sharing', async () => {
       const info = await admin.execJson<ShareInfo>('share-info /alb');
       assertEquals(info.links.map((each) => [each.id, each.token]), [[link().id, link().token]]);
