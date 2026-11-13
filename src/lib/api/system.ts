@@ -205,8 +205,11 @@ export type PoolKindThroughput = {
   refusal?: PoolKindRefusal;
 };
 
-/** A step that could not run yet: when (epoch ms), and the last line of its error. */
-export type PoolKindRefusal = { at: number; reason: string };
+/**
+ * A step that could not run yet: when (epoch ms), since when steps of the kind have been turned
+ * away with none of it completing, and the last line of its error.
+ */
+export type PoolKindRefusal = { at: number; since: number; reason: string };
 
 /** A pool's counts now and how fast it moves, from the sampler's series. */
 export type PoolThroughput = {

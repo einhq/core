@@ -27,11 +27,11 @@ Deno.test('a kind rests only while every worker offering it rests it, until the 
 Deno.test("a kind's refusal is the newest among the workers that offer it", () => {
   const refused = (kinds: string[], refusals: Record<string, number>) => ({
     kinds,
-    refused: Object.fromEntries(Object.entries(refusals).map(([kind, at]) => [kind, { at, reason: `at ${at}` }])),
+    refused: Object.fromEntries(Object.entries(refusals).map(([kind, at]) => [kind, { at, since: at, reason: `at ${at}` }])),
   });
   const models = refused(['faces', 'ocr'], { ocr: 2_000, faces: 500 });
   const laptop = refused(['faces'], { faces: 1_000 });
-  assertEquals(kindRefusal([models, laptop], 'faces'), { refusal: { at: 1_000, reason: 'at 1000' } });
-  assertEquals(kindRefusal([models, laptop], 'ocr'), { refusal: { at: 2_000, reason: 'at 2000' } });
+  assertEquals(kindRefusal([models, laptop], 'faces'), { refusal: { at: 1_000, since: 1_000, reason: 'at 1000' } });
+  assertEquals(kindRefusal([models, laptop], 'ocr'), { refusal: { at: 2_000, since: 2_000, reason: 'at 2000' } });
   assertEquals(kindRefusal([laptop], 'ocr'), {});
 });

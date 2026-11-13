@@ -6,7 +6,7 @@
 
 import { assertEquals } from '@std/assert';
 import type { PipelineOverview } from '../../../../../lib/api/pipeline.ts';
-import type { PoolKindThroughput, PoolStatAnswer } from '../../../../../lib/api/system.ts';
+import type { PoolKindThroughput, PoolStatAnswer, PoolWorkerInfo } from '../../../../../lib/api/system.ts';
 import { assessHealth } from '../health.ts';
 
 const NOW = Date.UTC(2026, 9, 10, 12);
@@ -14,7 +14,22 @@ const HOUR = 3_600_000;
 
 const kind = (name: string, fields: Partial<PoolKindThroughput>): PoolKindThroughput => ({ kind: name, ready: 0, claimed: 0, done: 0, failed: 0, ...fields });
 
-const pool = (kinds: PoolKindThroughput[]): PoolStatAnswer => ({
+const worker = (fields: Partial<PoolWorkerInfo> = {}): PoolWorkerInfo => ({
+  name: 'models',
+  kinds: ['faces', 'transcribe'],
+  kindQuantumMs: HOUR,
+  concurrency: 1,
+  capacity: {},
+  inUse: {},
+  running: {},
+  reserveKinds: [],
+  reserveCapacity: {},
+  resting: {},
+  refused: {},
+  ...fields,
+});
+
+const pool = (kinds: PoolKindThroughput[], workers: PoolWorkerInfo[] = []): PoolStatAnswer => ({
   name: 'media',
   path: '/var/pools/media',
   role: 'work',
@@ -23,7 +38,7 @@ const pool = (kinds: PoolKindThroughput[]): PoolStatAnswer => ({
   done: 0,
   failed: 0,
   kinds,
-  workers: [],
+  workers,
   backlog: 0,
   counts: { ready: 0, claimed: 0, done: 0, failed: 0, cancelled: 0, total: 0 },
   policy: { agingSeconds: 0, agingBoost: 0, agingMax: 0, leaseMs: 0, maxAttempts: 3, backoffMs: 0, backoffMaxMs: 0, sweepIntervalMs: 0 },
@@ -58,29 +73,73 @@ Deno.test('health', async (t) => {
     const pools = [pool([kind('faces', { ready: 40, oldestReadyAt: NOW - 3 * HOUR })])];
     const answer = assessHealth({ pools, work: work(), attention: calm, services: [] }, NOW);
     assertEquals(answer.verdict, 'stuck');
-    assertEquals(answer.checks, [{ name: 'kind faces', state: 'warn', reason: '40 waiting, the oldest for 3h00m, none done in the last hour' }]);
+    assertEquals(answer.checks, [{ name: 'kind faces', state: 'ok', reason: '40 waiting, the oldest for 3h00m' }]);
   });
 
-  await t.step('a kind resting because EMS could not run it says when it is tried again', () => {
-    const pools = [pool([kind('faces', { ready: 40, restingUntil: NOW + 90_000 })])];
-    const answer = assessHealth({ pools, work: work({ completedLastHour: 12 }), attention: calm, services: [] }, NOW);
+  await t.step('a kind waiting behind other work is fine, however long it has waited', () => {
+    const onOcr = worker({ kinds: ['faces', 'ocr'], currentKind: 'ocr', running: { ocr: 2 } });
+    const pools = [pool([kind('faces', { ready: 677, oldestReadyAt: NOW - 3 * HOUR })], [onOcr])];
+    const answer = assessHealth({ pools, work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(answer.checks, [{ name: 'kind faces', state: 'ok', reason: '677 waiting behind other work, the oldest for 3h00m' }]);
+  });
+
+  await t.step('a kind waiting for an hour while the workers that take it are idle is a warning', () => {
+    const pools = [pool([kind('faces', { ready: 40, oldestReadyAt: NOW - 2 * HOUR })], [worker()])];
+    const answer = assessHealth({ pools, work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(answer.checks, [{
+      name: 'kind faces',
+      state: 'warn',
+      reason: '40 waiting, the oldest for 2h00m, and the workers that take it are idle: EiN is not handing it out. The Log tab may say why',
+    }]);
+  });
+
+  await t.step('a kind EMS turned away just now is fine, and says when it is tried again', () => {
+    const refusal = {
+      at: NOW - 60_000,
+      since: NOW - 5 * 60_000,
+      reason: 'detect-faces: ems: faces.detect model worker is not answering (ConnectionRefusedError) (model_unavailable)',
+    };
+    const resting = assessHealth({
+      pools: [pool([kind('faces', { ready: 40, restingUntil: NOW + 90_000, refusal })])],
+      work: work({ completedLastHour: 12 }),
+      attention: calm,
+      services: [],
+    }, NOW);
     // Instances finished in the last hour: the engine drains, if this kind does not.
-    assertEquals(answer.verdict, 'catching-up');
-    assertEquals(answer.checks[0].reason, '40 waiting for EMS, which could not run it yet; next try in 1m30s');
+    assertEquals(resting.verdict, 'catching-up');
+    assertEquals(resting.checks, [{ name: 'kind faces', state: 'ok', reason: '40 waiting: EMS could not run it just now, and it is tried again on its own in 1m30s' }]);
+    const handedBack = assessHealth({ pools: [pool([kind('faces', { ready: 40, refusal })], [worker()])], work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(handedBack.checks[0].reason, '40 waiting: EMS could not run it just now, and it is tried again on its own');
   });
 
-  await t.step('a kind whose steps could not run says what the last one was told', () => {
-    const refusal = { at: NOW - 120_000, reason: 'read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)' };
-    const resting = assessHealth({ pools: [pool([kind('ocr', { ready: 40, restingUntil: NOW + 90_000, refusal })])], work: work(), attention: calm, services: [] }, NOW);
-    assertEquals(
-      resting.checks[0].reason,
-      '40 waiting for EMS, which could not run it yet; next try in 1m30s; it said: read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)',
-    );
-    const stalled = assessHealth({ pools: [pool([kind('ocr', { ready: 10, oldestReadyAt: NOW - 2 * HOUR, refusal })])], work: work(), attention: calm, services: [] }, NOW);
-    assertEquals(
-      stalled.checks[0].reason,
-      '10 waiting, the oldest for 2h00m, none done in the last hour; the last could not run 2m00s ago: read-text: ems: ocr.read ems-files:2224: mount failed (files_unavailable)',
-    );
+  await t.step('a kind EMS has turned away for half an hour is a warning that says where to look', () => {
+    const refusal = {
+      at: NOW - 60_000,
+      since: NOW - 42 * 60_000,
+      reason: 'detect-faces: ems: faces.detect model worker is not answering (ConnectionRefusedError) (model_unavailable)',
+    };
+    const answer = assessHealth({ pools: [pool([kind('faces', { ready: 40, restingUntil: NOW + 90_000, refusal })])], work: work(), attention: calm, services: [] }, NOW);
+    assertEquals(answer.checks, [{
+      name: 'kind faces',
+      state: 'warn',
+      reason: '40 waiting: EMS has not been able to run it for 42m00s. See EMS on the Services tab; the Work tab shows what it answered',
+    }]);
+  });
+
+  await t.step('a refusal older than the longest pause is not what the kind waits on', () => {
+    const refusal = {
+      at: NOW - 31 * 60_000,
+      since: NOW - 35 * 60_000,
+      reason: 'detect-faces: ems: faces.detect model worker is not answering (ConnectionRefusedError) (model_unavailable)',
+    };
+    const onOcr = worker({ kinds: ['faces', 'ocr'], currentKind: 'ocr', running: { ocr: 1 } });
+    const answer = assessHealth({
+      pools: [pool([kind('faces', { ready: 677, oldestReadyAt: NOW - 3 * HOUR, refusal })], [onOcr])],
+      work: work(),
+      attention: calm,
+      services: [],
+    }, NOW);
+    assertEquals(answer.checks, [{ name: 'kind faces', state: 'ok', reason: '677 waiting behind other work, the oldest for 3h00m' }]);
   });
 
   await t.step('failed work that runs again on its own is a warning; work for a person fails', () => {

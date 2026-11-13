@@ -28,7 +28,7 @@ const RELEASE_RETRY_MS = 250;
  * one after it up to the most. Job and kind keep their own pauses.
  */
 const TEMPORARY_PAUSE_MS = 30_000;
-const TEMPORARY_PAUSE_MAX_MS = 600_000;
+export const TEMPORARY_PAUSE_MAX_MS = 600_000;
 
 /**
  * Jobs of a kind whose steps could not run yet, in a row with none of the kind completing between
@@ -132,8 +132,11 @@ export type PoolWorkerState = {
 /** Until when a kind is resting (`PoolWorkerState.resting`). */
 type KindRest = { until: number };
 
-/** A step that could not run yet (`PoolWorkerState.refused`): when, and the reason its output gave. */
-type KindRefusal = { at: number; reason: string };
+/**
+ * A step that could not run yet (`PoolWorkerState.refused`): when, since when steps of the kind
+ * have been turned away with none completing, and the reason its output gave.
+ */
+type KindRefusal = { at: number; since: number; reason: string };
 
 /**
  * Live workers in this process, keyed by owner.
@@ -919,7 +922,8 @@ export class PoolWorker {
         const refusals = (this.refusals.get(job.kind) ?? 0) + (again ? 0 : 1);
         const restMs = this.passOn || refusals >= TEMPORARY_REST_AFTER ? this.pauseKind(job.kind) : undefined;
         this.refusals.set(job.kind, restMs === undefined ? refusals : 0);
-        this.refused.set(job.kind, { at: Date.now(), reason: refusalReason(detail) });
+        const now = Date.now();
+        this.refused.set(job.kind, { at: now, since: this.refused.get(job.kind)?.since ?? now, reason: refusalReason(detail) });
         // Passed on: claimable at once by the pool's other workers, while this one rests the kind.
         if (this.passOn) delayMs = 0;
         await this.vfs.update<PipelineStepAttrs>(ADMIN_ACCESS, stepPath, {

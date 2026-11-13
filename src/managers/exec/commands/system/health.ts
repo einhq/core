@@ -1,9 +1,11 @@
 /**
  * health — is the system fine and keeping up: one verdict, and the checks it comes from.
  *
- * Core's checks are about the work. Every kind of every work pool with something waiting says
- * whether it drains, rests because EMS could not run it yet, or has no worker at all, and why its
- * last step that could not run yet could not. Failed pipeline work is either being run again on its own
+ * Core's checks are about the work, and warn only of what a person should look at. Every kind of
+ * every work pool with something waiting says whether it drains, waits for EMS, waits behind other
+ * work, or has no worker at all; it warns when EMS has turned it away for long, or when it waits
+ * while the workers that take it are idle. What EMS answered is `pool-stat`'s, not a check's.
+ * Failed pipeline work is either being run again on its own
  * (`pipeline heal`) or needs a person; input nothing can process is counted apart, since nothing
  * will ever change it. Running steps that have gone quiet and queue entries dropped after their
  * delivery attempts are listed too. A module adds checks of its own through a service's
@@ -14,17 +16,28 @@
  * aggregates — so the dashboard and `top` poll it.
  */
 
-import type { Gauge, HealthAnswer, HealthCheck, PoolStatAnswer } from '../../../../lib/api/system.ts';
+import type { Gauge, HealthAnswer, HealthCheck, PoolKindThroughput, PoolStatAnswer, PoolWorkerInfo } from '../../../../lib/api/system.ts';
 import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { readPipelineOverview } from '../pipeline/pipeline-overview.ts';
 import { statAllPools } from '../pool/pool-stat.ts';
 import { askService } from '../service/service-list.ts';
-import { fmtAge, fmtEta, HOUR } from './lib.ts';
+import { TEMPORARY_PAUSE_MAX_MS } from '../../../pipeline/pool-worker.ts';
+import { fmtAge, fmtEta, HOUR, MINUTE } from './lib.ts';
 
-/** How long the oldest job of a kind may wait, with none of the kind done in the last hour, before it is a warning. */
+/** How long the oldest job of a kind may wait, with none of it done and its workers idle, before it is a warning. */
 const STALLED_AFTER_MS = HOUR;
+
+/**
+ * How long after the last step of a kind EMS turned away the kind still waits for EMS: a turned
+ * away job is tried again after its own pause, which is at most `TEMPORARY_PAUSE_MAX_MS`. A refusal
+ * older than that is not what the kind waits on now.
+ */
+const REFUSAL_CURRENT_MS = TEMPORARY_PAUSE_MAX_MS + MINUTE;
+
+/** How long EMS may turn a kind away, with none of it done, before that is a warning and not a pause that ends. */
+const UNAVAILABLE_WARN_MS = 30 * MINUTE;
 
 /** How many quiet steps a check names; the rest are counted. */
 const QUIET_NAMED = 3;
@@ -82,6 +95,40 @@ export const readGauges = async (cmd: Command): Promise<Gauge[]> =>
 
 type Backlog = { checks: HealthCheck[]; waiting: number; draining: boolean; slowestEtaMs?: number };
 
+/** Whether a worker is on other work: running jobs, holding room for a reserved kind, or on another kind's turn. */
+const busyElsewhere = (worker: PoolWorkerInfo, kind: string): boolean =>
+  Object.values(worker.running).some((count) => count > 0) || worker.accumulatingFor !== undefined ||
+  (worker.currentKind !== undefined && worker.currentKind !== kind);
+
+/** What one kind with something waiting says, in words a person can act on or leave be. */
+const kindCheck = (kind: PoolKindThroughput, workers: PoolWorkerInfo[], now: number): Pick<HealthCheck, 'state' | 'reason'> => {
+  const left = (kind.ready + kind.claimed).toLocaleString('en');
+  const waited = kind.oldestReadyAt !== undefined ? `, the oldest for ${fmtAge(now - kind.oldestReadyAt)}` : '';
+
+  if (kind.unservableSince !== undefined) return { state: 'fail', reason: `${left} waiting, and no worker offers this kind${waited}` };
+  if (kind.perHour) return { state: 'ok', reason: `${left} left, ${kind.perHour}/h${fmtEta(kind.etaMs)}` };
+
+  const refusal = kind.refusal && now - kind.refusal.at <= REFUSAL_CURRENT_MS ? kind.refusal : undefined;
+  if (refusal && now - refusal.since >= UNAVAILABLE_WARN_MS) {
+    return {
+      state: 'warn',
+      reason: `${left} waiting: EMS has not been able to run it for ${fmtAge(now - refusal.since)}. See EMS on the Services tab; the Work tab shows what it answered`,
+    };
+  }
+  if (refusal || kind.restingUntil !== undefined) {
+    const next = kind.restingUntil !== undefined ? ` in ${fmtAge(kind.restingUntil - now)}` : '';
+    return { state: 'ok', reason: `${left} waiting: EMS could not run it just now, and it is tried again on its own${next}` };
+  }
+  if (kind.claimed > 0) return { state: 'ok', reason: `${left} waiting${waited}` };
+
+  const offering = workers.filter((worker) => worker.kinds.length === 0 || worker.kinds.includes(kind.kind));
+  if (offering.some((worker) => busyElsewhere(worker, kind.kind))) return { state: 'ok', reason: `${left} waiting behind other work${waited}` };
+  if (offering.length > 0 && kind.oldestReadyAt !== undefined && now - kind.oldestReadyAt > STALLED_AFTER_MS) {
+    return { state: 'warn', reason: `${left} waiting${waited}, and the workers that take it are idle: EiN is not handing it out. The Log tab may say why` };
+  }
+  return { state: 'ok', reason: `${left} waiting${waited}` };
+};
+
 /** One check per kind with something waiting, and what the verdict needs to know about all of them. */
 const poolChecks = (pools: PoolStatAnswer[], now: number): Backlog => {
   const backlog: Backlog = { checks: [], waiting: 0, draining: false };
@@ -99,30 +146,12 @@ const poolChecks = (pools: PoolStatAnswer[], now: number): Backlog => {
     for (const kind of pool.kinds ?? []) {
       const left = kind.ready + kind.claimed;
       if (left === 0) continue;
-      const name = `kind ${kind.kind}`;
-      const waited = kind.oldestReadyAt !== undefined ? `, the oldest for ${fmtAge(now - kind.oldestReadyAt)}` : '';
-      const refused = kind.refusal ? `; the last could not run ${fmtAge(now - kind.refusal.at)} ago: ${kind.refusal.reason}` : '';
-
       backlog.waiting += left;
-      if (kind.unservableSince !== undefined) {
-        backlog.checks.push({ name, state: 'fail', reason: `${left.toLocaleString('en')} waiting, and no worker offers this kind${waited}` });
-      } else if (kind.perHour) {
+      if (kind.perHour && kind.unservableSince === undefined) {
         backlog.draining = true;
         if (kind.etaMs !== undefined) backlog.slowestEtaMs = Math.max(backlog.slowestEtaMs ?? 0, kind.etaMs);
-        backlog.checks.push({ name, state: 'ok', reason: `${left.toLocaleString('en')} left, ${kind.perHour}/h${fmtEta(kind.etaMs)}` });
-      } else if (kind.restingUntil !== undefined) {
-        backlog.checks.push({
-          name,
-          state: 'warn',
-          reason: `${left.toLocaleString('en')} waiting for EMS, which could not run it yet; next try in ${fmtAge(kind.restingUntil - now)}${
-            kind.refusal ? `; it said: ${kind.refusal.reason}` : ''
-          }`,
-        });
-      } else if (kind.oldestReadyAt !== undefined && now - kind.oldestReadyAt > STALLED_AFTER_MS) {
-        backlog.checks.push({ name, state: 'warn', reason: `${left.toLocaleString('en')} waiting${waited}, none done in the last hour${refused}` });
-      } else {
-        backlog.checks.push({ name, state: 'ok', reason: `${left.toLocaleString('en')} waiting${waited}${refused}` });
       }
+      backlog.checks.push({ name: `kind ${kind.kind}`, ...kindCheck(kind, pool.workers, now) });
     }
   }
 
