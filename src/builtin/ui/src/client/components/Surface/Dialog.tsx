@@ -20,6 +20,9 @@ const SIZES = { sm: 460, md: 560, lg: 700, xl: 920 } as const;
 
 export type DialogSize = keyof typeof SIZES | 'screen';
 
+/** One below the full-screen frame (`FullscreenFrame`), for a dialog a full-screen route opened over. */
+const UNDER_FULLSCREEN_Z = 'calc(var(--mantine-z-index-modal) - 3)';
+
 export type DialogProps = Omit<ModalProps, 'title' | 'size' | 'padding' | 'withCloseButton' | 'radius'> & {
   title: ReactNode;
   /** A Tabler icon name, drawn in a tile before the title. */
@@ -214,15 +217,22 @@ export function Dialog(
   const { primaryColor } = useMantineTheme();
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   useBackCloses(backCloses && phone && props.opened, props.onClose);
-  // Under a route open full screen (the lightbox opened from a grid in this dialog) Escape is that
-  // route's: every open modal hears it, and this one would close as well, a second step Back. One
-  // the route opened over itself is drawn inside it, and keeps it.
+  // A route opened full screen while this dialog is open (the lightbox opened from a grid in it)
+  // goes over it: the full-screen frame stands under dialogs (`FullscreenFrame`), so this one steps
+  // below that. Escape is then the route's: every open modal hears it, and this one would close as
+  // well, a second step Back. A dialog opened while the route is up — drawn inside it, or the
+  // shell's dialog it opened — stays over it and keeps Escape.
   const surface = useContext(SurfaceContext);
-  const underFullscreen = fullscreenPath.value !== null && surface?.kind !== 'fullscreen';
+  const fullscreenUp = fullscreenPath.value !== null;
+  const [openBeforeFullscreen, setOpenBeforeFullscreen] = useState(false);
+  if (props.opened && !fullscreenUp && !openBeforeFullscreen) setOpenBeforeFullscreen(true);
+  if (!props.opened && openBeforeFullscreen) setOpenBeforeFullscreen(false);
+  const underFullscreen = fullscreenUp && openBeforeFullscreen && surface?.kind !== 'fullscreen';
   return (
     <Modal
       centered
       {...props}
+      zIndex={underFullscreen ? UNDER_FULLSCREEN_Z : props.zIndex}
       closeOnEscape={!underFullscreen && (props.closeOnEscape ?? true)}
       size={size === 'screen' ? '100%' : typeof size === 'string' && size in SIZES ? SIZES[size as keyof typeof SIZES] : size}
       xOffset={size === 'screen' ? 'var(--mantine-spacing-xl)' : props.xOffset}

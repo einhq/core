@@ -324,7 +324,8 @@ that stays inside rewrites it in place, and one that leaves (`openPage`, a link)
 surface's entry, so Back from where it led returns to the page beneath. Escape closes it unless the
 route has taken the key itself (the lightbox closes a layer over it first) or it is typed into a
 field. Its frame is a full-screen modal that fades in, as long as the lightbox's picture takes to
-grow out of its tile. An open drawer stays in view beside it: on a desktop the layout lifts the aside above
+grow out of its tile. It stands under dialogs, except one that was open before it — the map's
+cluster of pictures, whose grid opened the lightbox — which steps below it and leaves it Escape. An open drawer stays in view beside it: on a desktop the layout lifts the aside above
 full screen to the window's height, and the frame leaves it its width (`fullscreenBesideDrawer`),
 neither trapping focus nor locking scroll in it, so the chat can be read and typed in beside the
 lightbox. The top bar is covered, so the lightbox carries its drawer buttons
