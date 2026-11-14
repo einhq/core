@@ -1,10 +1,10 @@
-import { Alert, Badge, Box, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
-import { IconAlertTriangle, IconClock, IconDoorEnter, IconShare, IconUserPlus } from '@tabler/icons-react';
-import { type ReactNode, useId, useMemo, useState } from 'react';
+import { Alert, Badge, Box, Group, Paper, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
+import { IconAlertTriangle, IconDoorEnter, IconShare, IconUserPlus } from '@tabler/icons-react';
+import { type ReactNode, useId, useMemo } from 'react';
 import type { ConfigEntry } from '@ein/api';
 import type { UseConfigResult } from '../../../hooks/useConfig.ts';
 import { useIdentities } from '../../../hooks/useIdentities.ts';
-import { displayName, humanDuration, parseGroupList } from '../../../lib/accounts.ts';
+import { displayName, parseGroupList } from '../../../lib/accounts.ts';
 import { levelAt } from '../../../lib/share.ts';
 import { PageLoader } from '../../Layout/PageLoader.tsx';
 import { emptyLabel, GroupSelect, GroupsMultiSelect, parseModeSetting, PermissionsInput, UserSelect } from '../AccountInputs.tsx';
@@ -24,16 +24,13 @@ function sharingSentence(owner: string, group: string, mode: string): string {
   return `${lead}: the owner ${CAN[levelAt(bits, 6)]}, members ${CAN[levelAt(bits, 3)]}, anyone else ${CAN[levelAt(bits, 0)]}.`;
 }
 
-/** A saved number of seconds in words, or the number itself when it is not a duration. */
-const durationWords = (value: string): string => humanDuration(Number(value)) || `${value} seconds`;
-
 const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
 
 type DefaultsProps = { config: UseConfigResult };
 
 /**
- * What a new account and anything created as shared start with, whether visitors may browse, and
- * how long a sign-in lasts: the system settings that govern accounts, as four cards that each say
+ * What a new account and anything created as shared start with, and whether visitors may browse:
+ * the system settings that govern accounts, as three cards that each say
  * in a sentence what the saved values come to, with a row per setting saved on its own. A setting
  * the registry does not have is left out, and so is a card left with none.
  */
@@ -107,30 +104,8 @@ export function AccountDefaults({ config }: DefaultsProps) {
       />
     ), true),
   );
-  const sessions = present(
-    row(
-      'CFG_SESSION_MAX_AGE_SEC',
-      'Browser sign-in',
-      'How long a browser stays signed in after its last visit.',
-      (draft, entry) => <DurationInput key={entry.value} id={draft.controlId} value={draft.value} onChange={draft.setValue} disabled={draft.busy} />,
-    ),
-    row(
-      'CFG_SESSION_EXPIRES_SEC',
-      'Idle session',
-      'How long a session lasts unused. A change applies to new sign-ins.',
-      (draft, entry) => <DurationInput key={entry.value} id={draft.controlId} value={draft.value} onChange={draft.setValue} disabled={draft.busy} />,
-    ),
-  );
-
   const defaultGroups = parseGroupList(saved('CFG_DEFAULT_USER_GROUPS') ?? '');
   const owner = saved('CFG_DEFAULT_SHARE_OWNER');
-  const cookie = saved('CFG_SESSION_MAX_AGE_SEC');
-  const idle = saved('CFG_SESSION_EXPIRES_SEC');
-  const sessionClauses = [
-    cookie !== undefined && `a browser stays signed in for ${durationWords(cookie)} after its last visit`,
-    idle !== undefined && `a session unused for ${durationWords(idle)} ends`,
-  ].filter((clause): clause is string => Boolean(clause));
-  const sessionSentence = sessionClauses.join(', and ');
 
   return (
     <Stack gap='lg'>
@@ -172,17 +147,6 @@ export function AccountDefaults({ config }: DefaultsProps) {
             caption='What anything created as shared starts with.'
           >
             {sharing}
-          </DefaultsCard>
-        )}
-
-        {sessions.length > 0 && (
-          <DefaultsCard
-            hue='violet'
-            icon={<IconClock size={22} />}
-            title='Sign-in sessions'
-            state={`${sessionSentence[0].toUpperCase()}${sessionSentence.slice(1)}.`}
-          >
-            {sessions}
           </DefaultsCard>
         )}
       </SimpleGrid>
@@ -270,59 +234,5 @@ function DefaultRow({ entry, save, reset, label, help, control, wide }: DefaultR
       {draft.note && <Text size='xs' c='dimmed' mt='xs'>{draft.note}</Text>}
       {draft.error && <Alert color='red' icon={<IconAlertTriangle size={16} />} p='xs' mt='xs'>{draft.error}</Alert>}
     </Box>
-  );
-}
-
-const UNITS = [
-  { seconds: 86400, one: 'day', many: 'days' },
-  { seconds: 3600, one: 'hour', many: 'hours' },
-  { seconds: 60, one: 'minute', many: 'minutes' },
-  { seconds: 1, one: 'second', many: 'seconds' },
-];
-
-/** The largest unit a number of seconds is a whole count of. */
-const unitFor = (seconds: number): number => UNITS.find((unit) => seconds > 0 && seconds % unit.seconds === 0)?.seconds ?? 1;
-
-type DurationInputProps = { id: string; value: string; onChange: (next: string) => void; disabled: boolean };
-
-/**
- * A number of seconds, the value a setting holds, as a count of days, hours, minutes or seconds. It
- * starts in the largest unit the value is a whole count of; choosing another unit keeps the count,
- * so typing 2 and choosing days makes two days. A value the chosen unit does not divide is shown in
- * the unit that does.
- */
-function DurationInput({ id, value, onChange, disabled }: DurationInputProps) {
-  const seconds = value === '' ? Number.NaN : Number(value);
-  const [chosen, setChosen] = useState(() => unitFor(seconds));
-  const valid = Number.isFinite(seconds);
-  const unit = valid && seconds % chosen !== 0 ? unitFor(seconds) : chosen;
-  const count = valid ? seconds / unit : '';
-
-  return (
-    <Group gap='xs' wrap='nowrap'>
-      <NumberInput
-        id={id}
-        value={count}
-        disabled={disabled}
-        min={1}
-        allowNegative={false}
-        allowDecimal={false}
-        style={{ flex: 1, minWidth: 0 }}
-        onChange={(next) => onChange(next === '' ? '' : String(Number(next) * unit))}
-      />
-      <Select
-        aria-label='Unit'
-        w={112}
-        data={UNITS.map((option) => ({ value: String(option.seconds), label: count === 1 ? option.one : option.many }))}
-        value={String(unit)}
-        disabled={disabled}
-        allowDeselect={false}
-        onChange={(next) => {
-          if (!next) return;
-          setChosen(Number(next));
-          if (typeof count === 'number') onChange(String(count * Number(next)));
-        }}
-      />
-    </Group>
   );
 }

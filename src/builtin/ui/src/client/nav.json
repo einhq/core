@@ -214,6 +214,26 @@
       "route": "/settings/language",
       "admin": true,
       "order": 10
+    },
+    {
+      "id": "ui.sign-in",
+      "slot": "settings.views",
+      "label": "Sign-in",
+      "description": "How long a browser stays signed in unused, and how long a share link's browser keeps it.",
+      "icon": "login",
+      "route": "/settings/sign-in",
+      "admin": true,
+      "order": 15
+    },
+    {
+      "id": "ui.module-sources",
+      "slot": "settings.views",
+      "label": "Module sources",
+      "description": "Where published modules are looked for, and the tokens for private ones.",
+      "icon": "puzzle",
+      "route": "/settings/module-sources",
+      "admin": true,
+      "order": 90
     }
   ]
 }
