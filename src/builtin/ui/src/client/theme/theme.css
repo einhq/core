@@ -538,7 +538,7 @@ html.mrx-page-covered {
   transition: padding-inline-start var(--mrx-dur-base) var(--mrx-ease);
 }
 
-.mrx-entity-header[data-stuck] .mrx-header-tabs {
+.mrx-entity-header[data-stuck][data-row='tabs'] .mrx-header-tabs {
   padding-inline-start: calc(var(--mrx-header-inset) + var(--mrx-header-start, 0px));
 }
 
@@ -578,7 +578,7 @@ html.mrx-page-covered {
   padding-inline-end: var(--mrx-header-end, 0px);
 }
 
-.mrx-entity-header[data-stuck] .mrx-header-tabs {
+.mrx-entity-header[data-stuck][data-row='tabs'] .mrx-header-tabs {
   padding-inline-end: calc(var(--mrx-header-inset) + var(--mrx-header-end, 0px));
 }
 
@@ -1379,16 +1379,6 @@ html.mrx-page-covered {
 .mrx-header-tabs-controls {
   flex: 0 0 auto;
   margin-bottom: var(--mrx-header-inset);
-}
-
-/* A search box in the row takes what the tabs leave it, and its choices fold to fit there. */
-.mrx-header-tabs:has(.mrx-header-filter-bar) .mrx-header-tabs-list {
-  flex: 0 0 auto;
-}
-
-.mrx-header-tabs-controls:has(.mrx-header-filter-bar) {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 .mrx-header-tabs .mantine-Tabs-list {

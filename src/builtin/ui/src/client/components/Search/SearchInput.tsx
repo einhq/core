@@ -3,7 +3,16 @@ import { IconAlbum, IconArrowRight, IconCamera, IconMapPin, IconSearch, IconTag,
 import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useMentionComplete } from '../../hooks/useMentionComplete.ts';
 import { usePhone } from '../../hooks/usePhone.ts';
-import { applyCompletion, filtersFromMentions, type Mention, MENTION_KINDS, mentionAtCaret, type MentionKind, parseMentions } from '../../lib/mentions.ts';
+import {
+  applyCompletion,
+  filtersFromMentions,
+  type Mention,
+  MENTION_KINDS,
+  mentionAtCaret,
+  type MentionChoices,
+  type MentionKind,
+  parseMentions,
+} from '../../lib/mentions.ts';
 import type { SearchFilters } from '../../lib/search-filters.ts';
 
 const KIND_ICON: Record<MentionKind, React.ReactNode> = {
@@ -31,6 +40,8 @@ export type SearchInputProps = {
   filters?: SearchFilters;
   /** Which kinds an `@` may resolve to here. The map has no use for an album. */
   kinds?: readonly MentionKind[];
+  /** What an `@` picks from, for the kinds the page knows better than the archive; see `MentionChoices`. */
+  choices?: MentionChoices;
   placeholder?: string;
   /**
    * What the box says on a phone, where it shares a header line with the choice
@@ -73,6 +84,7 @@ export function SearchInput({
   onCommit,
   filters = {},
   kinds = MENTION_KINDS,
+  choices,
   placeholder: fullPlaceholder = 'Search — type @ for a person, location, label or camera',
   shortPlaceholder = 'Search…',
   size = 'md',
@@ -99,7 +111,7 @@ export function SearchInput({
   const completed = run !== undefined && mentions.some((known) => run.query.startsWith(`${known.label} `));
   const open = focused && run !== undefined && !completed && dismissed !== run.query;
 
-  const { suggestions, loading } = useMentionComplete(open ? run.query : undefined, kinds);
+  const { suggestions, loading } = useMentionComplete(open ? run.query : undefined, kinds, choices);
 
   useEffect(() => setHighlighted(0), [suggestions.length, run?.query]);
 

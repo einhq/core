@@ -45,6 +45,12 @@ export type EntityDetailHeaderProps = {
    */
   controls?: ReactNode;
   /**
+   * Put `controls` under the title, above `tabs`, rather than at the end of the tabs' row: for a
+   * search box, which wants the width. Scrolled down, the header then stays on screen from the
+   * controls down, the box above the tabs.
+   */
+  controlsAbove?: boolean;
+  /**
    * Centred at the top of the header, with the title and controls kept at its
    * foot. For what the page is *of* rather than how its list is narrowed — the
    * timeline's year.
@@ -113,7 +119,8 @@ const headerName = ({ title, name }: { title: ReactNode; name?: string }): strin
  * belong to, while its fallback preserves a useful shape before a cover exists.
  *
  * Scrolled down, a page's header stays on screen as its last row under the app header — the
- * tabs, else the controls, else the title (`useStuckHeader`). At the row's right end it keeps ⋮
+ * tabs, else the controls, else the title (`useStuckHeader`); controls above the tabs
+ * (`controlsAbove`) stay with them. At the row's right end it keeps ⋮
  * with every action in it. The page's name slides in at its left, pushing the row's own content
  * aside, where the row has the width for it; not on a phone, where the row needs it and the
  * reader knows where they are. On a phone the controls stand under the title, never in the tabs'
@@ -134,6 +141,7 @@ export function EntityDetailHeader({
   meta,
   actions,
   controls,
+  controlsAbove,
   top,
   edge,
   tabs,
@@ -165,7 +173,9 @@ export function EntityDetailHeader({
   usePageSubject({ title: shown || undefined, about: textOf(subtitle).replace(/\s+/g, ' ').trim().slice(0, 200), node: path });
   const phone = usePhone();
   const floating = onPage && phone && Boolean(controls);
-  const row = tabs ? 'tabs' : controls && !floating ? 'controls' : 'title';
+  // Controls stand under the title without tabs, on a phone, or when asked to stand above the tabs.
+  const controlsUnderTitle = Boolean(controls) && (!tabs || floating || Boolean(controlsAbove));
+  const row = controls && !floating && (!tabs || controlsAbove) ? 'controls' : tabs ? 'tabs' : 'title';
   const rowRef = { tabs: tabsRef, controls: controlsRef, title: titleRef }[row];
   const sticks = onPage && !(floating && !tabs);
   const startShown = sticks && row !== 'title';
@@ -254,7 +264,7 @@ export function EntityDetailHeader({
           <Title ref={titleRef} order={1} c='white' style={{ minWidth: 0 }}>{title}</Title>
           {subtitle && <Box className='mrx-entity-header-subtitle'>{subtitle}</Box>}
           {meta}
-          {controls && (!tabs || floating) && (
+          {controlsUnderTitle && (
             <Group ref={controlsRef} className='mrx-entity-header-controls' justify='flex-end' gap='xs' wrap='wrap'>
               {controls}
             </Group>
@@ -264,7 +274,7 @@ export function EntityDetailHeader({
       {tabs && (
         <Group ref={tabsRef} className='mrx-header-tabs' justify='space-between' align='flex-end' gap='xs' wrap='nowrap'>
           <Box className='mrx-header-tabs-list'>{tabs}</Box>
-          {controls && !floating && <Group className='mrx-header-tabs-controls' gap='xs' wrap='nowrap'>{controls}</Group>}
+          {controls && !controlsUnderTitle && <Group className='mrx-header-tabs-controls' gap='xs' wrap='nowrap'>{controls}</Group>}
         </Group>
       )}
     </Box>

@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.5
+MODULE_API_VERSION 0.15.6
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -41,8 +41,8 @@ src/builtin/ui/src/client/components/mod.ts EndpointTile 83de8a4c1a88 0|91ede0e2
 src/builtin/ui/src/client/components/mod.ts EndpointTileProps 8439d948870b accent=bc6c4d7bff63,device=dc9837b78932,deviceClass=72f9156d826f,endpoint=42067e0413c9,hint=24a649a7fad6,onChanged=bd31d5cad125,onHistory=d9310ea22ebf
 src/builtin/ui/src/client/components/mod.ts EntityCard bdfa848c4438 @signature=99852784014a,actions=005ff511c0f1,badges=c02f3d7fe751,count=6df73e5061be,coverArt=cac94e1866c7,coverFallbackUrl=ba0e53afc5d7,coverUrl=d2446c6c560b,description=1eca5f329f27,hoverText=543735f56512,icon=e19ec288ae0e,kind=9ad24a8ea093,labels=b28629cde56d,onClick=cba05844a02b,ref=511ba5f88038,timeEnd=1a3dee97ab1f,timeStart=cb48594b2603,title=ba1f3813786d
 src/builtin/ui/src/client/components/mod.ts EntityCardProps f618ee80210f actions=4a9846562f25,badges=c9971ae80b8e,count=5f7a2d24acdb,coverArt=13334900f2fd,coverFallbackUrl=f68d34af019e,coverUrl=eb10bba52e9f,description=644be3c4d4da,hoverText=0067139bb7e6,icon=222dd4ce501e,kind=2391e1624d2d,labels=f3fc6f89a365,onClick=5ff6a038515f,ref=efc9f2baf0e6,timeEnd=d9349e5d58b6,timeStart=03ab81ef701d,title=f6007128d157
-src/builtin/ui/src/client/components/mod.ts EntityDetailHeader fbddddb26493 @signature=f2a3a0e7519f,actions=005ff511c0f1,backdrop=75d2e08758d9,controls=a1e5bc118cc8,coverArt=cac94e1866c7,coverColor=0f72f706e353,coverSize=92109be7d02a,edge=94e28ed49dda,eyebrow=d6a363cb099b,fallback=1b3561dec407,flowContent=c44e1bfe7cb9,meta=4364a6154847,name=f4920a31bbd9,path=aa6112178522,pattern=1c45d7add5c6,subtitle=568353181efa,tabs=a5db0838bf7e,title=ba1f3813786d,top=2bcc37807c03
-src/builtin/ui/src/client/components/mod.ts EntityDetailHeaderProps 751142b1d000 actions=8b88fa08a68a,backdrop=66bf7051c035,controls=f206ea35bb76,coverArt=13334900f2fd,coverColor=0dd63ca9d1e1,coverSize=92d3d62857cd,edge=57521e6cb074,eyebrow=8b6573ec6050,fallback=6468dba14234,flowContent=883cfbbea9bf,meta=919c90ace420,name=c67d65ad40bc,path=c29ab32b39f5,pattern=09e5d5fae91d,subtitle=c355e83f8803,tabs=4f6cab28e36f,title=d76b713758f6,top=dd400ed1eaf6
+src/builtin/ui/src/client/components/mod.ts EntityDetailHeader d761a40ff172 @signature=f2a3a0e7519f,actions=005ff511c0f1,backdrop=75d2e08758d9,controls=a1e5bc118cc8,controlsAbove=d759425fb964,coverArt=cac94e1866c7,coverColor=0f72f706e353,coverSize=92109be7d02a,edge=94e28ed49dda,eyebrow=d6a363cb099b,fallback=1b3561dec407,flowContent=c44e1bfe7cb9,meta=4364a6154847,name=f4920a31bbd9,path=aa6112178522,pattern=1c45d7add5c6,subtitle=568353181efa,tabs=a5db0838bf7e,title=ba1f3813786d,top=2bcc37807c03
+src/builtin/ui/src/client/components/mod.ts EntityDetailHeaderProps ba1e9d3ff10b actions=8b88fa08a68a,backdrop=66bf7051c035,controls=f206ea35bb76,controlsAbove=13367cec9ffd,coverArt=13334900f2fd,coverColor=0dd63ca9d1e1,coverSize=92d3d62857cd,edge=57521e6cb074,eyebrow=8b6573ec6050,fallback=6468dba14234,flowContent=883cfbbea9bf,meta=919c90ace420,name=c67d65ad40bc,path=c29ab32b39f5,pattern=09e5d5fae91d,subtitle=c355e83f8803,tabs=4f6cab28e36f,title=d76b713758f6,top=dd400ed1eaf6
 src/builtin/ui/src/client/components/mod.ts EnvironmentReference d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts ExploreRow 40e9de491874 @signature=0c8ff7c06470,children=f8549eefbbf8
 src/builtin/ui/src/client/components/mod.ts ExploreSection b9d16150d86a @signature=68af475426bf,children=f8549eefbbf8,icon=e19ec288ae0e,title=ba1f3813786d,to=719a16ee34d7
@@ -158,8 +158,8 @@ src/builtin/ui/src/client/components/mod.ts STATS_COLORS 3183dc024f24
 src/builtin/ui/src/client/components/mod.ts SURFACE_GAP_PX dbd840972c7a
 src/builtin/ui/src/client/components/mod.ts SaveBar ff8db3054b1c @signature=141c8c8f653c,blocked=f7d749ae644b,dirty=8a66c5c0ef20,onCancel=9e4690a3ee22,onSave=3cc48c88fec7,save=5c45515747f4
 src/builtin/ui/src/client/components/mod.ts ScrollBox fef3b62e453a
-src/builtin/ui/src/client/components/mod.ts SearchInput 3a4ebc42a64d @signature=30017441444c,autoFocus=6aaa5f315c6f,filters=9327fbb37576,kinds=04107b07068a,leftSection=860a635fda34,mentions=cf3a6e239a2e,onChange=9f54af0b3372,onCommit=4b88ce727cf3,onMentionsChange=6fae2c97e499,pills=1521c669a129,placeholder=14bc2ccef45b,rightSection=b36e64471863,shortPlaceholder=2ad94825033b,size=cb7a277af2d3,submitIcon=ad10ada5a248,value=9c19b817e1d4
-src/builtin/ui/src/client/components/mod.ts SearchInputProps 62f32266a956 autoFocus=78bc6d38f766,filters=4af00d9a03b5,kinds=dffa47c2df76,leftSection=0ade2d9fd663,mentions=ae1d8e2d4d20,onChange=6c8049023f89,onCommit=f7836281aae6,onMentionsChange=3a6b08a7899f,pills=61c06992aaa6,placeholder=ceab9a4efe5b,rightSection=d5d4ab3eb138,shortPlaceholder=add6fa0655ae,size=2569de6b74f3,submitIcon=d1c5297f8f85,value=5647ee15e4bf
+src/builtin/ui/src/client/components/mod.ts SearchInput 47932a02a1b6 @signature=30017441444c,autoFocus=6aaa5f315c6f,choices=995e166e8c5a,filters=9327fbb37576,kinds=04107b07068a,leftSection=860a635fda34,mentions=cf3a6e239a2e,onChange=9f54af0b3372,onCommit=4b88ce727cf3,onMentionsChange=6fae2c97e499,pills=1521c669a129,placeholder=14bc2ccef45b,rightSection=b36e64471863,shortPlaceholder=2ad94825033b,size=cb7a277af2d3,submitIcon=ad10ada5a248,value=9c19b817e1d4
+src/builtin/ui/src/client/components/mod.ts SearchInputProps fefc68bfd605 autoFocus=78bc6d38f766,choices=6dcf94e3c7f6,filters=4af00d9a03b5,kinds=dffa47c2df76,leftSection=0ade2d9fd663,mentions=ae1d8e2d4d20,onChange=6c8049023f89,onCommit=f7836281aae6,onMentionsChange=3a6b08a7899f,pills=61c06992aaa6,placeholder=ceab9a4efe5b,rightSection=d5d4ab3eb138,shortPlaceholder=add6fa0655ae,size=2569de6b74f3,submitIcon=d1c5297f8f85,value=5647ee15e4bf
 src/builtin/ui/src/client/components/mod.ts SearchPills 63cc2965e173 @signature=934628f8f3b2,filters=0e12378283f6,nameOf=9bc2f08daf46,onPatch=79f497729b09
 src/builtin/ui/src/client/components/mod.ts SearchPillsProps 8a35bd3cac9c filters=b7dc0a27dbf3,nameOf=ff294c2ee983,onPatch=decfabdac41e
 src/builtin/ui/src/client/components/mod.ts SearchResultCard f55cb9456707 @signature=ccbe378ebe9e,actions=005ff511c0f1,result=3adb4df2fa81
@@ -361,7 +361,7 @@ src/builtin/ui/src/client/hooks/mod.ts useLocalDay dd3b444eb293
 src/builtin/ui/src/client/hooks/mod.ts useLogFollow 2262a87fe706
 src/builtin/ui/src/client/hooks/mod.ts useLogTail c442c479f0e1
 src/builtin/ui/src/client/hooks/mod.ts useMediaSelection 88a1d931da33 0|94d5131d984e=94d5131d984e,@signature=8177a37317c2
-src/builtin/ui/src/client/hooks/mod.ts useMentionComplete 22ba1db2a8f1
+src/builtin/ui/src/client/hooks/mod.ts useMentionComplete c3fbdfb51d20
 src/builtin/ui/src/client/hooks/mod.ts useModuleReference 0d719d8f1391
 src/builtin/ui/src/client/hooks/mod.ts useNodeAttrs 4cd44609a939 0|336e2b46aff6=336e2b46aff6,1|c06d55bc013d=c06d55bc013d,@signature=a143903ea66d
 src/builtin/ui/src/client/hooks/mod.ts useNodeEvents 08ae350229e9 0|20775459a06d=20775459a06d,1|182435618c6b=182435618c6b,@signature=c230a46e5b81
@@ -438,6 +438,7 @@ src/builtin/ui/src/client/lib/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49
 src/builtin/ui/src/client/lib/mod.ts MediaRef 02bd0cb51eb3 angle=52c82d269c12,atSeconds=bf3de232cfcd,duration=b84d0f7db628,hasDerivatives=df766730f247,height=64579e3c11b3,memberPath=c769fc41a1c3,mimetype=fc3dc85c3380,name=c67d65ad40bc,ownership=31113890f47e,path=3fd20668ef6e,pinned=32304c8f670c,sar=abb483ae5649,score=38db802af810,stackAlbumPath=14882f77a783,stackCount=a48b3d338e26,takenAt=b8695a78b354,type=3552eaad6859,width=a3309c29fc2e
 src/builtin/ui/src/client/lib/mod.ts MediaSet 02c9980f67f0 items=b1f3f404c850,truncated=ee81b8046300
 src/builtin/ui/src/client/lib/mod.ts Mention fe99286e3e05 kind=c9d048d9063b,label=af04505f402e,value=5647ee15e4bf
+src/builtin/ui/src/client/lib/mod.ts MentionChoices b7afc323804c
 src/builtin/ui/src/client/lib/mod.ts MentionKind 93dda76819d9
 src/builtin/ui/src/client/lib/mod.ts ModeBit 12d0838a94fe
 src/builtin/ui/src/client/lib/mod.ts ModeClass 3bb9fe52c00e

@@ -44,6 +44,12 @@ export type Mention = {
   value: string;
 };
 
+/**
+ * What an `@` may pick, kind by kind, where a page knows better than the whole archive: an
+ * album's own people. A kind with a list completes from it alone, in its order.
+ */
+export type MentionChoices = { readonly [kind in MentionKind]?: readonly Mention[] };
+
 /** What committing a box produced. */
 export type ParsedInput = {
   /** Everything that was not a mention, collapsed. */

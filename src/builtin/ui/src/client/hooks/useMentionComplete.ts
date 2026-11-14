@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { EntityCompleteHit as EntityCompleteAnswer, EntityCompleteResult } from '@ein/api';
 import { execCommand } from '../signals/shell-client.ts';
 import { shq } from '../lib/shquote.ts';
-import { type Mention, MENTION_KINDS, type MentionKind } from '../lib/mentions.ts';
+import { type Mention, MENTION_KINDS, type MentionChoices, type MentionKind } from '../lib/mentions.ts';
 import { matchesText } from '../lib/text-match.ts';
 import { useLabels } from './useLabels.ts';
 
@@ -11,6 +11,9 @@ const DEBOUNCE_MS = 150;
 
 /** Suggestions shown at once. More than this is a list to read, not one to pick from. */
 const LIMIT = 8;
+
+/** No kind given a list: every one completes from the archive. */
+const NO_CHOICES: MentionChoices = {};
 
 export type EntityCompleteKind = Exclude<MentionKind, 'label'>;
 
@@ -100,7 +103,8 @@ export function useEntityComplete(
  *
  * Labels are matched here rather than by the command, because a label is not a
  * node — it is a `/tags/<label>` directory of softlinks — and the list is
- * already in hand from `useLabels`.
+ * already in hand from `useLabels`. So is every kind the page gave a list of
+ * (`choices`), which the command is not asked for.
  *
  * `query` of undefined means no run is open, which cancels rather than searches:
  * closing the popup must not leave a request in flight that reopens it.
@@ -108,10 +112,11 @@ export function useEntityComplete(
 export function useMentionComplete(
   query: string | undefined,
   kinds: readonly MentionKind[] = MENTION_KINDS,
+  choices: MentionChoices = NO_CHOICES,
 ): UseMentionCompleteResult {
   const { labels } = useLabels();
   const kindKey = kinds.join(',');
-  const remote = kinds.filter((kind): kind is EntityCompleteKind => kind !== 'label');
+  const remote = kinds.filter((kind): kind is EntityCompleteKind => kind !== 'label' && !choices[kind]);
   const { hits, loading } = useEntityComplete(query, remote);
 
   const suggestions = useMemo((): Mention[] => {
@@ -121,10 +126,14 @@ export function useMentionComplete(
     const needle = query.trim().toLowerCase();
 
     const local: Mention[] = wanted.has('label')
-      ? labels
+      ? (choices.label ?? labels.map((entry) => ({ kind: 'label' as const, label: entry.label, value: entry.label })))
         .filter((entry) => matchesText([entry.label], needle))
-        .map((entry) => ({ kind: 'label' as const, label: entry.label, value: entry.label }))
       : [];
+
+    const given: Mention[] = [...wanted]
+      .filter((kind) => kind !== 'label')
+      .flatMap((kind) => choices[kind] ?? [])
+      .filter((entry) => matchesText([entry.label], needle));
 
     const remote: Mention[] = hits
       .filter((hit) => wanted.has(hit.kind))
@@ -134,8 +143,8 @@ export function useMentionComplete(
     // command scored those properly and this side only substring-matched.
     const exact = local.filter((label) => label.value.toLowerCase() === needle);
     const rest = local.filter((label) => label.value.toLowerCase() !== needle);
-    return [...exact, ...remote, ...rest].slice(0, LIMIT);
-  }, [query, kindKey, hits, labels]);
+    return [...exact, ...given, ...remote, ...rest].slice(0, LIMIT);
+  }, [query, kindKey, hits, labels, choices]);
 
   return { suggestions, loading: loading && suggestions.length === 0 };
 }
