@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Paper, Stack } from '@mantine/core';
 import { IconAlertTriangle, IconChevronLeft, IconPackages, IconPlus } from '@tabler/icons-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useElementWidth } from '../../../hooks/useElementWidth.ts';
 import { usePhone } from '../../../hooks/usePhone.ts';
@@ -131,9 +131,17 @@ export function ModulesTab() {
   );
 
   const detail = (
-    <Paper withBorder={!flat} bg={flat ? 'transparent' : undefined} radius='md' className='mrx-settings-detail'>
+    <Paper withBorder={!flat} bg={flat ? 'transparent' : undefined} radius='md' className='mrx-settings-detail' data-flat={flat || undefined}>
       <PaneScroll scrolls={!narrow} viewportRef={detailRef}>
-        <Box p={flat ? 0 : narrow ? 'md' : 'lg'}>
+        <Box
+          p={flat ? 0 : narrow ? 'md' : 'lg'}
+          // How far the box's edges are, for the module panel's header to reach them: its padding, and
+          // beside the list the scroll area's gutter for its scrollbar.
+          style={{
+            '--mrx-detail-pad': flat ? '0px' : `var(--mantine-spacing-${narrow ? 'md' : 'lg'})`,
+            '--mrx-detail-gutter': narrow ? '0px' : 'var(--scrollarea-scrollbar-size, 0px)',
+          } as CSSProperties}
+        >
           {published
             ? <AddModule installed={all} install={install} onStarted={refreshInstall} onOpenModule={(name) => go(name)} />
             : firstLoad

@@ -3735,6 +3735,18 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
   );
 }
 
+/* In the Modules tab's box the tile is a band across its top, out to the box's edges: past its
+ * padding (`--mrx-detail-pad`) and, beside the list, the scrollbar's gutter (`--mrx-detail-gutter`),
+ * its top corners the box's. On a phone, where the panel is no box, it stays a tile. */
+.mrx-settings-detail:not([data-flat]) .mrx-module-tile {
+  --mrx-band-pad: var(--mrx-detail-pad, 0px);
+  --mrx-band-end: calc(var(--mrx-band-pad) + var(--mrx-detail-gutter, 0px));
+  margin: calc(-1 * var(--mrx-band-pad)) calc(-1 * var(--mrx-band-end)) 0 calc(-1 * var(--mrx-band-pad));
+  padding: var(--mrx-band-pad) var(--mrx-band-end) var(--mrx-band-pad) var(--mrx-band-pad);
+  border-width: 0 0 1px;
+  border-radius: calc(var(--mantine-radius-md) - 1px) calc(var(--mantine-radius-md) - 1px) 0 0;
+}
+
 /* The module pane's tabs: tight enough that a module with every one has them on one line beside the
  * list. A line still too long scrolls sideways rather than wrapping, under a thin scrollbar, and on
  * a phone under none. */
