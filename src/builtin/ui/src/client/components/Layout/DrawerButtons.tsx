@@ -1,4 +1,4 @@
-import { ActionIcon, Menu, Tooltip } from '@mantine/core';
+import { ActionIcon, type FloatingPosition, Menu, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
 import { closeDialog, dialogPath, DRAWER_BESIDE_QUERY, drawerShows, openDialog, routeBase, toggleDrawer, uiNav } from '@ein/ui/signals';
@@ -34,14 +34,25 @@ const toggleOverFullscreen = (route: string): void => {
  * The navigation's drawer buttons (the chat's), for a full-screen route that covers the top bar: they
  * open and close the route beside it, or over it where the drawer would be out of sight beneath it
  * (`toggleOverFullscreen`). Where its row has no room for them, the route uses `DrawerMenuItems`.
+ * Their icons are `color`, and `activeColor` while their route is open; `hideOpen` leaves an open
+ * one out instead, for a place where the drawer's own close button is enough.
  */
-export function DrawerButtons({ iconSize = 20, activeColor = 'var(--mrx-accent)' }: { iconSize?: number; activeColor?: string }) {
+export function DrawerButtons(
+  { iconSize = 20, color = 'white', activeColor = 'var(--mrx-accent)', hideOpen = false, tooltipPosition }: {
+    iconSize?: number;
+    color?: string;
+    activeColor?: string;
+    hideOpen?: boolean;
+    tooltipPosition?: FloatingPosition;
+  },
+) {
   useSignals();
   const beside = useMediaQuery(DRAWER_BESIDE_QUERY, false, { getInitialValueInEffect: false });
   return drawerEntries().map(({ route, ...entry }) => {
     const open = beside ? drawerShows(route) : dialogShows(route);
+    if (open && hideOpen) return null;
     return (
-      <Tooltip key={entry.id} label={entry.title} withArrow>
+      <Tooltip key={entry.id} label={entry.title} position={tooltipPosition} withArrow>
         <ActionIcon
           variant='subtle'
           color='gray'
@@ -51,7 +62,7 @@ export function DrawerButtons({ iconSize = 20, activeColor = 'var(--mrx-accent)'
           aria-pressed={open}
           style={{ pointerEvents: 'auto' }}
         >
-          <TablerIcon name={entry.icon} size={iconSize} style={{ color: open ? activeColor : 'white' }} />
+          <TablerIcon name={entry.icon} size={iconSize} style={{ color: open ? activeColor : color }} />
         </ActionIcon>
       </Tooltip>
     );

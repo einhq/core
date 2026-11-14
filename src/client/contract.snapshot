@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.6
+MODULE_API_VERSION 0.15.7
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -31,7 +31,7 @@ src/builtin/ui/src/client/components/mod.ts DocView 110184de647a @signature=7315
 src/builtin/ui/src/client/components/mod.ts DocsSearch eacec7f4753c @signature=ba470b507e37,guide=4220e08b926e,query=38c93561f293
 src/builtin/ui/src/client/components/mod.ts DocsSidebar 4e88851f73fb @signature=00ad2bddeb22,guide=4220e08b926e,loading=248c243176bd,onNavigate=baa1abc172f4
 src/builtin/ui/src/client/components/mod.ts DocsSidebarProps cd3c186c8809 guide=1aadab67a01c,loading=dc098a42525d,onNavigate=82d730b55ce2
-src/builtin/ui/src/client/components/mod.ts DrawerButtons 62c1d9608efc @signature=73e6f9df646c,activeColor=4f37d1d67189,iconSize=4033ac489609
+src/builtin/ui/src/client/components/mod.ts DrawerButtons a2350048450a @signature=928680b736dd,activeColor=4f37d1d67189,color=b015d6237c62,hideOpen=06ed10d352d5,iconSize=4033ac489609,tooltipPosition=52962ef59f0d
 src/builtin/ui/src/client/components/mod.ts DrawerHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts DrawerMenuItems e7506efc7616 @signature=5af85515442f,iconSize=4033ac489609
 src/builtin/ui/src/client/components/mod.ts EDIT_COLOR e6ada91bd673
