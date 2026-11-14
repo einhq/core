@@ -1381,6 +1381,16 @@ html.mrx-page-covered {
   margin-bottom: var(--mrx-header-inset);
 }
 
+/* A search box in the row takes what the tabs leave it, and its choices fold to fit there. */
+.mrx-header-tabs:has(.mrx-header-filter-bar) .mrx-header-tabs-list {
+  flex: 0 0 auto;
+}
+
+.mrx-header-tabs-controls:has(.mrx-header-filter-bar) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .mrx-header-tabs .mantine-Tabs-list {
   flex-wrap: nowrap;
   gap: 4px;
@@ -3598,11 +3608,6 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
 .mrx-floating-controls .mantine-ActionIcon-root:not(.mantine-Input-section *) svg {
   width: 24px;
   height: 24px;
-}
-
-/* With tabs the header stays stuck at its tab row, which leaves the floating copy the controls. */
-.mrx-entity-header[data-float-controls][data-stuck] .mrx-header-tabs-controls {
-  visibility: hidden;
 }
 
 /* The Settings tabs that list entries beside the open one: Users, Groups and Modules (`ListDetail`).

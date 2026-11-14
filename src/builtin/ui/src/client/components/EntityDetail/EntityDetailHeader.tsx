@@ -40,8 +40,8 @@ export type EntityDetailHeaderProps = {
   actions?: PageActions;
   /**
    * How the page's list is narrowed and ordered: under the title, or at the right end of `tabs`'
-   * row. On a phone, once the header has scrolled away — all of it, or all but `tabs` — they float
-   * over the page's foot instead (`FloatingControls`).
+   * row. On a phone they are under the title, tabs or not, and once the header has scrolled away —
+   * all of it, or all but `tabs` — they float over the page's foot instead (`FloatingControls`).
    */
   controls?: ReactNode;
   /**
@@ -61,7 +61,7 @@ export type EntityDetailHeaderProps = {
    * The page's `Tabs.List`, standing on the header's bottom edge: the selected
    * tab takes the page's own surface, so it reads as the top of the panel below
    * it. The page wraps header and panels in one `Tabs`, which the list finds by
-   * context. The `controls` stand at the row's right end. Not with `edge`, which holds the same edge.
+   * context. The `controls` stand at the row's right end, except on a phone. Not with `edge`, which holds the same edge.
    */
   tabs?: ReactNode;
   /**
@@ -116,8 +116,9 @@ const headerName = ({ title, name }: { title: ReactNode; name?: string }): strin
  * tabs, else the controls, else the title (`useStuckHeader`). At the row's right end it keeps ⋮
  * with every action in it. The page's name slides in at its left, pushing the row's own content
  * aside, where the row has the width for it; not on a phone, where the row needs it and the
- * reader knows where they are. On a phone the controls leave that row and float over the page's
- * foot instead (`FloatingControls`), so a header without tabs scrolls away whole.
+ * reader knows where they are. On a phone the controls stand under the title, never in the tabs'
+ * row, leave with the content and float over the page's foot instead (`FloatingControls`), so a
+ * header without tabs scrolls away whole.
  *
  * It also declares the page's subject (`usePageSubject`): the page's name, the subtitle's text and
  * `path`, which the chat is told when asked about the page. A page whose title is drawn by a
@@ -253,7 +254,7 @@ export function EntityDetailHeader({
           <Title ref={titleRef} order={1} c='white' style={{ minWidth: 0 }}>{title}</Title>
           {subtitle && <Box className='mrx-entity-header-subtitle'>{subtitle}</Box>}
           {meta}
-          {controls && !tabs && (
+          {controls && (!tabs || floating) && (
             <Group ref={controlsRef} className='mrx-entity-header-controls' justify='flex-end' gap='xs' wrap='wrap'>
               {controls}
             </Group>
@@ -263,7 +264,7 @@ export function EntityDetailHeader({
       {tabs && (
         <Group ref={tabsRef} className='mrx-header-tabs' justify='space-between' align='flex-end' gap='xs' wrap='nowrap'>
           <Box className='mrx-header-tabs-list'>{tabs}</Box>
-          {controls && <Group className='mrx-header-tabs-controls' gap='xs' wrap='nowrap'>{controls}</Group>}
+          {controls && !floating && <Group className='mrx-header-tabs-controls' gap='xs' wrap='nowrap'>{controls}</Group>}
         </Group>
       )}
     </Box>
