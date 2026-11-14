@@ -1,6 +1,7 @@
 /**
  * system-info — which instance this is and what it runs: host, core's version, the
- * module API, the commit and each module's, PostgreSQL's and Deno's versions, and uptime.
+ * module API, the commit and each module's, PostgreSQL's and Deno's versions, uptime, and the
+ * time zone it shows and counts dates in.
  *
  * The question it answers is usually "am I in production or on my laptop", or "is my change on
  * it yet", which nobody asks until something is confusing.
@@ -8,6 +9,7 @@
 
 import { join } from '@std/path';
 import type { SystemInfo } from '../../../../lib/api/system.ts';
+import { SYSTEM_TIME_ZONE } from '../../../../lib/datetime/timezone.ts';
 import { MOD_INSTALL_PATH, MOD_PATH } from '../../../../lib/paths.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
 import { MODULE_API_VERSION } from '../../../../modules/mod.ts';
@@ -133,6 +135,7 @@ export const readSystemInfo = (): SystemInfo => {
     // timeOrigin is when this process started, which is what "uptime" means
     // for an instance — Deno.osUptime() would report the machine's.
     uptimeMs: Math.round(performance.now()),
+    timeZone: SYSTEM_TIME_ZONE,
   };
 };
 
@@ -154,12 +157,14 @@ export const systemInfo = async (cmd: Command): CmdReturn => {
   if (info.build?.modules) await cmd.writeLn(`modules   ${Object.entries(info.build.modules).map(([name, commit]) => `${name} ${commit}`).join(', ')}`);
   if (info.database) await cmd.writeLn(`postgres  ${info.database}`);
   await cmd.writeLn(`deno      ${info.denoVersion}`);
+  await cmd.writeLn(`zone      ${info.timeZone}`);
   return 0;
 };
 
 systemInfo.spec = {
   name: 'system-info',
   effect: 'read' as const,
-  description: "Which instance this is: host name, uptime, core's version and commit, the module API, each module's commit, and the PostgreSQL and Deno versions",
+  description:
+    "Which instance this is: host name, uptime, core's version and commit, the module API, each module's commit, the PostgreSQL and Deno versions, and its time zone",
   args: [],
 };

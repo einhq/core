@@ -203,5 +203,17 @@
         }
       ]
     }
+  ],
+  "panels": [
+    {
+      "id": "ui.language",
+      "slot": "settings.views",
+      "label": "Language and time",
+      "description": "The archive's language, how dates and times are written, and the time zone.",
+      "icon": "language",
+      "route": "/settings/language",
+      "admin": true,
+      "order": 10
+    }
   ]
 }

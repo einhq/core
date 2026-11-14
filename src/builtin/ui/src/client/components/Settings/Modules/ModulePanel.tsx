@@ -1,6 +1,7 @@
 import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Spoiler, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { useSignals } from '@preact/signals-react/runtime';
 import { Link } from 'react-router-dom';
 import { tryParse } from '@std/semver';
 import type { ModuleEntry, ModuleInstallJob, NodeTypeReference, ServiceEntry } from '@ein/api';
@@ -24,6 +25,9 @@ import { ModuleCommands } from './ModuleCommands.tsx';
 import { ModuleAvatar, moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
 import { formatDateTime } from '../../../lib/datetime.ts';
+import { panelRoute, panelsOf } from '../../../signals/nav.ts';
+import { TablerIcon } from '../../Icon/TablerIcon.tsx';
+import { RoutePanel } from '../../Surface/SurfaceRouter.tsx';
 
 /** The panel's tabs, in order. */
 const MODULE_SECTIONS = ['overview', 'dependencies', 'services', 'pages', 'commands', 'settings', 'types'] as const;
@@ -67,9 +71,11 @@ type ModulePanelProps = {
  * when, and the guide's pages on it; what it needs and what needs it; and what it brings —
  * services with their state now, pages, commands, settings and node types. A tab is drawn only
  * when the module has something for it, with how many. Commands and settings open in place, a
- * command to its help and a setting to its control.
+ * command to its help and a setting to its control; the module's settings views come before its
+ * settings.
  */
 export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, install, onStarted, onRemoved }: ModulePanelProps) {
+  useSignals();
   const state = moduleState(module);
   const admin = useAccessIds()?.admin === true;
   const phone = usePhone();
@@ -78,6 +84,8 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
   const { data: types } = useNodeTypeReference();
 
   const ownSettings = config.entries.filter((entry) => entry.owner === module.name);
+  // Its settings views, drawn before the list of its settings as on the System tab.
+  const ownViews = panelsOf('settings.views').filter((view) => view.source === module.name);
   const ownTypes = (types ?? []).filter((entry) => entry.owner === module.name);
   const usedBy = modules.filter((entry) => Object.hasOwn(entry.dependencies, module.name));
 
@@ -163,7 +171,21 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
             : <Text size='sm' ff='monospace'>{module.commands.join(' ')}</Text>}
         </Tabs.Panel>
         <Tabs.Panel value='settings'>
-          <ModuleSettings entries={ownSettings} save={config.save} reset={config.reset} admin={admin} />
+          <Stack gap='lg'>
+            {ownViews.map((view) => (
+              <Paper key={view.id} p='md' radius='md' withBorder>
+                <Stack gap='sm'>
+                  <Group gap='xs' wrap='nowrap'>
+                    <TablerIcon name={view.icon ?? 'adjustments'} size={18} />
+                    <Title order={5}>{view.label}</Title>
+                  </Group>
+                  {view.description && <Text size='sm' c='dimmed'>{view.description}</Text>}
+                  <RoutePanel path={panelRoute(view)} />
+                </Stack>
+              </Paper>
+            ))}
+            <ModuleSettings entries={ownSettings} save={config.save} reset={config.reset} admin={admin} />
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value='types'>
           <NodeTypes types={ownTypes} />

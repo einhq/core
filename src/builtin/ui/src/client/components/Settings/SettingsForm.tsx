@@ -1,10 +1,15 @@
 import { Alert, Badge, Box, Button, Grid, Group, NavLink, NumberInput, Paper, PasswordInput, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { IconAdjustmentsHorizontal, IconAlertTriangle, IconDeviceFloppy, IconRotateClockwise, IconSearch, IconSettings, IconX } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import type { ConfigEntry } from '@ein/ui/signals';
+import { useSearchParams } from 'react-router-dom';
+import type { ConfigEntry, PanelEntry } from '@ein/ui/signals';
 import type { SaveResult } from '@ein/ui/hooks';
 import { matchesText } from '@ein/ui/lib';
+import { panelRoute } from '../../signals/nav.ts';
+import { TablerIcon } from '../Icon/TablerIcon.tsx';
+import { RoutePanel } from '../Surface/SurfaceRouter.tsx';
 import { emptyLabel, GroupSelect, PermissionsInput, sameMode, UserSelect } from './AccountInputs.tsx';
+import { LocaleSelect } from './LocaleSelect.tsx';
 
 type SettingsFormProps = {
   entries: ConfigEntry[];
@@ -12,6 +17,11 @@ type SettingsFormProps = {
   reset: (key: string) => Promise<SaveResult>;
   /** Shown when there is nothing to render, e.g. a module that owns no settings is absent. */
   emptyMessage?: string;
+  /**
+   * Settings views (`settings.views` panels): each sets up one thing with the settings it takes,
+   * listed before the categories under Set up, and the form opens on the first.
+   */
+  views?: PanelEntry[];
 };
 
 type SettingsGroup = {
@@ -25,15 +35,20 @@ const isOverride = (entry: ConfigEntry): boolean => entry.source === entry.scope
 const matchesQuery = (entry: ConfigEntry, query: string): boolean =>
   matchesText([entry.label, entry.description, entry.group, entry.owner, entry.key, ...(entry.choices ?? [])], query);
 
+/** The phone's category picker names a view by this before its id, so neither is taken for the other. */
+const VIEW_VALUE = 'view:';
+
 /**
- * A searchable category browser for the generic configuration registry.
+ * A searchable category browser for the generic configuration registry, after the settings views
+ * that set up one thing each.
  *
  * The registry remains the only source of structure: modules can add an option
  * or an entirely new category without changing this component. Showing one
  * category at a time gives a long registry an index and a stable work area,
- * while search deliberately crosses category boundaries.
+ * while search deliberately crosses category boundaries. What is shown is in the
+ * URL (`?view=` or `?category=`), so a view or a category can be linked to.
  */
-export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFormProps) {
+export function SettingsForm({ entries, save, reset, emptyMessage, views = [] }: SettingsFormProps) {
   const groups = useMemo<SettingsGroup[]>(() => {
     const grouped = new Map<string, ConfigEntry[]>();
     for (const entry of entries) grouped.set(entry.group, [...(grouped.get(entry.group) ?? []), entry]);
@@ -43,20 +58,22 @@ export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFor
       overrides: groupedEntries.filter(isOverride).length,
     }));
   }, [entries]);
-  const [activeGroup, setActiveGroup] = useState(groups[0]?.name ?? '');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [overridesOnly, setOverridesOnly] = useState(false);
 
-  useEffect(() => {
-    if (!groups.some((group) => group.name === activeGroup)) setActiveGroup(groups[0]?.name ?? '');
-  }, [activeGroup, groups]);
+  const named = (name: string | null) => (name ? groups.find((group) => group.name === name) : undefined);
+  const activeView = views.find((view) => view.id === searchParams.get('view')) ??
+    (named(searchParams.get('category')) ? undefined : views[0]);
+  const activeGroup = activeView ? '' : (named(searchParams.get('category')) ?? groups[0])?.name ?? '';
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && views.length === 0) {
     return <Text c='dimmed'>{emptyMessage ?? 'No settings available.'}</Text>;
   }
 
   const normalizedQuery = query.trim();
   const candidates = normalizedQuery ? entries : groups.find((group) => group.name === activeGroup)?.entries ?? [];
+  const matchingViews = normalizedQuery ? views.filter((view) => matchesText([view.label, view.description], normalizedQuery)) : [];
   const visibleEntries = candidates.filter((entry) => (!overridesOnly || isOverride(entry)) && (!normalizedQuery || matchesQuery(entry, normalizedQuery)));
   const visibleGroups = groups
     .map((group) => ({ ...group, entries: visibleEntries.filter((entry) => entry.group === group.name) }))
@@ -66,10 +83,18 @@ export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFor
     ? `${visibleEntries.length} search ${visibleEntries.length === 1 ? 'result' : 'results'}`
     : `${visibleEntries.length} ${visibleEntries.length === 1 ? 'setting' : 'settings'}`;
 
-  const chooseGroup = (group: string) => {
-    setActiveGroup(group);
+  /** Show a view or a category, keeping the rest of the URL (the page's own tab). */
+  const show = (key: 'view' | 'category', value: string) => {
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      next.delete(key === 'view' ? 'category' : 'view');
+      next.set(key, value);
+      return next;
+    }, { replace: true });
     setQuery('');
   };
+  const chooseGroup = (group: string) => show('category', group);
+  const chooseView = (view: PanelEntry) => show('view', view.id);
 
   const clearFilters = () => {
     setQuery('');
@@ -106,19 +131,27 @@ export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFor
             </Button>
           </Group>
           <Text size='xs' c='dimmed'>
-            Browse by category or search across all {entries.length} settings. Overrides are values saved in EiN rather than defaults or deployment values.
+            {views.length > 0 ? 'Set up one thing at a time, browse' : 'Browse'} by category or search across all {entries.length}{' '}
+            settings. Overrides are values saved in EiN rather than defaults or deployment values.
           </Text>
         </Stack>
       </Paper>
 
       <Select
         hiddenFrom='sm'
-        label='Category'
-        data={groups.map((group) => ({ value: group.name, label: `${group.name} (${group.entries.length})` }))}
-        value={activeGroup}
+        label={views.length > 0 ? 'Show' : 'Category'}
+        data={[
+          ...(views.length > 0 ? [{ group: 'Set up', items: views.map((view) => ({ value: `${VIEW_VALUE}${view.id}`, label: view.label })) }] : []),
+          { group: 'Categories', items: groups.map((group) => ({ value: group.name, label: `${group.name} (${group.entries.length})` })) },
+        ]}
+        value={activeView ? `${VIEW_VALUE}${activeView.id}` : activeGroup}
         allowDeselect={false}
         disabled={Boolean(normalizedQuery)}
-        onChange={(group) => group && chooseGroup(group)}
+        onChange={(value) => {
+          const view = value?.startsWith(VIEW_VALUE) ? views.find((candidate) => `${VIEW_VALUE}${candidate.id}` === value) : undefined;
+          if (view) chooseView(view);
+          else if (value) chooseGroup(value);
+        }}
       />
 
       <Grid gap='xl' align='flex-start'>
@@ -133,6 +166,22 @@ export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFor
               top: 'calc(var(--app-shell-header-height, 0px) + var(--mrx-stuck-header-height, 0px) + var(--mantine-spacing-lg))',
             }}
           >
+            {views.length > 0 && (
+              <>
+                <Text size='xs' fw={700} c='dimmed' tt='uppercase' px='sm' py='xs'>Set up</Text>
+                {views.map((view) => (
+                  <NavLink
+                    key={view.id}
+                    label={view.label}
+                    leftSection={<TablerIcon name={view.icon ?? 'adjustments'} size={16} />}
+                    active={!normalizedQuery && view.id === activeView?.id}
+                    color='marine'
+                    variant='light'
+                    onClick={() => chooseView(view)}
+                  />
+                ))}
+              </>
+            )}
             <Text size='xs' fw={700} c='dimmed' tt='uppercase' px='sm' py='xs'>Categories</Text>
             {groups.map((group) => (
               <NavLink
@@ -154,30 +203,58 @@ export function SettingsForm({ entries, save, reset, emptyMessage }: SettingsFor
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, sm: 8, md: 9 }}>
-          <Stack gap='lg'>
-            <Box>
-              <Title order={3}>{normalizedQuery ? 'Search results' : activeGroup}</Title>
-              <Text size='sm' c='dimmed'>{resultLabel}{overridesOnly ? ' set here' : ''}</Text>
-            </Box>
+          {activeView && !normalizedQuery
+            ? (
+              <Stack gap='lg'>
+                <Box>
+                  <Title order={3}>{activeView.label}</Title>
+                  {activeView.description && <Text size='sm' c='dimmed'>{activeView.description}</Text>}
+                </Box>
+                <RoutePanel key={activeView.id} path={panelRoute(activeView)} />
+              </Stack>
+            )
+            : (
+              <Stack gap='lg'>
+                <Box>
+                  <Title order={3}>{normalizedQuery ? 'Search results' : activeGroup}</Title>
+                  <Text size='sm' c='dimmed'>{resultLabel}{overridesOnly ? ' set here' : ''}</Text>
+                </Box>
 
-            {visibleGroups.length > 0
-              ? visibleGroups.map((group) => (
-                <Stack key={group.name} gap='sm'>
-                  {normalizedQuery && <Title order={5}>{group.name}</Title>}
-                  {group.entries.map((entry) => <SettingField key={entry.key} entry={entry} save={save} reset={reset} />)}
-                </Stack>
-              ))
-              : (
-                <Paper p='xl' radius='md' withBorder>
-                  <Stack align='center' gap='xs'>
-                    <IconSearch size={28} color='var(--mantine-color-dimmed)' />
-                    <Text fw={600}>No settings match</Text>
-                    <Text size='sm' c='dimmed' ta='center'>Try another search or include defaults and deployment values.</Text>
-                    <Button variant='subtle' size='xs' onClick={clearFilters}>Clear filters</Button>
-                  </Stack>
-                </Paper>
-              )}
-          </Stack>
+                {matchingViews.length > 0 && (
+                  <Group gap='xs'>
+                    {matchingViews.map((view) => (
+                      <Button
+                        key={view.id}
+                        variant='light'
+                        size='xs'
+                        leftSection={<TablerIcon name={view.icon ?? 'adjustments'} size={14} />}
+                        onClick={() => chooseView(view)}
+                      >
+                        Set up {view.label}
+                      </Button>
+                    ))}
+                  </Group>
+                )}
+
+                {visibleGroups.length > 0
+                  ? visibleGroups.map((group) => (
+                    <Stack key={group.name} gap='sm'>
+                      {normalizedQuery && <Title order={5}>{group.name}</Title>}
+                      {group.entries.map((entry) => <SettingField key={entry.key} entry={entry} save={save} reset={reset} />)}
+                    </Stack>
+                  ))
+                  : (
+                    <Paper p='xl' radius='md' withBorder>
+                      <Stack align='center' gap='xs'>
+                        <IconSearch size={28} color='var(--mantine-color-dimmed)' />
+                        <Text fw={600}>No settings match</Text>
+                        <Text size='sm' c='dimmed' ta='center'>Try another search or include defaults and deployment values.</Text>
+                        <Button variant='subtle' size='xs' onClick={clearFilters}>Clear filters</Button>
+                      </Stack>
+                    </Paper>
+                  )}
+              </Stack>
+            )}
         </Grid.Col>
       </Grid>
     </Stack>
@@ -361,7 +438,7 @@ export function SettingSource({ entry }: { entry: ConfigEntry }) {
   return <Badge size='xs' variant='light' color={sourceColor(entry.source)}>{sourceLabel(entry)}</Badge>;
 }
 
-/** The control a setting's type gets, editing the draft's value: a switch, a select, an account picker. */
+/** The control a setting's type gets, editing the draft's value: a switch, a select, an account picker, a locale by name. */
 export function SettingInput({ entry, draft }: { entry: ConfigEntry; draft: SettingDraft }) {
   const { controlId: id, labelId, value, setValue, busy } = draft;
   switch (entry.type) {
@@ -414,6 +491,8 @@ export function SettingInput({ entry, draft }: { entry: ConfigEntry; draft: Sett
       return <GroupSelect id={id} value={value} disabled={busy} emptyLabel={emptyLabel(entry)} onChange={setValue} />;
     case 'mode':
       return <PermissionsInput id={id} labelledBy={labelId} value={value} disabled={busy} onChange={setValue} />;
+    case 'locale':
+      return <LocaleSelect id={id} value={value} disabled={busy} emptyMeans={entry.emptyMeans} onChange={setValue} />;
     default:
       return (
         <TextInput

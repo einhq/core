@@ -142,13 +142,17 @@ type TopbarEntry = {
  * empty News (`home.start`), a tile on the About dialog (`about.services`), a tab of a device's page
  * after its own (`device.tabs`, whose route gets the device's path, `/dev/<device>`, for `{path}`),
  * a button in the Devices page's header beside its filters (`devices.header`), something floating over every page and the lightbox, under a dialog (`shell.float`, which places
- * what it draws itself). It is how a page shows a module's part without naming the module.
+ * what it draws itself), a settings view, which sets up one thing with the settings it takes and
+ * is listed first on Settings → System and on its module's Settings tab (`settings.views`). It is
+ * how a page shows a module's part without naming the module.
  */
 export type PanelEntry = {
   id: string;
   slot: string;
   /** The tab's or tool's label, or the section's heading. */
   label: string;
+  /** A line saying what it is for, where the slot shows one (`settings.views`). */
+  description?: string;
   icon?: string;
   /** The route drawn there; `{path}` is replaced by the URI-encoded node path where the slot has one. */
   route: string;
@@ -161,6 +165,8 @@ export type PanelEntry = {
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
+  /** Whose fragment gives it, which `ui-nav` fills in: the module's name, or `ui` for the shell's own. */
+  source?: string;
 };
 
 /**
@@ -334,6 +340,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
     }
   };
 
+  const fragmentSources = new Set(fragments.map((fragment) => fragment.source));
   [...fragments].sort((a, b) => a.source.localeCompare(b.source)).forEach((layer) => lay(layer, false));
   overlays.forEach((layer) => lay(layer, true));
 
@@ -449,7 +456,12 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
   return {
     sections: resolvedSections,
     topbar: topbar.map((entry) => keyed(entry.menu ? { ...entry, menu: entry.menu.map(keyed) } : entry)),
-    panels: byOrder(visible('panels') as unknown as PanelEntry[]),
+    // Whose a panel is goes with it, but only a fragment's name: an overlay names a file, not a giver.
+    panels: byOrder(visible('panels') as unknown as PanelEntry[]).map((panel) => {
+      const source = owner.get(`panels:${panel.id}`);
+      const { source: _given, ...rest } = panel;
+      return source !== undefined && fragmentSources.has(source) ? { ...rest, source } : rest;
+    }),
     layers: byOrder(visible('layers') as unknown as MapLayerEntry[]),
     warnings,
   };

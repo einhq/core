@@ -63,6 +63,8 @@ export type SystemInfo = {
   database?: string;
   denoVersion: string;
   uptimeMs: number;
+  /** The IANA time zone the archive is shown and counted in (`TZ` of the deployment), such as `Europe/Stockholm`. */
+  timeZone: string;
 };
 
 /**

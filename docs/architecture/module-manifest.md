@@ -166,19 +166,19 @@ core's — to have a value of its choosing writes it in its `etc/config` (below)
 }
 ```
 
-| Key           | Meaning                                                                                                                 |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `key`         | the environment variable. `CFG_…` for system settings, `CFG_USER_…` for per-user ones                                   |
-| `scope`       | `system` (one value, the administrator sets it) or `user` (each user their own)                                         |
-| `type`        | `string`, `number`, `boolean`, `select`, `mode`, `user`, `group` or `secret`: the control and what `config set` accepts |
-| `choices`     | the allowed values, for `select`                                                                                        |
-| `default`     | what applies when nothing is set. Always a string, never written to the file                                            |
-| `label`       | the setting's name on the settings page                                                                                 |
-| `description` | what it does, for the reader of the settings page. Say what changes, not how it is implemented                          |
-| `group`       | the section of the settings page it is listed under                                                                     |
-| `restarts`    | services that read it at start, restarted when it changes                                                               |
-| `restartNote` | shown after a change, for a value that takes effect later than when `config set` returns                                |
-| `emptyMeans`  | what an empty value means, when empty is a choice rather than "unset"                                                   |
+| Key           | Meaning                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `key`         | the environment variable. `CFG_…` for system settings, `CFG_USER_…` for per-user ones                                             |
+| `scope`       | `system` (one value, the administrator sets it) or `user` (each user their own)                                                   |
+| `type`        | `string`, `number`, `boolean`, `select`, `mode`, `user`, `group`, `locale` or `secret`: the control and what `config set` accepts |
+| `choices`     | the allowed values, for `select`                                                                                                  |
+| `default`     | what applies when nothing is set. Always a string, never written to the file                                                      |
+| `label`       | the setting's name on the settings page                                                                                           |
+| `description` | what it does, for the reader of the settings page. Say what changes, not how it is implemented                                    |
+| `group`       | the section of the settings page it is listed under                                                                               |
+| `restarts`    | services that read it at start, restarted when it changes                                                                         |
+| `restartNote` | shown after a change, for a value that takes effect later than when `config set` returns                                          |
+| `emptyMeans`  | what an empty value means, when empty is a choice rather than "unset"                                                             |
 
 A `secret` is a key to another service. It is named `CFG_…_KEY`, a name only a secret may have,
 and has no default. No shell sees it, and the settings say only whether it is set; the module's

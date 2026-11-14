@@ -8,6 +8,7 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { ADMIN_ACCESS, ADMIN_UID } from '../../access/constants.ts';
 import { createTestContext, testCommands } from '../../../testing/mod.ts';
 import type { ConfigEntry } from '../types.ts';
+import type { ConfigWriteAnswer } from '../../api/config.ts';
 import { registerConfigOptions, unregisterConfigOptions, validateConfigOption } from '../registry.ts';
 import { isSecretKey, serviceKey } from '../read-settings.ts';
 
@@ -60,8 +61,8 @@ Deno.test({
       await admin.exec('echo > /etc/keys && chmod 0644 /etc/keys');
       const out = await admin.execString(`JSON_OUTPUT=0 config set ${KEY} ${SET}`);
       assertEquals(out.trim(), `${KEY} set`);
-      const answer = await admin.execJson<{ value: string }>(`config set ${KEY} ${SET}`);
-      assertEquals(answer.value, '');
+      const answer = await admin.execJson<ConfigWriteAnswer>(`config set ${KEY} ${SET}`);
+      assertEquals(answer.settings.map(({ value, source }) => [value, source]), [['', 'system']]);
     });
 
     await t.step('only the administrator reads /etc/keys, and no shell sources it', async () => {

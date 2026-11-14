@@ -11,7 +11,7 @@ const view = (overrides: Partial<TopView> = {}): TopView => ({ sort: 'newest', s
 
 /** Nothing read yet: what the first frame is drawn from. */
 const empty = (): TopData => ({
-  info: { hostname: 'laptop', version: '0.1.0', api: '36.4.0', denoVersion: '2.0.0', uptimeMs: 60_000 },
+  info: { hostname: 'laptop', version: '0.1.0', api: '36.4.0', denoVersion: '2.0.0', uptimeMs: 60_000, timeZone: 'Europe/Stockholm' },
   cpu: [],
   heap: { usedBytes: 100 * 1024 ** 2, limitBytes: 4 * GiB },
   errors: {},
@@ -33,7 +33,7 @@ const process = (name: string, args: string[], user: string, origin: 'ssh' | 'se
 
 /** A busy instance, invented. */
 const sample = (): TopData => ({
-  info: { hostname: 'testhost', version: '0.1.0', api: '36.4.0', denoVersion: '2.0.0', uptimeMs: 3 * 86_400_000 },
+  info: { hostname: 'testhost', version: '0.1.0', api: '36.4.0', denoVersion: '2.0.0', uptimeMs: 3 * 86_400_000, timeZone: 'Europe/Stockholm' },
   load: [3.5, 2.9, 2.1],
   cores: 4,
   cpu: Array.from({ length: 300 }, (_, i) => ({ at: NOW - (300 - i) * 2000, value: 50 + 45 * Math.sin(i / 7) })),

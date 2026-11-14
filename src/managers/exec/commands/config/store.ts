@@ -1,10 +1,11 @@
 import { toText } from '@std/streams/to-text';
 import { basename, dirname } from '@std/path';
-import { ADMIN_GID, ADMIN_UID } from '../../../../lib/access/mod.ts';
+import { ADMIN_GID, ADMIN_UID, isAdmin } from '../../../../lib/access/mod.ts';
 import {
   type ConfigEntry,
   type ConfigOption,
   environmentPath,
+  getConfigOption,
   listConfigOptions,
   parseRc,
   readModuleSettings,
@@ -79,22 +80,55 @@ export const writeLayer = async (cmd: Command, path: string, text: string, props
   }
 };
 
+/** A change to one option's line in its file. */
+type OptionEdit = { option: ConfigOption; edit: (text: string) => string };
+
 /**
- * Rewrite the file `option` lives in with `edit`, creating it the first time.
+ * The options `keys` name, for `config set` or `config unset` (`verb`) to write, or why not: one
+ * is unknown, named twice, or a system setting and the caller no administrator. Every key is
+ * checked before anything is written, so a refused call changes nothing.
+ */
+export const writableOptions = (cmd: Command, keys: string[], verb: string): ConfigOption[] | string => {
+  const options: ConfigOption[] = [];
+  for (const key of keys) {
+    const option = getConfigOption(key);
+    if (!option) return `${verb}: unknown setting '${key}'`;
+    if (options.includes(option)) return `${verb}: '${key}' is named twice`;
+    // The scope is the option's, never the caller's choice: the two files are sourced in a fixed
+    // order, so a system key written into a user file would be read by nothing and do nothing.
+    if (option.scope === 'system' && !isAdmin(cmd.access)) return `${verb}: '${key}' is a system setting and needs administrator rights`;
+    options.push(option);
+  }
+  return options;
+};
+
+/**
+ * Rewrite the files the options live in, each file once with all of its edits, creating it the
+ * first time, then restart once each running service any of them names.
  *
  * `/etc/keys` is given back its owner and mode when they differ: one made by hand takes its mode
  * from `/etc`, which would let everyone read the keys.
  */
-export const editOptionFile = async (cmd: Command, option: ConfigOption, edit: (text: string) => string): Promise<void> => {
-  const path = optionPath(cmd, option);
-  const props = optionFileProps(cmd, option);
-  if (option.type === 'secret') {
-    const existing = await cmd.sys.vfs.get(cmd.access, path).catch(() => undefined);
-    if (existing && (existing.props.mode !== props.mode || existing.props.uid !== props.uid || existing.props.gid !== props.gid)) {
-      await cmd.sys.vfs.update(cmd.access, path, { props });
-    }
+export const writeOptions = async (cmd: Command, edits: OptionEdit[]): Promise<Restarts & { notes: string[] }> => {
+  const files = new Map<string, OptionEdit[]>();
+  for (const edit of edits) {
+    const path = optionPath(cmd, edit.option);
+    files.set(path, [...files.get(path) ?? [], edit]);
   }
-  await writeLayer(cmd, path, edit(await readLayer(cmd, path)), props);
+  for (const [path, fileEdits] of files) {
+    const { option } = fileEdits[0];
+    const props = optionFileProps(cmd, option);
+    if (option.type === 'secret') {
+      const existing = await cmd.sys.vfs.get(cmd.access, path).catch(() => undefined);
+      if (existing && (existing.props.mode !== props.mode || existing.props.uid !== props.uid || existing.props.gid !== props.gid)) {
+        await cmd.sys.vfs.update(cmd.access, path, { props });
+      }
+    }
+    await writeLayer(cmd, path, fileEdits.reduce((text, { edit }) => edit(text), await readLayer(cmd, path)), props);
+  }
+  const options = edits.map(({ option }) => option);
+  const restarts = await restartConsumers(cmd, [...new Set(options.flatMap((option) => option.restarts ?? []))]);
+  return { ...restarts, notes: [...new Set(options.flatMap((option) => option.restartNote ?? []))] };
 };
 
 /**
@@ -154,6 +188,9 @@ export const resolveEntries = async (cmd: Command): Promise<ConfigEntry[]> => {
 /** An entry's value as text output shows it: a secret that is set reads `(set)`, never its value. */
 export const shownValue = (entry: ConfigEntry): string => entry.type === 'secret' ? (entry.source === 'default' ? '' : '(set)') : entry.value;
 
+/** The services a write restarted, and those that failed to restart with why. */
+type Restarts = { restarted: string[]; failed: { name: string; error: string }[] };
+
 /**
  * Restart the services that read an option at start.
  *
@@ -165,10 +202,7 @@ export const shownValue = (entry: ConfigEntry): string => entry.type === 'secret
  * passes, so a value just cleared is not carried over. Returns the names restarted and,
  * separately, the ones that failed, so the UI can say which.
  */
-export const restartConsumers = async (
-  cmd: Command,
-  services: string[] | undefined,
-): Promise<{ restarted: string[]; failed: { name: string; error: string }[] }> => {
+const restartConsumers = async (cmd: Command, services: string[] | undefined): Promise<Restarts> => {
   const restarted: string[] = [];
   const failed: { name: string; error: string }[] = [];
 

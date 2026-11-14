@@ -23,6 +23,7 @@ export * from './users.ts';
 export * from './audit.ts';
 export * from './ssh.ts';
 export type { ConfigEntry, ConfigOption, ConfigScope, ConfigSource, ConfigType } from '../config/types.ts';
+export * from './config.ts';
 export * from './search.ts';
 export * from './similar.ts';
 export * from './stars.ts';

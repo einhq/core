@@ -12,21 +12,13 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { createTestContext } from '../../../../testing/mod.ts';
 import type { ConfigEntry } from '../../../../lib/config/mod.ts';
 import type { UserCreated } from '../../../../lib/api/users.ts';
+import type { ConfigWriteAnswer } from '../../../../lib/api/config.ts';
 
 // Stands in for `-e CFG_SESSION_EXPIRES_SEC=...` on the container: the boot
 // shell's environment is exactly what a deployment supplies.
 const DEPLOYED_EXPIRY = '3600';
 
 const testCtx = createTestContext({ boot: true, env: { CFG_SESSION_EXPIRES_SEC: DEPLOYED_EXPIRY } });
-
-type SetResult = {
-  key: string;
-  value: string;
-  scope: 'system' | 'user';
-  restarted: string[];
-  failed: { name: string; error: string }[];
-  restartNote?: string;
-};
 
 Deno.test({
   name: 'config',
@@ -127,9 +119,8 @@ Deno.test({
     });
 
     await t.step('an admin sets a system value', async () => {
-      const result = await admin.execJson<SetResult>('config set CFG_PIPELINE_MAX_CONCURRENT 8');
-      assertEquals(result.value, '8');
-      assertEquals(result.scope, 'system');
+      const result = await admin.execJson<ConfigWriteAnswer>('config set CFG_PIPELINE_MAX_CONCURRENT 8');
+      assertEquals(result.settings, [{ key: 'CFG_PIPELINE_MAX_CONCURRENT', value: '8', scope: 'system', source: 'system' }]);
       assertEquals(result.failed, []);
 
       const entry = await admin.execJson<ConfigEntry>('config get CFG_PIPELINE_MAX_CONCURRENT');
@@ -167,6 +158,46 @@ Deno.test({
       const entry = await admin.execJson<ConfigEntry>('config get CFG_DEFAULT_SHARE_MODE');
       assertEquals(entry.value, '0750');
       assertEquals(entry.source, 'default');
+    });
+
+    await t.step('several settings are set and unset in one call', async () => {
+      const set = await admin.execJson<ConfigWriteAnswer>("config set CFG_TRASH_RETENTION_DAYS=60 'CFG_DEFAULT_SHARE_MODE=0700' CFG_MODULE_SOURCES_KEY=k3y");
+      assertEquals(set.settings.map(({ key, value, source }) => [key, value, source]), [
+        ['CFG_TRASH_RETENTION_DAYS', '60', 'system'],
+        ['CFG_DEFAULT_SHARE_MODE', '0700', 'system'],
+        // A key is never said back.
+        ['CFG_MODULE_SOURCES_KEY', '', 'system'],
+      ]);
+      const file = await admin.execString('cat /etc/config');
+      assertStringIncludes(file, "export CFG_TRASH_RETENTION_DAYS='60'");
+      assertStringIncludes(file, "export CFG_DEFAULT_SHARE_MODE='0700'");
+      assert(!file.includes('k3y'), file);
+
+      const unset = await admin.execJson<ConfigWriteAnswer>('config unset CFG_TRASH_RETENTION_DAYS CFG_DEFAULT_SHARE_MODE CFG_MODULE_SOURCES_KEY');
+      assertEquals(unset.settings.map(({ key, source }) => [key, source]), [
+        ['CFG_TRASH_RETENTION_DAYS', 'default'],
+        ['CFG_DEFAULT_SHARE_MODE', 'default'],
+        ['CFG_MODULE_SOURCES_KEY', 'default'],
+      ]);
+    });
+
+    await t.step('one refused value of several writes none of them', async () => {
+      const result = await admin.exec('config set CFG_TRASH_RETENTION_DAYS=60 CFG_SESSION_EXPIRES_SEC=lots');
+      assertEquals(result.success, false);
+      assertStringIncludes(result.error ?? '', 'expected a number');
+      assertEquals((await admin.execJson<ConfigEntry>('config get CFG_TRASH_RETENTION_DAYS')).source, 'default');
+
+      const twice = await admin.exec('config set CFG_TRASH_RETENTION_DAYS=60 CFG_TRASH_RETENTION_DAYS=70');
+      assertStringIncludes(twice.error ?? '', 'named twice');
+      const bare = await admin.exec('config set CFG_TRASH_RETENTION_DAYS=60 70');
+      assertStringIncludes(bare.error ?? '', 'KEY=VALUE');
+      assertEquals((await admin.execJson<ConfigEntry>('config get CFG_TRASH_RETENTION_DAYS')).source, 'default');
+    });
+
+    await t.step('a value with = in it is still one setting', async () => {
+      await admin.exec('config set CFG_MODULE_SOURCES https://example.org/?a=b');
+      assertEquals((await admin.execJson<ConfigEntry>('config get CFG_MODULE_SOURCES')).value, 'https://example.org/?a=b');
+      await admin.exec('config unset CFG_MODULE_SOURCES');
     });
 
     await t.step('rejects an unknown key', async () => {

@@ -1,8 +1,10 @@
 import { Alert, Container, Stack, Tabs, Text } from '@mantine/core';
 import { IconAdjustments, IconAlertTriangle, IconPuzzle, IconShieldLock, IconUser, IconUsersGroup } from '@tabler/icons-react';
+import { useSignals } from '@preact/signals-react/runtime';
 import { useSearchParams } from 'react-router-dom';
 import { EntityDetailHeader, PageLoader, SettingsForm } from '@ein/ui/components';
 import { useAccessIds, useConfig } from '@ein/ui/hooks';
+import { panelsOf } from '@ein/ui/signals';
 import { AccountDefaults } from '../components/Settings/Accounts/AccountDefaults.tsx';
 import { AccountsTab } from '../components/Settings/Accounts/AccountsTab.tsx';
 import { ModulesTab } from '../components/Settings/Modules/ModulesTab.tsx';
@@ -17,7 +19,9 @@ const isTab = (value: string | null): value is SettingsTab => value !== null && 
 
 /**
  * How the installation is configured: its settings, its users and groups, the permissions new
- * accounts and anything shared start with, and the modules it is made of.
+ * accounts and anything shared start with, and the modules it is made of. The System tab starts
+ * with the settings views core and the modules give (`settings.views` panels), each setting up one
+ * thing, before every setting by category.
  *
  * All but Modules are an administrator's alone, so for anyone else those tabs are
  * hidden rather than disabled — there is nothing on them anyone else can act on, and the server
@@ -27,6 +31,7 @@ const isTab = (value: string | null): value is SettingsTab => value !== null && 
  * Modules is laid out as they are, a list beside the open module.
  */
 export default function SettingsPage() {
+  useSignals();
   const [searchParams, setSearchParams] = useSearchParams();
   const access = useAccessIds();
   const isAdmin = access?.admin === true;
@@ -76,7 +81,9 @@ export default function SettingsPage() {
                   {config.error.message}
                 </Alert>
               )}
-              {config.loading ? <PageLoader label='Loading settings…' /> : <SettingsForm entries={config.entries} save={config.save} reset={config.reset} />}
+              {config.loading
+                ? <PageLoader label='Loading settings…' />
+                : <SettingsForm entries={config.entries} save={config.save} reset={config.reset} views={panelsOf('settings.views')} />}
             </Stack>
           </Tabs.Panel>
         )}

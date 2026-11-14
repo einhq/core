@@ -15,6 +15,7 @@ import PipelineDetailPage from './pages/pipeline.tsx';
 import ProfilePage from './pages/profile.tsx';
 import SearchPage from './pages/search.tsx';
 import SettingsPage from './pages/settings.tsx';
+import LanguageView from './pages/settings-language.tsx';
 import SharedLinkPage from './pages/shared-link.tsx';
 import StatsPage from './pages/stats.tsx';
 import SystemPage from './pages/system.tsx';
@@ -86,6 +87,8 @@ export const routes: RouteObject[] = [{
     { path: 'profile', element: <ProfilePage />, handle: ownPage },
     { path: 'search', element: <SearchPage />, handle: fullBleed },
     { path: 'settings', element: <SettingsPage />, handle: ownPage },
+    // A settings view (`settings.views`), drawn on the settings page.
+    { path: 'settings/language', element: <LanguageView />, handle: ownPage },
     { path: 'stats', element: <StatsPage />, handle: fullBleed },
     { path: 'trash', element: <TrashPage />, handle: ownPage },
     { path: 'system', element: <SystemPage />, handle: fullBleed },

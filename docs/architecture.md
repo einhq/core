@@ -1490,7 +1490,10 @@ a service's loop, and every command it runs.
 **Changing a setting restarts what reads it only at start.** An entry names the services that
 read it when they start — a worker's capacity, a service's interval, a loop service's commands
 — and `config set` runs `service restart` for each, and only for services that are actually
-running: a service someone stopped is not brought back by a settings change. `http-server` and
+running: a service someone stopped is not brought back by a settings change. Settings that belong
+together are written in one call, `config set KEY=VALUE…` or `config unset KEY…`: every key is
+checked before any is written, and a service that reads several of them restarts once, so it
+never runs on half the change (a broker's new address with the old password). `http-server` and
 `ssh-server` name none: restarting either from the settings page would drop the connection
 carrying the request, so their entries carry a note saying when the change takes effect instead.
 

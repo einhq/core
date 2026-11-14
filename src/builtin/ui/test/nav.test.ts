@@ -308,6 +308,24 @@ Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one 
   assertEquals(everywhere.panels.find((panel) => panel.id === 'archive.trips')?.when, undefined);
 });
 
+Deno.test('ui-nav: a panel says whose fragment gives it, never an overlay, and keeps its description', () => {
+  const assistant: NamedLayer = {
+    source: 'assistant',
+    layer: { panels: [{ id: 'assistant.model', slot: 'settings.views', label: 'Language model', description: 'Who answers the chat', route: '/settings/language-model' }] },
+  };
+  const shell: NamedLayer = { source: 'ui', layer: { panels: [{ id: 'ui.language', slot: 'settings.views', label: 'Language and time', route: '/settings/language' }] } };
+  const overlay: NamedLayer = {
+    source: '/etc/ui/nav.json',
+    layer: { panels: [{ id: 'assistant.model', label: 'Chat model' }, { id: 'site.own', slot: 'settings.views', label: 'Own', route: '/own', source: 'archive' }] },
+  };
+  const nav = resolveNav([assistant, shell], [overlay], admin);
+  assertEquals(nav.panels.map((panel) => [panel.id, panel.label, panel.description, panel.source]), [
+    ['assistant.model', 'Chat model', 'Who answers the chat', 'assistant'],
+    ['ui.language', 'Language and time', undefined, 'ui'],
+    ['site.own', 'Own', undefined, undefined],
+  ]);
+});
+
 Deno.test('ui-nav: map layers come in order, and one without tiles is left out', () => {
   const shell: NamedLayer = {
     source: 'ui',
