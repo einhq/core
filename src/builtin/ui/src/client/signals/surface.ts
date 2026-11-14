@@ -120,13 +120,12 @@ export const closeFullscreen = (): void => {
 };
 
 /**
- * Open a location as the page from the full-screen route, which it replaces in history: Back
- * from an album the lightbox linked to returns to the grid the lightbox was opened from, or to
- * the picture before when the lightbox had stepped to this one.
+ * Open a location as the page from the full-screen route, as an entry of its own over it: Back
+ * from a person the lightbox linked to returns to the lightbox on the picture it was left on.
  */
 export const leaveFullscreen = (to: string): void => {
   fullscreenPath.value = null;
-  navigatePage(to, { replace: true });
+  navigatePage(to);
 };
 
 /** The first segment of a route, which the drawer keeps to: `/chat/42` → `/chat`. */

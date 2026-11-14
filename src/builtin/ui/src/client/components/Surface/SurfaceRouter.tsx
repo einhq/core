@@ -230,7 +230,7 @@ function StartedRouter({ router }: { router: DataRouter }) {
  * it), in the drawer, full screen and a panel one outside the route's first segment (the chat moving
  * between its conversations, the lightbox between pictures, stay). Full screen, a navigation
  * that stays is written into the page's URL, where that surface lives, and one that leaves
- * takes its place in history. Rendered inside the page's router, so the page's location and
+ * is pushed over it, so Back returns to it. Rendered inside the page's router, so the page's location and
  * route context are hidden from this one, which would otherwise refuse to nest and resolve
  * against them.
  *
