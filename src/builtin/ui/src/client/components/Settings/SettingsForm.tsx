@@ -1,5 +1,5 @@
-import { Alert, Badge, Box, Button, Grid, Group, NavLink, NumberInput, Paper, PasswordInput, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
-import { IconAdjustmentsHorizontal, IconAlertTriangle, IconDeviceFloppy, IconRotateClockwise, IconSearch, IconSettings, IconX } from '@tabler/icons-react';
+import { Alert, Badge, Box, Button, CloseButton, Grid, Group, NavLink, NumberInput, Paper, PasswordInput, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
+import { IconAdjustmentsHorizontal, IconAlertTriangle, IconDeviceFloppy, IconRotateClockwise, IconSearch, IconSettings } from '@tabler/icons-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ConfigEntry, PanelEntry } from '@ein/ui/signals';
@@ -111,13 +111,7 @@ export function SettingsForm({ entries, save, reset, emptyMessage, views = [] }:
               label='Find a setting'
               placeholder='Search names, descriptions, modules or keys'
               leftSection={<IconSearch size={16} />}
-              rightSection={query
-                ? (
-                  <Button variant='transparent' size='compact-xs' px={4} aria-label='Clear search' onClick={() => setQuery('')}>
-                    <IconX size={15} />
-                  </Button>
-                )
-                : undefined}
+              rightSection={query ? <CloseButton size='sm' aria-label='Clear the search' onClick={() => setQuery('')} /> : undefined}
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
             />

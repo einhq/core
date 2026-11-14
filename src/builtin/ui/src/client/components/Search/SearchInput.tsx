@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Group, Loader, Pill, PillsInput, Popover, Text, TextInput, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, CloseButton, Group, Loader, Pill, PillsInput, Popover, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { IconAlbum, IconArrowRight, IconCamera, IconMapPin, IconSearch, IconTag, IconUser } from '@tabler/icons-react';
 import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useMentionComplete } from '../../hooks/useMentionComplete.ts';
@@ -51,7 +51,7 @@ export type SearchInputProps = {
   size?: string;
   /** Rendered inside the box on the left. Pass null when the search action already identifies it. */
   leftSection?: React.ReactNode;
-  /** Rendered inside the box on the right — a loader, a filter button. */
+  /** Rendered inside the box on the right in place of its own button — a loader while it searches. */
   rightSection?: React.ReactNode;
   /** Resolved filters rendered before the editable text inside a compound input. */
   pills?: React.ReactNode;
@@ -59,6 +59,21 @@ export type SearchInputProps = {
   submitIcon?: React.ReactNode;
   autoFocus?: boolean;
 };
+
+/** The filters with what the box holds taken out: its words and every chip it shows (`SearchPills`). */
+const withoutBox = (filters: SearchFilters): SearchFilters => ({
+  ...filters,
+  query: undefined,
+  subjects: undefined,
+  subjectNames: undefined,
+  tags: undefined,
+  under: undefined,
+  like: undefined,
+  has: undefined,
+  fromYear: undefined,
+  toYear: undefined,
+  region: undefined,
+});
 
 /**
  * The search box, shared by every page that searches.
@@ -71,6 +86,10 @@ export type SearchInputProps = {
  * Every page gets the `@` completion. A page that also reads the words as natural language
  * (`useSearchBox` with `natural`) gets the text left after the mentions, and turns what it
  * understood into the same chips (`SearchPills`) an `@` pick becomes.
+ *
+ * Its button says what Enter would do. While the words are edited it searches (the arrow); once
+ * what the box holds is searched — words or chips — it clears them (×), which searches again
+ * without them; an empty box that holds nothing has none.
  *
  * A plain `TextInput`, not a rich editor: the mention labels contain spaces and
  * live in the string as ordinary text, which keeps selection, undo and the
@@ -100,6 +119,15 @@ export function SearchInput({
   const [highlighted, setHighlighted] = useState(0);
   /** Set by Escape; cleared as soon as the run changes, so `@` works again immediately. */
   const [dismissed, setDismissed] = useState<string | null>(null);
+  /**
+   * The text as the reader last typed or picked it, until it is searched. The page rewriting the
+   * text — to the words left after a commit, or for another album — is not an edit.
+   */
+  const [typed, setTyped] = useState<string | null>(null);
+  const edited = typed !== null && typed === value;
+  // Whatever changed what is on screen — a chip removed, a commit — took the text with it.
+  const filtersKey = JSON.stringify(filters);
+  useEffect(() => setTyped(null), [filtersKey]);
 
   /** The popup belongs to the box: clicking anywhere else closes it. */
   const [focused, setFocused] = useState(Boolean(autoFocus));
@@ -119,6 +147,7 @@ export function SearchInput({
     if (!run) return;
     const next = applyCompletion(value, caret, run, mention);
     onChange(next.text);
+    setTyped(next.text);
     // Remembered whether or not it survives to the commit: the label is how the
     // text is matched back to this entity later.
     onMentionsChange?.([...mentions.filter((known) => !(known.kind === mention.kind && known.value === mention.value)), mention]);
@@ -133,8 +162,17 @@ export function SearchInput({
 
   const commit = useCallback(() => {
     const parsed = parseMentions(value, mentions);
+    setTyped(null);
     onCommit(filtersFromMentions(filters, parsed), parsed.unresolved);
   }, [value, mentions, filters, onCommit]);
+
+  const clear = useCallback(() => {
+    setTyped(null);
+    onChange('');
+    onMentionsChange?.([]);
+    onCommit(withoutBox(filters), []);
+    inputRef.current?.focus();
+  }, [filters, onChange, onMentionsChange, onCommit]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (open && suggestions.length > 0) {
@@ -172,14 +210,22 @@ export function SearchInput({
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(event.currentTarget.value);
+    setTyped(event.currentTarget.value);
     setDismissed(null);
     setCaret(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
   };
 
+  const holds = Boolean(value.trim() || pills);
   const commitButton = rightSection ?? (
-    <ActionIcon variant='subtle' size='lg' aria-label='Search' onClick={commit}>
-      {submitIcon}
-    </ActionIcon>
+    edited
+      ? (
+        <ActionIcon variant='subtle' size='lg' aria-label='Search' onClick={commit}>
+          {submitIcon}
+        </ActionIcon>
+      )
+      : holds
+      ? <CloseButton aria-label='Clear the search' onClick={clear} />
+      : undefined
   );
 
   const input = pills
