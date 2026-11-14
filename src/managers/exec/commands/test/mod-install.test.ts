@@ -14,11 +14,11 @@
  * repository that holds no module leave nothing behind; a private repository is read with its
  * host's token; an install goes on when the session that asked for it ends, another is refused
  * while it runs, the same one is joined, and mod status says how it stands; and mod remove takes an
- * installed module's tree with it.
+ * installed module's tree with it; mod outdated says what updating a module would take it to.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleInstallStatus, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
+import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleInstallStatus, ModuleOutdated, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
 import { FakeForge, type Files, moduleFiles } from '../../../../testing/fake-forge.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
@@ -365,6 +365,35 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals((await run('mod install beacon')).includes('Nothing but the pages'), false);
       assertEquals(await run('$MOD_PATH/beacon/bin/beacon'), 'beacon 2');
       await client.execString('mod-remove --force beacon');
+    });
+
+    await t.step('mod outdated says what updating each takes: the newest release this core runs, or its branch now', async () => {
+      const outdated = async (names: string) => (await client.execJson<ModuleOutdated>(`mod outdated ${names}`)).modules;
+      const old = await forge.publish('acme', 'module-swell', moduleFiles('swell', '0.1.0', 'swell 0.1.0'), { tag: 'v0.1.0' });
+      assert((await install('swell')).success);
+      const repository = `${forge.url('acme')}/module-swell`;
+      assertEquals(await outdated('swell'), [
+        { name: 'swell', version: '0.1.0', ref: 'v0.1.0', commit: old, target: repository, latest: { ref: 'v0.1.0', commit: old, version: '0.1.0' }, behind: false },
+      ]);
+      assertEquals(await run('mod outdated swell'), 'swell is up to date');
+
+      const next = await forge.publish('acme', 'module-swell', moduleFiles('swell', '0.2.0', 'swell 0.2.0'), { tag: 'v0.2.0' });
+      // A newer release for another core is passed over for the newest this one runs.
+      await forge.publish('acme', 'module-swell', moduleFiles('swell', '0.3.0', 'swell 0.3.0', { coreApi: '^99.0.0' }), { tag: 'v0.3.0' });
+      const [behind] = await outdated('swell');
+      assertEquals([behind.target, behind.latest, behind.behind], [repository, { ref: 'v0.2.0', commit: next, version: '0.2.0' }, true]);
+      assertEquals(await run('mod outdated swell'), 'swell 0.1.0 → 0.2.0 (v0.2.0)');
+
+      // From its branch, a new commit on it is behind, the same version or not; a commit pinned is left out.
+      await forge.publish('acme', 'module-swell', moduleFiles('swell', '0.3.1', 'swell main'));
+      assert((await install('swell@main')).success);
+      assertEquals((await outdated('swell'))[0].behind, false);
+      const tip = await forge.publish('acme', 'module-swell', moduleFiles('swell', '0.3.1', 'swell tip'));
+      const [branch] = await outdated('swell');
+      assertEquals([branch.target, branch.latest.commit, branch.behind], [`${repository}@main`, tip, true]);
+      assert((await install(`swell@${old}`)).success);
+      assertEquals(await outdated('swell'), []);
+      await client.execString('mod-remove --force swell');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {

@@ -126,6 +126,7 @@ import { modGroups } from './mod/mod-groups.ts';
 import { modInfo } from './mod/mod-info.ts';
 import { modInstall } from './mod/mod-install.ts';
 import { modList } from './mod/mod-list.ts';
+import { modOutdated } from './mod/mod-outdated.ts';
 import { modRemove } from './mod/mod-remove.ts';
 import { modSearch } from './mod/mod-search.ts';
 import { modStatus } from './mod/mod-status.ts';
@@ -367,6 +368,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   modInstall,
   modSetup,
   modList,
+  modOutdated,
   modRemove,
   modSearch,
   modStatus,

@@ -352,6 +352,27 @@ export type PublishedModule = {
   newest?: { release: string; version?: string; coreApi: string };
 };
 
+/** `mod outdated`: the installed modules `mod install` fetched, beside what updating each would take, and those whose repository did not answer. */
+export type ModuleOutdated = {
+  modules: OutdatedModule[];
+  failed: { name: string; reason: string }[];
+};
+
+/** One installed module beside what updating it would take. */
+export type OutdatedModule = {
+  name: string;
+  /** What is installed: its `mod.json`'s version, the ref it was asked for, and its commit. */
+  version: string | null;
+  ref: string;
+  commit: string;
+  /** What `mod install` updates it with: the repository, or for a branch or another tag, the repository at it. */
+  target: string;
+  /** What that takes now: the newest release this core runs, or the branch's or tag's commit, with the version its `mod.json` says. */
+  latest: { ref: string; commit: string; version?: string };
+  /** Whether updating moves it on: another commit and, from a release, a higher version. */
+  behind: boolean;
+};
+
 /** How a module's last `mod setup` went. */
 export type ModuleSetup = {
   ok: boolean;
