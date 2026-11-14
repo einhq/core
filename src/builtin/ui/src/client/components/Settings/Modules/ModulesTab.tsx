@@ -15,6 +15,7 @@ import { byState, ModuleList, moduleState } from './ModuleList.tsx';
 import { ModulePanel } from './ModulePanel.tsx';
 import { AddModule } from './AddModule.tsx';
 import { InstallProgress, useModuleInstall } from './ModuleInstall.tsx';
+import { useModuleUpdates } from './useModuleUpdates.ts';
 
 /** The history state of a module opened from the list where they take turns, so going back to the list pops it. */
 const OPENED = { modulesOpened: true };
@@ -36,17 +37,22 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * again.
  *
  * Above them, the module install EiN is running, whoever started it, and when one this page saw
- * running ends, what it came to.
+ * running ends, what it came to. For the administrator `mod outdated` is asked as the tab opens and
+ * after each install, so the list marks a module with something newer and its Update says what.
  */
 export function ModulesTab() {
   const { data: modules, loading, error, refetch: refetchList } = useModuleReference({ fresh: true });
+  const admin = useAccessIds()?.admin === true;
+  const { updateOf, refresh: refreshUpdates } = useModuleUpdates(admin);
   // A module installed, updated or removed changes the shell's navigation and pages too.
   const refetch = () => {
     refetchList();
     void reloadModuleUi();
   };
-  const { install, seen, refresh: refreshInstall } = useModuleInstall(refetch);
-  const admin = useAccessIds()?.admin === true;
+  const { install, seen, refresh: refreshInstall } = useModuleInstall(() => {
+    refetch();
+    refreshUpdates();
+  });
   const [dismissed, setDismissed] = useState<string | null>(null);
   const shownInstall = install && (install.state === 'running' || (seen && dismissed !== install.id)) ? install : null;
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
@@ -109,6 +115,7 @@ export function ModulesTab() {
       modules={listed}
       selected={selected?.name}
       onSelect={(name) => go(name, narrow)}
+      hasUpdate={admin ? (module) => updateOf(module).state === 'behind' : undefined}
       filter={filter}
       onFilter={setFilter}
       loading={firstLoad}
@@ -157,6 +164,7 @@ export function ModulesTab() {
                 onSection={(next) => go(selected.name, false, next)}
                 onChanged={refetch}
                 install={install}
+                update={updateOf(selected)}
                 onStarted={refreshInstall}
                 onRemoved={() => {
                   refetch();

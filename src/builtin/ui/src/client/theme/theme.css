@@ -3769,7 +3769,28 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
   margin-inline-start: 6px;
 }
 
-/* A module's Overview: its details beside the guide's pages, or over them where the pane is narrow. */
+/* The header's first line: the module's picture, name, version and state, and its buttons at the
+ * top right; where the pane is too narrow for both, the buttons go under them. */
+.mrx-module-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+}
+
+.mrx-module-head-name {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.mrx-module-actions {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+/* A module's Overview, over who has it: what it needs and what needs it beside its details, or
+ * over them where the pane is narrow. */
 .mrx-module-overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));

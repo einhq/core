@@ -1,42 +1,43 @@
-import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Spoiler, Stack, Table, Tabs, Text, Title } from '@mantine/core';
-import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
-import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Spoiler, Stack, Table, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconAlertTriangle, IconBook2, IconCheck, IconChevronRight, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { type CSSProperties, type ReactNode, useState } from 'react';
 import { useSignals } from '@preact/signals-react/runtime';
 import { Link } from 'react-router-dom';
 import { tryParse } from '@std/semver';
-import type { ModuleEntry, ModuleInstallJob, NodeTypeReference, ServiceEntry } from '@ein/api';
+import type { GroupEntry, ModuleEntry, ModuleInstallJob, NodeTypeReference, ServiceEntry } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { useConfig } from '../../../hooks/useConfig.ts';
-import { useGuide } from '../../../hooks/useGuide.ts';
+import { useIdentities } from '../../../hooks/useIdentities.ts';
 import { usePhone } from '../../../hooks/usePhone.ts';
 import { useCommandReference, useNodeTypeReference } from '../../../hooks/useReference.ts';
 import { usePolledCommand } from '../../../hooks/useSystem.ts';
 import { formatCount, formatUptime } from '../../../lib/format.ts';
-import { formatGroupList, parseGroupList } from '../../../lib/accounts.ts';
+import { displayName, sortGroups } from '../../../lib/accounts.ts';
+import { formatDateTime } from '../../../lib/datetime.ts';
 import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
-import { modulePages } from '../../../lib/guide.ts';
-import { GuidePageList } from '../../Docs/ModuleReference.tsx';
+import { panelRoute, panelsOf } from '../../../signals/nav.ts';
 import { moduleRoute } from '../../Docs/reference.tsx';
+import { TablerIcon } from '../../Icon/TablerIcon.tsx';
+import { GroupAvatar } from '../../Identity/GroupAvatar.tsx';
+import { ModuleAvatar, moduleColor } from '../../Identity/ModuleAvatar.tsx';
+import { Dialog, DialogActions } from '../../Surface/Dialog.tsx';
+import { RoutePanel } from '../../Surface/SurfaceRouter.tsx';
 import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
-import { GroupsMultiSelect } from '../AccountInputs.tsx';
-import { Done, Note, useInlineConfirm } from '../Accounts/PanelParts.tsx';
+import { Checklist, type ChecklistItem } from '../Accounts/Checklist.tsx';
+import { Note, PanelSection } from '../Accounts/PanelParts.tsx';
 import { ModuleCommands } from './ModuleCommands.tsx';
 import { moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
-import { ModuleAvatar, moduleColor } from '../../Identity/ModuleAvatar.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
-import { formatDateTime } from '../../../lib/datetime.ts';
-import { panelRoute, panelsOf } from '../../../signals/nav.ts';
-import { TablerIcon } from '../../Icon/TablerIcon.tsx';
-import { RoutePanel } from '../../Surface/SurfaceRouter.tsx';
+import type { ModuleUpdate } from './useModuleUpdates.ts';
 
 /** The panel's tabs, in order. */
-const MODULE_SECTIONS = ['overview', 'dependencies', 'services', 'pages', 'commands', 'settings', 'types'] as const;
+const MODULE_SECTIONS = ['overview', 'setup', 'services', 'pages', 'commands', 'settings', 'types'] as const;
 type ModuleSection = typeof MODULE_SECTIONS[number];
 
 const SECTION_LABEL: Record<ModuleSection, string> = {
   overview: 'Overview',
-  dependencies: 'Dependencies',
+  setup: 'Set up',
   services: 'Services',
   pages: 'Pages',
   commands: 'Commands',
@@ -59,6 +60,8 @@ type ModulePanelProps = {
   onChanged: () => void;
   /** The install EiN is running, or the last one: while one runs, Update waits. */
   install: ModuleInstallJob | null;
+  /** Whether there is something newer to update it to (`mod outdated`). */
+  update: ModuleUpdate;
   /** After an update was started, so how it stands is asked at once. */
   onStarted: () => void;
   /** After it was removed. */
@@ -66,17 +69,17 @@ type ModulePanelProps = {
 };
 
 /**
- * One installed module. At the top, on a tile in the module's colour, what it is — its name,
- * version, state and description, a long one cut to three lines that More opens — with Update and
- * Remove for the administrator and a link to its documentation; under the tile why its setup
- * failed, when it did. Under that a tab each: Overview, with who has it, where it came from and
- * when, and the guide's pages on it; what it needs and what needs it; and what it brings —
- * services with their state now, pages, commands, settings and node types. A tab is drawn only
- * when the module has something for it, with how many. Commands and settings open in place, a
- * command to its help and a setting to its control; the module's settings views come before its
- * settings.
+ * One installed module. At the top, on a tile in the module's colour, what it is — its name, its
+ * version and its state, and its description, a long one cut to three lines that More opens — with
+ * its buttons at the top right: Update, which says what it updates to, and Remove for the
+ * administrator, and its documentation for everyone; under the tile why its setup failed, when it
+ * did. Under that a tab each: Overview, with who has it, what it needs and what needs it, and where
+ * it came from; the module's settings views (Set up), as on the System tab, for the administrator;
+ * and what it brings — services with their state now, pages, commands, settings and node types. A
+ * tab is drawn only when the module has something for it, with how many. Commands and settings open
+ * in place, a command to its help and a setting to its control.
  */
-export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, install, onStarted, onRemoved }: ModulePanelProps) {
+export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, install, update, onStarted, onRemoved }: ModulePanelProps) {
   useSignals();
   const state = moduleState(module);
   const admin = useAccessIds()?.admin === true;
@@ -84,45 +87,53 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
   const { data: commands, loading: commandsLoading } = useCommandReference();
   const config = useConfig();
   const { data: types } = useNodeTypeReference();
+  const [problem, setProblem] = useState<string | null>(null);
 
   const ownSettings = config.entries.filter((entry) => entry.owner === module.name);
-  // Its settings views, drawn before the list of its settings as on the System tab.
-  const ownViews = panelsOf('settings.views').filter((view) => view.source === module.name);
+  // Its settings views, which set up one thing each, as the System tab has them.
+  const ownViews = admin ? panelsOf('settings.views').filter((view) => view.source === module.name) : [];
   const ownTypes = (types ?? []).filter((entry) => entry.owner === module.name);
   const usedBy = modules.filter((entry) => Object.hasOwn(entry.dependencies, module.name));
 
-  // What each tab counts; Overview counts nothing, and it and Dependencies are drawn regardless.
+  // What each tab counts; Overview counts nothing and is drawn regardless.
   const counts: Record<ModuleSection, number> = {
     overview: 0,
-    dependencies: Object.keys(module.dependencies).length + usedBy.length,
+    setup: ownViews.length,
     services: module.services.length,
     pages: module.routes.length,
     commands: commands ? commands.filter((entry) => entry.module === module.name).length : module.commands.length,
     settings: ownSettings.length,
     types: ownTypes.length,
   };
-  const shown = MODULE_SECTIONS.filter((each) => each === 'overview' || each === 'dependencies' || counts[each] > 0);
+  const shown = MODULE_SECTIONS.filter((each) => each === 'overview' || counts[each] > 0);
   const current: ModuleSection = shown.find((each) => each === section) ?? 'overview';
 
   return (
     <Stack gap='lg'>
-      <Stack gap='md' className='mrx-module-tile' style={{ '--mrx-module-color': moduleColor(module.name) } as CSSProperties}>
-        <Group gap='md' wrap='nowrap' align='flex-start'>
-          <ModuleAvatar name={module.name} size={phone ? 48 : 56} />
-          <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-            <Group gap='xs' align='baseline' wrap='wrap' style={{ rowGap: 2 }}>
-              <Title order={3} style={{ overflowWrap: 'anywhere' }}>{module.name}</Title>
-              {module.version && <Text size='sm' c='dimmed' ff='monospace'>{module.version}</Text>}
-              <Badge size='sm' variant='light' color={STATE_COLOR[state]} tt='none' style={{ alignSelf: 'center' }}>{STATE_LABEL[state]}</Badge>
-            </Group>
-            {module.description && (
-              <Spoiler maxHeight={62} showLabel='More' hideLabel='Less' styles={{ control: { fontSize: 'var(--mantine-font-size-sm)' } }}>
-                <Text size='sm'>{module.description}</Text>
-              </Spoiler>
-            )}
-          </Stack>
-        </Group>
-        <Actions module={module} usedBy={usedBy} admin={admin} install={install} onStarted={onStarted} onRemoved={onRemoved} />
+      <Stack gap='sm' className='mrx-module-tile' style={{ '--mrx-module-color': moduleColor(module.name) } as CSSProperties}>
+        <div className='mrx-module-head'>
+          <Group gap='md' wrap='nowrap' align='center' className='mrx-module-head-name'>
+            <ModuleAvatar name={module.name} size={phone ? 48 : 56} />
+            <Stack gap={6} style={{ minWidth: 0 }}>
+              <Title order={3} lh={1.15} style={{ overflowWrap: 'anywhere' }}>{module.name}</Title>
+              <Group gap='xs' wrap='wrap' style={{ rowGap: 4 }}>
+                {module.version && <Badge size='lg' radius='sm' variant='default' tt='none' ff='monospace' fw={600} title='Version'>{module.version}</Badge>}
+                <Badge size='lg' radius='sm' variant='light' color={STATE_COLOR[state]} tt='none'>{STATE_LABEL[state]}</Badge>
+              </Group>
+            </Stack>
+          </Group>
+          <Actions module={module} usedBy={usedBy} admin={admin} install={install} update={update} onStarted={onStarted} onRemoved={onRemoved} onProblem={setProblem} />
+        </div>
+        {module.description && (
+          <Spoiler maxHeight={62} showLabel='More' hideLabel='Less' styles={{ control: { fontSize: 'var(--mantine-font-size-sm)' } }}>
+            <Text size='sm'>{module.description}</Text>
+          </Spoiler>
+        )}
+        {problem && (
+          <Alert color='red' p='xs' icon={<IconAlertTriangle size={16} />} withCloseButton closeButtonLabel='Dismiss' onClose={() => setProblem(null)}>
+            <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem}</Text>
+          </Alert>
+        )}
       </Stack>
 
       {state === 'failed' && (
@@ -154,10 +165,23 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
         </Tabs.List>
 
         <Tabs.Panel value='overview'>
-          <Overview module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} />
+          <Overview module={module} modules={modules} usedBy={usedBy} admin={admin} onChanged={onChanged} onOpenModule={onOpenModule} />
         </Tabs.Panel>
-        <Tabs.Panel value='dependencies'>
-          <Dependencies module={module} modules={modules} usedBy={usedBy} onOpenModule={onOpenModule} />
+        <Tabs.Panel value='setup'>
+          <Stack gap='lg'>
+            {ownViews.map((view) => (
+              <Paper key={view.id} p='md' radius='md' withBorder>
+                <Stack gap='sm'>
+                  <Group gap='xs' wrap='nowrap'>
+                    <TablerIcon name={view.icon ?? 'adjustments'} size={18} />
+                    <Title order={5}>{view.label}</Title>
+                  </Group>
+                  {view.description && <Text size='sm' c='dimmed'>{view.description}</Text>}
+                  <RoutePanel path={panelRoute(view)} />
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value='services'>
           <Services module={module} />
@@ -173,21 +197,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
             : <Text size='sm' ff='monospace'>{module.commands.join(' ')}</Text>}
         </Tabs.Panel>
         <Tabs.Panel value='settings'>
-          <Stack gap='lg'>
-            {ownViews.map((view) => (
-              <Paper key={view.id} p='md' radius='md' withBorder>
-                <Stack gap='sm'>
-                  <Group gap='xs' wrap='nowrap'>
-                    <TablerIcon name={view.icon ?? 'adjustments'} size={18} />
-                    <Title order={5}>{view.label}</Title>
-                  </Group>
-                  {view.description && <Text size='sm' c='dimmed'>{view.description}</Text>}
-                  <RoutePanel path={panelRoute(view)} />
-                </Stack>
-              </Paper>
-            ))}
-            <ModuleSettings entries={ownSettings} save={config.save} reset={config.reset} admin={admin} />
-          </Stack>
+          <ModuleSettings entries={ownSettings} save={config.save} reset={config.reset} admin={admin} />
         </Tabs.Panel>
         <Tabs.Panel value='types'>
           <NodeTypes types={ownTypes} />
@@ -202,121 +212,139 @@ type ActionsProps = {
   usedBy: ModuleEntry[];
   admin: boolean;
   install: ModuleInstallJob | null;
+  update: ModuleUpdate;
   onStarted: () => void;
   onRemoved: () => void;
+  /** Why an update would not start; null clears it. */
+  onProblem: (problem: string | null) => void;
 };
 
 /**
- * What can be done with the module: for the administrator, on one `mod install` fetched, Update —
- * the newest release when it was installed at one, the newest commit of the branch it was installed
- * from, or another tag's commit again; one installed at a commit stays there and has none — and
- * Remove, which asks first, in place of the buttons, and says what goes with it; for everyone its
- * documentation. An update runs on its own, which the tab follows, and waits while another install
- * runs.
+ * What can be done with the module, at the header's top right. For the administrator, on one
+ * `mod install` fetched, Update — the newest release when it was installed at one, the newest
+ * commit of the branch it was installed from, or another tag's commit again; one installed at a
+ * commit stays there and has none — which says what it would update to, or that it is the latest,
+ * as `mod outdated` has it; and Remove, which asks in a dialog and says what goes with it. For
+ * everyone its documentation: the Docs page's on the module, with the guide's pages on it and
+ * everything it brings. An update runs on its own, which the tab follows, and waits while another
+ * install runs.
  */
-function Actions({ module, usedBy, admin, install, onStarted, onRemoved }: ActionsProps) {
+function Actions({ module, usedBy, admin, install, update, onStarted, onRemoved, onProblem }: ActionsProps) {
   const record = admin ? module.installed : undefined;
   const pinned = record !== undefined && record.ref === record.commit;
   // A release, `v<version>`, is updated to the newest release this core can run, which `mod install` takes without a ref.
   const version = record?.ref.startsWith('v') ? tryParse(record.ref.slice(1)) : undefined;
   const release = version !== undefined && !version.prerelease?.length;
-  const [busy, setBusy] = useState<'update' | 'remove' | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const confirm = useInlineConfirm();
+  const [updating, setUpdating] = useState(false);
+  const [asking, setAsking] = useState(false);
   const target = record && (release ? record.repository : `${record.repository}@${record.ref}`);
   const running = install?.state === 'running' ? install : null;
+  const mine = updating || running?.args.includes(target!) === true;
 
-  const update = async () => {
-    setBusy('update');
-    setProblem(null);
+  const start = async () => {
+    setUpdating(true);
+    onProblem(null);
     try {
       await execCommand(`mod install --background ${shq(target!)}`);
       onStarted();
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : String(err));
+      onProblem(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(null);
+      setUpdating(false);
     }
   };
 
+  const label = mine
+    ? 'Updating'
+    : update.state === 'behind'
+    ? `Update to ${update.to}`
+    : update.state === 'latest'
+    ? 'Latest version'
+    : update.state === 'checking'
+    ? 'Checking for updates'
+    : 'Update';
+
+  return (
+    <Group gap='xs' wrap='wrap' className='mrx-module-actions'>
+      {record && !pinned && (
+        <Button
+          size='xs'
+          variant={update.state === 'behind' ? 'filled' : 'default'}
+          leftSection={update.state === 'latest' && !mine ? <IconCheck size={16} /> : <IconRefresh size={16} />}
+          loading={mine}
+          disabled={!mine && (running !== null || update.state === 'latest' || update.state === 'checking')}
+          title={update.state === 'unknown' ? `Could not check for a newer version: ${update.reason}` : undefined}
+          onClick={start}
+        >
+          {label}
+        </Button>
+      )}
+      {record && (
+        <Button size='xs' variant='light' color='red' leftSection={<IconTrash size={16} />} disabled={mine} onClick={() => setAsking(true)}>
+          Remove
+        </Button>
+      )}
+      <Button component={Link} to={moduleRoute(module.name)} size='xs' variant='default' leftSection={<IconBook2 size={16} />}>Documentation</Button>
+      {record && <RemoveDialog module={module} usedBy={usedBy} opened={asking} onClose={() => setAsking(false)} onRemoved={onRemoved} />}
+    </Group>
+  );
+}
+
+type RemoveDialogProps = { module: ModuleEntry; usedBy: ModuleEntry[]; opened: boolean; onClose: () => void; onRemoved: () => void };
+
+/** Remove spelled out before it is done: what goes with the module, and what stops working without it; why it failed, when it did. */
+function RemoveDialog({ module, usedBy, opened, onClose, onRemoved }: RemoveDialogProps) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
   const remove = async () => {
-    setBusy('remove');
+    setBusy(true);
     setProblem(null);
     try {
       await execCommand(`mod remove --force ${shq(module.name)}`);
+      onClose();
       onRemoved();
     } catch (err) {
       setProblem(err instanceof Error ? err.message : String(err));
-      setBusy(null);
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <Stack gap='xs'>
-      {confirm.open ? <RemoveConfirm module={module} usedBy={usedBy} busy={busy === 'remove'} onRemove={remove} onCancel={confirm.cancel} /> : (
-        <Group gap='xs'>
-          {record && !pinned && (
-            <Button
-              size='xs'
-              variant='default'
-              leftSection={<IconRefresh size={16} />}
-              loading={busy === 'update' || running?.args.includes(target!) === true}
-              disabled={busy !== null || running !== null}
-              onClick={update}
-            >
-              Update
-            </Button>
-          )}
-          {record && (
-            <Button ref={confirm.opener} size='xs' variant='light' color='red' leftSection={<IconTrash size={16} />} disabled={busy !== null} onClick={confirm.show}>
-              Remove
-            </Button>
-          )}
-          <Button component={Link} to={moduleRoute(module.name)} size='xs' variant='default' leftSection={<IconBook2 size={16} />}>Documentation</Button>
-        </Group>
-      )}
-      {problem && (
-        <Alert color='red' p='xs' icon={<IconAlertTriangle size={16} />} withCloseButton closeButtonLabel='Dismiss' onClose={() => setProblem(null)}>
-          <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem}</Text>
-        </Alert>
-      )}
-    </Stack>
-  );
-}
-
-type RemoveConfirmProps = { module: ModuleEntry; usedBy: ModuleEntry[]; busy: boolean; onRemove: () => void; onCancel: () => void };
-
-/** Remove spelled out where it was asked for: what goes with the module, and what stops working without it. It takes the focus as it opens. */
-function RemoveConfirm({ module, usedBy, busy, onRemove, onCancel }: RemoveConfirmProps) {
-  const textId = useId();
-  const button = useRef<HTMLButtonElement>(null);
-  useEffect(() => button.current?.focus(), []);
-
-  return (
-    <Paper
-      role='group'
-      aria-labelledby={textId}
-      p='md'
-      radius='md'
-      withBorder
-      bg='color-mix(in srgb, var(--mantine-color-red-filled) 7%, var(--mrx-surface-raised))'
-      style={{ borderColor: 'color-mix(in srgb, var(--mantine-color-red-filled) 55%, transparent)' }}
+    <Dialog
+      opened={opened}
+      onClose={() => {
+        if (busy) return;
+        setProblem(null);
+        onClose();
+      }}
+      title={`Remove ${module.name}?`}
+      icon='trash'
+      pattern='danger'
+      size='sm'
+      floating
     >
       <Stack gap='sm'>
-        <Text id={textId} size='sm'>
+        <Text size='sm'>
           Removing {module.name} stops its services and takes its commands, pages and files away. What it made in the archive stays.
           {usedBy.length > 0 && ` ${usedBy.map((entry) => entry.name).join(', ')} ${usedBy.length > 1 ? 'need' : 'needs'} it and will not work without it.`}
         </Text>
-        <Group gap='xs'>
-          <Button ref={button} size='xs' color='red' leftSection={<IconTrash size={16} />} loading={busy} onClick={onRemove}>Remove {module.name}</Button>
-          <Button size='xs' variant='default' disabled={busy} onClick={onCancel}>Cancel</Button>
-        </Group>
+        {problem && (
+          <Alert color='red' p='xs' icon={<IconAlertTriangle size={16} />}>
+            <Text size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{problem}</Text>
+          </Alert>
+        )}
       </Stack>
-    </Paper>
+      <DialogActions>
+        <Button variant='default' disabled={busy} onClick={onClose}>Cancel</Button>
+        <Button color='red' leftSection={<IconTrash size={16} />} loading={busy} onClick={remove}>Remove {module.name}</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
-/** One line of the overview's details: what it is, and its value beside it, or under it where the panel is narrow. */
+/** One line of the details: what it is, and its value beside it. */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -326,53 +354,110 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-type OverviewProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boolean; onChanged: () => void };
+type OverviewProps = {
+  module: ModuleEntry;
+  modules: ModuleEntry[];
+  usedBy: ModuleEntry[];
+  admin: boolean;
+  onChanged: () => void;
+  onOpenModule: (name: string) => void;
+};
 
 /**
- * The module at a glance: who has it, its version and the module API it is written against, where
- * `mod install` fetched it from and when — or that the deployment provides it — when it was set up
- * and the folder it is in; beside that, or under it where the panel is narrow, the guide's pages on it.
+ * The module at a glance: what it needs and what needs it beside its details — where `mod install`
+ * fetched it from, at which release and when, or that the deployment provides it, the module API it
+ * is written against and the folder it is in — or over them where the panel is narrow; under them,
+ * across the panel's width, who has it.
  */
-function Overview({ module, usedBy, admin, onChanged }: OverviewProps) {
+function Overview({ module, modules, usedBy, admin, onChanged, onOpenModule }: OverviewProps) {
   const record = module.installed;
   return (
-    <div className='mrx-module-overview'>
-      <Box>
-        <Title order={5} mb='xs'>Details</Title>
-        <dl className='mrx-module-facts'>
-          <Fact label='Available to'>
-            <AvailableTo module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} />
-          </Fact>
-          <Fact label='Version'>
-            <Text span size='sm' ff='monospace'>{module.version ?? '—'}</Text>
-          </Fact>
-          {module.coreApi && (
-            <Fact label='Core API'>
-              <Text span size='sm' ff='monospace'>{module.coreApi}</Text>
-            </Fact>
+    <Stack gap='xl'>
+      <div className='mrx-module-overview'>
+        <Stack gap='lg'>
+          <Related
+            title='Needs'
+            empty='Core only.'
+            rows={Object.entries(module.dependencies).map(([name, range]) => ({ name, range, entry: modules.find((each) => each.name === name) }))}
+            onOpenModule={onOpenModule}
+          />
+          {usedBy.length > 0 && (
+            <Related
+              title='Needed by'
+              rows={usedBy.map((entry) => ({ name: entry.name, range: entry.dependencies[module.name], entry }))}
+              onOpenModule={onOpenModule}
+            />
           )}
-          <Fact label='Source'>
-            {record
-              ? <Anchor href={record.repository} target='_blank' rel='noreferrer' size='sm' title={record.repository}>{withoutScheme(record.repository)}</Anchor>
-              : 'Comes with the deployment'}
-          </Fact>
-          {record && (
-            <Fact label='Installed'>
-              <Text span size='sm' ff='monospace'>{record.ref === record.commit ? record.commit.slice(0, 9) : `${record.ref} · ${record.commit.slice(0, 9)}`}</Text>
-              {record.at && <Text size='xs' c='dimmed'>{formatDateTime(record.at)}</Text>}
+        </Stack>
+        <Stack gap='sm'>
+          <Title order={5}>Details</Title>
+          <dl className='mrx-module-facts'>
+            <Fact label='Source'>
+              {record
+                ? <Anchor href={record.repository} target='_blank' rel='noreferrer' size='sm' title={record.repository}>{withoutScheme(record.repository)}</Anchor>
+                : 'Comes with the deployment'}
             </Fact>
-          )}
-          <Fact label='Set up'>{module.setup ? formatDateTime(module.setup.at) : 'Not since EiN started'}</Fact>
-          <Fact label='Folder'>
-            <Text span size='sm' ff='monospace'>{module.path}</Text>
-          </Fact>
-        </dl>
-      </Box>
-      <Box>
-        <Title order={5} mb='xs'>In the guide</Title>
-        <About module={module} />
-      </Box>
-    </div>
+            {record && (
+              <Fact label='Installed'>
+                <Text span size='sm' ff='monospace'>{record.ref === record.commit ? record.commit.slice(0, 9) : `${record.ref} · ${record.commit.slice(0, 9)}`}</Text>
+                {record.at && <Text size='xs' c='dimmed'>{formatDateTime(record.at)}</Text>}
+              </Fact>
+            )}
+            {module.coreApi && (
+              <Fact label='Core API'>
+                <Text span size='sm' ff='monospace'>{module.coreApi}</Text>
+              </Fact>
+            )}
+            <Fact label='Folder'>
+              <Text span size='sm' ff='monospace'>{module.path}</Text>
+            </Fact>
+          </dl>
+        </Stack>
+      </div>
+      <AvailableTo module={module} usedBy={usedBy} admin={admin} onChanged={onChanged} />
+    </Stack>
+  );
+}
+
+type RelatedRow = { name: string; range: string; entry?: ModuleEntry };
+
+/**
+ * Modules the open one is tied to, a row each: its picture and name, the versions accepted, the
+ * version installed and, when it does not work, why; an installed one opens in the panel.
+ */
+function Related({ title, empty, rows, onOpenModule }: { title: string; empty?: string; rows: RelatedRow[]; onOpenModule: (name: string) => void }) {
+  return (
+    <Stack gap='sm'>
+      <Title order={5}>{title}</Title>
+      {rows.length === 0 ? <Text size='sm' c='dimmed'>{empty}</Text> : (
+        <Paper withBorder radius='md' className='mrx-module-installed'>
+          {rows.map(({ name, range, entry }) => {
+            const state = entry && moduleState(entry);
+            const body = (
+              <Group gap='sm' wrap='nowrap'>
+                <ModuleAvatar name={name} size={32} />
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Group gap={6} align='baseline' wrap='nowrap'>
+                    <Text size='sm' fw={600} truncate>{name}</Text>
+                    {entry?.version && <Text size='xs' c='dimmed' ff='monospace' style={{ flex: 'none' }}>{entry.version}</Text>}
+                  </Group>
+                  <Text size='xs' c='dimmed'>
+                    Accepts <Text span size='xs' ff='monospace'>{range}</Text>
+                  </Text>
+                </Box>
+                {!entry
+                  ? <Badge size='sm' variant='light' color='red' tt='none' style={{ flex: 'none' }}>Not installed</Badge>
+                  : state !== 'active' && <Badge size='sm' variant='light' color={STATE_COLOR[state!]} tt='none' style={{ flex: 'none' }}>{STATE_LABEL[state!]}</Badge>}
+                {entry && <IconChevronRight size={16} aria-hidden style={{ flex: 'none', color: 'var(--mantine-color-dimmed)' }} />}
+              </Group>
+            );
+            return entry
+              ? <UnstyledButton key={name} className='mrx-module-installed-row' onClick={() => onOpenModule(name)}>{body}</UnstyledButton>
+              : <Box key={name} className='mrx-module-installed-row'>{body}</Box>;
+          })}
+        </Paper>
+      )}
+    </Stack>
   );
 }
 
@@ -381,78 +466,83 @@ type AvailableToProps = { module: ModuleEntry; usedBy: ModuleEntry[]; admin: boo
 /**
  * Who the module is for: everyone, or the groups it is kept to (`mod groups`), whose members alone
  * have its commands, its entries in the navigation and its pages; administrators have every
- * module. The administrator's Change opens the groups in place, none for everyone.
+ * module. For the administrator the groups it may be kept to are boxes to tick, each with its
+ * picture and what it is for, saved as each is ticked; none ticked is everyone.
  */
 function AvailableTo({ module, usedBy, admin, onChanged }: AvailableToProps) {
-  const saved = formatGroupList(module.groups ?? []);
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(saved);
-  const [busy, setBusy] = useState(false);
+  const { users, groups } = useIdentities();
+  const saved = module.groups ?? [];
+  // The list as it is being saved, while a change is under way, and the group that changed.
+  const [pending, setPending] = useState<{ groups: string[]; changed: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const chosen = pending?.groups ?? saved;
 
-  const groups = parseGroupList(value);
   // What needs it and is everyone's calls it for people it would be refused to.
-  const exposed = groups.length > 0 ? usedBy.filter((entry) => !entry.groups?.length) : [];
+  const exposed = chosen.length > 0 ? usedBy.filter((entry) => !entry.groups?.length) : [];
+  const summary = saved.length > 0 ? `Members of ${saved.join(', ')}, and administrators.` : 'Everyone who signs in.';
 
-  const save = async () => {
-    setBusy(true);
+  if (!admin) {
+    return (
+      <PanelSection title='Available to'>
+        <Text size='sm'>{summary}</Text>
+      </PanelSection>
+    );
+  }
+
+  // The groups a module may be kept to: those made here and the one everyone is in, not an
+  // account's own; and whatever it is kept to already.
+  const own = (group: GroupEntry) => users.some((user) => user.username === group.groupname && user.uid === group.gid);
+  const offered = sortGroups(groups.filter((group) => ((group.role === undefined || group.role === 'everyone') && !own(group)) || saved.includes(group.groupname)));
+  const items: ChecklistItem[] = [
+    ...offered.map((group) => ({
+      value: group.groupname,
+      label: displayName(group),
+      description: group.description || (displayName(group) === group.groupname ? undefined : group.groupname),
+      avatar: <GroupAvatar role={group.role} size={24} />,
+      checked: chosen.includes(group.groupname),
+      busy: pending?.changed === group.groupname,
+    })),
+    // One it is kept to that is no group any more.
+    ...saved.filter((name) => !groups.some((group) => group.groupname === name)).map((name) => ({
+      value: name,
+      label: name,
+      note: 'no such group',
+      checked: chosen.includes(name),
+      busy: pending?.changed === name,
+    })),
+  ];
+
+  const toggle = async (name: string, on: boolean) => {
+    if (pending) return;
+    const next = on ? [...chosen, name] : chosen.filter((each) => each !== name);
+    setPending({ groups: next, changed: name });
     setProblem(null);
     try {
-      await execCommand(`mod groups ${shq(module.name)} ${groups.length > 0 ? groups.map(shq).join(' ') : '--everyone'}`);
-      setDone(true);
-      setEditing(false);
+      await execCommand(`mod groups ${shq(module.name)} ${next.length > 0 ? next.map(shq).join(' ') : '--everyone'}`);
       onChanged();
     } catch (err) {
       setProblem(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   };
 
-  if (!editing) {
-    return (
-      <Group gap='xs' wrap='wrap' style={{ rowGap: 2 }}>
-        <Text span size='sm'>{module.groups?.length ? `${module.groups.join(', ')} and administrators` : 'Everyone'}</Text>
-        {admin && (
-          <Anchor
-            component='button'
-            type='button'
-            size='sm'
-            onClick={() => {
-              setValue(saved);
-              setDone(false);
-              setEditing(true);
-            }}
-          >
-            Change
-          </Anchor>
-        )}
-        {done && <Done>Saved</Done>}
-      </Group>
-    );
-  }
-
   return (
-    <Stack gap='xs'>
-      <Text size='xs' c='dimmed'>Only members of the groups chosen, and administrators, get its commands, its entries in the navigation and its pages. None is everyone.</Text>
-      <GroupsMultiSelect homeable value={value} onChange={setValue} placeholder='Everyone' aria-label='Groups it is kept to' disabled={busy} />
+    <PanelSection
+      title='Available to'
+      lead='Only members of the groups ticked, and administrators, get its commands, its entries in the navigation and its pages. With none ticked, everyone has it.'
+      error={problem}
+      onDismiss={() => setProblem(null)}
+    >
+      <Note>{summary}</Note>
+      <Checklist items={items} onToggle={toggle} label={`Groups ${module.name} is kept to`} what='groups' resetKey={module.name} />
       {exposed.length > 0 && (
         <Note warn>
           {exposed.map((entry) => entry.name).join(', ')} {exposed.length > 1 ? 'need' : 'needs'} {module.name} and {exposed.length > 1 ? 'are' : 'is'} everyone's: what{' '}
           {exposed.length > 1 ? 'they run' : 'it runs'} of {module.name} fails for anyone outside these groups.
         </Note>
       )}
-      <Group gap='xs'>
-        <Button size='xs' loading={busy} disabled={value === saved} onClick={save}>Save</Button>
-        <Button size='xs' variant='default' disabled={busy} onClick={() => setEditing(false)}>Cancel</Button>
-      </Group>
-      {problem && (
-        <Alert color='red' p='xs' icon={<IconAlertTriangle size={16} />} withCloseButton closeButtonLabel='Dismiss' onClose={() => setProblem(null)}>
-          {problem}
-        </Alert>
-      )}
-    </Stack>
+    </PanelSection>
   );
 }
 
@@ -469,52 +559,6 @@ function SectionTable({ head, children }: { head: string[]; children: ReactNode 
         <Table.Tbody>{children}</Table.Tbody>
       </Table>
     </Table.ScrollContainer>
-  );
-}
-
-/** The guide's section on the module (its pages under `<name>/`), when the guide has one. */
-function About({ module }: { module: ModuleEntry }) {
-  const { guide, loading } = useGuide();
-  const pages = modulePages(guide, module.name);
-  if (loading) return <Loader size='sm' />;
-  return pages.length ? <GuidePageList pages={pages} /> : <Text size='sm' c='dimmed'>The guide has no section on it.</Text>;
-}
-
-type DependenciesProps = { module: ModuleEntry; modules: ModuleEntry[]; usedBy: ModuleEntry[]; onOpenModule: (name: string) => void };
-
-/** The modules it needs, with the versions it accepts, and the modules that need it; each opens in the panel. */
-function Dependencies({ module, modules, usedBy, onOpenModule }: DependenciesProps) {
-  const installed = new Map(modules.map((entry) => [entry.name, entry]));
-  const rows = [
-    ...Object.entries(module.dependencies).map(([name, range]) => ({ name, relation: 'It needs', range, entry: installed.get(name) })),
-    ...usedBy.map((entry) => ({ name: entry.name, relation: 'Needs it', range: entry.dependencies[module.name], entry })),
-  ];
-  if (rows.length === 0) return <Text size='sm' c='dimmed'>It needs core only, and no module needs it.</Text>;
-
-  return (
-    <SectionTable head={['Module', 'Relation', 'Accepts', 'Installed', 'State']}>
-      {rows.map(({ name, relation, range, entry }) => (
-        <Table.Tr key={`${relation}:${name}`}>
-          <Table.Td>
-            {entry ? <Anchor component='button' type='button' size='sm' fw={500} onClick={() => onOpenModule(name)}>{name}</Anchor> : <Text size='sm' fw={500}>{name}</Text>}
-          </Table.Td>
-          <Table.Td>
-            <Text size='sm' c='dimmed'>{relation}</Text>
-          </Table.Td>
-          <Table.Td>
-            <Text size='sm' ff='monospace'>{range}</Text>
-          </Table.Td>
-          <Table.Td>
-            <Text size='sm' ff='monospace'>{entry?.version ?? '—'}</Text>
-          </Table.Td>
-          <Table.Td style={{ whiteSpace: 'nowrap' }}>
-            {entry
-              ? <Badge size='sm' variant='light' color={STATE_COLOR[moduleState(entry)]} tt='none'>{STATE_LABEL[moduleState(entry)]}</Badge>
-              : <Badge size='sm' variant='light' color='red' tt='none'>Not installed</Badge>}
-          </Table.Td>
-        </Table.Tr>
-      ))}
-    </SectionTable>
   );
 }
 

@@ -1,4 +1,5 @@
-import { Badge, Switch, Text } from '@mantine/core';
+import { Badge, Group, Switch, Text } from '@mantine/core';
+import { IconCircleArrowUp } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { ModuleEntry } from '@ein/api';
 import { matchesText } from '../../../lib/text-match.ts';
@@ -22,13 +23,18 @@ const RANK: Record<ModuleState, number> = { failed: 0, 'not set up': 1, active: 
 /** The order the list is in: a module that does not work first, since it is the one to look at, then by name. */
 export const byState = (a: ModuleEntry, b: ModuleEntry): number => RANK[moduleState(a)] - RANK[moduleState(b)] || a.name.localeCompare(b.name);
 
-/** Its state for one that does not work; its version for one that does. */
-function Aside({ module }: { module: ModuleEntry }) {
+/** Its state for one that does not work; its version for one that does, after a mark when there is a newer one. */
+function Aside({ module, update }: { module: ModuleEntry; update: boolean }) {
   const state = moduleState(module);
   if (state !== 'active') {
     return <Badge size='sm' variant='dot' color={STATE_COLOR[state]} tt='none' style={{ flex: 'none' }}>{STATE_LABEL[state]}</Badge>;
   }
-  return module.version ? <Text size='xs' c='dimmed' ff='monospace' style={{ flex: 'none' }}>{module.version}</Text> : null;
+  return (
+    <Group gap={4} wrap='nowrap' style={{ flex: 'none' }}>
+      {update && <IconCircleArrowUp size={14} color='var(--mantine-primary-color-filled)' aria-label='A newer version can be installed' />}
+      {module.version && <Text size='xs' c='dimmed' ff='monospace'>{module.version}</Text>}
+    </Group>
+  );
 }
 
 type ModuleListProps = {
@@ -37,6 +43,8 @@ type ModuleListProps = {
   /** The name of the module open beside the list. */
   selected?: string;
   onSelect: (name: string) => void;
+  /** Whether a newer version of the module can be installed; absent where nobody may update. */
+  hasUpdate?: (module: ModuleEntry) => boolean;
   filter: string;
   onFilter: (next: string) => void;
   loading: boolean;
@@ -50,10 +58,11 @@ type ModuleListProps = {
 
 /**
  * The installed modules, narrowed by the filter, each opening its panel: its description under its
- * name, and at its right its version, or a badge when it does not work. The switch at the foot
- * leaves out the ones that do not; `action`, beside the filter, opens the panel that installs one.
+ * name, and at its right its version, marked when a newer one can be installed, or a badge when it
+ * does not work. The switch at the foot leaves out the ones that do not; `action`, beside the
+ * filter, opens the panel that installs one.
  */
-export function ModuleList({ modules, selected, onSelect, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
+export function ModuleList({ modules, selected, onSelect, hasUpdate, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
   const shown = modules.filter((module) => matchesText([module.name, module.description], filter));
   return (
     <ListFrame
@@ -71,7 +80,7 @@ export function ModuleList({ modules, selected, onSelect, filter, onFilter, load
           avatar={<ModuleAvatar name={module.name} size={36} />}
           title={module.name}
           subtitle={module.description ?? ''}
-          aside={<Aside module={module} />}
+          aside={<Aside module={module} update={hasUpdate?.(module) === true} />}
         />
       ))}
       footer={
