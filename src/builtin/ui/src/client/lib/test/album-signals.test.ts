@@ -14,6 +14,7 @@ import {
   lightboxReturnPath,
   nextMediaIndex,
   offerLightboxList,
+  openMediaAt,
   prevMediaIndex,
   showLightboxPath,
 } from '../../signals/album.ts';
@@ -170,6 +171,39 @@ Deno.test('the current item moves straight to the file in the offered list, neve
   } finally {
     endLightbox(false);
     offerLightboxList([]);
+    albumMediaList.value = previousList;
+    currentMediaIndex.value = previousIndex;
+  }
+});
+
+Deno.test('a step to another list walks it, and the route back to a picture walks its list again', () => {
+  const previousList = albumMediaList.value;
+  const previousIndex = currentMediaIndex.value;
+  const grid = [mediaItemFrom({ path: '/one.jpg' }), mediaItemFrom({ path: '/two.jpg' })];
+  const similar = [mediaItemFrom({ path: '/like-a.jpg' }), mediaItemFrom({ path: '/like-b.jpg' })];
+
+  try {
+    openMediaAt(1, grid);
+    openMediaAt(1, similar, { step: true });
+    assertEquals(albumMediaList.value, similar);
+
+    // Back: the picture it was like, in the grid it was opened from.
+    showLightboxPath('/two.jpg');
+    assertEquals(albumMediaList.value, grid);
+    assertEquals(currentMediaIndex.value, 1);
+
+    // Forward: the similar picture again, walking the similar ones.
+    showLightboxPath('/like-b.jpg');
+    assertEquals(albumMediaList.value, similar);
+    assertEquals(currentMediaIndex.value, 1);
+
+    // A new visit starts with nothing walked: the old lists are not found.
+    endLightbox(false);
+    openMediaAt(0, [mediaItemFrom({ path: '/three.jpg' })]);
+    showLightboxPath('/two.jpg');
+    assertEquals(albumMediaList.value.map((item) => item.path), ['/two.jpg']);
+  } finally {
+    endLightbox(false);
     albumMediaList.value = previousList;
     currentMediaIndex.value = previousIndex;
   }

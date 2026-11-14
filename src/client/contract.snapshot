@@ -780,8 +780,8 @@ src/builtin/ui/src/client/signals/mod.ts onPageChange 7270185e6f78 0|441200a305c
 src/builtin/ui/src/client/signals/mod.ts openCodeEditor c1c3ead56a68 0|7954c6b9bee7=7954c6b9bee7,@signature=9c52dad348b0
 src/builtin/ui/src/client/signals/mod.ts openDialog c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts openDrawer c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
-src/builtin/ui/src/client/signals/mod.ts openFullscreen c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
-src/builtin/ui/src/client/signals/mod.ts openMediaAt b13ffd4c2a70 0|b3d9da3d9fc5=b3d9da3d9fc5,1|74a96c6a6bb8=74a96c6a6bb8,@signature=dd85016c6178
+src/builtin/ui/src/client/signals/mod.ts openFullscreen 974ecc4491a8
+src/builtin/ui/src/client/signals/mod.ts openMediaAt 0533f485c383
 src/builtin/ui/src/client/signals/mod.ts openNodesPane df01802e180a
 src/builtin/ui/src/client/signals/mod.ts openRoute 102274c1ae47 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=ea190cca78f5
 src/builtin/ui/src/client/signals/mod.ts openShareLink a3e3cb4523bd 0|336e2b46aff6=336e2b46aff6,@signature=506a4c7bc189

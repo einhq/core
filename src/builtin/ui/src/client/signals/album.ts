@@ -161,35 +161,57 @@ let lightboxAlone = false;
 let offeredList: MediaItem[] = [];
 
 /**
+ * The other lists this visit of the lightbox has walked, which a step (`openMediaAt` with `step`)
+ * left: Back or Forward to a picture of one walks that list again.
+ */
+let walkedLists: MediaItem[][] = [];
+
+/**
  * Point the lightbox at an item of a list, the two signals in one write: between them the
  * current item would be the new list's item at the old index, and the route, which follows the
  * current item, would move there.
  */
 const showList = (list: MediaItem[], index: number) =>
   batch(() => {
+    const left = albumMediaList.peek();
+    if (left !== list && left.length > 0 && currentMediaIndex.peek() >= 0 && !walkedLists.includes(left)) walkedLists.push(left);
     albumMediaList.value = list;
     currentMediaIndex.value = index;
   });
 
-/** Open the lightbox at one item of a list, which arrows and swipes then walk. */
-export const openMediaAt = (index: number, mediaList: MediaItem[]) => {
+/**
+ * Open the lightbox at one item of a list, which arrows and swipes then walk. With `step`, from
+ * inside the lightbox — a picture of its Similar strip — the item is an entry of its own in
+ * history, and Back returns to the picture before and the list it was in.
+ */
+export const openMediaAt = (index: number, mediaList: MediaItem[], { step = false }: { step?: boolean } = {}) => {
   const item = mediaList[index];
   if (!item) return;
+  if (!step) walkedLists = [];
   showList(mediaList, index);
   lightboxAlone = false;
-  openFullscreen(lightboxRoute(item.path));
+  openFullscreen(lightboxRoute(item.path), { step });
 };
 
 /**
  * Show the file the lightbox's route names: from the list it was opened from when it is there,
- * then from the list the page behind offers, and alone otherwise — a reload or a shared link
- * over a page whose list has not loaded — until the page offers one.
+ * then from a list it walked before a step, then from the list the page behind offers, and alone
+ * otherwise — a reload or a shared link over a page whose list has not loaded — until the page
+ * offers one.
  */
 export const showLightboxPath = (path: string) => {
   if (currentMediaItem.peek()?.path === path) return;
   const index = albumMediaList.peek().findIndex((item) => item.path === path);
   if (index >= 0) {
     currentMediaIndex.value = index;
+    return;
+  }
+  for (const list of walkedLists.toReversed()) {
+    const walked = list.findIndex((item) => item.path === path);
+    if (walked < 0) continue;
+    walkedLists = walkedLists.filter((each) => each !== list);
+    lightboxAlone = false;
+    showList(list, walked);
     return;
   }
   const offered = offeredList.findIndex((item) => item.path === path);
@@ -223,6 +245,7 @@ export const endLightbox = (returnToGrid: boolean) => {
   else clearLightboxReturnTarget();
   currentMediaIndex.value = -1;
   lightboxAlone = false;
+  walkedLists = [];
 };
 
 const clearLightboxReturnTarget = () => {

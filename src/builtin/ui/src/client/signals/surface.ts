@@ -75,21 +75,35 @@ export const fullscreenBesideDrawer = signal<string | null>(null);
 /** Where the drawer sits beside the page rather than over it: the aside's breakpoint, Mantine's `md`. */
 export const DRAWER_BESIDE_QUERY = '(min-width: 62em)';
 
-/** Marks the history entry an opening pushed, which a close can go back from. */
+/**
+ * Counts, in a history entry's state, the entries full screen has pushed over the page: one for
+ * the opening, one more for each `step`. A close goes back that many.
+ */
 const PUSHED_KEY = 'fullscreenPushed';
 
-const pushedByOpen = (state: unknown): boolean => !!state && typeof state === 'object' && (state as Record<string, unknown>)[PUSHED_KEY] === true;
+const pushedEntries = (state: unknown): number => {
+  const pushed = state && typeof state === 'object' ? (state as Record<string, unknown>)[PUSHED_KEY] : undefined;
+  return typeof pushed === 'number' ? pushed : 0;
+};
 
-/** Open a route full screen over the page, or show another one in its place when it is open. */
-export const openFullscreen = (path: string): void => {
+/**
+ * Open a route full screen over the page, or show another one in its place when it is open. In
+ * its place by default, so Back still closes it in one step; with `step` as an entry of its own,
+ * which Back returns from to the route shown before. A step needs the opening's entry under it:
+ * full screen opened by a link has none to count from, and replaces.
+ */
+export const openFullscreen = (path: string, { step = false }: { step?: boolean } = {}): void => {
   const location = pageLocation();
   if (!location) return;
   const open = fullscreenRouteFromSearch(location.search) !== undefined;
+  const pushed = pushedEntries(location.state);
   fullscreenPath.value = path;
   const to = { pathname: location.pathname, search: withFullscreenSearch(location.search, path), hash: location.hash };
   // The page's entry state goes along (the map's open cluster), so Back lands on the page as it was.
   const state = location.state && typeof location.state === 'object' ? location.state : {};
-  navigatePage(to, open ? { replace: true, state: location.state } : { state: { ...state, [PUSHED_KEY]: true } });
+  if (!open) navigatePage(to, { state: { ...state, [PUSHED_KEY]: 1 } });
+  else if (step && pushed > 0) navigatePage(to, { state: { ...state, [PUSHED_KEY]: pushed + 1 } });
+  else navigatePage(to, { replace: true, state: location.state });
 };
 
 /** Close the full-screen route: Back to the page it opened over, or, opened by a link, the page without it. */
@@ -97,8 +111,9 @@ export const closeFullscreen = (): void => {
   fullscreenPath.value = null;
   const location = pageLocation();
   if (!location || fullscreenRouteFromSearch(location.search) === undefined) return;
-  if (pushedByOpen(location.state)) {
-    navigatePage(-1);
+  const pushed = pushedEntries(location.state);
+  if (pushed > 0) {
+    navigatePage(-pushed);
     return;
   }
   navigatePage({ pathname: location.pathname, search: withoutFullscreenSearch(location.search), hash: location.hash }, { replace: true, state: location.state });
@@ -106,7 +121,8 @@ export const closeFullscreen = (): void => {
 
 /**
  * Open a location as the page from the full-screen route, which it replaces in history: Back
- * from an album the lightbox linked to returns to the grid the lightbox was opened from.
+ * from an album the lightbox linked to returns to the grid the lightbox was opened from, or to
+ * the picture before when the lightbox had stepped to this one.
  */
 export const leaveFullscreen = (to: string): void => {
   fullscreenPath.value = null;
