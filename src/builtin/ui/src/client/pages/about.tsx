@@ -8,7 +8,7 @@ import { panelRoute, panelsOf } from '@ein/ui/signals';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HatField } from '../components/EntityDetail/HatField.tsx';
-import { HatIdenticon } from '../components/Identity/HatIdenticon.tsx';
+import { ModuleAvatar } from '../components/Identity/ModuleAvatar.tsx';
 import { EinMark, MARK_COLORS } from '../components/Layout/EinMark.tsx';
 import { loadUiManifest } from '../signals/module-ui.ts';
 
@@ -38,18 +38,11 @@ export function AboutHero() {
   );
 }
 
-/** One installed module: its hat in `color`, name, version and what it does, and the module API it is written against. */
-function ModuleRow({ module, color }: { module: ModuleEntry; color: string }) {
+/** One installed module: its picture in its colour, name, version and what it does, and the module API it is written against. */
+function ModuleRow({ module }: { module: ModuleEntry }) {
   return (
     <Group wrap='nowrap' gap='sm' align='flex-start' py={6}>
-      <Box
-        className='mrx-about-module-hat'
-        w={44}
-        h={44}
-        style={{ flex: 'none', borderRadius: 'var(--mantine-radius-md)', background: `color-mix(in srgb, ${color} 14%, var(--mrx-surface-raised))` }}
-      >
-        <HatIdenticon seed={`module:${module.name}`} label={module.name} color={color} />
-      </Box>
+      <ModuleAvatar name={module.name} size={44} />
       <Box style={{ flex: 1, minWidth: 0 }}>
         <Group gap={8} wrap='nowrap'>
           <Anchor component={Link} to={`/docs/modules/${module.name}`} fw={600} size='sm' c='var(--mrx-text-primary)'>
@@ -153,9 +146,7 @@ export default function AboutPage() {
           <Title order={4}>Modules</Title>
           {modules && <Text size='xs' c='dimmed'>{modules.length} installed</Text>}
         </Group>
-        {modules
-          ? modules.map((module, i) => <ModuleRow key={module.name} module={module} color={MARK_COLORS[i % MARK_COLORS.length]} />)
-          : [0, 1, 2].map((n) => <Skeleton key={n} height={44} my={6} radius='md' />)}
+        {modules ? modules.map((module) => <ModuleRow key={module.name} module={module} />) : [0, 1, 2].map((n) => <Skeleton key={n} height={44} my={6} radius='md' />)}
       </Stack>
 
       {panels.length > 0 && (

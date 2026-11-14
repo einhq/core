@@ -10,7 +10,7 @@ import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
 import { Note } from '../Accounts/PanelParts.tsx';
 import { InstallQuestion } from './InstallQuestion.tsx';
-import { ModuleAvatar } from './ModuleList.tsx';
+import { ModuleAvatar } from '../../Identity/ModuleAvatar.tsx';
 
 /** What is installed of a published module, by which the page says what can be done. */
 type Standing =
@@ -137,7 +137,7 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
     return (
       <Paper key={module.repository} withBorder radius='md' p='md' className='mrx-module-card'>
         <Group gap='sm' wrap='nowrap' align='flex-start'>
-          <ModuleAvatar size={40} />
+          <ModuleAvatar name={module.name} size={40} />
           <Box style={{ flex: 1, minWidth: 0 }}>
             <Group gap={6} align='baseline' wrap='wrap' style={{ rowGap: 0 }}>
               {update
@@ -235,7 +235,7 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
             {present.map(({ module, standing }) => (
               <UnstyledButton key={module.repository} className='mrx-module-installed-row' onClick={() => onOpenModule(module.name)}>
                 <Group gap='sm' wrap='nowrap'>
-                  <ModuleAvatar size={32} />
+                  <ModuleAvatar name={module.name} size={32} />
                   <Box style={{ flex: 1, minWidth: 0 }}>
                     <Group gap={6} align='baseline' wrap='nowrap'>
                       <Text size='sm' fw={600} truncate>{module.name}</Text>

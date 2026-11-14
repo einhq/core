@@ -1,8 +1,8 @@
-import { Avatar, Badge, Switch, Text } from '@mantine/core';
-import { IconPuzzle } from '@tabler/icons-react';
+import { Badge, Switch, Text } from '@mantine/core';
 import type { ReactNode } from 'react';
 import type { ModuleEntry } from '@ein/api';
 import { matchesText } from '../../../lib/text-match.ts';
+import { ModuleAvatar } from '../../Identity/ModuleAvatar.tsx';
 import { ListFrame, ListRow } from '../ListDetail.tsx';
 
 /**
@@ -21,15 +21,6 @@ const RANK: Record<ModuleState, number> = { failed: 0, 'not set up': 1, active: 
 
 /** The order the list is in: a module that does not work first, since it is the one to look at, then by name. */
 export const byState = (a: ModuleEntry, b: ModuleEntry): number => RANK[moduleState(a)] - RANK[moduleState(b)] || a.name.localeCompare(b.name);
-
-/** A module's picture: a puzzle piece, a part added to core. */
-export function ModuleAvatar({ size }: { size: number }) {
-  return (
-    <Avatar size={size} radius='md' color='indigo' variant='light' style={{ flex: 'none' }}>
-      <IconPuzzle size={Math.round(size * 0.56)} />
-    </Avatar>
-  );
-}
 
 /** Its state for one that does not work; its version for one that does. */
 function Aside({ module }: { module: ModuleEntry }) {
@@ -77,7 +68,7 @@ export function ModuleList({ modules, selected, onSelect, filter, onFilter, load
           key={module.name}
           selected={module.name === selected}
           onClick={() => onSelect(module.name)}
-          avatar={<ModuleAvatar size={36} />}
+          avatar={<ModuleAvatar name={module.name} size={36} />}
           title={module.name}
           subtitle={module.description ?? ''}
           aside={<Aside module={module} />}

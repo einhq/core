@@ -3374,13 +3374,26 @@ html.mrx-floating .mrx-scrubber {
   }
 }
 
-/* A module's hat on the About dialog: a small tile, so its outlines are drawn heavier to read. */
-.mrx-about-module-hat .mrx-hat-identicon polygon {
+/* A module's picture (`ModuleAvatar`): a small tile in a tint of its colour (`--mrx-module-color`),
+ * so its outlines are drawn heavier to read. On the module pane's tile, itself a tint of that
+ * colour, it stands on the darker ground with an edge in the colour. */
+.mrx-module-hat {
+  flex: none;
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mrx-module-color) 14%, var(--mrx-surface-raised));
+}
+
+.mrx-module-tile .mrx-module-hat {
+  background: color-mix(in srgb, var(--mrx-module-color) 12%, var(--mrx-surface-base));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mrx-module-color) 45%, transparent);
+}
+
+.mrx-module-hat .mrx-hat-identicon polygon {
   stroke-width: 0.16;
   stroke-opacity: 0.6;
 }
 
-.mrx-about-module-hat .mrx-hat-identicon polygon[data-lit] {
+.mrx-module-hat .mrx-hat-identicon polygon[data-lit] {
   fill-opacity: 0.4;
   stroke-opacity: 1;
 }
@@ -3706,6 +3719,20 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
  * shrink to an ellipsis to give a long description column its width. */
 .mrx-module-table .mantine-Badge-root {
   min-width: max-content;
+}
+
+/* The module pane's header (`ModulePanel`): a tile in the module's colour (`--mrx-module-color`),
+ * strongest at its top left, that sets what the module is and its buttons apart from the tabs. */
+.mrx-module-tile {
+  padding: var(--mantine-spacing-md);
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mrx-module-color) 32%, transparent);
+  background:
+    linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mrx-module-color) 16%, var(--mrx-surface-raised)),
+    color-mix(in srgb, var(--mrx-module-color) 5%, var(--mrx-surface-raised)) 70%
+  );
 }
 
 /* The module pane's tabs: tight enough that a module with every one has them on one line beside the

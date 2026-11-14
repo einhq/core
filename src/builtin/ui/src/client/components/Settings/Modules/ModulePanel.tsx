@@ -1,6 +1,6 @@
 import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Spoiler, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { IconAlertTriangle, IconBook2, IconRefresh, IconTrash } from '@tabler/icons-react';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { useSignals } from '@preact/signals-react/runtime';
 import { Link } from 'react-router-dom';
 import { tryParse } from '@std/semver';
@@ -22,7 +22,8 @@ import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
 import { GroupsMultiSelect } from '../AccountInputs.tsx';
 import { Done, Note, useInlineConfirm } from '../Accounts/PanelParts.tsx';
 import { ModuleCommands } from './ModuleCommands.tsx';
-import { ModuleAvatar, moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
+import { moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
+import { ModuleAvatar, moduleColor } from '../../Identity/ModuleAvatar.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
 import { formatDateTime } from '../../../lib/datetime.ts';
 import { panelRoute, panelsOf } from '../../../signals/nav.ts';
@@ -65,9 +66,10 @@ type ModulePanelProps = {
 };
 
 /**
- * One installed module. At the top what it is — its name, version, state and description, a long
- * one cut to three lines that More opens — with Update and Remove for the administrator and a link
- * to its documentation, then why its setup failed, when it did. Under that a tab each: Overview, with who has it, where it came from and
+ * One installed module. At the top, on a tile in the module's colour, what it is — its name,
+ * version, state and description, a long one cut to three lines that More opens — with Update and
+ * Remove for the administrator and a link to its documentation; under the tile why its setup
+ * failed, when it did. Under that a tab each: Overview, with who has it, where it came from and
  * when, and the guide's pages on it; what it needs and what needs it; and what it brings —
  * services with their state now, pages, commands, settings and node types. A tab is drawn only
  * when the module has something for it, with how many. Commands and settings open in place, a
@@ -104,9 +106,9 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
 
   return (
     <Stack gap='lg'>
-      <Stack gap='md'>
+      <Stack gap='md' className='mrx-module-tile' style={{ '--mrx-module-color': moduleColor(module.name) } as CSSProperties}>
         <Group gap='md' wrap='nowrap' align='flex-start'>
-          <ModuleAvatar size={phone ? 48 : 56} />
+          <ModuleAvatar name={module.name} size={phone ? 48 : 56} />
           <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
             <Group gap='xs' align='baseline' wrap='wrap' style={{ rowGap: 2 }}>
               <Title order={3} style={{ overflowWrap: 'anywhere' }}>{module.name}</Title>
