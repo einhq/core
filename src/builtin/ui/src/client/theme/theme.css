@@ -1826,11 +1826,15 @@ html.mrx-railed .mrx-page-scrollbar {
 }
 
 /* Files are dropped on the whole terminal, which reaches the pane's edges: none of a Dropzone's own
- * padding, dashed border or rounding. */
+ * padding, dashed border or rounding, and no ground of its own but while a drag is over it. */
 .terminal-tab-content .mantine-Dropzone-root {
   padding: 0;
   border: 0;
   border-radius: 0;
+}
+
+.terminal-tab-content .mantine-Dropzone-root:not([data-accept], [data-reject]) {
+  background: transparent;
 }
 
 .terminal-container {
