@@ -57,7 +57,7 @@ configUnset.spec = {
   name: 'config-unset',
   effect: 'write' as const,
   description: 'Reset settings to what the deployment or the default says',
-  examples: ['config unset CFG_TRASH_RETENTION_DAYS', 'config unset CFG_LLM_URL CFG_LLM_MODEL CFG_LLM_KEY CFG_LLM_PROVIDER'],
+  examples: ['config unset CFG_TRASH_RETENTION_DAYS', 'config unset CFG_LANGUAGE CFG_TIME_LOCALE'],
   args: [
     { name: 'key', type: 'string' as const, description: 'setting name', variadic: true },
   ],
