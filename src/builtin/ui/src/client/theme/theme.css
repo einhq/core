@@ -3708,6 +3708,89 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
   min-width: max-content;
 }
 
+/* The module pane's tabs: tight enough that a module with every one has them on one line beside the
+ * list. A line still too long scrolls sideways rather than wrapping, under a thin scrollbar, and on
+ * a phone under none. */
+.mrx-module-tabs .mantine-Tabs-list {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.mrx-module-tabs[data-phone] .mantine-Tabs-list {
+  scrollbar-width: none;
+}
+
+.mrx-module-tabs .mantine-Tabs-tab {
+  flex: none;
+  padding-inline: 10px;
+}
+
+.mrx-module-tabs .mantine-Tabs-tabSection[data-position='right'] {
+  margin-inline-start: 6px;
+}
+
+/* A module's Overview: its details beside the guide's pages, or over them where the pane is narrow. */
+.mrx-module-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--mantine-spacing-xl);
+  align-items: start;
+}
+
+/* The details: the names in a column as wide as the longest, the values beside them. */
+.mrx-module-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px var(--mantine-spacing-md);
+  margin: 0;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.mrx-module-facts dt {
+  color: var(--mantine-color-dimmed);
+}
+
+.mrx-module-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The install panel's cards (`AddModule`): as many columns as fit, each card as tall as its row with
+ * its button at its foot. */
+.mrx-module-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--mantine-spacing-sm);
+}
+
+.mrx-module-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+}
+
+/* Its installed modules: one box of rows divided by a hairline, each lit under the pointer. */
+.mrx-module-installed {
+  overflow: hidden;
+}
+
+.mrx-module-installed-row {
+  display: block;
+  width: 100%;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+  transition: background-color var(--mrx-dur-fast) var(--mrx-ease);
+}
+
+.mrx-module-installed-row + .mrx-module-installed-row {
+  border-top: 1px solid var(--mrx-hairline);
+}
+
+.mrx-module-installed-row:hover {
+  background: var(--mrx-surface-overlay);
+}
+
 /* A family card's expand bulge (`FamilyTreeCard`): its chevron darkens under the pointer, while the
    bulge keeps the card's own ground so the two stay one shape. */
 .mrx-family-bulge {

@@ -49,7 +49,7 @@ type ModuleListProps = {
   filter: string;
   onFilter: (next: string) => void;
   loading: boolean;
-  /** Beside the filter: the button that opens the published modules. */
+  /** Beside the filter: the button that opens the panel that installs a module. */
   action?: ReactNode;
   /** Beside the open module: the rows scroll between the filter and the footer. */
   scrolls: boolean;
@@ -60,7 +60,7 @@ type ModuleListProps = {
 /**
  * The installed modules, narrowed by the filter, each opening its panel: its description under its
  * name, and at its right its version, or a badge when it does not work. The switch at the foot
- * leaves out the ones that do not; `action`, beside the filter, opens the panel for adding one.
+ * leaves out the ones that do not; `action`, beside the filter, opens the panel that installs one.
  */
 export function ModuleList({ modules, selected, onSelect, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
   const shown = modules.filter((module) => matchesText([module.name, module.description], filter));

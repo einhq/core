@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, Box, Button, Group, Loader, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertTriangle, IconDownload, IconRefresh } from '@tabler/icons-react';
-import { useState } from 'react';
+import { Alert, Anchor, Badge, Box, Button, Group, Paper, Skeleton, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconAlertTriangle, IconChevronRight, IconDownload, IconRefresh } from '@tabler/icons-react';
+import { type ReactNode, useState } from 'react';
 import { greaterThan, tryParse } from '@std/semver';
 import type { ModuleEntry, ModuleInstallJob, ModuleSearch, PublishedModule } from '@ein/api';
 import { useAccessIds } from '../../../hooks/useAccessIds.ts';
@@ -10,8 +10,9 @@ import { shq } from '../../../lib/shquote.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
 import { Note } from '../Accounts/PanelParts.tsx';
 import { InstallQuestion } from './InstallQuestion.tsx';
+import { ModuleAvatar } from './ModuleList.tsx';
 
-/** What is installed of a published module, by which the row says what can be done. */
+/** What is installed of a published module, by which the page says what can be done. */
 type Standing =
   | { kind: 'absent' }
   | { kind: 'current'; entry: ModuleEntry }
@@ -39,8 +40,13 @@ const behind = (module: PublishedModule, entry: ModuleEntry): boolean => {
 
 const short = (commit: string): string => commit.slice(0, 9);
 
+/** `https://github.com/einhq/module-archive` → `github.com/einhq/module-archive`. */
+const withoutScheme = (url: string): string => url.replace(/^[a-z]+:\/\//i, '');
+
 /** What `busy` and `problem` are keyed by for the install from an address, beside the published repositories. */
 const ADDRESS = 'address';
+
+type Listed = { module: PublishedModule; standing: Standing };
 
 type AddModuleProps = {
   /** The installed modules, for what is installed of each. */
@@ -53,14 +59,15 @@ type AddModuleProps = {
 };
 
 /**
- * The Modules tab's panel for adding a module. For the administrator, a field that installs from
- * any repository's address, at a branch, tag or commit; under it the published modules: each
- * `module-*` repository of the module sources (`mod search`), with its version and what is installed of it, and for the
- * administrator a button that installs its newest release this EiN can run, or its default branch when it has none,
- * with what it needs, or updates it when that is past what is installed. Install asks first, in its place, who the module is for
- * (`InstallQuestion`); an update keeps whom it was for. The install runs on its own, which the tab
- * follows; while one runs, nothing else is installed. A source that does not answer is named above
- * the list.
+ * The Modules tab's panel that installs a module. The published modules — each `module-*`
+ * repository of the module sources (`mod search`) — in three groups: those with an update and those
+ * not installed, a card each with what it is and, for the administrator, Update or Install, which
+ * takes its newest release this EiN can run, or its default branch when it has none, with what it
+ * needs; and the installed ones, a row each that opens its panel. Install asks first, in its card,
+ * who the module is for (`InstallQuestion`); an update keeps whom it was for. At the foot, for the
+ * administrator, a field that installs from any repository's address, at a branch, tag or commit.
+ * The install runs on its own, which the tab follows; while one runs, nothing else is installed. A
+ * source that does not answer is named above the groups.
  */
 export function AddModule({ installed, install: current, onStarted, onOpenModule }: AddModuleProps) {
   const admin = useAccessIds()?.admin === true;
@@ -76,7 +83,7 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
 
   /**
    * `mod install --background <target>`, for `groups` (none: everyone): the install runs on its own,
-   * and the tab says how it stands; why it would not start is said under the row `key` names.
+   * and the tab says how it stands; why it would not start is said under the card `key` names.
    */
   const run = async (key: string, target: string, groups: string[] = []): Promise<boolean> => {
     setBusy(key);
@@ -107,7 +114,6 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
   const outcome = (key: string) =>
     problem?.repository === key && (
       <Alert
-        mt='xs'
         color='red'
         p='xs'
         icon={<IconAlertTriangle size={16} />}
@@ -119,30 +125,154 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
       </Alert>
     );
 
-  const modules = data?.modules ?? [];
+  const listed: Listed[] = (data?.modules ?? []).map((module) => ({ module, standing: standingOf(module, installed) }));
+  const updates = listed.filter((each) => each.standing.kind === 'behind');
+  const absent = listed.filter((each) => each.standing.kind === 'absent');
+  const present = listed.filter((each) => each.standing.kind === 'current' || each.standing.kind === 'other');
+
+  /** A module with something to do: what it is, and Install or Update with the question Install asks. */
+  const card = ({ module, standing }: Listed) => {
+    const mine = busy === module.repository || running?.args.includes(module.repository) === true;
+    const update = standing.kind === 'behind';
+    return (
+      <Paper key={module.repository} withBorder radius='md' p='md' className='mrx-module-card'>
+        <Group gap='sm' wrap='nowrap' align='flex-start'>
+          <ModuleAvatar size={40} />
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <Group gap={6} align='baseline' wrap='wrap' style={{ rowGap: 0 }}>
+              {update
+                ? <Anchor component='button' type='button' fw={600} onClick={() => onOpenModule(module.name)}>{module.name}</Anchor>
+                : <Text fw={600}>{module.name}</Text>}
+              {module.version && <Text size='xs' c='dimmed' ff='monospace'>{module.version}</Text>}
+            </Group>
+            <Anchor href={module.repository} target='_blank' rel='noreferrer' size='xs' c='dimmed' truncate='end' display='block' title={module.repository}>
+              {withoutScheme(module.repository)}
+            </Anchor>
+          </Box>
+        </Group>
+        {module.description && <Text size='sm'>{module.description}</Text>}
+        {module.compatible === false && <Note warn>Needs core API {module.coreApi}, which this EiN does not provide.</Note>}
+        {module.newest && <NewestNote module={module} />}
+        <Group justify='space-between' align='center' gap='xs' mt='auto'>
+          <Text size='xs' c='dimmed' title={update ? `${short(standing.entry.installed!.commit)} installed, ${module.release ?? short(module.commit!)} published` : undefined}>
+            {update ? `${standing.entry.version ?? short(standing.entry.installed!.commit)} installed` : ''}
+          </Text>
+          {admin && asking !== module.repository && (
+            <Button
+              size='xs'
+              variant={update ? 'light' : 'filled'}
+              leftSection={update ? <IconRefresh size={16} /> : <IconDownload size={16} />}
+              loading={mine}
+              disabled={busy !== null || running !== null || module.compatible === false}
+              onClick={() => update ? void install(module) : setAsking(module.repository)}
+            >
+              {update ? 'Update' : 'Install'}
+            </Button>
+          )}
+        </Group>
+        {asking === module.repository && (
+          <InstallQuestion
+            name={module.name}
+            busy={mine}
+            onInstall={(groups) => void install(module, groups)}
+            onCancel={() => setAsking(null)}
+          />
+        )}
+        {outcome(module.repository)}
+      </Paper>
+    );
+  };
+
   return (
-    <Stack gap='lg'>
-      <Box>
-        <Title order={3}>Add a module</Title>
-        <Text size='sm' c='dimmed'>
-          An installed module is kept in the folder for installed modules, and stays when EiN is upgraded where the deployment mounts that folder from its own disk.
-        </Text>
-      </Box>
+    <Stack gap='xl'>
+      <Stack gap='sm'>
+        <Group justify='space-between' align='flex-start' wrap='nowrap'>
+          <Box>
+            <Title order={3}>Install a module</Title>
+            <Text size='sm' c='dimmed'>
+              {admin
+                ? 'The modules published where the Module sources setting points. A module comes with the modules it needs.'
+                : 'The modules published where the Module sources setting points. An administrator installs them.'}
+            </Text>
+          </Box>
+          <Button variant='default' size='xs' leftSection={<IconRefresh size={16} />} onClick={refetch} loading={loading && !!data} style={{ flex: 'none' }}>
+            Refresh
+          </Button>
+        </Group>
+        {error && <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />}>{error.message}</Alert>}
+        {data?.failed.map((failure) => (
+          <Alert key={failure.source} color='yellow' variant='light' icon={<IconAlertTriangle size={16} />} title={`${failure.source} did not answer`}>
+            <Text size='sm' style={{ overflowWrap: 'anywhere' }}>{failure.reason}</Text>
+          </Alert>
+        ))}
+        {data && listed.length === 0 && <Note>The module sources publish no modules.</Note>}
+        {data && listed.length > 0 && updates.length === 0 && absent.length === 0 && (
+          <Note>Every published module is installed, and none has a newer release this EiN can run.</Note>
+        )}
+      </Stack>
+
+      {loading && !data && (
+        <div className='mrx-module-cards' aria-hidden>
+          {[0, 1, 2, 3].map((key) => <Skeleton key={key} height={150} radius='md' />)}
+        </div>
+      )}
+
+      {updates.length > 0 && (
+        <Section title='Updates' count={updates.length}>
+          <div className='mrx-module-cards'>{updates.map(card)}</div>
+        </Section>
+      )}
+
+      {absent.length > 0 && (
+        <Section title='Not installed' count={absent.length}>
+          <div className='mrx-module-cards'>{absent.map(card)}</div>
+        </Section>
+      )}
+
+      {present.length > 0 && (
+        <Section title='Installed' count={present.length}>
+          <Paper withBorder radius='md' className='mrx-module-installed'>
+            {present.map(({ module, standing }) => (
+              <UnstyledButton key={module.repository} className='mrx-module-installed-row' onClick={() => onOpenModule(module.name)}>
+                <Group gap='sm' wrap='nowrap'>
+                  <ModuleAvatar size={32} />
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Group gap={6} align='baseline' wrap='nowrap'>
+                      <Text size='sm' fw={600} truncate>{module.name}</Text>
+                      {standing.kind !== 'absent' && standing.entry.version && (
+                        <Text size='xs' c='dimmed' ff='monospace' style={{ flex: 'none' }}>{standing.entry.version}</Text>
+                      )}
+                    </Group>
+                    <Text size='xs' c='dimmed' truncate title={module.description}>{module.description}</Text>
+                    {module.newest && <NewestNote module={module} quiet />}
+                  </Box>
+                  {standing.kind === 'other' && (
+                    <Badge size='sm' variant='light' color='gray' tt='none' style={{ flex: 'none' }} title={standing.entry.installed?.repository ?? standing.entry.path}>
+                      {standing.entry.installed ? 'Installed from elsewhere' : "The deployment's"}
+                    </Badge>
+                  )}
+                  <IconChevronRight size={16} aria-hidden style={{ flex: 'none', color: 'var(--mantine-color-dimmed)' }} />
+                </Group>
+              </UnstyledButton>
+            ))}
+          </Paper>
+        </Section>
+      )}
 
       {admin && (
-        <Paper withBorder radius='md' p='sm'>
+        <Paper withBorder radius='md' p='md'>
           <form
             onSubmit={(event) => {
               event.preventDefault();
               if (address.trim()) setAsking(ADDRESS);
             }}
           >
-            <Stack gap='xs'>
+            <Stack gap='sm'>
               <Box>
-                <Title order={5}>From a repository</Title>
+                <Title order={5}>From a repository's address</Title>
                 <Text size='sm' c='dimmed'>
-                  Any module's repository on GitHub, Forgejo or Gitea, published or not. Without @ and a branch, tag or commit, the newest release this EiN can run is
-                  installed, or its default branch when it has none. A private one needs its host's token in the Tokens for module sources setting.
+                  Any module's repository on GitHub, Forgejo or Gitea, published or not. After @, a branch, tag or commit installs that one; without, the newest release this
+                  EiN can run, or the default branch when it has none. A private one needs its host's token in the Tokens for module sources setting.
                 </Text>
               </Box>
               <Group gap='xs' align='flex-start' wrap='nowrap'>
@@ -161,6 +291,7 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
                 {asking !== ADDRESS && (
                   <Button
                     type='submit'
+                    variant='default'
                     leftSection={<IconDownload size={16} />}
                     disabled={busy !== null || running !== null || address.trim() === ''}
                     style={{ flex: 'none' }}
@@ -175,105 +306,27 @@ export function AddModule({ installed, install: current, onStarted, onOpenModule
           </form>
         </Paper>
       )}
-
-      <Group justify='space-between' align='flex-start' wrap='nowrap'>
-        <Box>
-          <Title order={5}>Published</Title>
-          <Text size='sm' c='dimmed'>The module repositories of the sources the Module sources setting names.</Text>
-        </Box>
-        <Button variant='default' size='xs' leftSection={<IconRefresh size={16} />} onClick={refetch} loading={loading && !!data} style={{ flex: 'none' }}>
-          Refresh
-        </Button>
-      </Group>
-      {error && <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />}>{error.message}</Alert>}
-      {data?.failed.map((failure) => (
-        <Alert key={failure.source} color='yellow' variant='light' icon={<IconAlertTriangle size={16} />} title={`${failure.source} did not answer`}>
-          <Text size='sm' style={{ overflowWrap: 'anywhere' }}>{failure.reason}</Text>
-        </Alert>
-      ))}
-      {loading && !data && <Loader size='sm' />}
-      {data && modules.length === 0 && <Text size='sm' c='dimmed'>The module sources publish no modules.</Text>}
-
-      <Stack gap='sm'>
-        {modules.map((module) => {
-          const standing = standingOf(module, installed);
-          const mine = busy === module.repository || running?.args.includes(module.repository) === true;
-          return (
-            <Paper key={module.repository} withBorder radius='md' p='sm'>
-              <Group justify='space-between' align='flex-start' gap='sm'>
-                <Stack gap={2} style={{ flex: '1 1 16rem', minWidth: 0 }}>
-                  <Group gap='xs'>
-                    {standing.kind === 'absent'
-                      ? <Text fw={600}>{module.name}</Text>
-                      : <Anchor component='button' type='button' fw={600} onClick={() => onOpenModule(module.name)}>{module.name}</Anchor>}
-                    {module.version && <Text size='xs' c='dimmed' ff='monospace'>{module.version}</Text>}
-                    <StandingBadge standing={standing} module={module} />
-                  </Group>
-                  {module.description && <Text size='sm'>{module.description}</Text>}
-                  <Anchor href={module.repository} target='_blank' rel='noreferrer' size='xs' c='dimmed' style={{ overflowWrap: 'anywhere' }}>{module.repository}</Anchor>
-                  {module.compatible === false && <Note warn>Needs core API {module.coreApi}, which this EiN does not provide.</Note>}
-                  {module.newest && (
-                    <Note>
-                      {module.newest.version ?? module.newest.release} needs core API {module.newest.coreApi}, which this EiN does not provide;{' '}
-                      {module.version ?? module.release} is the newest release it can run.
-                    </Note>
-                  )}
-                </Stack>
-                {admin && (standing.kind === 'absent' || standing.kind === 'behind') && asking !== module.repository && (
-                  <Button
-                    size='xs'
-                    variant={standing.kind === 'absent' ? 'filled' : 'light'}
-                    leftSection={standing.kind === 'absent' ? <IconDownload size={16} /> : <IconRefresh size={16} />}
-                    loading={mine}
-                    disabled={busy !== null || running !== null || module.compatible === false}
-                    onClick={() => standing.kind === 'behind' ? void install(module) : setAsking(module.repository)}
-                    style={{ flex: 'none' }}
-                  >
-                    {standing.kind === 'absent' ? 'Install' : 'Update'}
-                  </Button>
-                )}
-              </Group>
-              {asking === module.repository && (
-                <InstallQuestion
-                  name={module.name}
-                  busy={mine}
-                  onInstall={(groups) => void install(module, groups)}
-                  onCancel={() => setAsking(null)}
-                />
-              )}
-              {outcome(module.repository)}
-            </Paper>
-          );
-        })}
-      </Stack>
     </Stack>
   );
 }
 
-/** A badge for what is installed of it; none when nothing is. */
-function StandingBadge({ standing, module }: { standing: Standing; module: PublishedModule }) {
-  switch (standing.kind) {
-    case 'absent':
-      return null;
-    case 'current':
-      return <Badge size='sm' variant='light' color='teal' tt='none'>Installed</Badge>;
-    case 'behind':
-      return (
-        <Badge
-          size='sm'
-          variant='light'
-          color='yellow'
-          tt='none'
-          title={`${short(standing.entry.installed!.commit)} installed, ${module.release ?? short(module.commit!)} published`}
-        >
-          Update available
-        </Badge>
-      );
-    case 'other':
-      return (
-        <Badge size='sm' variant='light' color='gray' tt='none' title={standing.entry.installed?.repository ?? standing.entry.path}>
-          {standing.entry.installed ? 'Installed from elsewhere' : "The deployment's"}
-        </Badge>
-      );
-  }
+/** One of the page's groups: its heading with how many it holds, over them. */
+function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  return (
+    <Stack gap='sm'>
+      <Group gap='xs'>
+        <Title order={5}>{title}</Title>
+        <Badge size='sm' variant='light' color='gray' tt='none'>{count}</Badge>
+      </Group>
+      {children}
+    </Stack>
+  );
+}
+
+/** That its newest release asks for a module API this core does not provide, and which release is taken instead; `quiet` says it as a dimmed line. */
+function NewestNote({ module, quiet }: { module: PublishedModule; quiet?: boolean }) {
+  const text = `${module.newest!.version ?? module.newest!.release} needs core API ${module.newest!.coreApi}, which this EiN does not provide; ${
+    module.version ?? module.release
+  } is the newest release it can run.`;
+  return quiet ? <Text size='xs' c='dimmed'>{text}</Text> : <Note>{text}</Note>;
 }

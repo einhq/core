@@ -1,11 +1,12 @@
-import { ActionIcon, Alert, Box, Button, Paper, Stack, Tooltip } from '@mantine/core';
-import { IconAlertTriangle, IconChevronLeft, IconPackageImport } from '@tabler/icons-react';
+import { Alert, Box, Button, Paper, Stack } from '@mantine/core';
+import { IconAlertTriangle, IconChevronLeft, IconPackages, IconPlus } from '@tabler/icons-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useElementWidth } from '../../../hooks/useElementWidth.ts';
 import { usePhone } from '../../../hooks/usePhone.ts';
 import { usePersistedState } from '../../../hooks/usePersistedState.ts';
 import { useModuleReference } from '../../../hooks/useReference.ts';
+import { useAccessIds } from '../../../hooks/useAccessIds.ts';
 import { reloadModuleUi } from '../../../signals/nav.ts';
 import { EmptyState } from '../../EmptyState/EmptyState.tsx';
 import { PageLoader } from '../../Layout/PageLoader.tsx';
@@ -27,10 +28,12 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * page's own scroll, and opening a module is a step in the history that Back undoes.
  *
  * The open module is the URL's `module` and its panel's tab is `section`, so either can be linked
- * to; side by side, nothing named shows the first. `published=1` opens the panel for adding a
- * module instead, which the button beside the filter does. The list is asked fresh rather than reused
- * from the docs' kept answer: a `mod setup` since then changes whether a module works, and an
- * install or a removal here asks it again, and loads the shell's navigation and module pages again.
+ * to; side by side, nothing named shows the first. `published=1` opens the panel that installs a
+ * module instead, which the button beside the filter does: Install for the administrator, Published
+ * for anyone else, who sees what there is but cannot install it. The list is asked fresh rather
+ * than reused from the docs' kept answer: a `mod setup` since then changes whether a module works,
+ * and an install or a removal here asks it again, and loads the shell's navigation and module pages
+ * again.
  *
  * Above them, the module install EiN is running, whoever started it, and when one this page saw
  * running ends, what it came to.
@@ -43,6 +46,7 @@ export function ModulesTab() {
     void reloadModuleUi();
   };
   const { install, seen, refresh: refreshInstall } = useModuleInstall(refetch);
+  const admin = useAccessIds()?.admin === true;
   const [dismissed, setDismissed] = useState<string | null>(null);
   const shownInstall = install && (install.state === 'running' || (seen && dismissed !== install.id)) ? install : null;
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
@@ -75,7 +79,7 @@ export function ModulesTab() {
     const next = new URLSearchParams({ tab: 'modules' });
     if (showPublished) next.set('published', '1');
     else if (name) next.set('module', name);
-    if (!showPublished && tab && tab !== 'about') next.set('section', tab);
+    if (!showPublished && tab && tab !== 'overview') next.set('section', tab);
     setParams(next, push ? { state: OPENED } : { replace: true, state: opened && (name || showPublished) ? OPENED : null });
   };
   const backToList = () => (opened ? navigate(-1) : go(null));
@@ -109,11 +113,16 @@ export function ModulesTab() {
       onFilter={setFilter}
       loading={firstLoad}
       action={
-        <Tooltip label='Add a module'>
-          <ActionIcon size='input-sm' aria-label='Add a module' disabled={published} onClick={() => go(null, narrow, section, true)}>
-            <IconPackageImport size={18} />
-          </ActionIcon>
-        </Tooltip>
+        <Button
+          size='sm'
+          variant={published ? 'light' : admin ? 'filled' : 'default'}
+          leftSection={admin ? <IconPlus size={16} /> : <IconPackages size={16} />}
+          aria-pressed={published}
+          onClick={() => go(null, narrow, section, true)}
+          style={{ flex: 'none' }}
+        >
+          {admin ? 'Install' : 'Published'}
+        </Button>
       }
       scrolls={!narrow}
       activeOnly={activeOnly}
@@ -147,7 +156,7 @@ export function ModulesTab() {
                 }}
               />
             )
-            : <EmptyState title='No module to show'>Pick a module in the list, or add one.</EmptyState>}
+            : <EmptyState title='No module to show'>Pick a module in the list{admin ? ', or install one' : ''}.</EmptyState>}
         </Box>
       </PaneScroll>
     </Paper>
