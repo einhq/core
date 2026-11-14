@@ -335,6 +335,7 @@ export type PublishedModule = {
   repository: string;
   /** The `CFG_MODULE_SOURCES` entry it was found in. */
   source: string;
+  /** What its `mod.json` at that commit says it is, or else its repository's description. */
   description: string;
   /** Its default branch. */
   branch: string;

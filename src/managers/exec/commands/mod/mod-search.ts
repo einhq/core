@@ -61,7 +61,7 @@ const describe = async (cmd: Command, repository: ListedRepository, tokens: Para
     name: moduleNameOf(repository),
     repository: repository.repository,
     source: repository.url,
-    description: repository.description || (typeof manifest?.description === 'string' ? manifest.description : ''),
+    description: (typeof manifest?.description === 'string' && manifest.description) || repository.description,
     branch: repository.branch,
     ...(release ? { release: release.tag } : {}),
     ...(commit ? { commit } : {}),

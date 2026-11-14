@@ -41,7 +41,7 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
   await testCtx.setup();
   client = await testCtx.server.createShellClient();
   try {
-    await forge.publish('acme', 'module-base', moduleFiles('base', '1.0.0', 'base 1'));
+    await forge.publish('acme', 'module-base', moduleFiles('base', '1.0.0', 'base 1', { description: 'What the others stand on' }), { description: 'A module: base' });
     const first = await forge.publish('acme', 'module-greet', {
       ...moduleFiles('greet', '1.0.0', 'greet 1', { dependencies: { base: '^1.0.0' } }),
       'bin/greet-ts': {
@@ -209,6 +209,8 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
         'Greets',
         forge.repositories.get('acme/module-greet')!.branches.get('main'),
       ]);
+      // The module's own description wins over its repository's, which greet's mod.json lacks.
+      assertEquals(search.modules.find((module) => module.name === 'base')?.description, 'What the others stand on');
       assertEquals(search.modules.find((module) => module.name === 'future')?.compatible, false);
       // The source with nothing in it is named, and the other still answers.
       assertEquals(search.failed.map((failure) => failure.source), [forge.url('nobody')]);
