@@ -1774,14 +1774,16 @@ html.mrx-railed .mrx-page-scrollbar {
 }
 
 /* ---------------------------------------------------------------- terminal */
-/* Guake-style dropdown. Not a Mantine component, so it is styled here. */
+/* Guake-style dropdown. Not a Mantine component, so it is styled here. A little see-through: the
+ * page shows, blurred, behind the text and the tab bar. */
 .terminal-pane {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: 50vh;
-  background: color-mix(in srgb, var(--mrx-surface-chrome) 97%, transparent);
+  background: color-mix(in srgb, var(--mrx-surface-chrome) 85%, transparent);
+  backdrop-filter: blur(6px);
   z-index: 1100;
   display: flex;
   flex-direction: column;
@@ -1872,12 +1874,11 @@ html.mrx-railed .mrx-page-scrollbar {
   cursor: default;
 }
 
-/* The tab bar, the pane's foot: the hats of a dialog's foot, as faint and fading out upward. */
+/* The tab bar, the pane's foot, on the pane's own ground: the hats of a dialog's foot, as faint and fading out upward. */
 .terminal-tab-bar {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background-color: var(--mrx-surface-chrome);
   border-top: 1px solid var(--mrx-hairline);
 }
 
