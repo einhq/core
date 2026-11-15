@@ -232,9 +232,8 @@ type ActionsProps = {
 function Actions({ module, usedBy, admin, install, update, onStarted, onRemoved, onProblem }: ActionsProps) {
   const record = admin ? module.installed : undefined;
   const pinned = record !== undefined && record.ref === record.commit;
-  // A release, `v<version>`, is updated to the newest release this core can run, which `mod install` takes without a ref.
-  const version = record?.ref.startsWith('v') ? tryParse(record.ref.slice(1)) : undefined;
-  const release = version !== undefined && !version.prerelease?.length;
+  // A release or a prerelease, `v<version>`, is updated to the newest one this core can run, which `mod install` takes without a ref.
+  const release = record?.ref.startsWith('v') === true && tryParse(record.ref.slice(1)) !== undefined;
   const [updating, setUpdating] = useState(false);
   const [asking, setAsking] = useState(false);
   const target = record && (release ? record.repository : `${record.repository}@${record.ref}`);

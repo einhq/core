@@ -24,11 +24,8 @@ import { FORGE_TIMEOUT_MS, moduleSources, within } from './sources.ts';
 
 const short = (commit: string): string => commit.slice(0, 9);
 
-/** A release's tag, `v<version>`, as `mod install` records a module installed without a ref. */
-const isRelease = (ref: string): boolean => {
-  const version = ref.startsWith('v') ? tryParse(ref.slice(1)) : undefined;
-  return version !== undefined && !version.prerelease?.length;
-};
+/** A release's tag, `v<version>` or a prerelease's, as `mod install` records a module installed without a ref. */
+const isRelease = (ref: string): boolean => ref.startsWith('v') && tryParse(ref.slice(1)) !== undefined;
 
 const versionOf = (manifest: Partial<ModuleManifest> | undefined): string | undefined => typeof manifest?.version === 'string' ? manifest.version : undefined;
 
@@ -42,21 +39,21 @@ const readManifest = async (cmd: Command, repository: NonNullable<ReturnType<typ
 };
 
 /** What updating one installed module would take, and whether it moves it on. Throws when its repository does not answer. */
-const check = async (cmd: Command, name: string, version: string | null, record: ModuleInstall, tokens: Tokens): Promise<OutdatedModule> => {
+const check = async (cmd: Command, name: string, version: string | null, record: ModuleInstall, tokens: Tokens, prereleases: boolean): Promise<OutdatedModule> => {
   const repository = parseRepository(record.repository);
   if (!repository) throw new Error(`not a repository's address: ${record.repository}`);
   const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS));
   const release = isRelease(record.ref);
   const target = release ? record.repository : `${record.repository}@${record.ref}`;
 
-  let latest = resolveRef(refs, release ? undefined : record.ref);
+  let latest = resolveRef(refs, release ? undefined : record.ref, undefined, prereleases);
   if (!latest) throw new Error(`${record.repository} has no branch or tag '${record.ref}' any more`);
   let latestVersion = latest.commit === record.commit ? version ?? undefined : undefined;
   if (latest.commit !== record.commit) {
     let manifest = await readManifest(cmd, repository, latest.ref, tokens);
     // A newest release written for another module API gives way to the newest this core runs, as in `mod install`.
     if (release && manifest && checkCoreApi(manifest as ModuleManifest).errors.length > 0) {
-      const all = releases(refs);
+      const all = releases(refs, prereleases);
       const older = await findRelease<ModuleManifest>(
         repository,
         all.slice(all.findIndex((each) => each.tag === latest!.ref) + 1),
@@ -95,7 +92,7 @@ const line = (module: OutdatedModule): string => {
 export const modOutdated = async (cmd: Command): CmdReturn => {
   const names = cmd.args.filter((arg) => !arg.startsWith('-'));
   const modulesPath = cmd.env.MOD_PATH || MOD_PATH;
-  const { tokens } = await moduleSources(cmd);
+  const { tokens, prereleases } = await moduleSources(cmd);
 
   const candidates: { name: string; version: string | null; record: ModuleInstall }[] = [];
   for (const [name, manifest] of await readManifests(cmd.sys.vfs, cmd.access, modulesPath)) {
@@ -110,7 +107,7 @@ export const modOutdated = async (cmd: Command): CmdReturn => {
   const failed: ModuleOutdated['failed'] = [];
   const checked = await Promise.all(candidates.map(async ({ name, version, record }) => {
     try {
-      return await check(cmd, name, version, record, tokens);
+      return await check(cmd, name, version, record, tokens, prereleases);
     } catch (error) {
       failed.push({ name, reason: error instanceof Error ? error.message : String(error) });
       return undefined;

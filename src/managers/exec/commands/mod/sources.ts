@@ -14,11 +14,13 @@ export const within = (cmd: Command, ms: number): AbortSignal => AbortSignal.any
 
 /**
  * The module sources the settings name now (`CFG_MODULE_SOURCES`, its default when unset), what is
- * wrong with any entry, and the tokens for their hosts (`CFG_MODULE_SOURCES_KEY`).
+ * wrong with any entry, the tokens for their hosts (`CFG_MODULE_SOURCES_KEY`), and whether a
+ * prerelease is taken like a release (`CFG_MODULE_PRERELEASES`).
  */
-export const moduleSources = async (cmd: Command): Promise<{ sources: ModuleSource[]; problems: string[]; tokens: Tokens }> => {
+export const moduleSources = async (cmd: Command): Promise<{ sources: ModuleSource[]; problems: string[]; tokens: Tokens; prereleases: boolean }> => {
   const settings = await readSettings(cmd, cmd.access, { user: false });
   const value = settings.CFG_MODULE_SOURCES ?? getConfigOption('CFG_MODULE_SOURCES')?.default ?? '';
   const secret = await readSecret(cmd.sys.vfs, 'CFG_MODULE_SOURCES_KEY', cmd.env.ETC_PATH);
-  return { ...parseSources(value), tokens: parseTokens(secret?.value ?? '') };
+  const prereleases = (settings.CFG_MODULE_PRERELEASES ?? getConfigOption('CFG_MODULE_PRERELEASES')?.default) === 'true';
+  return { ...parseSources(value), tokens: parseTokens(secret?.value ?? ''), prereleases };
 };

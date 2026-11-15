@@ -34,12 +34,12 @@ const versionOf = (manifest: Partial<ModuleManifest> | undefined) => typeof mani
 const coreApiOf = (manifest: Partial<ModuleManifest> | undefined) => typeof manifest?.coreApi === 'string' ? manifest.coreApi : undefined;
 
 /**
- * What a listed repository's release `mod install` would take holds, or its default branch when it
- * has none, as far as it answers.
+ * What a listed repository's release `mod install` would take holds (a prerelease too with
+ * `prereleases`), or its default branch when it has none, as far as it answers.
  */
-const describe = async (cmd: Command, repository: ListedRepository, tokens: Parameters<typeof fetchRefs>[1]): Promise<PublishedModule> => {
+const describe = async (cmd: Command, repository: ListedRepository, tokens: Parameters<typeof fetchRefs>[1], prereleases: boolean): Promise<PublishedModule> => {
   const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS)).catch(() => undefined);
-  const all = refs ? releases(refs) : [];
+  const all = refs ? releases(refs, prereleases) : [];
   let release = all[0];
   let manifest = await fetchFile(repository, release?.tag ?? repository.branch, 'mod.json', tokens, within(cmd, FORGE_TIMEOUT_MS))
     .then((text) => text === undefined ? undefined : JSON.parse(text) as Partial<ModuleManifest>)
@@ -112,7 +112,7 @@ const line = (module: PublishedModule, installed: Map<string, { version?: string
 
 export const modSearch = async (cmd: Command): CmdReturn => {
   const words = cmd.args.filter((arg) => !arg.startsWith('-'));
-  const { sources, problems, tokens } = await moduleSources(cmd);
+  const { sources, problems, tokens, prereleases } = await moduleSources(cmd);
   const failed: ModuleSearch['failed'] = problems.map((reason) => ({ source: 'CFG_MODULE_SOURCES', reason }));
 
   const listed = await Promise.all(sources.map(async (source) => {
@@ -123,7 +123,7 @@ export const modSearch = async (cmd: Command): CmdReturn => {
       return [];
     }
   }));
-  const modules = (await Promise.all(listed.flat().map((repository) => describe(cmd, repository, tokens)))).filter((module) => matches(module, words));
+  const modules = (await Promise.all(listed.flat().map((repository) => describe(cmd, repository, tokens, prereleases)))).filter((module) => matches(module, words));
 
   if (cmd.json) {
     await cmd.writeJSON({ modules, failed } satisfies ModuleSearch);

@@ -9,6 +9,7 @@
  */
 
 import { canParse, parse, parseRange, satisfies } from '@std/semver';
+import { inRange } from './version.ts';
 import { join } from '@std/path';
 import type { Access } from '../lib/access/mod.ts';
 import type { NodeVFS } from '../vfs/mod.ts';
@@ -253,7 +254,8 @@ export const checkDependencies = async (
       continue;
     }
 
-    if (!satisfies(parse(depManifest.version), range)) {
+    // A prerelease counts as the release it leads to: 0.6.0-dev.3 meets ^0.6.0.
+    if (!inRange(parse(depManifest.version), range)) {
       errors.push(`${manifest.name}: requires '${depName}' ${depRange}, but ${depManifest.version} is installed`);
     }
   }

@@ -108,6 +108,24 @@ Deno.test('without a ref, the newest release is taken, in the range when one is 
   assertEquals(resolveRef(unreleased), { ref: 'main', commit: A });
 });
 
+Deno.test('with prereleases, a prerelease is taken too, before its release and after the one before', () => {
+  const refs = parseRefAdvertisement(advertisement([
+    `${A} HEAD\0symref=HEAD:refs/heads/main\n`,
+    `${A} refs/heads/main\n`,
+    `${B} refs/tags/v0.5.2\n`,
+    `${C} refs/tags/v0.6.0-dev.2\n`,
+    `${D} refs/tags/v0.6.0-dev.10\n`,
+  ]));
+  assertEquals(releases(refs, true).map((release) => release.tag), ['v0.6.0-dev.10', 'v0.6.0-dev.2', 'v0.5.2']);
+  assertEquals(resolveRef(refs, undefined, undefined, true), { ref: 'v0.6.0-dev.10', commit: D });
+  // A prerelease is in the range of the release it leads to, and only that.
+  assertEquals(resolveRef(refs, undefined, '^0.6.0', true), { ref: 'v0.6.0-dev.10', commit: D });
+  assertEquals(resolveRef(refs, undefined, '~0.5.0', true), { ref: 'v0.5.2', commit: B });
+  assertEquals(resolveRef(refs), { ref: 'v0.5.2', commit: B });
+  const withRelease = parseRefAdvertisement(advertisement([`${A} refs/heads/main\n`, `${D} refs/tags/v0.6.0-dev.10\n`, `${E} refs/tags/v0.6.0\n`]));
+  assertEquals(resolveRef(withRelease, undefined, undefined, true), { ref: 'v0.6.0', commit: E });
+});
+
 Deno.test({
   name: 'a forge is asked with the token for its host only, finds a short commit id, and lists its module repositories',
   sanitizeResources: false,

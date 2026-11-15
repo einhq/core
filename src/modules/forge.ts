@@ -12,7 +12,8 @@
  * an address typed on a command line cannot take a token anywhere else.
  */
 
-import { compare, format, parse, satisfies, type SemVer, tryParse, tryParseRange } from '@std/semver';
+import { compare, format, type SemVer, tryParse, tryParseRange } from '@std/semver';
+import { inRange } from './version.ts';
 
 /** The prefix a repository's name has when it holds a module: `module-archive` holds `archive`. */
 export const MODULE_REPOSITORY_PREFIX = 'module-';
@@ -241,22 +242,25 @@ const COMMIT = /^[0-9a-f]{40}$/;
 /** A release: a `v<version>` tag, as a module's release is tagged. */
 type Release = { tag: string; version: string; commit: string };
 
-/** The repository's releases, newest first; a prerelease, or a tag that is no version, is none. */
-export const releases = (refs: Refs): Release[] => {
+/**
+ * The repository's releases, newest first; a tag that is no version is none, and a prerelease
+ * (`v0.6.0-dev.3`) only with `prereleases`.
+ */
+export const releases = (refs: Refs, prereleases = false): Release[] => {
   const found: (Release & { parsed: SemVer })[] = [];
   for (const [name, commit] of refs.refs) {
     const tag = /^refs\/tags\/(v[^^]+)$/.exec(name)?.[1];
     const parsed = tag ? tryParse(tag.slice(1)) : undefined;
-    if (!tag || !parsed || parsed.prerelease?.length) continue;
+    if (!tag || !parsed || (parsed.prerelease?.length && !prereleases)) continue;
     found.push({ tag, version: format(parsed), commit: refs.refs.get(`${name}^{}`) ?? commit, parsed });
   }
   return found.sort((a, b) => compare(b.parsed, a.parsed)).map(({ tag, version, commit }) => ({ tag, version, commit }));
 };
 
-/** Whether `version` is in `range`; a range that does not parse takes none. */
+/** Whether `version` is in `range`, as `inRange` has it; a version or range that does not parse takes none. */
 const accepts = (version: string, range: string): boolean => {
-  const parsed = tryParseRange(range);
-  return parsed !== undefined && satisfies(parse(version), parsed);
+  const [parsed, parsedRange] = [tryParse(version), tryParseRange(range)];
+  return parsed !== undefined && parsedRange !== undefined && inRange(parsed, parsedRange);
 };
 
 /** What may be a commit id cut short, as git takes one: four hex digits or more. */
@@ -267,12 +271,12 @@ export const ABBREVIATED_COMMIT = /^[0-9a-f]{4,39}$/;
  * is `HEAD`; nothing when the advertisement has no such ref. A tag wins over a branch of the same
  * name, as in git. A commit id cut short is not advertised: `fetchCommit` finds it.
  *
- * Without a ref it is the newest release, and the default branch's commit when there is none; with
- * `range`, the newest release in it, and else as without one.
+ * Without a ref it is the newest release, a prerelease too with `prereleases`, and the default
+ * branch's commit when there is none; with `range`, the newest release in it, and else as without one.
  */
-export const resolveRef = (refs: Refs, ref?: string, range?: string): { ref: string; commit: string } | undefined => {
+export const resolveRef = (refs: Refs, ref?: string, range?: string, prereleases = false): { ref: string; commit: string } | undefined => {
   if (ref === undefined) {
-    const all = releases(refs);
+    const all = releases(refs, prereleases);
     const newest = (range === undefined ? undefined : all.find((release) => accepts(release.version, range))) ?? all[0];
     if (newest) return { ref: newest.tag, commit: newest.commit };
   }

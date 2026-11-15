@@ -319,6 +319,16 @@ export const CORE_OPTIONS: ConfigOption[] = [
     emptyMeans: 'none: modules are installed by their repository address',
   },
   {
+    key: 'CFG_MODULE_PRERELEASES',
+    scope: 'system',
+    type: 'boolean',
+    default: 'false',
+    label: 'Install prereleases',
+    description:
+      "Whether installing and updating a module takes its prereleases too, such as v0.6.0-dev.3, and not only its releases. A prerelease counts as the release it leads to when a module's dependency is checked: 0.6.0-dev.3 meets ^0.6.0. Off for an archive; on for an installation that follows a module's development.",
+    group: 'Modules',
+  },
+  {
     key: 'CFG_MODULE_SOURCES_KEY',
     scope: 'system',
     type: 'secret',

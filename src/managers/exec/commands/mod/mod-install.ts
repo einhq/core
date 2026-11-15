@@ -42,7 +42,8 @@
  */
 
 import { basename, join } from '@std/path';
-import { canParse, parse, parseRange, satisfies } from '@std/semver';
+import { tryParse, tryParseRange } from '@std/semver';
+import { inRange } from '../../../../modules/version.ts';
 import { ulid } from '@std/ulid';
 import type { InstalledModule, ModuleInstall, ModuleInstallResult, ModuleInstallStatus } from '../../../../lib/api/mod.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
@@ -95,6 +96,8 @@ type Run = {
   job: InstallJob;
   sources: ModuleSource[];
   tokens: Tokens;
+  /** `CFG_MODULE_PRERELEASES`: whether a prerelease is taken like a release. */
+  prereleases: boolean;
   /** `MOD_INSTALL_PATH`: where installed modules live. */
   store: string;
   /** `MOD_PATH`: where every module is linked. */
@@ -126,14 +129,13 @@ const say = async (run: Run, line: string): Promise<void> => {
 /** Whether this core provides the module API `manifest` asks for. */
 const runs = (manifest: ModuleManifest): boolean => checkCoreApi(manifest).errors.length === 0;
 
-/** Whether `version` is in `range`; a version or range that does not parse is not held against it. */
+/**
+ * Whether `version` is in `range`, a prerelease counting as the release it leads to; a version or
+ * range that does not parse is not held against it.
+ */
 const accepts = (version: string | undefined, range: string): boolean => {
-  if (!version || !canParse(version)) return true;
-  try {
-    return satisfies(parse(version), parseRange(range));
-  } catch {
-    return true;
-  }
+  const [parsed, parsedRange] = [tryParse(version ?? ''), tryParseRange(range)];
+  return parsed === undefined || parsedRange === undefined || inRange(parsed, parsedRange);
 };
 
 /** Make `path` and the directories above it. */
@@ -199,7 +201,7 @@ const resolveAbbreviated = async (run: Run, repository: Repository, ref?: string
  * `mod.json` asks for a module API this core provides; nothing when none does.
  */
 const olderCompatible = async (run: Run, repository: Repository, refs: Refs, taken: string, range?: string): Promise<string | undefined> => {
-  const all = releases(refs);
+  const all = releases(refs, run.prereleases);
   const at = all.findIndex((release) => release.tag === taken);
   const candidates = at < 0 ? [] : all.slice(at + 1).filter((release) => range === undefined || accepts(release.version, range));
   try {
@@ -274,7 +276,7 @@ const installTarget = async (
     );
   }
   const { repository, refs } = located ?? await locate(run, target, near);
-  const resolved = resolveRef(refs, target.ref, range) ?? await resolveAbbreviated(run, repository, target.ref);
+  const resolved = resolveRef(refs, target.ref, range, run.prereleases) ?? await resolveAbbreviated(run, repository, target.ref);
   if (!resolved) {
     throw new InstallError(
       target.ref ? `${repository.repository} has no branch, tag or commit '${target.ref}'` : `${repository.repository} has no release and no default branch`,
@@ -510,7 +512,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     }
   }
 
-  const { sources, problems, tokens } = await moduleSources(cmd);
+  const { sources, problems, tokens, prereleases } = await moduleSources(cmd);
   for (const problem of problems) await cmd.writeError(`mod install: CFG_MODULE_SOURCES: ${problem}\n`);
 
   const run: Run = {
@@ -518,6 +520,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     job,
     sources,
     tokens,
+    prereleases,
     store: cmd.env.MOD_INSTALL_PATH || MOD_INSTALL_PATH,
     modules: cmd.env.MOD_PATH || MOD_PATH,
     deployment: cmd.env.DEV_MODULES_PATH || DEV_MODULES_PATH,
