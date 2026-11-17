@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.19
+MODULE_API_VERSION 0.15.24
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -124,6 +124,7 @@ src/builtin/ui/src/client/components/mod.ts MetricSparkline b137e850a340 @signat
 src/builtin/ui/src/client/components/mod.ts ModuleDetail 33794ae73926 @signature=1946e94f5fa8,name=f4920a31bbd9
 src/builtin/ui/src/client/components/mod.ts ModulesReference d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts MoreLoader d2adf16b4e60
+src/builtin/ui/src/client/components/mod.ts NearbyHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodeBrowser 2991fc12bda2 @signature=e881409b2ba5,actions=005ff511c0f1,details=9dca06d25d84,onDelete=714ee225904b,onNavigate=baa1abc172f4,path=2692598d8d44,root=d4ad5d20ed05,view=fb88080bae9c
 src/builtin/ui/src/client/components/mod.ts NodeBrowserProps fc2c3cbcd70e actions=8a38bbeaf42e,details=c9ab3d39b8a4,onDelete=25392c128989,onNavigate=4726e85a6a1e,path=3fd20668ef6e,root=838c9c8573b4,view=7bf9e88f52fb
 src/builtin/ui/src/client/components/mod.ts NodeBrowserSubject 9ee64af590aa directory=9d3bb5657e0d,entry=d92f44645a39,path=3fd20668ef6e,selection=57b0a9c8a10a
@@ -135,8 +136,8 @@ src/builtin/ui/src/client/components/mod.ts NodesHeaderTabs d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts NodesPageControls d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts OwnShare 575cb27beb66 cpuPercent=19eb5faff85e,device=dc9837b78932,memoryBytes=02df4efbf9d2
 src/builtin/ui/src/client/components/mod.ts OwnerBadge c0615e973773 @signature=fca09f472f6a,owner=cf46731fc076
-src/builtin/ui/src/client/components/mod.ts PageAction ee60b08db415 button=8c3e93a08d30,color=7b5c3c3524d9,disabled=31a4a7656b0d,icon=eb7e26df3843,label=af04505f402e,lead=071d1a45205c,onClick=511b228d8079
-src/builtin/ui/src/client/components/mod.ts PageActions 30b14c43c233 edit=eefc3e347868,items=d82087f1d0e5,share=47f576b31c5b,trash=f273b3b65d47,upload=e80549765a01
+src/builtin/ui/src/client/components/mod.ts PageAction cb7bb8cf7208 active=cf50bf19155a,button=8c3e93a08d30,color=7b5c3c3524d9,disabled=31a4a7656b0d,icon=eb7e26df3843,iconOnly=0928bc250373,label=af04505f402e,lead=071d1a45205c,loading=dc098a42525d,onClick=511b228d8079
+src/builtin/ui/src/client/components/mod.ts PageActions 1545a8cca046 edit=eefc3e347868,items=d82087f1d0e5,nearby=8180ad5fb70b,share=47f576b31c5b,trash=f273b3b65d47,upload=e80549765a01
 src/builtin/ui/src/client/components/mod.ts PageBar 2f5bc39a3423 @signature=69f154a098f7,actions=005ff511c0f1,band=e86e80b44674,controls=a1e5bc118cc8,flushTabs=1f5b8db5af01,pattern=1c45d7add5c6,tabs=a5db0838bf7e,title=ba1f3813786d
 src/builtin/ui/src/client/components/mod.ts PageLoader a4df196fef51 @signature=7e384d78e265,label=5b994b45efc4
 src/builtin/ui/src/client/components/mod.ts PillKind 86e54873a4c8
@@ -278,6 +279,7 @@ src/builtin/ui/src/client/hooks/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/hooks/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
 src/builtin/ui/src/client/hooks/mod.ts MediaSelection ff560ac39d6f
 src/builtin/ui/src/client/hooks/mod.ts ModuleReference 1782805893cf commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,serviceRanges=3faed31dbcfd,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/builtin/ui/src/client/hooks/mod.ts NearbyAction 101b509411d4 active=a41dde67b3d2,icon=eb7e26df3843,label=af04505f402e,loading=6ab16fe49a65,onClick=511b228d8079
 src/builtin/ui/src/client/hooks/mod.ts NodeOps 676f0d28b992 busy=b0a603736b4f,chmod=779fd88674bd,chown=94007c3dcd24,clearError=6252419979ec,copy=661dbd3af7d7,error=badebb2f202e,mkdir=c865cd0655b1,move=00eae30f0715,paste=2e9f7b9bdea3,remove=9cf2fd9bf814,rename=55211b61d380
 src/builtin/ui/src/client/hooks/mod.ts NodeStat 2c362fa56de3 node=ae3e4484800b,share=dc3632e25c60
 src/builtin/ui/src/client/hooks/mod.ts NodeTreeState 8db99b3ecc71 data=55269c8cf46b,entriesOf=358d8701ea41,entryAt=7ec53474eabc,error=badebb2f202e,loading=6ab16fe49a65,openDirs=2d8c56c57d33,reload=95c493fecf4c,tree=4897387a0a27
@@ -388,6 +390,7 @@ src/builtin/ui/src/client/hooks/mod.ts useSectionSelection fddaebb692ea
 src/builtin/ui/src/client/hooks/mod.ts useSelection 5ec9fbba8404 0|a16bff8fef55=a16bff8fef55,@signature=41aa30fe2cac
 src/builtin/ui/src/client/hooks/mod.ts useSettledInViewport 1012a5391a9a 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=28a3bb27070f
 src/builtin/ui/src/client/hooks/mod.ts useShortcutHelp 53c82aa249f2 0|336e2b46aff6=336e2b46aff6,1|82d1a53becaa=82d1a53becaa,@signature=c65016e880e3
+src/builtin/ui/src/client/hooks/mod.ts useShowNearby 3fbca04395d6 0|803a222e6f94=803a222e6f94,0|dd22949bc59e=dd22949bc59e,@signature=6a4ec6703402
 src/builtin/ui/src/client/hooks/mod.ts useShowOn eab6c04d81b0
 src/builtin/ui/src/client/hooks/mod.ts useShownNode 2a7be11e646c
 src/builtin/ui/src/client/hooks/mod.ts useStatsOverview d2adf16b4e60
@@ -671,6 +674,9 @@ src/builtin/ui/src/client/signals/mod.ts NavAction 6c7a1062f716
 src/builtin/ui/src/client/signals/mod.ts NavLink 6817d0b0e5bf action=68c26a409dee,admin=e5caa4ef7900,group=2806eb133ee6,icon=eb7e26df3843,id=752fa5797ebe,label=af04505f402e,list=1b94793b875b,order=9df61d05787c,parent=d217e570083e,place=b5cacb44418e,section=ede3e1b4dbdf,shortcut=87b618b42738,signedIn=b687c9e9fe67,to=bd9c65f3bbc6
 src/builtin/ui/src/client/signals/mod.ts NavList eda83dabb85f
 src/builtin/ui/src/client/signals/mod.ts NavPlace 440b4b86eb87
+src/builtin/ui/src/client/signals/mod.ts NearbyPlayback 5336ffcc11d7 duration=4cb46dccc666,paused=a25983e9688f,time=b68f55c937f4
+src/builtin/ui/src/client/signals/mod.ts NearbyShown ddc768355db5 page=ed6ecc1c9392,target=8b8c68020dff
+src/builtin/ui/src/client/signals/mod.ts NearbyStream f54f8ee16b47
 src/builtin/ui/src/client/signals/mod.ts NodeClipboard c799e5a01e2d mode=123ff3a546de,paths=4c6a25d4d313
 src/builtin/ui/src/client/signals/mod.ts NodeEventFilter 35742304b4af eventTypes=70dfd8b6e7eb,nodeTypes=cfdf034e1bd8,pathPrefix=ca304d7b3dce,recursive=d247b337e7cf
 src/builtin/ui/src/client/signals/mod.ts NodeEventMessage e5ae4930edbb id=752fa5797ebe,node=b61a5d6cab48,nodeId=02e55d923e0a,nodeType=10a92ae7d518,path=3fd20668ef6e,timestamp=7c04c15af263,type=e22be5ee8605
@@ -678,6 +684,7 @@ src/builtin/ui/src/client/signals/mod.ts NodesCurrent 9ab89226aeac entry=7bcd575
 src/builtin/ui/src/client/signals/mod.ts PageShown 70c9ded138a3
 src/builtin/ui/src/client/signals/mod.ts PageSubject 28390179b148 about=b5f22c8fba0d,node=b830128a9876,title=22df3e6ba489
 src/builtin/ui/src/client/signals/mod.ts PanelEntry 76b8e7dfa560 admin=e5caa4ef7900,description=644be3c4d4da,icon=91a07d7cb04f,id=752fa5797ebe,label=af04505f402e,order=9df61d05787c,route=66a673b16b8a,signedIn=b687c9e9fe67,slot=b9888f6a27db,source=f0a45da73b3e,when=7d6290281d00
+src/builtin/ui/src/client/signals/mod.ts PickerOutcome 2d4dd14b085d
 src/builtin/ui/src/client/signals/mod.ts ProgressToast b1aaaa56b54f dismiss=48f9ecc338f5,finish=f20029c25eac,id=1a4af43267b0,update=9d0708e28e20
 src/builtin/ui/src/client/signals/mod.ts ResolvedSection fa18816c6585 id=752fa5797ebe,items=e820f855742f,label=995d88c00ff2
 src/builtin/ui/src/client/signals/mod.ts ResolvedTopbarEntry a3b903347e06
@@ -701,6 +708,7 @@ src/builtin/ui/src/client/signals/mod.ts cancelUploads df01802e180a
 src/builtin/ui/src/client/signals/mod.ts changePassword e8006cdb8e9e 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=8295fdcc2aea
 src/builtin/ui/src/client/signals/mod.ts checkAuth d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts chooseNearby 902193cc3eaf
+src/builtin/ui/src/client/signals/mod.ts chooseScreen 957e83b8b276
 src/builtin/ui/src/client/signals/mod.ts clearFinished df01802e180a
 src/builtin/ui/src/client/signals/mod.ts clearLightboxReturn c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts closeCodeEditor df01802e180a
@@ -708,6 +716,7 @@ src/builtin/ui/src/client/signals/mod.ts closeDialog df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeDrawer df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeFullscreen df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeLightboxWithoutReturn df01802e180a
+src/builtin/ui/src/client/signals/mod.ts closeNearby df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeNodesPane 32d2afe1f504 0|badb793e217b=badb793e217b,@signature=b27fc63f755f
 src/builtin/ui/src/client/signals/mod.ts closeNodesTab f6f88bb02fa4 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,@signature=a4c7e29d3544
 src/builtin/ui/src/client/signals/mod.ts closeShareModal df01802e180a
@@ -766,7 +775,10 @@ src/builtin/ui/src/client/signals/mod.ts mobileSidebarRail 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts modulePatcher d2adf16b4e60
 src/builtin/ui/src/client/signals/mod.ts moduleRoutePaths 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts navigatePage c11992f92313 0|b3d9da3d9fc5=b3d9da3d9fc5,0|e84c739762f7=e84c739762f7,1|7b338d8ffb1c=7b338d8ffb1c,@signature=bbf9cb1a920e
-src/builtin/ui/src/client/signals/mod.ts nearbyShowing 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts nearbyDialog 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts nearbyPlayback 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts nearbyScreen 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts nearbyStream 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nextMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts nextTerminalTab df01802e180a
 src/builtin/ui/src/client/signals/mod.ts nodeClipboard 0a752fffac0f
@@ -792,6 +804,7 @@ src/builtin/ui/src/client/signals/mod.ts openDialog c6a7aabc3791 0|336e2b46aff6=
 src/builtin/ui/src/client/signals/mod.ts openDrawer c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts openFullscreen 974ecc4491a8
 src/builtin/ui/src/client/signals/mod.ts openMediaAt 0533f485c383
+src/builtin/ui/src/client/signals/mod.ts openNearby 851a724ca3cb 0|5cdb0dcc9077=5cdb0dcc9077,@signature=da0c89320532
 src/builtin/ui/src/client/signals/mod.ts openNodesPane df01802e180a
 src/builtin/ui/src/client/signals/mod.ts openRoute 102274c1ae47 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=ea190cca78f5
 src/builtin/ui/src/client/signals/mod.ts openShareLink a3e3cb4523bd 0|336e2b46aff6=336e2b46aff6,@signature=506a4c7bc189
@@ -806,7 +819,9 @@ src/builtin/ui/src/client/signals/mod.ts panelRoute 221d81d7acfb
 src/builtin/ui/src/client/signals/mod.ts panelsOf b22c58dff461 0|336e2b46aff6=336e2b46aff6,@signature=421505b970ef
 src/builtin/ui/src/client/signals/mod.ts parseTerminalWorkspace 788f61e7591a 0|336e2b46aff6=336e2b46aff6,0|e47c90b8d195=e47c90b8d195,@signature=fa98ef4bf891
 src/builtin/ui/src/client/signals/mod.ts patternOf 019f2e2feb4f 0|336e2b46aff6=336e2b46aff6,@signature=80d237290fe0
+src/builtin/ui/src/client/signals/mod.ts pauseNearby df01802e180a
 src/builtin/ui/src/client/signals/mod.ts phoneGridColumns 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts playNearby df01802e180a
 src/builtin/ui/src/client/signals/mod.ts prefetchRoute 79066b5784da 0|336e2b46aff6=336e2b46aff6,@signature=3a2cf293b720
 src/builtin/ui/src/client/signals/mod.ts prevMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts prevTerminalTab df01802e180a
@@ -823,6 +838,7 @@ src/builtin/ui/src/client/signals/mod.ts revealNodeInNewTab c6a7aabc3791 0|336e2
 src/builtin/ui/src/client/signals/mod.ts routeBase a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
 src/builtin/ui/src/client/signals/mod.ts runNavAction e82c8704d252 0|c6c83f775cd9=c6c83f775cd9,1|79cda95873d9=79cda95873d9,@signature=cd73bdef45df
 src/builtin/ui/src/client/signals/mod.ts searchableKinds 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts seekNearby 1a2853cf5623 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=297d02407155
 src/builtin/ui/src/client/signals/mod.ts setDrawerWidth 7e8a59842996 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=311bdacb8319
 src/builtin/ui/src/client/signals/mod.ts setNodesColumns 73bfb13ad9ed 0|a29be0de2cf0=a29be0de2cf0,@signature=8ed874893a7b
 src/builtin/ui/src/client/signals/mod.ts setNodesCurrent bd59c3c6156a 0|badb793e217b=badb793e217b,1|e47c90b8d195=e47c90b8d195,1|e5ec96bc0b31=e5ec96bc0b31,@signature=2cb7d87f31a2
@@ -855,8 +871,10 @@ src/builtin/ui/src/client/signals/mod.ts showOnTarget 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shownNode 2a7be11e646c
 src/builtin/ui/src/client/signals/mod.ts sidebarCollapsed 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts starredPaths 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts startNearby 292cc4558a4d
 src/builtin/ui/src/client/signals/mod.ts startNodesAtHome 5d52ad64cb76 0|336e2b46aff6=336e2b46aff6,@signature=9c8b1ac5580b
 src/builtin/ui/src/client/signals/mod.ts stopNearby df01802e180a
+src/builtin/ui/src/client/signals/mod.ts stopScreen df01802e180a
 src/builtin/ui/src/client/signals/mod.ts stopShowing 4f7194b398cf 0|1ca2e21d79ce=1ca2e21d79ce,@signature=2aacfa62b04f
 src/builtin/ui/src/client/signals/mod.ts streamNearby 83d3ef3b5094 0|5cdb0dcc9077=5cdb0dcc9077,@signature=a66f17816f57
 src/builtin/ui/src/client/signals/mod.ts subscribeNodes 9b41477ea61b 0|179996693b0b=179996693b0b,1|e51efb410451=e51efb410451,@signature=f483c6feb287

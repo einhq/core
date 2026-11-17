@@ -1,7 +1,7 @@
 import { AppShell, Box, MantineProvider } from '@mantine/core';
 import { useDisclosure, useDocumentTitle, useMediaQuery } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
-import { AppHeader, AppNavbar, CodeEditorModal, DialogHost, DrawerHost, FullscreenHost, ShareModalHost, ShowOnHost, Terminal } from '@ein/ui/components';
+import { AppHeader, AppNavbar, CodeEditorModal, DialogHost, DrawerHost, FullscreenHost, NearbyHost, ShareModalHost, ShowOnHost, Terminal } from '@ein/ui/components';
 import { CommandPalette } from './components/Palette/CommandPalette.tsx';
 import { ToastHost } from './components/Toast/ToastHost.tsx';
 import { BackToTop } from './components/Layout/BackToTop.tsx';
@@ -331,6 +331,7 @@ function Frame({ children }: Props) {
       <FloatHost />
       <ShareModalHost />
       <ShowOnHost />
+      <NearbyHost />
       <CodeEditorModal />
       <BackToTop />
       <ToastHost />

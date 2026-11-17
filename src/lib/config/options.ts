@@ -312,7 +312,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: '',
     label: 'Page streamer',
     description:
-      "The command that renders a page of EiN as live video, which a screen near the browser — on the network of a phone that reaches EiN over the internet — plays from EiN's address. Empty offers no screen near the browser in Show on. The media service sets itself here when it is installed.",
+      "The command that renders a page of EiN as live video, which a screen near the browser — on the network of a phone that reaches EiN over the internet — plays from EiN's address. Empty offers no screen near the browser for a page. The media service sets itself here when it is installed.",
     group: 'Devices',
     emptyMeans: 'no screen near the browser',
   },

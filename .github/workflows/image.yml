@@ -1,11 +1,17 @@
 name: image
 
 # EiN's image, core with its Web UI built in (src/Containerfile), published for the installer
-# to pull: ghcr.io/einhq/core:main is main as of the last build, :sha-<commit> each commit built.
-# Built once a day when main has moved since (ein/core#835), and at once when run by hand.
+# to pull: ghcr.io/einhq/core:main is main as of the last build, :sha-<commit> each commit built,
+# :<version> the newest build of version.json's version, which the publish releases
+# (ein/core#1419), and :<line> the newest of its line (0.1 for 0.1.x, 1 for 1.x). The label
+# eu.einhq.version says the version too. Built when GitHub's main moves, which the daily publish
+# does (ein/core#1287), so the image is that day's (ein/core#1418); each morning after it, when
+# main's commit has no image yet, which a failed build leaves; and at once when run by hand.
 on:
+  push:
+    branches: [main]
   schedule:
-    - cron: '17 2 * * *'
+    - cron: '47 7 * * *'
   workflow_dispatch:
 
 # One build at a time; a run started during it waits, and only the newest waiting run is kept.
@@ -23,6 +29,8 @@ jobs:
       contents: read
     outputs:
       sha: ${{ steps.check.outputs.sha }}
+      version: ${{ steps.check.outputs.version }}
+      line: ${{ steps.check.outputs.line }}
       build: ${{ steps.check.outputs.build }}
     steps:
       - uses: actions/checkout@v7
@@ -32,6 +40,11 @@ jobs:
         run: |
           sha=$(git rev-parse --short=9 HEAD)
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          version=$(jq -r .version version.json)
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "no release version in version.json: $version"; exit 1; }
+          major=${version%%.*} minor=${version#*.}
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "line=$([ "$major" = 0 ] && echo "0.${minor%%.*}" || echo "$major")" >>"$GITHUB_OUTPUT"
           if [ "$GITHUB_EVENT_NAME" = schedule ] && docker manifest inspect "$IMAGE:sha-$sha" >/dev/null 2>&1; then
             echo "$IMAGE:sha-$sha exists"
             echo build=false >>"$GITHUB_OUTPUT"
@@ -67,9 +80,12 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/core:main
             ghcr.io/${{ github.repository_owner }}/core:sha-${{ needs.check.outputs.sha }}
+            ghcr.io/${{ github.repository_owner }}/core:${{ needs.check.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/core:${{ needs.check.outputs.line }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            eu.einhq.version=${{ needs.check.outputs.version }}
             org.opencontainers.image.description=EiN with its Web UI: run by compose from ein/deploy
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha

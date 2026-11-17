@@ -46,3 +46,4 @@ export * from './usePageSubject.ts';
 export * from './useShownNode.ts';
 export * from './useShortcutHelp.ts';
 export * from './useShowOn.ts';
+export * from './useShowNearby.ts';

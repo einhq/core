@@ -1,12 +1,14 @@
-import { ActionIcon, Box, Button, Group, type MantineColor, Menu } from '@mantine/core';
+import { ActionIcon, Box, Button, Group, Loader, type MantineColor, Menu, Tooltip } from '@mantine/core';
 import { IconDotsVertical } from '@tabler/icons-react';
 import { Fragment, type RefObject } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { TrashPutResult } from '@ein/api';
+import { useShowNearby } from '../../hooks/useShowNearby.ts';
 import { shq } from '../../lib/shquote.ts';
 import { notify } from '../../signals/notify.ts';
 import { openShareModal } from '../../signals/share.ts';
 import { execCommand } from '../../signals/shell-client.ts';
+import type { ShowOnTarget } from '../../signals/show-on.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import type { UploadDropzoneProps } from '../Upload/UploadDropzone.tsx';
 
@@ -22,13 +24,20 @@ export type PageAction = {
   button?: boolean;
   /** A button in the header's corner before Share, where Upload stands: the page's own way of adding to it. */
   lead?: boolean;
+  /** As a button, its icon alone, the label its tooltip. */
+  iconOnly?: boolean;
+  /** Busy: a spinner in place of its icon, and not to be pressed again. */
+  loading?: boolean;
+  /** Filled, as a button: waiting for the next press, or what it started is under way. */
+  active?: boolean;
 };
 
 /**
  * What can be done to what a page shows, laid out the same on every page: Upload (or the page's
- * own `lead` buttons), Share and Edit as buttons in the header's corner, in that order, then ⋮ with the page's own items and Move to
- * trash last. On a phone, and scrolled down in the header's last row, ⋮ stands alone with all of
- * them in it.
+ * own `lead` buttons), Share and Edit as buttons in the header's corner, in that order, then the
+ * page's own buttons and the cast icon for a screen near the browser, then ⋮ with the page's own
+ * items and Move to trash last. On a phone, and scrolled down in the header's last row, ⋮ stands
+ * alone with all of them in it.
  */
 export type PageActions = {
   /** Files into a directory: Upload, and a drop target over the window. */
@@ -37,6 +46,8 @@ export type PageActions = {
   share?: string;
   /** Opens the edit dialog. */
   edit?: () => void;
+  /** What the cast icon shows on a screen near the browser (`useShowNearby`); none where it cannot go to one. */
+  nearby?: ShowOnTarget;
   /** The page's own actions, in order; under ⋮ unless `button`. */
   items?: PageAction[];
   /**
@@ -60,6 +71,7 @@ export function useActionGroups(
 ): ActionGroups {
   const navigate = useNavigate();
   const location = useLocation();
+  const nearby = useShowNearby(actions?.nearby);
   if (!actions) return [[], [], []];
   const { upload, share, edit, items = [], trash } = actions;
 
@@ -86,6 +98,7 @@ export function useActionGroups(
     ...(share ? [{ label: 'Share', icon: 'share', onClick: () => openShareModal(share) }] : []),
     ...(edit ? [{ label: 'Edit', icon: 'pencil', onClick: edit }] : []),
     ...items.filter((item) => item.button && !item.lead),
+    ...(nearby ? [{ ...nearby, iconOnly: true }] : []),
   ];
   const menu = [
     ...(upload?.keepFolders ? [{ label: 'Upload a folder', icon: 'folder-up', disabled: upload.disabled, onClick: () => openFolder.current?.() }] : []),
@@ -111,7 +124,13 @@ export function ActionsMenu({ groups, label = 'More actions' }: { groups: PageAc
           <Fragment key={index}>
             {index > 0 && <Menu.Divider />}
             {group.map((action) => (
-              <Menu.Item key={action.label} leftSection={<TablerIcon name={action.icon} size={16} />} color={action.color} disabled={action.disabled} onClick={action.onClick}>
+              <Menu.Item
+                key={action.label}
+                leftSection={action.loading ? <Loader size={16} /> : <TablerIcon name={action.icon} size={16} />}
+                color={action.color}
+                disabled={action.disabled || action.loading}
+                onClick={action.onClick}
+              >
                 {action.label}
               </Menu.Item>
             ))}
@@ -129,20 +148,39 @@ export function ActionsMenu({ groups, label = 'More actions' }: { groups: PageAc
 export function CornerActions({ groups: [buttons, menu, last] }: { groups: ActionGroups }) {
   return (
     <Group gap='xs' wrap='nowrap'>
-      {buttons.map((action) => (
-        <Button
-          key={action.label}
-          className='mrx-header-wide'
-          variant='light'
-          size='sm'
-          color={action.color}
-          disabled={action.disabled}
-          leftSection={<TablerIcon name={action.icon} size={16} />}
-          onClick={action.onClick}
-        >
-          {action.label}
-        </Button>
-      ))}
+      {buttons.map((action) =>
+        action.iconOnly
+          ? (
+            <Tooltip key={`icon:${action.icon}`} label={action.label}>
+              <ActionIcon
+                className='mrx-header-wide'
+                variant={action.active ? 'filled' : 'light'}
+                size='lg'
+                color={action.color}
+                disabled={action.disabled}
+                loading={action.loading}
+                aria-label={action.label}
+                onClick={action.onClick}
+              >
+                <TablerIcon name={action.icon} size={18} />
+              </ActionIcon>
+            </Tooltip>
+          )
+          : (
+            <Button
+              key={action.label}
+              className='mrx-header-wide'
+              variant='light'
+              size='sm'
+              color={action.color}
+              disabled={action.disabled}
+              leftSection={<TablerIcon name={action.icon} size={16} />}
+              onClick={action.onClick}
+            >
+              {action.label}
+            </Button>
+          )
+      )}
       {(menu.length > 0 || last.length > 0) && (
         <Box className='mrx-header-wide'>
           <ActionsMenu groups={[menu, last]} />
