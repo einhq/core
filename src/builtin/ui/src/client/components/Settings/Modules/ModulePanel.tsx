@@ -30,6 +30,7 @@ import { ModuleCommands } from './ModuleCommands.tsx';
 import { moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
 import type { ModuleUpdate } from './useModuleUpdates.ts';
+import { NeededServices, type Supervisor } from './SupervisedServices.tsx';
 
 /** The panel's tabs, in order. */
 const MODULE_SECTIONS = ['overview', 'setup', 'services', 'pages', 'commands', 'settings', 'types'] as const;
@@ -52,6 +53,8 @@ type ModulePanelProps = {
   module: ModuleEntry;
   /** Every installed module, for what it needs and what needs it. */
   modules: ModuleEntry[];
+  /** The services beside EiN, for the ones it talks to. */
+  supervisor: Supervisor;
   onOpenModule: (name: string) => void;
   /** The tab asked for; one this module has nothing for shows Overview. */
   section: string | null;
@@ -79,7 +82,7 @@ type ModulePanelProps = {
  * tab is drawn only when the module has something for it, with how many. Commands and settings open
  * in place, a command to its help and a setting to its control.
  */
-export function ModulePanel({ module, modules, onOpenModule, section, onSection, onChanged, install, update, onStarted, onRemoved }: ModulePanelProps) {
+export function ModulePanel({ module, modules, supervisor, onOpenModule, section, onSection, onChanged, install, update, onStarted, onRemoved }: ModulePanelProps) {
   useSignals();
   const state = moduleState(module);
   const admin = useAccessIds()?.admin === true;
@@ -165,7 +168,7 @@ export function ModulePanel({ module, modules, onOpenModule, section, onSection,
         </Tabs.List>
 
         <Tabs.Panel value='overview'>
-          <Overview module={module} modules={modules} usedBy={usedBy} admin={admin} onChanged={onChanged} onOpenModule={onOpenModule} />
+          <Overview module={module} modules={modules} usedBy={usedBy} admin={admin} supervisor={supervisor} onChanged={onChanged} onOpenModule={onOpenModule} />
         </Tabs.Panel>
         <Tabs.Panel value='setup'>
           <Stack gap='lg'>
@@ -358,17 +361,18 @@ type OverviewProps = {
   modules: ModuleEntry[];
   usedBy: ModuleEntry[];
   admin: boolean;
+  supervisor: Supervisor;
   onChanged: () => void;
   onOpenModule: (name: string) => void;
 };
 
 /**
- * The module at a glance: what it needs and what needs it beside its details — where `mod install`
- * fetched it from, at which release and when, or that the deployment provides it, the module API it
- * is written against and the folder it is in — or over them where the panel is narrow; under them,
- * across the panel's width, who has it.
+ * The module at a glance: what it needs, modules and services beside EiN, and what needs it beside
+ * its details — where `mod install` fetched it from, at which release and when, or that the
+ * deployment provides it, the module API it is written against and the folder it is in — or over
+ * them where the panel is narrow; under them, across the panel's width, who has it.
  */
-function Overview({ module, modules, usedBy, admin, onChanged, onOpenModule }: OverviewProps) {
+function Overview({ module, modules, usedBy, admin, supervisor, onChanged, onOpenModule }: OverviewProps) {
   const record = module.installed;
   return (
     <Stack gap='xl'>
@@ -380,6 +384,7 @@ function Overview({ module, modules, usedBy, admin, onChanged, onOpenModule }: O
             rows={Object.entries(module.dependencies).map(([name, range]) => ({ name, range, entry: modules.find((each) => each.name === name) }))}
             onOpenModule={onOpenModule}
           />
+          <NeededServices module={module} supervisor={supervisor} admin={admin} />
           {usedBy.length > 0 && (
             <Related
               title='Needed by'

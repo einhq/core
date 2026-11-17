@@ -43,9 +43,10 @@ export type Accounts = {
   /**
    * Run one command that changes accounts or groups and answer with what it printed, once the
    * lists loaded after it are drawn, and the pickers of every `useIdentities()` have it too. A
-   * failure is thrown on, for the caller to show where the action was.
+   * failure is thrown on, for the caller to show where the action was. `stdin` is what the
+   * command reads as its stdin: a password it takes as `-`, kept off the command line.
    */
-  run: <T = unknown>(command: string) => Promise<T>;
+  run: <T = unknown>(command: string, stdin?: string) => Promise<T>;
 };
 
 /**
@@ -108,9 +109,9 @@ export function useAccounts(): Accounts {
 
   const { refetch: refetchLists } = lists;
   const { refetch: refetchSessions } = presence;
-  const run = useCallback(async <T = unknown>(command: string): Promise<T> => {
+  const run = useCallback(async <T = unknown>(command: string, stdin?: string): Promise<T> => {
     try {
-      return await execCommand<T>(command);
+      return await execCommand<T>(command, { stdin });
     } finally {
       // Also after a failure, which may have changed part of what it was asked to. A load already
       // under way may have read before the change, so this waits for one that starts after it,

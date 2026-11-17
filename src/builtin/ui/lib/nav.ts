@@ -158,10 +158,11 @@ export type PanelEntry = {
   route: string;
   /**
    * Which nodes it is shown for: `has` names a node type the node must have a child of
-   * (`{ "has": "track" }`, a device's tab only on a device with a track endpoint). `device.tabs`
-   * checks it; the other slots ignore it.
+   * (`{ "has": "track" }`, a device's tab only on a device with a track endpoint), and `live`
+   * keeps it to a device with a stream that can be watched live now (`{ "has": "stream", "live": true }`).
+   * `device.tabs` checks it; the other slots ignore it.
    */
-  when?: { has?: string };
+  when?: { has?: string; live?: boolean };
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
@@ -244,7 +245,7 @@ const REQUIRED: Record<Kind, string[]> = {
 
 const isWhen = (value: unknown): value is PanelEntry['when'] =>
   typeof value === 'object' && value !== null && !Array.isArray(value) &&
-  Object.entries(value).every(([key, field]) => key === 'has' && typeof field === 'string' && field !== '');
+  Object.entries(value).every(([key, field]) => key === 'has' ? typeof field === 'string' && field !== '' : key === 'live' && typeof field === 'boolean');
 
 const isTiles = (value: unknown): value is MapTiles[] =>
   Array.isArray(value) && value.length > 0 &&
@@ -362,7 +363,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
         return false;
       }
       if (kind === 'panels' && entry.when !== undefined && !isWhen(entry.when)) {
-        warnings.push(`${entry.id}: when is not { has: <node type> }`);
+        warnings.push(`${entry.id}: when is not { has: <node type>, live: <true or false> }`);
         return false;
       }
       if (

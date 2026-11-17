@@ -20,7 +20,8 @@ const uidOf = async (cmd: Command, who: string): Promise<number | undefined> => 
  * Run a command line as another account, with only what that account may do: for a service, which
  * runs as the administrator, doing work on someone's behalf (a rule its author wrote). The line
  * runs in a shell of its own, on a session of that account's made for it and removed after, so
- * what it writes is that account's and its settings are its own. Administrators only.
+ * what it writes is that account's and its settings are its own; interrupting runas interrupts the
+ * line. Administrators only.
  *
  *   runas anna 'echo on > /dev/hall-lamp/switch-0'
  *   runas 1004 ls -la /home/anna
@@ -61,6 +62,8 @@ export const runas = async (cmd: Command): CmdReturn => {
     origin: 'system',
     env,
   });
+  const interrupt = () => cmd.sys.cem.interrupt(shell.name).catch(() => {});
+  cmd.interruptSignal.addEventListener('abort', interrupt, { once: true });
   try {
     await shell.open();
     const result = await shell.runAndCapture(line);
@@ -68,6 +71,7 @@ export const runas = async (cmd: Command): CmdReturn => {
     if (result.stderr) await cmd.writeError(result.stderr);
     return result.code;
   } finally {
+    cmd.interruptSignal.removeEventListener('abort', interrupt);
     await shell.close().catch(() => {});
     await cmd.sys.vfs.unlink(ADMIN_ACCESS, sessionPath, dirname(sessionPath), { recursive: true }).catch(() => {});
   }

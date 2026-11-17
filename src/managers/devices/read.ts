@@ -90,13 +90,14 @@ const fixesBetween = async (
     const read = await handle.readPoints({ from: range.since?.toISOString(), to: range.until?.toISOString() });
     const points = read.segments.flatMap((segment) => segment.points);
     const kept = range.limit !== undefined ? points.slice(Math.max(0, points.length - range.limit)) : points;
-    return kept.map(({ ts, lat, lng, alt, speed, course }) => ({
+    return kept.map(({ ts, lat, lng, alt, speed, course, accuracy }) => ({
       at: ts,
       lat,
       lng,
       ...(alt !== undefined ? { alt } : {}),
       ...(speed !== undefined ? { speed } : {}),
       ...(course !== undefined ? { course } : {}),
+      ...(accuracy !== undefined ? { accuracy } : {}),
     }));
   } finally {
     await handle.close();
@@ -129,6 +130,24 @@ const mainOf = (endpoints: EndpointNode[]): EndpointNode | undefined => {
   return readings[0] ?? live.find((ep) => ep.node.type === NODE_TYPE_CONTROL);
 };
 
+/** A device's live reading of a `deviceClass`, as the device's battery is found among its endpoints. */
+const readingOf = (endpoints: EndpointNode[], deviceClass: string): EndpointNode | undefined =>
+  endpoints.find((ep) => {
+    const attrs = ep.node.attrs as EndpointAttrs;
+    return ep.node.type === NODE_TYPE_LOG && attrs.deviceClass === deviceClass && !attrs.retired && attrs.supported !== false;
+  });
+
+/** The charge of the device's battery and whether it is charging, as it last said; undefined for a device without one. */
+const batteryOf = async (vfs: ModuleVFS, access: Access, device: string, endpoints: EndpointNode[]): Promise<DeviceSummary['battery']> => {
+  const last = async (deviceClass: string) => {
+    const ep = readingOf(endpoints, deviceClass);
+    return ep ? (await valuesOf(vfs, access, join(devicePath(device), ep.name), 1))[0]?.value : undefined;
+  };
+  const [level, charging] = await Promise.all([last('battery'), last('battery_charging')]);
+  if (typeof level !== 'number') return undefined;
+  return { level, ...(typeof charging === 'boolean' ? { charging } : {}) };
+};
+
 /** What a stream's attrs say it is. */
 const streamInfo = (attrs: EndpointAttrs): StreamInfo => ({
   ...(attrs.codec ? { codec: attrs.codec } : {}),
@@ -146,7 +165,7 @@ const pictureOf = (endpoints: EndpointNode[]): string | undefined => {
     .sort((a, b) => pixels(a) - pixels(b))[0]?.name;
 };
 
-const summaryOf = (device: string, attrs: DeviceAttrs, endpoints: EndpointNode[]): DeviceSummary => ({
+const summaryOf = (device: string, attrs: DeviceAttrs, endpoints: EndpointNode[], writable: boolean): DeviceSummary => ({
   name: device,
   path: devicePath(device),
   label: attrs.label ?? device,
@@ -158,12 +177,17 @@ const summaryOf = (device: string, attrs: DeviceAttrs, endpoints: EndpointNode[]
   endpoints: endpoints.length,
   tracks: endpoints.some((ep) => ep.node.type === 'track'),
   ...(pictureOf(endpoints) ? { picture: pictureOf(endpoints) } : {}),
+  writable,
 });
 
-/** The main value of a device, and when its latest value came, added to its summary. */
+/** The main value of a device and its battery, and when its latest value came, added to its summary. */
 const withMain = async (vfs: ModuleVFS, access: Access, device: string, summary: DeviceSummary, endpoints: EndpointNode[]): Promise<DeviceSummary> => {
   const main = mainOf(endpoints);
-  const last = main ? (await valuesOf(vfs, access, join(devicePath(device), main.name), 1))[0] : undefined;
+  const [last, battery] = await Promise.all([
+    main ? valuesOf(vfs, access, join(devicePath(device), main.name), 1).then((values) => values[0]) : undefined,
+    batteryOf(vfs, access, device, endpoints),
+  ]);
+  if (battery) summary.battery = battery;
   if (main && last) {
     const attrs = main.node.attrs as EndpointAttrs;
     summary.main = { endpoint: main.name, label: attrs.label ?? main.name, value: last.value, ...(attrs.unit ? { unit: attrs.unit } : {}) };
@@ -195,7 +219,7 @@ export const listDevices = async (vfs: ModuleVFS, access: Access): Promise<Devic
   const children = (await vfs.children<DeviceAttrs>(access, DEV_PATH)).filter((child) => child.node.type === NODE_TYPE_DEVICE);
   const summaries = await Promise.all(children.map(async (child) => {
     const endpoints = await endpointsOf(vfs, access, child.name).catch(() => []);
-    const summary = await withMain(vfs, access, child.name, summaryOf(child.name, child.node.attrs, endpoints), endpoints);
+    const summary = await withMain(vfs, access, child.name, summaryOf(child.name, child.node.attrs, endpoints, verifyAccess(access, child.node.props, 'w')), endpoints);
     if (summary.online === undefined) {
       const tracked = await trackLastAt(vfs, access, endpoints).catch(() => undefined);
       if (tracked && (!summary.lastAt || Date.parse(tracked) > Date.parse(summary.lastAt))) summary.lastAt = new Date(tracked).toISOString();
@@ -205,7 +229,8 @@ export const listDevices = async (vfs: ModuleVFS, access: Access): Promise<Devic
   return summaries.sort((a, b) => a.label.localeCompare(b.label));
 };
 
-const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, ep: EndpointNode): Promise<EndpointSummary> => {
+/** An endpoint as `device-show` lists it; `live` is whether the device's driver runs now and gives a stream's live view. */
+const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, ep: EndpointNode, live: boolean): Promise<EndpointSummary> => {
   const attrs = ep.node.attrs as EndpointAttrs;
   const path = join(devicePath(device), ep.name);
   const type = ep.node.type as EndpointType;
@@ -229,6 +254,7 @@ const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, e
     summary.track = { points: track?.points ?? 0, ...(track?.firstTs ? { firstAt: track.firstTs } : {}), ...(track?.lastTs ? { lastAt: track.lastTs } : {}) };
   } else if (type === 'stream') {
     summary.stream = streamInfo(attrs);
+    if (live) summary.live = true;
   } else {
     const last = (await valuesOf(vfs, access, path, 1))[0];
     if (last) summary.last = last;
@@ -241,10 +267,10 @@ export const deviceInfo = async (vfs: ModuleVFS, access: Access, devices: Device
   const node = await vfs.get<DeviceAttrs>(access, devicePath(device));
   if (node.type !== NODE_TYPE_DEVICE) throw new Error(`${device} is not a device`);
   const endpoints = await endpointsOf(vfs, access, device);
-  const endpointList = await Promise.all(endpoints.map((ep) => endpointSummary(vfs, access, device, ep)));
-  const summary = await withMain(vfs, access, device, summaryOf(device, node.attrs, endpoints), endpoints);
-  const latest = endpointList.map((ep) => ep.last?.at ?? ep.track?.lastAt).filter((at): at is string => Boolean(at)).sort().at(-1);
   const driver = node.attrs.driver ? devices?.driver(node.attrs.driver) : undefined;
+  const endpointList = await Promise.all(endpoints.map((ep) => endpointSummary(vfs, access, device, ep, driver?.live !== undefined)));
+  const summary = await withMain(vfs, access, device, summaryOf(device, node.attrs, endpoints, verifyAccess(access, node.props, 'w')), endpoints);
+  const latest = endpointList.map((ep) => ep.last?.at ?? ep.track?.lastAt).filter((at): at is string => Boolean(at)).sort().at(-1);
   return {
     ...withHeard({ ...summary, ...(latest ? { lastAt: latest } : {}) }),
     ...(node.attrs.firmware ? { firmware: node.attrs.firmware } : {}),

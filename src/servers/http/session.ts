@@ -226,29 +226,7 @@ export async function getSession(
   }
 
   if (!sessionNode) {
-    const lifetimes = await sessionLifetimes(config);
-    const name = ulid();
-    sessionPath = join(config.env.SESSIONS_PATH, `session-${name}`);
-    sessionNode = await config.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, dirname(sessionPath), basename(sessionPath), {
-      props: {
-        mode: 0o700,
-      },
-      attrs: {
-        secret: crypto.randomUUID().replaceAll('-', ''),
-        access: {
-          uid: GUEST_UID,
-          gid: GUEST_GID,
-          gids: [GUEST_GID],
-        },
-        env: {},
-        createdAt: Date.now(),
-        lastActivity: Date.now(),
-        expiresSec: lifetimes.expiresSec,
-        ...(opts.ephemeral ? { bootId: BOOT_ID } : {}),
-      },
-    });
-
-    issueCookie(config, headers, responseHeaders, name, sessionNode.attrs.secret, lifetimes.cookieMaxAgeSec);
+    ({ sessionPath, sessionNode } = await createSession(config, headers, responseHeaders, { uid: GUEST_UID, gid: GUEST_GID, gids: [GUEST_GID] }, opts.ephemeral));
   }
 
   return {
@@ -256,6 +234,49 @@ export async function getSession(
     sessionPath,
     access: storedAccess(sessionNode.attrs.access),
   };
+}
+
+/**
+ * A new session acting as `access`, its cookie written to `responseHeaders`: for as long as a
+ * session holding a share link lasts when `access` holds one, else as long as any.
+ */
+async function createSession(
+  config: SessionConfig,
+  headers: Headers,
+  responseHeaders: Headers,
+  access: Access,
+  ephemeral?: boolean,
+): Promise<{ sessionPath: NodePath; sessionNode: Node<SessionAttrs> }> {
+  const lifetimes = await sessionLifetimes(config);
+  const name = ulid();
+  const sessionPath = join(config.env.SESSIONS_PATH, `session-${name}`);
+  const sessionNode = await config.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, dirname(sessionPath), basename(sessionPath), {
+    props: {
+      mode: 0o700,
+    },
+    attrs: {
+      secret: crypto.randomUUID().replaceAll('-', ''),
+      access,
+      env: {},
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      expiresSec: access.link ? lifetimes.linkExpiresSec : lifetimes.expiresSec,
+      ...(ephemeral ? { bootId: BOOT_ID } : {}),
+    },
+  });
+
+  issueCookie(config, headers, responseHeaders, name, sessionNode.attrs.secret, cookieAge(lifetimes, access));
+  return { sessionPath, sessionNode };
+}
+
+/**
+ * A session of its own for a browser that cannot sign in, acting as `access` (which holds a link,
+ * so it is read-only): the response headers that give the browser its cookie.
+ */
+export async function openSessionAs(config: SessionConfig, headers: Headers, access: Access): Promise<Headers> {
+  const responseHeaders = new Headers();
+  await createSession(config, headers, responseHeaders, access);
+  return responseHeaders;
 }
 
 /**

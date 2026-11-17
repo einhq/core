@@ -28,6 +28,7 @@ import { type ResourceHandleIf, ResourceSeekMode } from '../../../../registries/
 import { NodeNotFoundError, type NodeVFS } from '../../../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
+import { NODE_TYPE_SOFTLINK } from '../../../../vfs/types/softlink.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 
@@ -101,7 +102,8 @@ type Existing = { type: string; size: number; written: boolean };
  * An entry's path is split on `/` into names below `directory`; empty and `.` names are dropped.
  * zip.js refuses a name with a `..` component or an absolute one while the entries are listed,
  * which refuses the archive. So does more uncompressed bytes to write than the free space over
- * `SPACE_FACTOR`, counting only the files that will be written. A file already at an entry's path
+ * `SPACE_FACTOR`, counting only the files that will be written. A softlink below `directory`, a
+ * folder's or a file's, is not followed: each entry through it fails. A file already at an entry's path
  * is left alone at the entry's size (skipped, so a run that stopped goes on where it was), and at
  * another size it is an entry that failed, unless `overwrite`; a file whose write never finished is
  * written again. An entry that fails is reported in `failed` and the rest are still expanded.
@@ -117,7 +119,9 @@ export async function expandZip(vfs: NodeVFS, access: Access, archive: string, d
   };
 
   // What each directory the entries reach holds, by name: read once per directory, kept up to
-  // date as files are written, and empty for one that does not exist yet.
+  // date as files are written, and empty for one that does not exist yet. One below `directory`
+  // that cannot be read is empty too: its entries fail when they are written, each saying why,
+  // and the rest are expanded.
   const listings = new Map<string, Map<string, Existing>>();
   const listing = async (dir: string): Promise<Map<string, Existing>> => {
     let names = listings.get(dir);
@@ -135,7 +139,8 @@ export async function expandZip(vfs: NodeVFS, access: Access, archive: string, d
         after = page[page.length - 1].name;
       }
     } catch (error) {
-      if (!(error instanceof NodeNotFoundError)) throw error;
+      if (!(error instanceof NodeNotFoundError) && dir === directory) throw error;
+      names.clear();
     }
     listings.set(dir, names);
     return names;
@@ -175,16 +180,21 @@ export async function expandZip(vfs: NodeVFS, access: Access, archive: string, d
       );
     }
 
-    // The directories known to exist, so each is looked up or made once.
+    // The directories known to exist, so each is looked up or made once. One below `directory` is
+    // looked at as itself, after its parent: a softlink there is refused, never followed out of
+    // `directory`.
     const made = new Set<string>();
     const ensureDir = async (dir: string): Promise<void> => {
       if (made.has(dir)) return;
+      const inside = dir !== directory && dir.startsWith(directory === '/' ? '/' : `${directory}/`);
+      if (inside) await ensureDir(dirname(dir));
       try {
-        const node = await vfs.get(access, dir);
+        const node = await vfs.get(access, dir, { readlink: inside });
+        if (node.type === NODE_TYPE_SOFTLINK) throw new Error(`${dir} is a softlink, which unzip does not follow`);
         if (node.type !== NODE_TYPE_DIRECTORY) throw new Error(`${dir} is not a directory`);
       } catch (error) {
         if (!(error instanceof NodeNotFoundError)) throw error;
-        await ensureDir(dirname(dir));
+        if (!inside) await ensureDir(dirname(dir));
         await vfs.ensure(access, NODE_TYPE_DIRECTORY, dirname(dir), basename(dir));
         (await listing(dirname(dir))).set(basename(dir), { type: NODE_TYPE_DIRECTORY, size: 0, written: true });
         answer.directories++;
@@ -359,7 +369,7 @@ unzip.spec = {
   name: 'unzip',
   effect: 'write' as const,
   description:
-    'Expand a zip archive into a directory, streaming each entry. Refuses an archive with an entry that would land outside the directory, or whose files would not leave a tenth of their size free. A file already there at its entry’s size is left as it is, so a run that stopped can be run again',
+    'Expand a zip archive into a directory, streaming each entry. Refuses an archive with an entry that would land outside the directory, or whose files would not leave a tenth of their size free. A softlink below the directory is not followed: the entries through it fail. A file already there at its entry’s size is left as it is, so a run that stopped can be run again',
   args: [
     { name: 'archive', type: 'path' as const, description: 'the zip to expand' },
   ],

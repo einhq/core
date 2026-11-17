@@ -296,7 +296,7 @@ function PasswordSection({ user, run, initialError }: SectionProps & { initialEr
     setError(null);
     setDone(false);
     try {
-      await run(`user-passwd ${shq(user.username)} --new-password=${shq(next)}`);
+      await run(`user-passwd ${shq(user.username)} --new-password=-`, next);
       setNext('');
       setRepeat('');
       setDone(true);

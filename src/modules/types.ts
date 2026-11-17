@@ -50,6 +50,14 @@ export type ModuleManifest = {
   dependencies?: Record<string, string>;
 
   /**
+   * Services beside EiN this module talks to, as name -> caret range of the version of the
+   * service's interface: `{ "ems": "^0.4.4" }`. Core runs none of them; the installation reads
+   * the field to pull the image of a service at the line its modules ask for, and the module
+   * checks the version the running service reports.
+   */
+  services?: Record<string, string>;
+
+  /**
    * Settings this module owns, registered into the live option table at `mod setup`
    * and dropped again at `mod remove`.
    *
@@ -138,7 +146,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.15.7';
+export const MODULE_API_VERSION = '0.15.19';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];

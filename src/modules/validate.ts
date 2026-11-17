@@ -54,6 +54,29 @@ export const checkCoreApi = (manifest: ModuleManifest): ValidationResult => {
   return { errors, warnings };
 };
 
+/** A service's name, as the installation knows its services, and a caret range of its interface. */
+const SERVICE_NAME = /^[a-z][a-z0-9-]*$/;
+const CARET_RANGE = /^\^\d+\.\d+(\.\d+)?$/;
+
+/**
+ * Check `services`: each a service's name and a caret range, which is what the installation picks
+ * an image line by (`^0.4.4` the line 0.4, `^1.2.0` the line 1).
+ */
+export const checkServices = (manifest: ModuleManifest): ValidationResult => {
+  const errors: string[] = [];
+  if (manifest.services === undefined) return { errors, warnings: [] };
+  if (typeof manifest.services !== 'object' || manifest.services === null || Array.isArray(manifest.services)) {
+    return { errors: [`${manifest.name}: services must map a service's name to a range`], warnings: [] };
+  }
+  for (const [service, range] of Object.entries(manifest.services)) {
+    if (!SERVICE_NAME.test(service)) errors.push(`${manifest.name}: invalid service name '${service}'`);
+    else if (typeof range !== 'string' || !CARET_RANGE.test(range)) {
+      errors.push(`${manifest.name}: service '${service}' needs a caret range such as ^0.4.0, not ${JSON.stringify(range)}`);
+    }
+  }
+  return { errors, warnings: [] };
+};
+
 /** A module-relative path that stays inside the module, or the reason it is not one. */
 const insideModule = (field: string, value: unknown): string | undefined => {
   if (typeof value !== 'string' || value.length === 0) return `${field} must be a non-empty string`;
@@ -278,6 +301,7 @@ export const validateManifest = async (
 
   const results = [
     checkCoreApi(manifest),
+    checkServices(manifest),
     await checkDependencies(vfs, access, modulesPath, manifest),
     await checkExports(vfs, access, join(modulesPath, manifest.name), manifest),
     checkUi(manifest),

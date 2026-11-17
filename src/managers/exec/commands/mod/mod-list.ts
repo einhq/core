@@ -55,6 +55,7 @@ export const modList = async (cmd: Command): CmdReturn => {
           webUis: await namesIn(cmd, join(modulePath, 'www'), NODE_TYPE_DIRECTORY),
           // `mod setup` registers each entry of services/ under its own name.
           services: await namesIn(cmd, join(modulePath, 'services')),
+          ...(manifest.services && Object.keys(manifest.services).length > 0 ? { serviceRanges: manifest.services } : {}),
           routes: Object.keys(manifest.ui?.routes ?? {}).sort(),
           setup: moduleSetupOf(name),
           ...(installed ? { installed } : {}),

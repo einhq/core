@@ -1,10 +1,11 @@
 /**
  * ps, who and top as a shell reads them: what runs and whose it is, who is signed in and what
  * they run, and the dashboard as text where there is no terminal. Anyone but admin sees only
- * their own.
+ * their own, and a visitor only its own session's.
  */
 
 import { assert, assertEquals } from '@std/assert';
+import type { ShareLinkCreated } from '../../../../lib/api/share.ts';
 import type { ProcessEntry, SessionEntry } from '../../../../lib/api/system.ts';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
 
@@ -101,6 +102,46 @@ Deno.test({
       const own = (await anna!.execJson<ProcessEntry[]>('sleep 30 &\nps')).find((entry) => entry.name === 'bg')!;
       assertEquals((await admin.execString(`kill ${own.pid} ${job.pid}; echo $?`)).trim(), '0');
       await admin.execString(`wait ${job.pid}; true`);
+    });
+
+    await t.step("visitors of one share link see and stop only their own session's commands", async () => {
+      await cmd.shouldSucceed('mkdir -p /home/anna/album && chown anna /home/anna/album');
+      const opened = async (token: string | undefined) => {
+        const visitor = await testCtx.server.createShellClient({ login: false });
+        assertEquals((await visitor.exec(`share-link open ${token} --session`)).success, true);
+        return visitor;
+      };
+      const { link } = await anna!.execJson<ShareLinkCreated>('share-link create /home/anna/album');
+      const shown = await anna!.execJson<ShareLinkCreated>('share-link create /home/anna/album --as anna');
+      const [one, other, asAnna] = [await opened(link.token), await opened(link.token), await opened(shown.link.token)];
+      // A visitor runs nothing in the background; its foreground command is caught as it runs.
+      const running = async (client: ShellClient, line: string) => {
+        const done = client.exec(line);
+        for (let i = 0; i < 100; i++) {
+          const found = (await client.execJson<ProcessEntry[]>('ps')).find((entry) => entry.name === 'sleep');
+          if (found) return { pid: found.pid, done };
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        throw new Error(`${line} never showed in its own ps`);
+      };
+      try {
+        const sleep = await running(one, 'sleep 30');
+        assertEquals((await other.execJson<ProcessEntry[]>('ps')).map((entry) => entry.name), ['ps']);
+        assertEquals((await other.execJson<SessionEntry[]>('who')).length, 1);
+        assertEquals((await other.exec(`kill ${sleep.pid}`)).success, false);
+
+        // A link that shows things as anna has her uid, and still sees none of hers, nor she its.
+        const annas = (await anna!.execJson<ProcessEntry[]>('sleep 30 &\nps')).find((entry) => entry.name === 'sleep')!;
+        assertEquals((await asAnna.execJson<ProcessEntry[]>('ps')).map((entry) => entry.name), ['ps']);
+        const asAnnas = await running(asAnna, 'sleep 30');
+        assertEquals((await anna!.execJson<ProcessEntry[]>('ps')).some((entry) => entry.pid === asAnnas.pid), false);
+
+        assert((await admin.execJson<ProcessEntry[]>('ps')).some((entry) => entry.pid === sleep.pid), 'admin sees everyone');
+        assertEquals((await admin.execString(`kill ${sleep.pid} ${annas.pid} ${asAnnas.pid}; echo $?`)).trim(), '0');
+        await Promise.all([sleep.done, asAnnas.done]);
+      } finally {
+        for (const visitor of [one, other, asAnna]) visitor.close();
+      }
     });
 
     await t.step('the text tables have a header and a row per entry', async () => {

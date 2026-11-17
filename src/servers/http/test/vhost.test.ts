@@ -96,6 +96,8 @@ Deno.test({
       const res = await get('example.com');
       assertEquals(res.status, 200);
       assertEquals(res.body, 'example site');
+      assertEquals(/content-type: text\/html/i.test(res.head), true, res.head);
+      assertEquals(/content-security-policy/i.test(res.head), false, res.head);
     });
 
     await t.step('unknown host (bare IP) falls back to the default site', async () => {
@@ -143,6 +145,22 @@ Deno.test({
       assertEquals(res.status, 200);
       assertEquals(/cache-control: public, max-age=86400/i.test(res.head), true, res.head);
       assertEquals(/cache-control/i.test((await get('example.com', '/')).head), false);
+    });
+
+    await t.step('a path that climbs out of the site reaches nothing outside it', async () => {
+      await vfs.create(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, '/', 'outside');
+      const encoded = new TextEncoder().encode('<script>outside</script>');
+      await vfs.create(ADMIN_ACCESS, NODE_TYPE_FILE, '/outside', 'p.html', { attrs: { name: 'p.html', mimetype: 'text/html', size: encoded.length } });
+      const fh = await vfs.open(ADMIN_ACCESS, '/outside/p.html', { mode: 'w' });
+      try {
+        await fh.write(encoded);
+      } finally {
+        await fh.close();
+      }
+      for (const path of ['/..%2Foutside%2Fp.html', '/%2e%2e/outside/p.html', '/icons/..%2F..%2Foutside%2Fp.html']) {
+        const res = await get('example.com', path);
+        assertEquals(res.body.includes('outside'), false, `${path}: ${res.status} ${res.body}`);
+      }
     });
 
     await t.step('a missing icon is a 404, not the SPA document', async () => {

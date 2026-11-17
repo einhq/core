@@ -33,7 +33,7 @@ export function normalizePoints(points: TrackPointInput[]): TrackPoint[] {
 
     const point: TrackPoint = { lat, lng, ts: ts.toISOString() };
 
-    for (const key of ['alt', 'speed', 'course'] as const) {
+    for (const key of ['alt', 'speed', 'course', 'accuracy'] as const) {
       const value = Number(raw[key]);
       if (raw[key] !== undefined && Number.isFinite(value)) point[key] = value;
     }

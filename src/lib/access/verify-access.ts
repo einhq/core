@@ -12,12 +12,13 @@ export const isAdmin = (access: Access): boolean => access.link === undefined &&
 
 /** A stored `link` value as the link it is, or undefined when it is not a well-formed one. */
 const heldLink = (value: unknown): HeldLink | undefined => {
-  const { id, uid, expiresAt } = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
+  const { id, uid, expiresAt, route } = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   if (typeof id !== 'string' || id === '') return undefined;
   return {
     id,
     ...(typeof uid === 'number' && isLinkUid(uid) ? { uid } : {}),
     ...(typeof expiresAt === 'number' && Number.isFinite(expiresAt) ? { expiresAt } : {}),
+    ...(typeof route === 'string' && route.startsWith('/') ? { route } : {}),
   };
 };
 
@@ -60,6 +61,20 @@ export const isGuest = (access: Access): boolean => access.uid === GUEST_UID && 
 
 /** Whether `access` is someone who has not signed in: the guest, or whoever acts through a share link. */
 export const isVisitor = (access: Access): boolean => access.uid === GUEST_UID || access.link !== undefined;
+
+/**
+ * Whether `viewer` may see what `owner` runs — its command lines (`ps`), its sessions (`who`) — and
+ * signal it. An administrator sees everyone's and a member their own account's. Visitors share a
+ * uid, every guest the guest's and everyone holding one share link the link's, so what a visitor
+ * runs is seen only from the session that runs it, and a visitor sees no member's, not even of the
+ * account a link shows things as.
+ */
+export const seesRunsOf = (viewer: Access, owner: Access): boolean => {
+  if (isAdmin(viewer)) return true;
+  if (viewer.uid !== owner.uid) return false;
+  if (!isVisitor(viewer) && !isVisitor(owner)) return true;
+  return viewer.sid !== undefined && viewer.sid === owner.sid;
+};
 
 /**
  * @description Verify that the access has the required level for the ownership.

@@ -1,9 +1,11 @@
 /**
  * What devices write over HTTP, at `/file/dev/<device>` and `/file/dev/<device>/<endpoint>`:
  *
- *   PUT|POST /file/dev/<device>           raw input for its driver: a fix, a GPX file, a webhook's body
- *   GET /file/dev/<device>?key=…&…        the same from a tracker that only sends GETs (OsmAnd): its query
- *   POST /file/dev/<device>/<endpoint>    a value: appended to a log or a track, or written to a control
+ *   PUT|POST /file/dev/<device>             raw input for its driver: a webhook's body
+ *   GET /file/dev/<device>?key=…&…          the same from a button that calls an address: its query
+ *   PUT|POST /file/dev/<device>/<endpoint>  a value appended to a log, or written to a control; fixes
+ *                                           for a track in whatever form a tracker sends them, a GPX file
+ *   GET /file/dev/<device>/<track>?key=…&…  fixes from a tracker that only sends GETs (OsmAnd): its query
  *
  * A device cannot sign in, so it carries its key (`device-key`): `Authorization: Bearer <key>`, or
  * `key=` in the query for a client that only takes a URL. The key opens the device's own folder for
@@ -20,11 +22,9 @@ import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
 import type { Access } from '../../../lib/access/types.ts';
 import { accessOfUid } from '../../../lib/auth/member-gids.ts';
 import { DEV_PATH } from '../../../lib/paths.ts';
-import { readTrackerRequest } from '../../../lib/track/tracker-protocols.ts';
 import { DeviceError, isDeviceKey } from '../../../managers/devices/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { LogHandle } from '../../../registries/log/log-handle.ts';
-import { TrackHandle } from '../../../registries/track/track-handle.ts';
 import { NodeNotFoundError } from '../../../vfs/errors.ts';
 import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../../vfs/types/device.ts';
 import { NODE_TYPE_LOG } from '../../../vfs/types/log.ts';
@@ -129,16 +129,7 @@ export async function handleDevWrite(config: HttpServerConfig, req: Request, url
       return json({ appended: entries.length }, 200, responseHeaders);
     }
     if (node.type === 'track') {
-      const fixes = readTrackerRequest(new URL(`http://device/?${query}`), contentType, text);
-      if ('error' in fixes) return new Response(fixes.error, { status: 400, headers: responseHeaders });
-      const handle = await config.vfs.open(access, target.path, { mode: 'a' });
-      try {
-        if (!(handle instanceof TrackHandle)) return new Response('not a track', { status: 400, headers: responseHeaders });
-        const appended = await handle.appendPoints(fixes.points);
-        return json({ appended, skipped: fixes.points.length - appended }, 200, responseHeaders);
-      } finally {
-        await handle.close();
-      }
+      return json(await config.devices.fixes(access, target.path, { bytes, contentType, query: query.toString() }), 200, responseHeaders);
     }
     return new Response(`${basename(target.path)} is a ${node.type}, not an endpoint`, { status: 400, headers: responseHeaders });
   } catch (error) {

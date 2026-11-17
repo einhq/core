@@ -17,3 +17,4 @@ export { noteOutsideEdit, onOutsideEdit } from './edits.ts';
 export { dismissToast, notify, notifyProgress, type ProgressToast, type Toast } from './notify.ts';
 export { loadStars, setStarred, starredPaths } from './stars.ts';
 export { openShortcutHelp } from './shortcuts.ts';
+export * from './show-on.ts';

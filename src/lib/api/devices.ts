@@ -24,7 +24,7 @@ export const ENDPOINT_TYPES: readonly EndpointType[] = ['log', 'track', 'control
  * - `bool` — on or off (`on`, `off`, `toggle`, `true`, `false`, `1`, `0`)
  * - `number` — a number, within `min` and `max`, a multiple of `step` from `min`
  * - `enum` — one of `options`
- * - `text` — any line
+ * - `text` — any line; with `lines`, one or more, one thing each (a screen's `show`: paths)
  * - `color` — a colour, `#rrggbb` (`#ff8000`)
  * - `momentary` — a press with no state: a restart, a doorbell's chime (`press`)
  */
@@ -32,7 +32,7 @@ export type ControlSchema =
   | { type: 'bool' }
   | { type: 'number'; min?: number; max?: number; step?: number }
   | { type: 'enum'; options: string[] }
-  | { type: 'text' }
+  | { type: 'text'; lines?: true }
   | { type: 'color' }
   | { type: 'momentary' };
 
@@ -100,7 +100,7 @@ export type EndpointAttrs = StreamInfo & {
 /** A control's last write: what, when, by whom. */
 export type ControlRequest = { value: DeviceValue; at: string; by: string };
 
-/** One fix as a track endpoint keeps it. */
+/** One fix as a track endpoint keeps it: speed in m/s, course in degrees, how far off it may be (`accuracy`) in metres. */
 export type DeviceFix = { lat: number; lng: number; alt?: number; speed?: number; course?: number; accuracy?: number };
 
 /**
@@ -160,6 +160,8 @@ export type EndpointSummary = {
   track?: { points: number; firstAt?: string; lastAt?: string };
   /** A stream's: what it is, as its driver last said. */
   stream?: StreamInfo;
+  /** A stream's: set when it can be watched live now, its device's driver running and giving a live view. */
+  live?: boolean;
 };
 
 /** A device, as `devices` answers. */
@@ -184,10 +186,17 @@ export type DeviceSummary = {
    * else a control; never one about the device itself.
    */
   main?: { endpoint: string; label: string; value: DeviceValue; unit?: string };
+  /**
+   * Its battery as it last said, from its reading of class `battery` (in percent) and of class
+   * `battery_charging`: a phone's, a tracker's, a sensor's.
+   */
+  battery?: { level: number; charging?: boolean };
   /** Whether it has a track, which a page shows as a map. */
   tracks: boolean;
   /** The stream a card shows a frame of: of a camera's streams, the one with the fewest pixels. */
   picture?: string;
+  /** Whether the caller may write to it: raw input for its driver, such as a path for a screen to show. */
+  writable: boolean;
 };
 
 /** `device-show`: a device and each of its endpoints. */
@@ -275,6 +284,31 @@ export type DriverConfigField = {
   secret?: boolean;
   required?: boolean;
 };
+
+/** What a driver answers raw input with (`PUT /file/dev/<device>`): how much it took, and a word for the writer. */
+export type DriverAnswer = { taken?: number; message?: string };
+
+/** What a write to a control answers (`POST /file/dev/<device>/<endpoint>`): the value it took, and the driver's word on it. */
+export type ControlAnswer = { value: DeviceValue; message?: string };
+
+/**
+ * `stream-page <route>`: a page of EiN as live video, from the command `CFG_PAGE_STREAMER` names
+ * (the media service's `page-stream start`). Anyone with the paths reads `<path>.mp4` (fragmented
+ * MP4, for Cast), `<path>.ts` (MPEG-TS), `remote` (an MP4 whose header says it lasts a day, which
+ * Chrome hands a screen near it) or the live HLS playlist `hls` (which Safari hands an AirPlay
+ * screen) without signing in, at whatever address EiN is reached at, until nobody has read it for
+ * a while.
+ */
+export type StreamedPage = { path: string; remote: string; hls: string };
+
+/**
+ * `stream-file <path>`: a recording or video made for a screen near the browser by the command
+ * `CFG_FILE_STREAMER` names (the devices module's), kept while `stream-file --renew <id>` is run
+ * within five minutes of the last time. `url` is a path read without signing in, at whatever address
+ * EiN is reached at: the file with a ticket for it alone, or H.264 HLS made while it is read; `type`
+ * is its media type.
+ */
+export type StreamedFile = { id: string; url: string; type: string; title: string };
 
 /** A driver, as `devices --drivers` answers. */
 export type DriverSummary = {

@@ -8,18 +8,31 @@
  * `dev.<device>.<endpoint>`, for queues and rules. The VFS gives writes to devices and controls to
  * `input` and `command` here (`DeviceSink`), and reads of a stream to `frame`; so does the HTTP
  * server, which also asks `live` where to watch a stream. What a person gave a driver that is secret
- * is the device's `.secret` file, a JSON object only the administrator reads.
+ * is the device's `.secret` file, a JSON object only the administrator reads. A driver whose
+ * device fetches a file itself gives it a file ticket (`file-tickets.ts`), which the HTTP server
+ * checks here. A page the media service renders for a screen is signed in with a page ticket
+ * (`page-tickets.ts`), and the stream it makes of it served to the device at an unguessable path
+ * (`live-streams.ts`); the HTTP server takes both here too.
  */
 
 import { basename, dirname, join } from '@std/path';
 import { ADMIN_ACCESS, ADMIN_GID, DEVICES_GROUPNAME } from '../../lib/access/constants.ts';
 import type { Access } from '../../lib/access/types.ts';
-import { type DeviceAttrs, type DeviceFix, type DeviceMessage, deviceRoutingKey, type DeviceValue, type EndpointAttrs, type EndpointType } from '../../lib/api/devices.ts';
+import {
+  type ControlAnswer,
+  type DeviceAttrs,
+  type DeviceFix,
+  type DeviceMessage,
+  deviceRoutingKey,
+  type DeviceValue,
+  type EndpointAttrs,
+  type EndpointType,
+} from '../../lib/api/devices.ts';
 import { createLogger } from '../logger/mod.ts';
 import { groupGid } from '../../lib/auth/member-gids.ts';
 import { readTail } from '../../lib/metrics/read.ts';
 import { DEV_PATH, DEV_RESERVED_NAMES, DEVICE_SECRET_NAME, devicePath, USERS_PATH } from '../../lib/paths.ts';
-import { readTrackerRequest } from '../../lib/track/tracker-protocols.ts';
+import { readTrackerRequest, type TrackerStatus } from '../../lib/track/tracker-protocols.ts';
 import { LogHandle } from '../../registries/log/log-handle.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
 import { assertAccess } from '../../vfs/assert-access.ts';
@@ -33,15 +46,34 @@ import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import { isUserNode } from '../../vfs/types/user.ts';
 import type { RouterManagerIf } from '../router/mod.ts';
 import { ControlValueError, parseControlValue } from './control-value.ts';
+import { FileTickets } from './file-tickets.ts';
+import { LiveStreams } from './live-streams.ts';
+import { type PageTicket, PageTickets } from './page-tickets.ts';
 import { decide, type Published } from './throttle.ts';
-import type { AppendOptions, Driver, DriverAnswer, DriverStream, ModuleDevices, StreamFrame, StreamLive } from './types.ts';
+import type {
+  AppendOptions,
+  Driver,
+  DriverAnswer,
+  DriverStream,
+  LiveFormat,
+  LiveOpen,
+  LiveServed,
+  ModuleDevices,
+  ServedFile,
+  ServedFiles,
+  StreamFrame,
+  StreamLive,
+} from './types.ts';
 import { webhookDriver } from './webhook.ts';
 import { HOST_DRIVER, hostDriver } from './host.ts';
 
 const logger = createLogger('devices');
 
-/** How long a control's write waits for its driver before it is answered that the device did not. */
-const WRITE_TIMEOUT_MS = 10_000;
+/**
+ * How long a control's write waits for its driver before it is answered that the device did not: a
+ * Cast screen given something to show starts its player first, which takes 10 s or more.
+ */
+const WRITE_TIMEOUT_MS = 45_000;
 
 /** How long a stream's frame, or where to watch it, is waited for from its driver. */
 const STREAM_TIMEOUT_MS = 15_000;
@@ -90,6 +122,9 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   private readonly published = new Map<string, Published>();
   private readonly pending = new Map<string, Pending>();
   private readonly names = new Map<number, string>();
+  private readonly tickets = new FileTickets();
+  private readonly pageTickets = new PageTickets();
+  private readonly liveStreams = new LiveStreams();
 
   constructor(private readonly sys: { vfs: NodeVFS; routerManager: RouterManagerIf }) {
     this.registerDriver('tracker', trackerDriver(this));
@@ -137,13 +172,13 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     if (!driver.input) throw new DeviceError(`${device}'s driver ${name} takes nothing written to the device`);
     const by = raw.by ?? await this.nameOf(access.uid);
     try {
-      return await driver.input({ device, path, attrs: node.attrs, bytes: raw.bytes, contentType: raw.contentType, query: raw.query, by }) ?? {};
+      return await driver.input({ device, path, attrs: node.attrs, bytes: raw.bytes, contentType: raw.contentType, query: raw.query, by, access }) ?? {};
     } catch (error) {
       throw error instanceof DeviceError ? error : new DeviceError(`${device}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  async command(access: Access, path: string, text: string): Promise<{ value: DeviceValue }> {
+  async command(access: Access, path: string, text: string): Promise<ControlAnswer> {
     const node = await this.sys.vfs.get<ControlAttrs>(access, path);
     if (node.type !== NODE_TYPE_CONTROL) throw new DeviceError(`${path}: not a control`);
     assertAccess(access, node, 'w');
@@ -175,10 +210,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     const momentary = node.attrs.schema?.type === 'momentary';
     if (!momentary) await request();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let said: { message?: string } | void;
     try {
-      await Promise.race([
-        driver.write({ device, endpoint, path, attrs: deviceNode.attrs, endpointAttrs: node.attrs, value, by }),
-        new Promise((_, reject) => {
+      said = await Promise.race([
+        driver.write({ device, endpoint, path, attrs: deviceNode.attrs, endpointAttrs: node.attrs, value, by, access }),
+        new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new DeviceError(`${device} did not answer within ${WRITE_TIMEOUT_MS / 1000} s`)), WRITE_TIMEOUT_MS);
         }),
       ]);
@@ -188,7 +224,25 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
       clearTimeout(timer);
     }
     if (momentary) await request();
-    return { value };
+    return said?.message ? { value, message: said.message } : { value };
+  }
+
+  /**
+   * What is written to a device's track (`cat ride.gpx > /dev/old-etrex/position`, a phone posting to
+   * `/file/dev/<phone>/position`): its fixes, in any form a tracker sends, appended, and what it
+   * says of itself (its battery) kept on endpoints of their own.
+   */
+  async fixes(access: Access, path: string, raw: { bytes: Uint8Array; contentType?: string; query?: string }): Promise<{ appended: number; skipped: number }> {
+    const node = await this.sys.vfs.get(access, path);
+    const devicePathOf = dirname(path);
+    if (node.type !== 'track' || dirname(devicePathOf) !== DEV_PATH) throw new DeviceError(`${path}: not a device's track`);
+    assertAccess(access, node, 'w');
+    const device = basename(devicePathOf);
+    const fixes = readTrackerRequest(new URL(`http://device/?${raw.query ?? ''}`), raw.contentType ?? '', new TextDecoder().decode(raw.bytes));
+    if ('error' in fixes) throw new DeviceError(`${device}/${basename(path)}: ${fixes.error}`);
+    if (fixes.status) await trackerStatus(this, device, fixes.status);
+    const appended = fixes.points.length ? await this.appendFixes(ADMIN_ACCESS, device, basename(path), fixes.points) : 0;
+    return { appended, skipped: fixes.points.length - appended };
   }
 
   /** One frame of the stream at `path`, from its device's driver, for a reader who may read it. */
@@ -210,6 +264,60 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     const { stream, driver } = await this.streamOf(access, join(devicePath(device), endpoint));
     if (!driver.source) throw new DeviceError(`${device}'s driver ${stream.attrs.driver} names no address for ${endpoint}`);
     return await this.withinTimeout(stream, () => driver.source!(stream));
+  }
+
+  // ===== Tickets for a device to read a file with =====
+
+  async fileTicket(access: Access, path: string): Promise<string> {
+    const node = await this.sys.vfs.get(access, path);
+    if (node.type !== NODE_TYPE_FILE) throw new DeviceError(`${path}: not a file`);
+    assertAccess(access, node, 'r');
+    return this.tickets.issue(path, access);
+  }
+
+  renewFileTicket(ticket: string): boolean {
+    return this.tickets.renew(ticket);
+  }
+
+  dropFileTicket(ticket: string): void {
+    this.tickets.drop(ticket);
+  }
+
+  /** The access a file ticket reads `path` with; undefined when it has run out or names another path. */
+  fileTicketAccess(ticket: string, path: string): Access | undefined {
+    return this.tickets.access(ticket, path);
+  }
+
+  // ===== Pages rendered for a screen, and live streams for a device =====
+
+  pageSignIn(access: Access, route: string): string {
+    if (!route.startsWith('/') || route.startsWith('//')) throw new DeviceError(`${route}: a page is a path of this server`);
+    return `/__page/${this.pageTickets.issue(access, route)}`;
+  }
+
+  /** What a page ticket opens, once; undefined when it has run out or was taken. */
+  takePageTicket(ticket: string): PageTicket | undefined {
+    return this.pageTickets.take(ticket);
+  }
+
+  serveLive(open: LiveOpen): LiveServed {
+    const id = this.liveStreams.serve(open);
+    return { path: `/live/${id}`, end: () => this.liveStreams.end(id) };
+  }
+
+  serveFiles(get: ServedFiles): LiveServed {
+    const id = this.liveStreams.serveFiles(get);
+    return { path: `/live/${id}`, end: () => this.liveStreams.end(id) };
+  }
+
+  /** The file `name` of the set `id`; undefined when none is served there. */
+  async liveFile(id: string, name: string): Promise<ServedFile | undefined> {
+    return await this.liveStreams.file(id, name);
+  }
+
+  /** One reader's bytes of the live stream `id`; undefined when none is served there. */
+  async openLive(id: string, format: LiveFormat): Promise<ReadableStream<Uint8Array> | undefined> {
+    return await this.liveStreams.open(id, format);
   }
 
   private async streamOf(access: Access, path: string): Promise<{ stream: DriverStream; driver: Driver }> {
@@ -482,22 +590,36 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
 }
 
 /**
- * Core's own driver: a phone, a GPS tracker or logger, posting or uploaded. Whatever it is written
- * — Traccar Client's JSON, OsmAnd's query, a GPRMC sentence, a GPX file, EiN's own fixes — goes to
- * the device's `position` track, made on its first fix.
+ * The logs a tracker's own state goes to, each made the first time a protocol carries it: its
+ * battery and whether it charges, which are about the device itself, and what it is doing, as its
+ * phone's motion sensors tell. A battery's charge is kept at most every five minutes.
+ */
+const TRACKER_STATUS: { [K in Exclude<keyof TrackerStatus, 'ts'>]: { endpoint: string; attrs: EndpointAttrs } } = {
+  battery: { endpoint: 'battery', attrs: { label: 'Battery', unit: '%', deviceClass: 'battery', category: 'diagnostic', minInterval: 300 } },
+  charging: { endpoint: 'charging', attrs: { label: 'Charging', deviceClass: 'battery_charging', category: 'diagnostic' } },
+  activity: { endpoint: 'activity', attrs: { label: 'Activity', deviceClass: 'activity' } },
+};
+
+/**
+ * Core's own driver: a phone, a GPS tracker or logger, posting or uploaded. It gives the device its
+ * `position` track, which takes whatever a tracker writes (`fixes`): Traccar Client's JSON,
+ * OsmAnd's query, a GPRMC sentence, a GPX file, EiN's own fixes. What the device says of itself
+ * goes to its `battery`, `charging` and `activity` logs.
  */
 const trackerDriver = (devices: DeviceManager): Driver => ({
-  description: 'A phone, GPS tracker or logger: its position, posted as it goes or as GPX files',
+  description: 'A phone, GPS tracker or logger: its position, posted as it goes or as GPX files, and its battery',
   async setup(device) {
     await devices.ensureEndpoint(ADMIN_ACCESS, device, 'position', 'track', { label: 'Position' });
   },
-  async input(raw) {
-    const body = new TextDecoder().decode(raw.bytes);
-    const fixes = readTrackerRequest(new URL(`http://device/?${raw.query ?? ''}`), raw.contentType ?? '', body);
-    if ('error' in fixes) throw new DeviceError(`${raw.device}: ${fixes.error}`);
-    if (fixes.points.length === 0) return { taken: 0 };
-    await devices.ensureEndpoint(ADMIN_ACCESS, raw.device, 'position', 'track', { label: 'Position' });
-    const taken = await devices.appendFixes(ADMIN_ACCESS, raw.device, 'position', fixes.points);
-    return { taken, message: `${taken} of ${fixes.points.length} fixes new` };
-  },
 });
+
+/** What a tracker said of itself, appended to its logs at the time it said it. */
+const trackerStatus = async (devices: DeviceManager, device: string, status: TrackerStatus): Promise<void> => {
+  const at = status.ts ? new Date(status.ts) : undefined;
+  for (const [key, { endpoint, attrs }] of Object.entries(TRACKER_STATUS)) {
+    const value = status[key as keyof typeof TRACKER_STATUS];
+    if (value === undefined) continue;
+    await devices.ensureEndpoint(ADMIN_ACCESS, device, endpoint, 'log', attrs);
+    await devices.append(ADMIN_ACCESS, device, endpoint, value, { at });
+  }
+};

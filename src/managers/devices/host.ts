@@ -1,7 +1,7 @@
 /**
  * The machine EiN runs on, as a device: `/dev/<hostname>`, of class `host`, written by
  * `metrics-sampler` through core's `host` driver. Its readings are the machine's, not EiN's: all
- * its CPU and memory, its disks, its temperatures. Named like the readings of a host a module polls
+ * its CPU and memory, its disks and their activity, its network traffic, temperatures and fans. Named like the readings of a host a module polls
  * (`load`, `memory-used`, `<volume>-used`, `<x>-temperature`), so every host reads alike.
  *
  * Only the administrators see it: it is in their group, not the devices group.
@@ -12,11 +12,12 @@ import type { DeviceValue, EndpointAttrs } from '../../lib/api/devices.ts';
 import { DEV_RESERVED_NAMES } from '../../lib/paths.ts';
 import type { Driver, ModuleDevices } from './types.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
+import type { DiskRate, FanSample, InterfaceRate } from '../../lib/metrics/activity.ts';
 
 export const HOST_DRIVER = 'host';
 
 export const hostDriver: Driver = {
-  description: 'The machine EiN runs on: its CPU, memory, disks and temperatures, from metrics-sampler',
+  description: 'The machine EiN runs on: its CPU, memory, disks, network, temperatures and fans, from metrics-sampler',
 };
 
 /** The device name a hostname gives: its first label as a device name, `host` when none is left. */
@@ -53,6 +54,9 @@ type HostReadings = {
   temperatures?: { zone: string; celsius: number }[];
   volumes?: { name: string; totalBytes: number; freeBytes: number }[];
   uptimeSeconds?: number;
+  disks?: DiskRate[];
+  interfaces?: InterfaceRate[];
+  fans?: FanSample[];
 };
 
 type Reading = { endpoint: string; attrs: EndpointAttrs; value: DeviceValue };
@@ -66,14 +70,45 @@ export const hostReadings = (readings: HostReadings): Reading[] => {
     const { totalBytes, availableBytes } = readings.memory;
     out.push({ endpoint: 'memory-used', attrs: { label: 'memory used', unit: '%', retention: FAST }, value: round((totalBytes - availableBytes) / totalBytes * 100) });
   }
-  const zones = new Set<string>();
+  const taken = new Set<string>();
+  /** `<name>-<suffix>`, two of one name (`acpitz` twice) told apart by their order. */
+  const unique = (text: string, fallback: string, suffix: string): string => {
+    const name = deviceName(text) || fallback;
+    let endpoint = `${name}-${suffix}`;
+    for (let n = 2; taken.has(endpoint); n++) endpoint = `${name}-${n}-${suffix}`;
+    taken.add(endpoint);
+    return endpoint;
+  };
   for (const { zone, celsius } of readings.temperatures ?? []) {
-    const name = deviceName(zone) || 'sensor';
-    // Two zones of one type (`acpitz` twice) are told apart by their order.
-    let endpoint = `${name}-temperature`;
-    for (let n = 2; zones.has(endpoint); n++) endpoint = `${name}-${n}-temperature`;
-    zones.add(endpoint);
+    const endpoint = unique(zone, 'sensor', 'temperature');
     out.push({ endpoint, attrs: { label: `${zone} temperature`, unit: '°C', deviceClass: 'temperature', category: 'diagnostic', retention: FAST }, value: round(celsius) });
+  }
+  for (const { fan, rpm } of readings.fans ?? []) {
+    out.push({ endpoint: unique(fan, 'fan', 'speed'), attrs: { label: `${fan} speed`, unit: 'rpm', category: 'diagnostic', retention: FAST }, value: Math.round(rpm) });
+  }
+  for (const disk of readings.disks ?? []) {
+    const name = deviceName(disk.name);
+    if (!name) continue;
+    const activity = (suffix: string, label: string, unit: string, value: number): Reading => ({
+      endpoint: `${name}-${suffix}`,
+      attrs: { label: `${disk.name} ${label}`, unit, category: 'diagnostic', retention: FAST },
+      value,
+    });
+    out.push(
+      activity('read', 'read', 'MB/s', round(disk.readBytesPerSecond / 1e6, 2)),
+      activity('written', 'written', 'MB/s', round(disk.writtenBytesPerSecond / 1e6, 2)),
+      activity('busy', 'busy', '%', round(disk.busyPercent)),
+    );
+  }
+  for (const iface of readings.interfaces ?? []) {
+    const name = deviceName(iface.name);
+    if (!name) continue;
+    const traffic = (suffix: string, bytesPerSecond: number): Reading => ({
+      endpoint: `${name}-${suffix}`,
+      attrs: { label: `${iface.name} ${suffix}`, unit: 'Mbit/s', category: 'diagnostic', retention: FAST },
+      value: round(bytesPerSecond * 8 / 1e6, 2),
+    });
+    out.push(traffic('received', iface.receivedBytesPerSecond), traffic('sent', iface.sentBytesPerSecond));
   }
   for (const volume of readings.volumes ?? []) {
     const name = deviceName(volume.name);

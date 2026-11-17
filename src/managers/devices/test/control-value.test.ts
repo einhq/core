@@ -24,10 +24,12 @@ Deno.test('a number keeps within its range and steps', () => {
   assertThrows(() => parseControlValue(setpoint, 'warm'), ControlValueError, 'a number');
 });
 
-Deno.test('a choice, a line and a press', () => {
+Deno.test('a choice, a line, lines and a press', () => {
   assertEquals(parseControlValue({ type: 'enum', options: ['heat', 'cool', 'off'] }, 'cool'), 'cool');
   assertThrows(() => parseControlValue({ type: 'enum', options: ['heat', 'cool'] }, 'dry'), ControlValueError, 'heat, cool');
   assertEquals(parseControlValue({ type: 'text' }, 'hello'), 'hello');
+  assertEquals(parseControlValue({ type: 'text', lines: true }, ' /music/a.m4a\n\n/music/b.m4a \n'), '/music/a.m4a\n/music/b.m4a');
+  assertThrows(() => parseControlValue({ type: 'text', lines: true }, '\n \n'), ControlValueError, 'one or more lines');
   assertEquals(parseControlValue({ type: 'momentary' }, ''), 'press');
   assertThrows(() => parseControlValue({ type: 'momentary' }, 'on'), ControlValueError, 'press');
 });

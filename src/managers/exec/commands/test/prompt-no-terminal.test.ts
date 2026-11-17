@@ -37,9 +37,9 @@ Deno.test({
         ].join('\n'),
       );
       assertStringIncludes(result.stderr, 'mod-remove: no terminal to answer on; add --force');
-      assertStringIncludes(result.stderr, 'user-passwd: no terminal to answer on; add --new-password');
-      assertStringIncludes(result.stderr, 'user elevate: no terminal to answer on; add --password');
-      assertStringIncludes(result.stderr, 'login: no terminal to answer on; give the password after the username');
+      assertStringIncludes(result.stderr, 'user-passwd: no terminal to answer on; add --new-password=- and give it on stdin');
+      assertStringIncludes(result.stderr, 'user elevate: no terminal to answer on; add --password=- and give it on stdin');
+      assertStringIncludes(result.stderr, 'login: no terminal to answer on; give - after the username and the password on stdin');
       assertEquals(result.stdout.split('\n').filter((line) => line.startsWith('code=')), ['code=1', 'code=1', 'code=1', 'code=1']);
       assertStringIncludes(result.stdout, 'kept');
       assertEquals(result.code, 0);

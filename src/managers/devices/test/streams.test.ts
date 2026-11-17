@@ -3,7 +3,8 @@
  * device's `.secret` for the administrator alone and changed with `device-config`, a stream endpoint
  * shown with what it is, a frame read with `cat` and over HTTP for whoever may read it, the live
  * socket passed through to where the driver says with its credentials, the stream's address for a
- * service, and nothing appended to a stream.
+ * service, nothing appended to a stream, and a stream watched live only while its driver runs and
+ * gives a live view.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
@@ -97,11 +98,11 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       await anna.execString('device-config front-door password=s3cret');
     });
 
-    await t.step('a stream is shown with what it is, and a card shows a frame of the smallest', async () => {
+    await t.step('a stream is shown with what it is and that it is watched live, and a card shows a frame of the smallest', async () => {
       const info = await anna.execJson<DeviceInfo>('device-show front-door');
-      assertEquals(info.endpointList.map((endpoint) => [endpoint.name, endpoint.type, endpoint.stream]), [
-        ['main', 'stream', { codec: 'h264', width: 1280, height: 720 }],
-        ['sub', 'stream', { width: 640, height: 360 }],
+      assertEquals(info.endpointList.map((endpoint) => [endpoint.name, endpoint.type, endpoint.stream, endpoint.live]), [
+        ['main', 'stream', { codec: 'h264', width: 1280, height: 720 }, true],
+        ['sub', 'stream', { width: 640, height: 360 }, true],
       ]);
       const card = (await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'front-door');
       assertEquals(card?.picture, 'sub');
@@ -153,6 +154,23 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       const appended = await devices.append(ADMIN_ACCESS, 'front-door', 'main', 1).then(() => 'taken', (error: Error) => error.message);
       assertStringIncludes(appended, 'keeps nothing');
       await testCommands(anna).shouldFailWith('echo x > /dev/front-door/main', 'never written');
+    });
+
+    await t.step('a stream is not watched live when its driver gives no live view, nor while its driver is not running', async () => {
+      const unregisterStill = devices.registerDriver('still-camera', {
+        description: 'a camera with pictures and no live view, for the test',
+        frame: () => Promise.resolve({ bytes: FRAME, type: 'image/jpeg' }),
+      });
+      try {
+        await devices.ensureDevice(ADMIN_ACCESS, 'porch', { label: 'Porch', driver: 'still-camera', class: 'camera' });
+        await devices.ensureEndpoint(ADMIN_ACCESS, 'porch', 'main', 'stream', { label: 'Main stream' });
+        const live = async (device: string) => (await anna.execJson<DeviceInfo>(`device-show ${device}`)).endpointList.map((endpoint) => endpoint.live);
+        assertEquals(await live('porch'), [undefined]);
+        unregister();
+        assertEquals(await live('front-door'), [undefined, undefined]);
+      } finally {
+        unregisterStill();
+      }
     });
   } finally {
     unregister();

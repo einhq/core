@@ -3,7 +3,7 @@
  * is what a shell's access carries; the name is what a reader knows the person by.
  */
 
-import { GUEST_UID, GUEST_USERNAME, isAdmin } from '../../../../lib/access/mod.ts';
+import { GUEST_UID, GUEST_USERNAME } from '../../../../lib/access/mod.ts';
 import type { UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 
@@ -19,6 +19,3 @@ export const accountNames = async (cmd: Command): Promise<(uid: number) => strin
   }
   return (uid) => names.get(uid) ?? String(uid);
 };
-
-/** Whether the caller sees everyone's commands and sessions, or only their own. */
-export const seesEveryone = (cmd: Command): boolean => isAdmin(cmd.access);

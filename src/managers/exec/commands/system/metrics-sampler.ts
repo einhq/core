@@ -15,9 +15,9 @@
  * it would hold `pools`, and the unservable-kind alarm fed from it, back for as
  * long.
  *
- * The machine's own readings — all its CPU and memory, its disks, its temperatures — are not
- * series but its device's, `/dev/<hostname>` (`HostDevice`), where they have the device page's
- * history and publish on `dev.<hostname>.*` for rules. The series keep EiN's own share.
+ * The machine's own readings — all its CPU and memory, its disks and network, its temperatures and
+ * fans — are not series but its device's, `/dev/<hostname>` (`HostDevice`), where they have the
+ * device page's history and publish on `dev.<hostname>.*` for rules. The series keep EiN's own share.
  *
  * Long-running, so exempt from JSON output — like pipeline-engine and
  * relations-guard, it owns its stdout as a service log.
@@ -39,6 +39,8 @@ import { HostDevice } from '../../../devices/host.ts';
 import { countLive } from '../pipeline/pipeline-overview.ts';
 import type { PrunedCompletedAttrs } from '../pipeline/pipeline-prune.ts';
 import {
+  type ActivityCounters,
+  activityRates,
   type CpuEntry,
   type DiskEntry,
   hostCpuPercent,
@@ -53,8 +55,10 @@ import {
   type PoolCountsEntry,
   type PoolsEntry,
   type Sample,
+  sampleActivity,
   sampleCpu,
   sampleDisk,
+  sampleFans,
   sampleHostMemory,
   sampleHostTicks,
   sampleLoad,
@@ -518,11 +522,15 @@ const seriesJobs = (cmd: Command, ensured: Set<string>): Job[] =>
 
 /**
  * The machine's readings, written to its device (`HostDevice`): what moves within seconds on the
- * series' shortest cadence, its disks, uptime and total memory every quarter hour. The CPU is the share of the
- * machine's ticks busy since the reading before.
+ * series' shortest cadence, its disk activity, network traffic and fans every minute, its disks,
+ * uptime and total memory every quarter hour. The CPU is the share of the machine's ticks busy since
+ * the reading before, and the activity the rates since the minute before. A fan is read once it has
+ * turned: a header with nothing on it reads 0 for good.
  */
 const hostJobs = (host: HostDevice): Job[] => {
   let lastTicks: Sample<{ host: HostCpuTicks }> | undefined;
+  let lastActivity: ActivityCounters | undefined;
+  const turned = new Set<string>();
   return [
     {
       name: 'host',
@@ -533,6 +541,17 @@ const hostJobs = (host: HostDevice): Job[] => {
         const cpu = lastTicks && now ? hostCpuPercent([lastTicks, now]) : undefined;
         if (now) lastTicks = now;
         await host.write({ cpu, load: sampleLoad(), memory: sampleHostMemory(), temperatures });
+      },
+    },
+    {
+      name: 'host-activity',
+      intervalMs: 60_000,
+      run: async () => {
+        const [activity, fans] = await Promise.all([sampleActivity(), sampleFans()]);
+        const rates = lastActivity ? activityRates(lastActivity, activity) : undefined;
+        lastActivity = activity;
+        for (const fan of fans) if (fan.rpm > 0) turned.add(fan.fan);
+        await host.write({ ...rates, fans: fans.filter((fan) => turned.has(fan.fan)) });
       },
     },
     {

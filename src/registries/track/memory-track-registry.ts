@@ -9,7 +9,7 @@ import { haversineMeters } from '../../lib/geo/distance.ts';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
 import { routingKeysMatch } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
-import { judgeFixes, TrackRule } from './rules.ts';
+import { judgeFixes, rejects, TrackRule } from './rules.ts';
 import { capSegments, dropLoneSpikes, expandBounds, inBounds, splitRuns, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
 import {
@@ -405,7 +405,8 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
   /** A fix as a read that keeps detail shows it: why it is left out, and what a person said of it. */
   private marked(id: string, point: TrackPoint): TrackPoint {
     const manual = this.manualOf(id).get(point.ts);
-    const rejected = manual === 'reject' ? 'manual' : !manual && this.rulesOf(id).get(point.ts) === 'excursion' ? 'excursion' : undefined;
+    const rule = this.rulesOf(id).get(point.ts);
+    const rejected = manual === 'reject' ? 'manual' : !manual && rejects(rule) ? rule : undefined;
     return manual || rejected ? { ...point, ...(rejected && { rejected }), ...(manual && { manual }) } : point;
   }
 
@@ -413,7 +414,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
   private judge(id: string): void {
     const manual = this.manualOf(id);
     const judged = this.pointsOf(id).filter((point) => manual.get(point.ts) !== 'reject');
-    const verdicts = judgeFixes(judged.map((point) => ({ ms: Date.parse(point.ts), lat: point.lat, lng: point.lng })));
+    const verdicts = judgeFixes(judged.map((point) => ({ ms: Date.parse(point.ts), lat: point.lat, lng: point.lng, accuracy: point.accuracy })));
     const rules = new Map<string, TrackRule>();
     verdicts.forEach((rule, i) => rule && rules.set(judged[i].ts, rule));
     this.rules.set(id, rules);
@@ -454,7 +455,7 @@ export class MemoryTrackRegistry implements TrackRegistryIf {
 /** Whether a fix is left out: a person rejected it, or a rule did and no person accepted it. */
 function leftOut(rules: Map<string, TrackRule>, manual: Map<string, TrackVerdict>, ts: string): boolean {
   const verdict = manual.get(ts);
-  return verdict ? verdict === 'reject' : rules.get(ts) === 'excursion';
+  return verdict ? verdict === 'reject' : rejects(rules.get(ts));
 }
 
 function arraysEqual(a: string[], b: string[]): boolean {

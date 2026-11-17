@@ -326,22 +326,25 @@ export class SSHServer {
         this.pipeReadableToHandle(channel.readable, stdinHandle);
 
         // The shell's stdout carries its stderr too, as a terminal's one output
-        this.pipeHandleToChannel(await shell.openIOHandle('stdout', 'r'), channel, { crlf: true });
+        const output = this.pipeHandleToChannel(await shell.openIOHandle('stdout', 'r'), channel, { crlf: true });
 
         // Hang up running commands and tear down the shell when the interactive
         // session ends — whether by EOF or an abrupt client disconnect. Shell.close
-        // is idempotent, so the channel 'close' backstop below is safe too.
+        // is idempotent, so the channel 'close' backstop below is safe too. Closing
+        // the shell ends its output, and the channel ends once the client has it all.
         shell.runInteractive().then(async () => {
           await shell?.close();
           await this.removeSession(sessionPath);
+          await output;
           channel.exit(0);
-          channel.close();
+          channel.end();
         }).catch(async (err) => {
           logger.error('shell error', { error: (err as Error).message });
           await shell?.close();
           await this.removeSession(sessionPath);
+          await output;
           channel.exit(1);
-          channel.close();
+          channel.end();
         });
 
         channel.on('close', () => {
@@ -362,7 +365,7 @@ export class SSHServer {
           await this.removeSession(sessionPath);
         }
         channel.exit(1);
-        channel.close();
+        channel.end();
       }
     });
 
@@ -403,8 +406,10 @@ export class SSHServer {
 
         // Without a terminal the client keeps the two apart, as `ssh host cmd 2>/dev/null` relies on.
         const stderr = channel.stderr as StderrWritable;
-        this.pipeHandleToChannel(await cmdShell.openIOHandle('stdout', 'r'), channel);
-        this.pipeHandleToChannel(await cmdShell.openIOHandle('stderr', 'r'), stderr);
+        const output = [
+          this.pipeHandleToChannel(await cmdShell.openIOHandle('stdout', 'r'), channel),
+          this.pipeHandleToChannel(await cmdShell.openIOHandle('stderr', 'r'), stderr),
+        ];
         timer.mark('pipes');
 
         // A client that goes away hangs up what it ran, as an interactive session's does.
@@ -415,19 +420,24 @@ export class SSHServer {
         const exitCode = await cmdShell.run(info.command);
         timer.mark('run');
 
-        channel.exit(exitCode);
-        channel.close();
+        // Closing the shell ends its output buffers; what the command wrote is
+        // still in them until the client's window has let it all out, and only
+        // then do the exit status, EOF and close follow.
         await cmdShell.close();
         timer.mark('close');
+        await Promise.all(output);
+        timer.mark('drain');
+        channel.exit(exitCode);
+        channel.end();
         logger.debug('exec', { command: info.command, ...timer.report() });
       } catch (err) {
         logger.error('exec failed', {
           error: (err as Error).message,
           command: info.command,
         });
-        (channel.stderr as StderrWritable).write(`error: ${(err as Error).message}\n`);
+        void (channel.stderr as StderrWritable).write(`error: ${(err as Error).message}\n`);
         channel.exit(1);
-        channel.close();
+        channel.end();
       } finally {
         if (sessionPath) {
           await this.removeSession(sessionPath);
@@ -525,32 +535,34 @@ export class SSHServer {
     }
   }
 
-  private pipeHandleToChannel(
+  /**
+   * Send what is written to `handle` to the client until its end. Each write
+   * waits for the client's window, so a command writing faster than the client
+   * reads waits on its full buffer. Settles once everything is sent, or dropped
+   * because the channel closed.
+   */
+  private async pipeHandleToChannel(
     handle: ResourceHandleIf,
     channel: Pick<Channel, 'write'>,
     opts?: { crlf?: boolean },
-  ): void {
+  ): Promise<void> {
     const reader = handle.readable.getReader();
     const crlf = opts?.crlf ?? false;
 
-    const pump = async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            channel.write(crlf ? this.convertLfToCrlf(value) : value);
-          }
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          await channel.write(crlf ? this.convertLfToCrlf(value) : value);
         }
-      } catch (_err) {
-        // Channel closed
-      } finally {
-        reader.releaseLock();
-        await handle.close();
       }
-    };
-
-    pump();
+    } catch (_err) {
+      // Handle closed
+    } finally {
+      reader.releaseLock();
+      await handle.close();
+    }
   }
 
   private pipeReadableToHandle(

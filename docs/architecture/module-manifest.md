@@ -24,6 +24,7 @@ adds to the machinery core already has.
 | `exports`           | code      | the files other modules may import                                                                                  | load / check              |
 | `imports`           | code      | its own private aliases and external packages                                                                       | load / check              |
 | `dependencies`      | code      | modules it needs: their exports and commands                                                                        | `mod setup`               |
+| `services`          | code      | services beside EiN it talks to, and the versions of them it speaks                                                 | install, `mod setup`      |
 | `config.options`    | settings  | the settings it owns, shown on the settings page                                                                    | `mod setup`               |
 | `environment`       | reference | environment variables it reads, documented                                                                          | docs                      |
 | `nodeTypes`         | reference | the node types it defines: documented, what an `@` completes to and the Search page finds, what the shell calls one | docs, runtime, `ui-build` |
@@ -142,6 +143,20 @@ dependency is
 - required to run another module's commands. The boundary test reads command names out of
   `execute(…)` strings, pipeline `command:` lines and shell scripts, and fails a call to a
   module not listed.
+
+### `services`
+
+Services beside EiN this module talks to, as name → caret range of the version of the service's
+interface: `"services": { "ems": "^0.4.4" }`. Core runs none of them and knows none by name; the
+installation does. `mod setup` checks only the field's form: a name, and a caret range, which names
+the image line the installation pulls (`^0.4.4` the line `0.4`, `^1.2.0` the line `1`), so a
+service is updated together with the modules that use it. The module checks the version the
+running service reports against the same range, and says so in its status when they disagree.
+`mod list` gives the field as `serviceRanges`, which Settings → Modules shows on the module's
+Overview. Where the installation has a supervisor (`CFG_SUPERVISOR_URL`), the `supervisor` commands
+ask it for each service's state, to install one, or to update them: it holds the container engine's
+socket, which core never gets, and core asks it for named services alone, never for an image, a
+mount or a capability.
 
 ## Settings and reference
 

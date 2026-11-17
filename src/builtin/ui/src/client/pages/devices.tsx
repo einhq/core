@@ -25,18 +25,24 @@ import { readingText } from '../lib/device-format.ts';
 type Scope = 'all' | 'online';
 type DeviceSort = 'name' | 'recent';
 
-/** What a card says under a device's name: its main value, else what it is. */
+/** A device's battery as a card says it: `Battery 54 %, charging`. */
+const batteryText = (battery: NonNullable<DeviceSummary['battery']>): string => `Battery ${readingText(battery.level, '%')}${battery.charging ? ', charging' : ''}`;
+
+/** What a card says under a device's name: its main value, else what it is; and its battery. */
 const descriptionOf = (device: DeviceSummary): string =>
-  device.main ? `${device.main.label}: ${readingText(device.main.value, device.main.unit)}` : [device.manufacturer, device.model].filter(Boolean).join(' ');
+  [
+    device.main ? `${device.main.label}: ${readingText(device.main.value, device.main.unit)}` : [device.manufacturer, device.model].filter(Boolean).join(' '),
+    device.battery ? batteryText(device.battery) : '',
+  ].filter(Boolean).join(' · ');
 
 /** A frame of a camera's smallest stream, for its card; the page polls `devices`, which keeps it current enough. */
 const pictureUrl = (device: DeviceSummary, at: string): string | undefined =>
   device.picture ? `/file/dev/${encodeURIComponent(device.name)}/${encodeURIComponent(device.picture)}?at=${at}` : undefined;
 
 /**
- * Every device under `/dev` the reader may see, as cards: online or not, its main value, and a
- * camera's picture. The
- * header carries the modules' `devices.header` panels, beside the filters: automation's devices
+ * Every device under `/dev` the reader may see, as cards: online or not, its main value, its
+ * battery, and a camera's picture. The
+ * header carries the modules' `devices.header` panels, beside the filters: the devices module's hosts
  * found on the network.
  */
 export default function DevicesPage() {

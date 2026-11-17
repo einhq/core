@@ -59,6 +59,7 @@ import {
   isGuest,
   isLinkUid,
   isVisitor,
+  seesRunsOf,
   storedAccess,
   SUDO_GROUPNAME,
 } from '../../lib/access/mod.ts';
@@ -1956,9 +1957,9 @@ export class Shell implements TtyIf {
     },
 
     signal: async (pid, signal) => {
-      // Someone else's process is not there for anyone but admin, as `ps` does not show it.
-      const owner = this.config.cem.states().find((state) => state.id === pid && state.state === 'running')?.opts?.access.uid;
-      if (owner !== undefined && owner !== this.access!.uid && !isAdmin(this.access!)) {
+      // A process `ps` does not show the caller is not there for it.
+      const owner = this.config.cem.states().find((state) => state.id === pid && state.state === 'running')?.opts?.access;
+      if (owner !== undefined && !seesRunsOf(this.access!, owner)) {
         return false;
       }
 

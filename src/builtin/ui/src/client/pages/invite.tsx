@@ -44,8 +44,8 @@ export default function InvitePage() {
     setBusy(true);
     setError('');
     try {
-      // `--password=` so a password that starts with a dash is not read as another flag.
-      await execCommand(`user-invite-accept ${shq(token)} --password=${shq(password)} --session`);
+      // On stdin, as `-`: a command line is what `ps` shows.
+      await execCommand(`user-invite-accept ${shq(token)} --password=- --session`, { stdin: password });
       // A fresh page, so nothing read as the guest is shown to the person now signed in.
       globalThis.location.replace('/');
     } catch (err) {

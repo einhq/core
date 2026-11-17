@@ -111,7 +111,7 @@ export function NewUserPanel({ users, groups, run, onCreated, onCancel }: NewUse
     let passwordError: string | undefined;
     if (password) {
       try {
-        await run(`user-passwd ${shq(created.username)} --new-password=${shq(password)}`);
+        await run(`user-passwd ${shq(created.username)} --new-password=-`, password);
       } catch (err) {
         passwordError = describeNodeError(err);
       }

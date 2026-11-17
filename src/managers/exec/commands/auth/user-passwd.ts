@@ -5,6 +5,7 @@ import { userRole } from '../../../../lib/auth/roles.ts';
 import { isUserNode, UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { passwordReader } from './password-stdin.ts';
 
 export const userPasswd = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
@@ -19,8 +20,10 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
     return 1;
   }
 
-  const oldPassword = flags['old-password'];
-  const newPassword = flags['new-password'] ?? await cmd.prompt('Password: ', 'secret', 'add --new-password');
+  // Read in this order, so with both as `-` stdin's first line is the current password.
+  const password = passwordReader(cmd);
+  const oldPassword = await password(flags['old-password']);
+  const newPassword = await password(flags['new-password']) ?? await cmd.prompt('Password: ', 'secret', 'add --new-password=- and give it on stdin');
 
   if (!newPassword) {
     await cmd.writeError('user passwd: new password is required (--new-password)\n');
@@ -108,12 +111,12 @@ userPasswd.spec = {
     {
       name: 'old-password',
       type: 'string' as const,
-      description: 'current password: required but for an administrator, and checked whenever given',
+      description: "current password, or - to read it from stdin's first line: required but for an administrator, and checked whenever given",
     },
     {
       name: 'new-password',
       type: 'string' as const,
-      description: 'new password to set',
+      description: "new password to set, or - to read it from stdin's next line",
     },
   ],
 };

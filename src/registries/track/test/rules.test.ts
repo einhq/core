@@ -12,11 +12,27 @@ const BASE = Date.parse('2015-07-04T10:00:00.000Z');
 const drive = (startMs: number, count: number, lat: number, lng: number, stepMs = 1000, stepDeg = 0.0001): RuleFix[] =>
   Array.from({ length: count }, (_, i) => ({ ms: startMs + i * stepMs, lat, lng: lng + i * stepDeg }));
 
-/** The rule of each fix, as one string: `.` accepted, `x` excursion, `j` jump. */
-const verdicts = (fixes: RuleFix[]): string => judgeFixes(fixes).map((rule) => rule === 'excursion' ? 'x' : rule === 'jump' ? 'j' : '.').join('');
+/** The rule of each fix, as one string: `.` accepted, `x` excursion, `i` inaccurate, `j` jump. */
+const verdicts = (fixes: RuleFix[]): string =>
+  judgeFixes(fixes).map((rule) => rule === 'excursion' ? 'x' : rule === 'inaccurate' ? 'i' : rule === 'jump' ? 'j' : '.').join('');
 
 Deno.test('a steady track is accepted', () => {
   assertEquals(verdicts(drive(BASE, 20, 57.7, 11.9)), '.'.repeat(20));
+});
+
+Deno.test('a fix said to be more than 150 m off is inaccurate, wherever it lies; one within it is judged as any', () => {
+  const fixes = drive(BASE, 6, 57.7, 11.9).map((fix, i) => i === 2 ? { ...fix, accuracy: 2000 } : i === 3 ? { ...fix, accuracy: 150 } : fix);
+  assertEquals(verdicts(fixes), '..i...');
+});
+
+Deno.test('an inaccurate fix far out is set aside, so the fixes around it are no excursion', () => {
+  const fixes = [
+    ...drive(BASE, 5, 57.7, 11.9),
+    // A cell tower's guess two degrees north, said to be 3 km off, between two good fixes.
+    { ms: BASE + 6000, lat: 59.7, lng: 11.9, accuracy: 3000 },
+    ...drive(BASE + 7000, 5, 57.7, 11.9006),
+  ];
+  assertEquals(verdicts(fixes), '.....i.....');
 });
 
 Deno.test('a run the track jumps out to and back from is an excursion', () => {

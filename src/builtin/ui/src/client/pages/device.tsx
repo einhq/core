@@ -32,9 +32,15 @@ const FIX_LIMIT = 20_000;
 
 const failed = (error: unknown) => notify({ message: error instanceof Error ? error.message : String(error), color: 'red' });
 
-/** The modules' tabs for this device: a panel whose `when.has` names an endpoint type shows only on a device with such an endpoint. */
+/**
+ * The modules' tabs for this device: a panel whose `when.has` names an endpoint type shows only on a
+ * device with such an endpoint, and one with `when.live` only on a device with a stream watched live now.
+ */
 const deviceTabs = (info: DeviceInfo): PanelEntry[] =>
-  panelsOf('device.tabs').filter((panel) => !panel.when?.has || info.endpointList.some((endpoint) => endpoint.type === panel.when?.has));
+  panelsOf('device.tabs').filter(({ when }) =>
+    (!when?.has && !when?.live) ||
+    info.endpointList.some((endpoint) => (!when.has || endpoint.type === when.has) && (!when.live || endpoint.live === true))
+  );
 
 function Overview({ info, onChanged, onHistory }: { info: DeviceInfo; onChanged: () => void; onHistory: (endpoint: string) => void }) {
   const live = info.endpointList.filter((endpoint) => !endpoint.retired);

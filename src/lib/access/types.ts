@@ -4,12 +4,15 @@ import { GroupId, UserId } from '../mode/mod.ts';
  * The share link an access acts as, having opened it: the link's own uid, whose access-list
  * entries let it read and pass through what it opens, until `expiresAt` (epoch ms) when there is
  * one. A link that shows things as an account (`share-link create --as`) gives the access that
- * account's uid and groups as well; the link's own `uid` is then not the access's.
+ * account's uid and groups as well; the link's own `uid` is then not the access's. A page ticket's
+ * session (`/__page/`) holds a link with no record, which opens the one page `route` names.
  */
 export type HeldLink = {
   id: string;
   uid?: UserId;
   expiresAt?: number;
+  /** The page a page ticket's session opens (`/dashboard-wall/Kitchen`), in place of a share link's node. */
+  route?: string;
 };
 
 export type Access = {

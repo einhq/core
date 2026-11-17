@@ -344,6 +344,24 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           assertEquals(allPoints(read.segments).filter((point) => point.rejected).length, 5);
         });
 
+        await t.step('a fix said to be far off is kept with its accuracy, and left out as inaccurate', async () => {
+          await registry.touch('t-coarse', {});
+          const points = run(6, 0).map((point, i) => ({ ...point, accuracy: i === 3 ? 1500 : 8 }));
+          await registry.appendPoints('t-coarse', points);
+
+          const read = await registry.readPoints('t-coarse');
+          assertEquals(read.points, 5);
+          assertEquals(allPoints(read.segments).every((point) => point.accuracy === 8), true);
+          assertEquals((await registry.summary('t-coarse')).points, 5);
+
+          const all = allPoints((await registry.readPoints('t-coarse', { rejected: true })).segments);
+          assertEquals(all.filter((point) => point.rejected).map((point) => [point.rejected, point.accuracy]), [['inaccurate', 1500]]);
+
+          // A person who knows better keeps it.
+          await registry.markPoints('t-coarse', { from: points[3].ts, to: points[4].ts }, 'accept');
+          assertEquals((await registry.readPoints('t-coarse')).points, 6);
+        });
+
         await t.step('the byte-stream view keeps rejected fixes, marked', async () => {
           const handle = await registry.open('t-out', {}, 'r');
           const lines: TrackPoint[] = [];
@@ -700,6 +718,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
           for await (const id of await registry.list()) ids.push(id);
 
           assertEquals(ids.sort(), [
+            't-coarse',
             't-gap',
             't-hand',
             't-jump',
@@ -722,7 +741,7 @@ export function trackConformanceTests(name: string, setup: () => Promise<TrackSe
             't7',
             't9',
           ]);
-          assertEquals(await registry.count(), 21);
+          assertEquals(await registry.count(), 22);
         });
       } finally {
         await teardown();

@@ -45,3 +45,4 @@ export * from './useSurface.ts';
 export * from './usePageSubject.ts';
 export * from './useShownNode.ts';
 export * from './useShortcutHelp.ts';
+export * from './useShowOn.ts';

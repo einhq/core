@@ -107,6 +107,23 @@ Deno.test({
       }
     });
 
+    await t.step('a password given as - is read from stdin, a line for each', async () => {
+      const shell = await testCtx.server.createShellClient({ login: false });
+      try {
+        assertEquals((await shell.exec('login alice -', { stdin: 'wrongpass\n' })).success, false);
+        assertEquals((await shell.exec('login alice -', { stdin: 'hunter2\n' })).success, true);
+        assertEquals((await shell.execJson<{ username: string }>('user-whoami')).username, 'alice');
+
+        // The current password is the first line, whichever flag comes first.
+        const changed = await shell.exec('user-passwd alice --new-password=- --old-password=-', { stdin: 'hunter2\r\nhunter3\n' });
+        assertEquals(changed.success, true, changed.error);
+        assertEquals((await shell.exec('user-passwd alice --old-password=- --new-password=-', { stdin: 'hunter3\nhunter2' })).success, true);
+        assertEquals((await shell.exec('user-passwd alice --old-password=- --new-password=-', { stdin: 'wrong\nhunter4' })).success, false);
+      } finally {
+        shell.close();
+      }
+    });
+
     await t.step('group lifecycle: create, add member, check, remove member', async () => {
       await cmd.shouldSucceed('group-create staff --gid 7000');
       await cmd.shouldSucceed('group-add-member staff alice');

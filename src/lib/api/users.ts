@@ -251,6 +251,11 @@ export type ModuleEntry = {
   webUis: string[];
   /** The services it registers, by the name `service-list` gives them. */
   services: string[];
+  /**
+   * The services beside EiN it talks to, each with the range of that service's interface it takes
+   * (`mod.json` `services`, such as `ems: ^0.4.4`); absent when it names none.
+   */
+  serviceRanges?: Record<string, string>;
   /** The paths of its browser pages (`mod.json` `ui.routes`). */
   routes: string[];
   /** Its last `mod setup` in this process; absent when it has not been set up since EiN started. */

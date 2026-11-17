@@ -36,7 +36,7 @@ export const linkVisitor = computed(() => !isAuthenticated.value && !guestBrowsi
 /** The page the held link opens; empty when no installed page shows it. */
 export const heldLinkRoutes = computed(() =>
   heldLinks.value.flatMap((link) => {
-    const route = openRoute(link.type, link.path);
+    const route = link.route ?? openRoute(link.type, link.path);
     return route ? [{ ...link, route }] : [];
   })
 );
@@ -76,9 +76,12 @@ export async function checkAuth(): Promise<void> {
 /**
  * Sign this session in. The caller then loads the page again: everything read so far — the
  * navigation, the settings, what the pages hold — was read as the guest.
+ *
+ * Every password here goes on stdin, as `-`: a command line is what `ps` shows, and everyone
+ * holding the same share link shares a uid.
  */
 export async function login(username: string, password: string): Promise<void> {
-  await execCommand(`login --session ${shq(username)} ${shq(password)}`);
+  await execCommand(`login --session ${shq(username)} -`, { stdin: password });
 }
 
 /**
@@ -104,7 +107,7 @@ export async function logout(): Promise<void> {
  * settings and the access ids were read without it.
  */
 export async function elevate(password: string): Promise<void> {
-  await execCommand(`user-elevate --session --password=${shq(password)}`);
+  await execCommand('user-elevate --session --password=-', { stdin: password });
 }
 
 /** Make this session's sign-in no longer an administrator's; the caller loads the page again, as after `elevate`. */
@@ -118,8 +121,8 @@ export async function updateUser(username: string, name: string, description: st
   await checkAuth();
 }
 
-/** `--flag=value` so a password that starts with a dash is not read as another flag. */
+/** Both passwords on stdin, the current one's line first. */
 export async function changePassword(username: string, oldPassword: string, newPassword: string): Promise<void> {
-  await execCommand(`user-passwd ${shq(username)} --old-password=${shq(oldPassword)} --new-password=${shq(newPassword)}`);
+  await execCommand(`user-passwd ${shq(username)} --old-password=- --new-password=-`, { stdin: `${oldPassword}\n${newPassword}` });
   await checkAuth();
 }

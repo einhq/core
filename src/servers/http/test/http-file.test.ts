@@ -127,6 +127,42 @@ Deno.test({
       assertEquals((await res.arrayBuffer()).byteLength, 0);
     });
 
+    await t.step('a file opened on its own runs nothing: page types are text, nothing is sniffed, all is sandboxed', async () => {
+      const put = async (name: string, body: string, mimetype: string) => {
+        assertEquals((await fetch(`${baseUrl}/file/tmp/${name}`, { method: 'PUT', headers: { cookie }, body })).status, 201);
+        await vfs.update(ADMIN_ACCESS, `/tmp/${name}`, { attrs: { mimetype } });
+      };
+      const served = [
+        ['p.html', '<script>1</script>', 'text/html', 'text/plain; charset=utf-8'],
+        ['p.xml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"/>', 'application/xml', 'text/plain; charset=utf-8'],
+        ['p.xhtml', '<html/>', 'Application/XHTML+XML; charset=utf-8', 'text/plain; charset=utf-8'],
+        ['q.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>', 'image/svg+xml', 'image/svg+xml'],
+        ['n.txt', 'a note', 'text/plain', 'text/plain'],
+      ] as const;
+      for (const [name, body, mimetype, sent] of served) {
+        await put(name, body, mimetype);
+        const res = await fetch(`${baseUrl}/file/tmp/${name}`, { headers: { cookie } });
+        assertEquals(await res.text(), body, name);
+        assertEquals(res.headers.get('content-type'), sent, name);
+        assertEquals(res.headers.get('x-content-type-options'), 'nosniff', name);
+        assertStringIncludes(res.headers.get('content-security-policy') ?? '', 'sandbox', name);
+      }
+      const png = await fetch(`${baseUrl}/file/tmp/pixel.png`, { headers: { cookie } });
+      await png.body?.cancel();
+      assertEquals(png.headers.get('content-type'), 'image/png');
+      assertStringIncludes(png.headers.get('content-security-policy') ?? '', 'sandbox');
+    });
+
+    await t.step('a PDF is not sandboxed, so the browser shows it, and is never sniffed', async () => {
+      assertEquals((await fetch(`${baseUrl}/file/tmp/d.pdf`, { method: 'PUT', headers: { cookie }, body: '%PDF-1.4\n' })).status, 201);
+      await vfs.update(ADMIN_ACCESS, '/tmp/d.pdf', { attrs: { mimetype: 'application/pdf' } });
+      const res = await fetch(`${baseUrl}/file/tmp/d.pdf`, { headers: { cookie } });
+      await res.body?.cancel();
+      assertEquals(res.headers.get('content-type'), 'application/pdf');
+      assertEquals(res.headers.get('x-content-type-options'), 'nosniff');
+      assertEquals(res.headers.get('content-security-policy'), null);
+    });
+
     await t.step('GET with If-None-Match returns 304', async () => {
       const first = await fetch(`${baseUrl}/file/tmp/hello.txt`, { headers: { cookie } });
       await first.arrayBuffer();

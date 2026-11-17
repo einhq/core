@@ -3,15 +3,17 @@
  * connects from, when it opened, how long since its last input, and what it runs now.
  *
  * Read from the shells this process has open. A service's shell and a command run over SSH are
- * not sessions and are left out. Anyone but admin sees only their own.
+ * not sessions and are left out. Anyone but admin sees only their own, and a visitor only its
+ * own session (`seesRunsOf`).
  */
 
+import { seesRunsOf } from '../../../../lib/access/mod.ts';
 import type { SessionEntry, ShellOrigin } from '../../../../lib/api/system.ts';
 import { openShellList } from '../../../shell/shell.ts';
 import { colorer, cut, Table } from '../../../shell/terminal/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
-import { accountNames, seesEveryone } from './accounts.ts';
+import { accountNames } from './accounts.ts';
 import { fmtAge, fmtTty, lastColumnRoom } from './lib.ts';
 import { commandLine } from './ps.ts';
 
@@ -19,7 +21,6 @@ const isSession = (origin: ShellOrigin): origin is SessionEntry['origin'] => ori
 
 /** Every open session the caller may see, oldest first. */
 export const listSessions = async (cmd: Command): Promise<SessionEntry[]> => {
-  const everyone = seesEveryone(cmd);
   const nameOf = await accountNames(cmd);
 
   // Per shell, the earliest foreground command still running: of `a | b`, the `a`.
@@ -35,7 +36,7 @@ export const listSessions = async (cmd: Command): Promise<SessionEntry[]> => {
   const sessions: SessionEntry[] = [];
   for (const shell of openShellList()) {
     if (!isSession(shell.origin)) continue;
-    if (!everyone && shell.access.uid !== cmd.access.uid) continue;
+    if (!seesRunsOf(cmd.access, shell.access)) continue;
     sessions.push({
       tty: shell.name,
       origin: shell.origin,
@@ -100,7 +101,7 @@ who.spec = {
   name: 'who',
   effect: 'read' as const,
   description:
-    "List who is signed in: each SSH login, terminal and Web UI connection, the address it connects from, its idle time and what it runs. Admin sees everyone's, anyone else their own",
+    "List who is signed in: each SSH login, terminal and Web UI connection, the address it connects from, its idle time and what it runs. Admin sees everyone's, a member their own, and a visitor only its own session's",
   args: [],
   flags: [],
   returns: 'One row per open session, oldest first',

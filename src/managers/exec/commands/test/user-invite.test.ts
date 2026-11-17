@@ -79,7 +79,8 @@ Deno.test({
       const { token } = await invite('anna');
       const visitor = await guest();
       assertEquals((await visitor.exec(`user-invite-accept ${token} --password=`)).success, false);
-      const accepted = await visitor.execJson<UserInviteAccepted>(`user-invite-accept ${token} --password=anna-secret --session`);
+      assertEquals((await visitor.exec(`user-invite-accept ${token} --password=-`, { stdin: '' })).success, false);
+      const accepted = await visitor.execJson<UserInviteAccepted>(`user-invite-accept ${token} --password=- --session`, { stdin: 'anna-secret\n' });
       assertEquals(accepted, { username: 'anna', title: 'Anna Andersson', email: 'anna@example.com', signedIn: true });
       assertEquals((await visitor.execJson<Whoami>('user-whoami')).username, 'anna');
 

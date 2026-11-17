@@ -29,6 +29,7 @@ import { parsePipeline } from './parse.ts';
 import { DEFAULT_MAX_ATTEMPTS, instanceTree } from './step-attrs.ts';
 import { stepErrorDetail, stepErrorLogDetail, stepOutputTail } from './step-error.ts';
 import { markOutput, runStep } from './step-run.ts';
+import { substitute } from './substitute.ts';
 import {
   isLiveInstance,
   type Lane,
@@ -846,7 +847,7 @@ export class PipelineEngine {
       params: {
         instancePath,
         stepName,
-        command: this.substitute(attrs.command, quotedEnv),
+        command: substitute(attrs.command, quotedEnv),
       } satisfies PoolJobParams,
     });
   }
@@ -2175,7 +2176,7 @@ export class PipelineEngine {
       // Ready to run: pool it, or mark it queued (counting the attempt) and
       // dispatch it without awaiting, so the loop keeps starting other ready
       // steps. The semaphore inside dispatchStep is the actual throttle.
-      const command = this.substitute(attrs.command, quotedEnv);
+      const command = substitute(attrs.command, quotedEnv);
 
       // Pooled step: mark it 'waiting' and hand the job to the pool, which owns
       // scheduling *and* attempts from here. A pool-side retry never comes back
@@ -2593,17 +2594,6 @@ export class PipelineEngine {
     });
   }
 
-  private substitute(template: string, vars: Record<string, string>): string {
-    let result = template;
-    // Longest name first: otherwise `$EVENT_TYPE` would eat the prefix of
-    // `$EVENT_TYPE_HINT` and leave a mangled tail behind.
-    const names = Object.keys(vars).sort((a, b) => b.length - a.length);
-    for (const key of names) {
-      result = result.replaceAll(`$${key}`, vars[key]);
-    }
-    return result;
-  }
-
   /**
    * A trigger's declarative `match` or `unless`, evaluated against the same env
    * a `filter` would have been given. True when every key matches; a key whose
@@ -2638,7 +2628,7 @@ export class PipelineEngine {
 
   /** `skipIfExists`, with `$NAME` from the trigger env substituted. */
   private async skipBecauseExists(path: string, env: Record<string, string>): Promise<boolean> {
-    const resolved = this.substitute(path, env);
+    const resolved = substitute(path, env);
 
     try {
       return await this.vfs.exists(ADMIN_ACCESS, resolved);

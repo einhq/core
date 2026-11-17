@@ -16,6 +16,11 @@ Deno.test('share link: nothing beside the album, nor an album whose name only st
   assertEquals(withinRoute('/', album), false);
 });
 
+Deno.test("share link: a page's query is how it shows, not which page it is", () => {
+  assertEquals(withinRoute('/media', '/media?q=sailboat&slideshow=screen'), true);
+  assertEquals(withinRoute('/people', '/media?q=sailboat&slideshow=screen'), false);
+});
+
 Deno.test('share link: the opening page and the address it is sent as', () => {
   assertEquals(shareLinkUrl('https://ein.example', 'AbC123'), 'https://ein.example/s/AbC123');
   assertEquals(isShareLinkPage('/s/AbC123'), true);

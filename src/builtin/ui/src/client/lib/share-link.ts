@@ -25,11 +25,12 @@ const decoded = (path: string): string => {
 /**
  * Whether `pathname` shows what `route` shows or something inside it: the route itself, or one that
  * continues it past a slash, encoded or not — an album's route carries its node path encoded, and a
- * folder inside the album is the same route with the longer path.
+ * folder inside the album is the same route with the longer path. A route's query
+ * (`?slideshow=screen`) is how the page shows, not which page it is.
  */
 export const withinRoute = (pathname: string, route: string): boolean => {
   const here = decoded(pathname).replace(/\/+$/, '');
-  const base = decoded(route).replace(/\/+$/, '');
+  const base = decoded(route.split('?')[0]).replace(/\/+$/, '');
   return here === base || here.startsWith(`${base}/`);
 };
 

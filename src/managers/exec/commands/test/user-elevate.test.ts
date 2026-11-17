@@ -54,7 +54,7 @@ Deno.test({
       await as.shouldFailWith('user-elevate --password=wrong', 'authentication failed');
       assertEquals((await whoami(anna)).admin, false);
 
-      await as.shouldSucceed('user-elevate --password=secret');
+      assertEquals((await anna.exec('user-elevate --password=-', { stdin: 'secret' })).success, true);
       const after = await whoami(anna);
       assertEquals([after.admin, after.elevated], [true, true]);
       await as.shouldSucceed(`cat ${PROBE}`);

@@ -7,7 +7,17 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { checkCoreApi, checkModuleMaps, checkUi, MODULE_API_VERSION, moduleImportMap, type ModuleManifest, resolveModuleSpecifier, resolveSetupOrder } from '../mod.ts';
+import {
+  checkCoreApi,
+  checkModuleMaps,
+  checkServices,
+  checkUi,
+  MODULE_API_VERSION,
+  moduleImportMap,
+  type ModuleManifest,
+  resolveModuleSpecifier,
+  resolveSetupOrder,
+} from '../mod.ts';
 import { repoModules } from '../repo.ts';
 
 const mod = (name: string, extra: Partial<ModuleManifest> = {}): ModuleManifest => ({
@@ -101,6 +111,23 @@ Deno.test('coreApi validation', async (t) => {
     const { errors, warnings } = checkCoreApi(mod('m'));
     assertEquals(errors, []);
     assertEquals(warnings.length, 1);
+  });
+});
+
+Deno.test('services validation', async (t) => {
+  await t.step('caret ranges of named services pass', () => {
+    assertEquals(checkServices(mod('m', { services: { ems: '^0.4.4', devices: '^1.2' } })).errors, []);
+  });
+
+  await t.step('a range that names no image line is an error', () => {
+    for (const range of ['0.4.4', '>=0.4.0', '~0.4.0', '^0.4.x', '']) {
+      assertEquals(checkServices(mod('m', { services: { ems: range } })).errors.length, 1, range);
+    }
+  });
+
+  await t.step('a malformed name or field is an error', () => {
+    assertEquals(checkServices(mod('m', { services: { 'Media Service': '^0.4.0' } })).errors.length, 1);
+    assertEquals(checkServices(mod('m', { services: ['ems'] as unknown as Record<string, string> })).errors.length, 1);
   });
 });
 

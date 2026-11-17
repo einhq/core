@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.7
+MODULE_API_VERSION 0.15.19
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
@@ -184,6 +184,7 @@ src/builtin/ui/src/client/components/mod.ts ShareButtonProps a3143255c82a compac
 src/builtin/ui/src/client/components/mod.ts ShareModalHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts ShareSelectionAction 767270242128 @signature=4b83223e54ef,album=8d5c422dc085,items=6d58b7e31872,selection=4ac0a761f645
 src/builtin/ui/src/client/components/mod.ts SharingChip 4277eb856778 @signature=db01f72480d2,ownership=332d07315d20,path=aa6112178522
+src/builtin/ui/src/client/components/mod.ts ShowOnHost d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts Sparkline cfe21c20b87d @signature=4816e57e7841,bucketMs=ec20a13b1423,buckets=10fafda9933a,height=3a8cb7c42830,windowMs=cd6fee3bf365
 src/builtin/ui/src/client/components/mod.ts StackedBar 27b56c6a0fe1 @signature=4816e57e7841,describe=dfc97a2af323,emptyLabel=948c20bd87a6,height=3a8cb7c42830,legend=66fcdcddbd7c,segments=f0ee19026732
 src/builtin/ui/src/client/components/mod.ts StatTile c372b45055bc @signature=4816e57e7841,accent=dfdd0450a0d5,hint=12882127d7f4,icon=e19ec288ae0e,label=52f9b8b83044,series=c07a2a3ef5d6,seriesMax=a5efef0b5bcb,seriesUnit=6bd71add3bb0,tooltip=a7800f01ea23,value=9c19b817e1d4
@@ -276,7 +277,7 @@ src/builtin/ui/src/client/hooks/mod.ts MEDIA_KINDS f07881348eb9
 src/builtin/ui/src/client/hooks/mod.ts MEDIA_KIND_FILTERS 8fbce08f21af
 src/builtin/ui/src/client/hooks/mod.ts MediaKindFilter edcc7cf95c20 kinds=e1b16f49a61b,label=af04505f402e,value=5647ee15e4bf
 src/builtin/ui/src/client/hooks/mod.ts MediaSelection ff560ac39d6f
-src/builtin/ui/src/client/hooks/mod.ts ModuleReference 184f7d5ceab4 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/builtin/ui/src/client/hooks/mod.ts ModuleReference 1782805893cf commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,serviceRanges=3faed31dbcfd,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
 src/builtin/ui/src/client/hooks/mod.ts NodeOps 676f0d28b992 busy=b0a603736b4f,chmod=779fd88674bd,chown=94007c3dcd24,clearError=6252419979ec,copy=661dbd3af7d7,error=badebb2f202e,mkdir=c865cd0655b1,move=00eae30f0715,paste=2e9f7b9bdea3,remove=9cf2fd9bf814,rename=55211b61d380
 src/builtin/ui/src/client/hooks/mod.ts NodeStat 2c362fa56de3 node=ae3e4484800b,share=dc3632e25c60
 src/builtin/ui/src/client/hooks/mod.ts NodeTreeState 8db99b3ecc71 data=55269c8cf46b,entriesOf=358d8701ea41,entryAt=7ec53474eabc,error=badebb2f202e,loading=6ab16fe49a65,openDirs=2d8c56c57d33,reload=95c493fecf4c,tree=4897387a0a27
@@ -387,6 +388,7 @@ src/builtin/ui/src/client/hooks/mod.ts useSectionSelection fddaebb692ea
 src/builtin/ui/src/client/hooks/mod.ts useSelection 5ec9fbba8404 0|a16bff8fef55=a16bff8fef55,@signature=41aa30fe2cac
 src/builtin/ui/src/client/hooks/mod.ts useSettledInViewport 1012a5391a9a 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=28a3bb27070f
 src/builtin/ui/src/client/hooks/mod.ts useShortcutHelp 53c82aa249f2 0|336e2b46aff6=336e2b46aff6,1|82d1a53becaa=82d1a53becaa,@signature=c65016e880e3
+src/builtin/ui/src/client/hooks/mod.ts useShowOn eab6c04d81b0
 src/builtin/ui/src/client/hooks/mod.ts useShownNode 2a7be11e646c
 src/builtin/ui/src/client/hooks/mod.ts useStatsOverview d2adf16b4e60
 src/builtin/ui/src/client/hooks/mod.ts useSurface 6a09db9a2445
@@ -675,11 +677,12 @@ src/builtin/ui/src/client/signals/mod.ts NodeEventMessage e5ae4930edbb id=752fa5
 src/builtin/ui/src/client/signals/mod.ts NodesCurrent 9ab89226aeac entry=7bcd575a1c55,open=e86f5981ac1b,path=3fd20668ef6e,selected=e288689427f0
 src/builtin/ui/src/client/signals/mod.ts PageShown 70c9ded138a3
 src/builtin/ui/src/client/signals/mod.ts PageSubject 28390179b148 about=b5f22c8fba0d,node=b830128a9876,title=22df3e6ba489
-src/builtin/ui/src/client/signals/mod.ts PanelEntry 2fcc5b7e0732 admin=e5caa4ef7900,description=644be3c4d4da,icon=91a07d7cb04f,id=752fa5797ebe,label=af04505f402e,order=9df61d05787c,route=66a673b16b8a,signedIn=b687c9e9fe67,slot=b9888f6a27db,source=f0a45da73b3e,when=7b3939eb99d0
+src/builtin/ui/src/client/signals/mod.ts PanelEntry 76b8e7dfa560 admin=e5caa4ef7900,description=644be3c4d4da,icon=91a07d7cb04f,id=752fa5797ebe,label=af04505f402e,order=9df61d05787c,route=66a673b16b8a,signedIn=b687c9e9fe67,slot=b9888f6a27db,source=f0a45da73b3e,when=7d6290281d00
 src/builtin/ui/src/client/signals/mod.ts ProgressToast b1aaaa56b54f dismiss=48f9ecc338f5,finish=f20029c25eac,id=1a4af43267b0,update=9d0708e28e20
 src/builtin/ui/src/client/signals/mod.ts ResolvedSection fa18816c6585 id=752fa5797ebe,items=e820f855742f,label=995d88c00ff2
 src/builtin/ui/src/client/signals/mod.ts ResolvedTopbarEntry a3b903347e06
 src/builtin/ui/src/client/signals/mod.ts ShareLinkKind 9bbb3ab52f08
+src/builtin/ui/src/client/signals/mod.ts ShowOnTarget f0b49dee2fb1 page=16f862dae880,path=3fd20668ef6e,title=f6007128d157
 src/builtin/ui/src/client/signals/mod.ts StoredTerminalWorkspace c9c2ac4af0dd activeTabId=227ead79440b,open=84c4fcbcf07f,tabs=88b1b216382b,version=3a6e9c3f90a7
 src/builtin/ui/src/client/signals/mod.ts SurfaceKind fc7f2753e285
 src/builtin/ui/src/client/signals/mod.ts TERMINAL_WORKSPACE_KEY c2a59a76c585
@@ -697,6 +700,7 @@ src/builtin/ui/src/client/signals/mod.ts awaitModuleRoutes 87b04f2dde74
 src/builtin/ui/src/client/signals/mod.ts cancelUploads df01802e180a
 src/builtin/ui/src/client/signals/mod.ts changePassword e8006cdb8e9e 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|336e2b46aff6=336e2b46aff6,@signature=8295fdcc2aea
 src/builtin/ui/src/client/signals/mod.ts checkAuth d371a1f4c626
+src/builtin/ui/src/client/signals/mod.ts chooseNearby 902193cc3eaf
 src/builtin/ui/src/client/signals/mod.ts clearFinished df01802e180a
 src/builtin/ui/src/client/signals/mod.ts clearLightboxReturn c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts closeCodeEditor df01802e180a
@@ -707,6 +711,7 @@ src/builtin/ui/src/client/signals/mod.ts closeLightboxWithoutReturn df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeNodesPane 32d2afe1f504 0|badb793e217b=badb793e217b,@signature=b27fc63f755f
 src/builtin/ui/src/client/signals/mod.ts closeNodesTab f6f88bb02fa4 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,@signature=a4c7e29d3544
 src/builtin/ui/src/client/signals/mod.ts closeShareModal df01802e180a
+src/builtin/ui/src/client/signals/mod.ts closeShowOn df01802e180a
 src/builtin/ui/src/client/signals/mod.ts closeTerminalTab 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts codeEditorRequest 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentMediaIndex 0a752fffac0f
@@ -738,6 +743,7 @@ src/builtin/ui/src/client/signals/mod.ts initShellClient df01802e180a
 src/builtin/ui/src/client/signals/mod.ts invalidateListing 56ad812cdb0e
 src/builtin/ui/src/client/signals/mod.ts isAuthenticated 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts isLightboxOpen 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts isPage 38324f31e464 0|5cdb0dcc9077=5cdb0dcc9077,@signature=56081efc8fda
 src/builtin/ui/src/client/signals/mod.ts isUploading 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts leaveElevation d371a1f4c626
 src/builtin/ui/src/client/signals/mod.ts leaveFullscreen deb6122821e8 0|336e2b46aff6=336e2b46aff6,@signature=ce794e8590a3
@@ -747,6 +753,7 @@ src/builtin/ui/src/client/signals/mod.ts listNodes 2421bccbcc30 0|336e2b46aff6=3
 src/builtin/ui/src/client/signals/mod.ts listingVersion 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts loadModuleBundle e9623f594c2c 0|336e2b46aff6=336e2b46aff6,@signature=c4be0018a009
 src/builtin/ui/src/client/signals/mod.ts loadNav d371a1f4c626
+src/builtin/ui/src/client/signals/mod.ts loadShowOnDevices e808cc80521d
 src/builtin/ui/src/client/signals/mod.ts loadStars 902193cc3eaf
 src/builtin/ui/src/client/signals/mod.ts loadUiManifest f9707429e5ae
 src/builtin/ui/src/client/signals/mod.ts loadUserConfig d371a1f4c626
@@ -759,6 +766,7 @@ src/builtin/ui/src/client/signals/mod.ts mobileSidebarRail 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts modulePatcher d2adf16b4e60
 src/builtin/ui/src/client/signals/mod.ts moduleRoutePaths 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts navigatePage c11992f92313 0|b3d9da3d9fc5=b3d9da3d9fc5,0|e84c739762f7=e84c739762f7,1|7b338d8ffb1c=7b338d8ffb1c,@signature=bbf9cb1a920e
+src/builtin/ui/src/client/signals/mod.ts nearbyShowing 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts nextMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts nextTerminalTab df01802e180a
 src/builtin/ui/src/client/signals/mod.ts nodeClipboard 0a752fffac0f
@@ -776,6 +784,7 @@ src/builtin/ui/src/client/signals/mod.ts notify 817908abef83 0|41a599ff613a=41a5
 src/builtin/ui/src/client/signals/mod.ts notifyProgress 5c333c7fefb7 0|ae0dd6371acf=ae0dd6371acf,@signature=6cdd6ed3774d
 src/builtin/ui/src/client/signals/mod.ts nounOf 3c392a124ac5 0|336e2b46aff6=336e2b46aff6,@signature=0d55205e77cc
 src/builtin/ui/src/client/signals/mod.ts offerLightboxList b1cb1f3d8557 0|74a96c6a6bb8=74a96c6a6bb8,@signature=e97a7606062b
+src/builtin/ui/src/client/signals/mod.ts offersNearby 38324f31e464 0|5cdb0dcc9077=5cdb0dcc9077,@signature=56081efc8fda
 src/builtin/ui/src/client/signals/mod.ts onOutsideEdit 075ec8024074 0|c1d58a2d45e9=c1d58a2d45e9,@signature=40f4ac307bcf
 src/builtin/ui/src/client/signals/mod.ts onPageChange 7270185e6f78 0|441200a305c9=441200a305c9,@signature=4f7134bf8a74
 src/builtin/ui/src/client/signals/mod.ts openCodeEditor c1c3ead56a68 0|7954c6b9bee7=7954c6b9bee7,@signature=9c52dad348b0
@@ -788,6 +797,7 @@ src/builtin/ui/src/client/signals/mod.ts openRoute 102274c1ae47 0|336e2b46aff6=3
 src/builtin/ui/src/client/signals/mod.ts openShareLink a3e3cb4523bd 0|336e2b46aff6=336e2b46aff6,@signature=506a4c7bc189
 src/builtin/ui/src/client/signals/mod.ts openShareModal c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts openShortcutHelp df01802e180a
+src/builtin/ui/src/client/signals/mod.ts openShowOn 8a53469dd911 0|5cdb0dcc9077=5cdb0dcc9077,@signature=34adfc1f4ddf
 src/builtin/ui/src/client/signals/mod.ts openTerminalTab 2b19adca8d5e 0|336e2b46aff6=336e2b46aff6,@signature=9eed3c083843
 src/builtin/ui/src/client/signals/mod.ts pageLocation 0de199860121
 src/builtin/ui/src/client/signals/mod.ts pageNavigating 1ca2bf2455f3
@@ -837,10 +847,18 @@ src/builtin/ui/src/client/signals/mod.ts shellChildRoutes aca6ce793499
 src/builtin/ui/src/client/signals/mod.ts shellClientConnected 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shellClientEpoch 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts showLightboxPath c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
+src/builtin/ui/src/client/signals/mod.ts showOn 449f7c6ee480 0|1ca2e21d79ce=1ca2e21d79ce,1|5cdb0dcc9077=5cdb0dcc9077,@signature=39b0a39b9b66
+src/builtin/ui/src/client/signals/mod.ts showOnDevices 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts showOnNearby 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts showOnNearbyFiles 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts showOnTarget 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shownNode 2a7be11e646c
 src/builtin/ui/src/client/signals/mod.ts sidebarCollapsed 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts starredPaths 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts startNodesAtHome 5d52ad64cb76 0|336e2b46aff6=336e2b46aff6,@signature=9c8b1ac5580b
+src/builtin/ui/src/client/signals/mod.ts stopNearby df01802e180a
+src/builtin/ui/src/client/signals/mod.ts stopShowing 4f7194b398cf 0|1ca2e21d79ce=1ca2e21d79ce,@signature=2aacfa62b04f
+src/builtin/ui/src/client/signals/mod.ts streamNearby 83d3ef3b5094 0|5cdb0dcc9077=5cdb0dcc9077,@signature=a66f17816f57
 src/builtin/ui/src/client/signals/mod.ts subscribeNodes 9b41477ea61b 0|179996693b0b=179996693b0b,1|e51efb410451=e51efb410451,@signature=f483c6feb287
 src/builtin/ui/src/client/signals/mod.ts switchTerminalTab 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
 src/builtin/ui/src/client/signals/mod.ts terminalHeight 0a752fffac0f
@@ -900,11 +918,11 @@ src/client/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797eb
 src/client/mod.ts CopyOptions 6305f5d4fb08 maxDepth=34f5e2fd62fb,overwrite=f2d77fe20c45,recursive=d247b337e7cf
 src/client/mod.ts DefaultOwnership b9c19f8487a1 gid=8c1040c8fde3,groupName=6f55f3a9a065,mode=4032464407ef,ownerName=e15a2bd9fbb8,uid=1fa992df73c7
 src/client/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
-src/client/mod.ts Driver a400e5098524 config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,frame=7210dfacd209,input=2430acf439f7,live=59e2d79f84b4,module=6c8b15af3edd,setup=2b883ed450d2,source=08f6fa93052f,write=f4fed6d49b52
+src/client/mod.ts Driver be78e391523f config=963172b25fea,description=c4833b0d92ac,forget=fb0e93936b01,frame=7210dfacd209,input=a9cf92708a9a,live=59e2d79f84b4,module=6c8b15af3edd,setup=2b883ed450d2,source=08f6fa93052f,write=5f061a0ace16
 src/client/mod.ts DriverAnswer 08e3b2d0c365 message=3711f975e410,taken=edb065714e9c
-src/client/mod.ts DriverInput aa280614cc52 attrs=dd7075e72dc6,by=2e436585632a,bytes=d990f392d28a,contentType=03f903565be7,device=dc9837b78932,path=3fd20668ef6e,query=23f371a19ad9
+src/client/mod.ts DriverInput a2cd4223ef85 access=997a62d7354c,attrs=dd7075e72dc6,by=2e436585632a,bytes=d990f392d28a,contentType=03f903565be7,device=dc9837b78932,path=3fd20668ef6e,query=23f371a19ad9
 src/client/mod.ts DriverStream b96fcc3ea102 attrs=dd7075e72dc6,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e
-src/client/mod.ts DriverWrite 37ef3e095c2c attrs=dd7075e72dc6,by=2e436585632a,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e,value=ac1fc49fb23d
+src/client/mod.ts DriverWrite c61437cf4ba8 access=997a62d7354c,attrs=dd7075e72dc6,by=2e436585632a,device=dc9837b78932,endpoint=eaa5bd497523,endpointAttrs=56df7437fb29,path=3fd20668ef6e,value=ac1fc49fb23d
 src/client/mod.ts EVENTS_NODE_PATH 629098147f14
 src/client/mod.ts EVENTS_ROUTING_KEY 66677c291cd1
 src/client/mod.ts FlagCompleteType 7722fe07d737
@@ -916,10 +934,13 @@ src/client/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f74
 src/client/mod.ts Input 7b7dfe147075 chunks=387d7ad0ad4e,lines=b31929aad402,name=d4da142d5ba2,text=df74e68b57a9
 src/client/mod.ts Judgement eb537fde8dc3 effect=057630f2fbb1,reasons=69aa95bb8342
 src/client/mod.ts LinkEntry cca211d338b1 absPath=dacfc3a9d12c,id=3058e564a5ab,node=3c5dbf59998b,parentId=63a1e1fa937e,target=d9c423f5ed28
+src/client/mod.ts LiveFormat 20fd3dbff1b5
+src/client/mod.ts LiveOpen ae607216f31e
+src/client/mod.ts LiveServed 796b8c5ce344 end=4819e162ba55,path=3fd20668ef6e
 src/client/mod.ts LogAggregate b21795ccfd3a
 src/client/mod.ts LogBucketQuery eb7b270ae4dd
 src/client/mod.ts Mode 701cc16d35f7
-src/client/mod.ts ModuleDevices 53f53486fdbb append=a42f66d576a5,appendFixes=0aa1c93daf2d,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,forget=a65cc0620afc,online=87342507628d,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec,secret=f0c703ea3f42,streamSource=76a6896834df
+src/client/mod.ts ModuleDevices e045e3cb3d14 append=a42f66d576a5,appendFixes=0aa1c93daf2d,dropFileTicket=87546a6b2df6,ensureDevice=1d323be1dbbf,ensureEndpoint=23d8ae1eac3c,fileTicket=fdda8479cad9,forget=a65cc0620afc,online=87342507628d,pageSignIn=7a5adce674b8,registerDriver=8de3fb2ab75f,removeEndpoint=7199d08f47ec,renewFileTicket=b42df11848ce,secret=f0c703ea3f42,serveFiles=4db2c5c48c15,serveLive=42fb40c8508a,streamSource=76a6896834df
 src/client/mod.ts ModuleSystemCore c9d190c19d9d devices=b2f4dd8bc8c7,vfs=3ccbfd2800f5
 src/client/mod.ts NOT_DERIVED 970a00e02a5b
 src/client/mod.ts Node 623c8d634108
@@ -964,6 +985,8 @@ src/client/mod.ts STEP_EXIT_INPUT 308c196c61c7
 src/client/mod.ts STEP_EXIT_TEMPORARY 11fa2eef04a3
 src/client/mod.ts SYSTEM_TIME_ZONE 629098147f14
 src/client/mod.ts Sample 55fcc1b2606a
+src/client/mod.ts ServedFile 5b526b7609d8 body=1aad5dcfa8cd,type=e22be5ee8605
+src/client/mod.ts ServedFiles 57fe520b9e66
 src/client/mod.ts SetCoverOptions 4a9e77d13ae1 attrs=fcce3e31f70a,gid=d77381bee212,uid=6ba1ab75bf01
 src/client/mod.ts SettingsContext 1b8e155c4a33 env=e4f7cd5b572a,sys=e2282d64ff3b
 src/client/mod.ts SharePreference b9087065ef2a
@@ -1069,8 +1092,9 @@ src/lib/api/mod.ts ConfigWriteAnswer 2bc5ddfd7528 failed=df406be6f2f4,notes=7cde
 src/lib/api/mod.ts ConfigWritten 7fa65c4be2b3 key=fdb05a1ff54c,scope=773d5dce38d1,source=355ce7ef9660,value=5647ee15e4bf
 src/lib/api/mod.ts ContainerListing 21d4642769fa members=71968da5e5fb,truncated=ee81b8046300
 src/lib/api/mod.ts ContainerMember 88a45bff169e front=273b87ccb874,id=752fa5797ebe,memberPath=c769fc41a1c3,path=3fd20668ef6e,stackCount=a48b3d338e26
+src/lib/api/mod.ts ControlAnswer 25cd147320a6 message=3711f975e410,value=c9bb9f40efa8
 src/lib/api/mod.ts ControlRequest 3e79bf6ea0d2 at=f9e6ea108483,by=2e436585632a,value=c9bb9f40efa8
-src/lib/api/mod.ts ControlSchema b66a14ae7495
+src/lib/api/mod.ts ControlSchema 4f148ee820b6
 src/lib/api/mod.ts CrawlCoverage dd91f9013e82 candidates=b2ccc562f3d9,covered=e7fd72745b72,etaMs=4335b7111c73,kinds=47ee7f719d18,perHour=44ea6a464925,pipeline=4d16cdec526e,remaining=9e09cd4b5df6
 src/lib/api/mod.ts DEVICES_GROUPNAME d4c3ad057218
 src/lib/api/mod.ts DOCUMENT_VIEW_FILE aca2c503ecd5
@@ -1083,10 +1107,11 @@ src/lib/api/mod.ts DeviceHistory cb115e75b84a bucket=b1c88b1c0747,device=dc9837b
 src/lib/api/mod.ts DeviceInfo fbeedd79267f
 src/lib/api/mod.ts DeviceKeyAnswer d4edb282e274 createdAt=5cf0f47e93d8,device=dc9837b78932,enabled=f70a52e841b2,qrSvg=7636c8592b87,qrText=78df8c4b2d08,url=823ee7e982b4
 src/lib/api/mod.ts DeviceMessage e0ded94782f9 at=f9e6ea108483,device=dc9837b78932,endpoint=2abf36827c7f,event=c3fa9f76d36a,fix=b7307f72798f,online=9267f296d3cb,retained=116b15733d51,unit=a31f90e44103,value=622734f3b279
-src/lib/api/mod.ts DeviceSummary d334e0c2c336 class=0132fdb7df03,driver=ce98b477b7ab,endpoints=d2a9b2b751a4,label=af04505f402e,lastAt=649408b45f04,main=b82ebfccf49b,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,name=6d0c36381511,online=9267f296d3cb,path=3fd20668ef6e,picture=e6e71e99cf5e,tracks=5a72ad7d35ed
+src/lib/api/mod.ts DeviceSummary 6d42f95258a8 battery=51ea7390ca44,class=0132fdb7df03,driver=ce98b477b7ab,endpoints=d2a9b2b751a4,label=af04505f402e,lastAt=649408b45f04,main=b82ebfccf49b,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,name=6d0c36381511,online=9267f296d3cb,path=3fd20668ef6e,picture=e6e71e99cf5e,tracks=5a72ad7d35ed,writable=2c61a6e4b326
 src/lib/api/mod.ts DeviceValue 92493af083b5
 src/lib/api/mod.ts DiskUsage 292a0300a59e databaseBytes=bff663e7d28e,databaseTables=6fd7389b642a,tiers=c8838ac64ea4
 src/lib/api/mod.ts DomainEvent 0aa43a7a752b data=b02493bbece4,id=752fa5797ebe,lane=23bb83849782,nodeId=a65255847853,source=f0a45da73b3e,subject=8f9e5857d4d0,time=b68f55c937f4,type=e22be5ee8605,write=984acd0a8c22
+src/lib/api/mod.ts DriverAnswer 08e3b2d0c365 message=3711f975e410,taken=edb065714e9c
 src/lib/api/mod.ts DriverConfigField 2d8727fb0eba label=af04505f402e,name=6d0c36381511,required=e33495947f08,secret=3615ba16652b,type=f09f508ce66a
 src/lib/api/mod.ts DriverSummary ba5c6d6c9f69 config=99733922b96c,description=c4833b0d92ac,devices=0b423a2dfb59,input=9daf76bc18f0,module=a18fa72ffaa2,name=6d0c36381511,running=d600d52ce08c
 src/lib/api/mod.ts ENDPOINT_TYPES 52e26bf0f551
@@ -1094,7 +1119,7 @@ src/lib/api/mod.ts EXCEPTIONS_SHOWN 3c2047348dcc
 src/lib/api/mod.ts EffectiveEntry 877def9811c9 level=81cfde6ff39f,path=3fd20668ef6e,title=22df3e6ba489,username=02356e67b2c7,via=69ed95e6d00f,viaGroup=a985c7946614
 src/lib/api/mod.ts EndpointAttrs ac42337bf5f2
 src/lib/api/mod.ts EndpointCategory 288a887a0d76
-src/lib/api/mod.ts EndpointSummary 933851a91ecb category=8dbfbe06208b,deviceClass=72f9156d826f,events=c7a660a34b67,label=af04505f402e,last=4726de26d01b,name=6d0c36381511,path=3fd20668ef6e,requested=609b50974d15,retired=07ad4691d515,schema=9638f57713c7,stream=504073fbc603,supported=05ae95badaa0,track=3f05ace98946,type=3c24dca901cd,unit=a31f90e44103,writable=2c61a6e4b326
+src/lib/api/mod.ts EndpointSummary 133aab464dc9 category=8dbfbe06208b,deviceClass=72f9156d826f,events=c7a660a34b67,label=af04505f402e,last=4726de26d01b,live=2753bead5986,name=6d0c36381511,path=3fd20668ef6e,requested=609b50974d15,retired=07ad4691d515,schema=9638f57713c7,stream=504073fbc603,supported=05ae95badaa0,track=3f05ace98946,type=3c24dca901cd,unit=a31f90e44103,writable=2c61a6e4b326
 src/lib/api/mod.ts EndpointType 873cd7617d63
 src/lib/api/mod.ts EntityCompleteHit 3a38d543ef15 kind=9089229b6341,name=6d0c36381511,ownership=422e1253f570,path=3fd20668ef6e,score=cdcc05f75100,type=e22be5ee8605
 src/lib/api/mod.ts EntityCompleteResult c5e4ec0c4aa1 results=c985fc1b9883
@@ -1120,7 +1145,7 @@ src/lib/api/mod.ts GroupUpdated d10df4ad8da9 groupname=bb31fa69b640,updated=3d6b
 src/lib/api/mod.ts HealReport 93ad5942328f input=7cdc3b3c8658,needsPerson=da29973ca2c9,rerun=e89e4ef45f94,retired=942e75db49c0,waiting=082ccac1d31d
 src/lib/api/mod.ts HealthAnswer de40d03136a4 checks=48a536f48872,summary=6acb71ce46d1,verdict=2dc315be2720
 src/lib/api/mod.ts HealthCheck 43cbda1a01b9 name=6d0c36381511,reason=5fb458d38f74,service=8f8407357b77,state=7cb924224846
-src/lib/api/mod.ts HeldShareLink 77320111b197 expiresAt=7f1dc30637cf,id=752fa5797ebe,path=3fd20668ef6e,title=f6007128d157,type=e22be5ee8605
+src/lib/api/mod.ts HeldShareLink 1b14c149047b expiresAt=7f1dc30637cf,id=752fa5797ebe,path=3fd20668ef6e,route=1d810b4693d8,title=f6007128d157,type=e22be5ee8605
 src/lib/api/mod.ts HistoryAggregate b21795ccfd3a
 src/lib/api/mod.ts HostMetrics 614dc8597492 cpu=af2d62a38378,device=dc9837b78932,lag=df22a4b0150c,memory=3736b7daf7fa,sampled=f8c4a3271656
 src/lib/api/mod.ts INSTANCE_STATUSES ce7dcbd0ac95
@@ -1141,7 +1166,7 @@ src/lib/api/mod.ts LogReadEntries 89d70c2bcaa8 entries=713866c82c89
 src/lib/api/mod.ts LogStat 154da2a900f6 retention=35412828e732,routingKeys=11a47683d8fc,size=5d025bf53508
 src/lib/api/mod.ts MembershipChanged 74e9ebd9fa69 action=57ec527970ff,group=fa0113d0351a,user=f5dd46b51dfb
 src/lib/api/mod.ts MetricPoint 148c3764d23d at=8cd35eed1400,value=8dd8911155c9
-src/lib/api/mod.ts ModuleEntry 184f7d5ceab4 commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
+src/lib/api/mod.ts ModuleEntry 1782805893cf commands=f98a324167ff,coreApi=0e19443e1c1b,dependencies=74d1d3a9d78f,description=644be3c4d4da,groups=03a5640883b2,installed=5074fb1fb309,name=6d0c36381511,path=3fd20668ef6e,routes=47403b686c8c,serviceRanges=3faed31dbcfd,services=76eb9d98ed7c,setup=21ef97054b57,version=40823ead045f,webUis=e0713e52a29a
 src/lib/api/mod.ts ModuleGroups 3ddc9b28ea52 groups=df5ef28e2a7f,name=6d0c36381511
 src/lib/api/mod.ts ModuleInstall efda086a5998 at=f9e6ea108483,commit=ff520a93c1b2,ref=5bab60719c93,repository=b87f65f27efe
 src/lib/api/mod.ts ModuleInstallJob 3a295de592d8 args=3d90c35b349d,by=2e436585632a,finishedAt=79a3d2e9bbdf,id=752fa5797ebe,lines=7bf46bee46ab,result=6662f91c9d4d,startedAt=f7a48429c31f,state=02bcf625bf3b,unpacking=ebd1d209fc05
@@ -1213,6 +1238,7 @@ src/lib/api/mod.ts SearchResponse e998f6c14da0 above=17ea78da8adc,anchorIndex=62
 src/lib/api/mod.ts SearchSubjectMatch 41f4cd8bf913 name=6d0c36381511,ref=5bab60719c93
 src/lib/api/mod.ts SearchSubjectRef 44c43fbe16c1 kind=9089229b6341,matches=6a5ed2aefd94,name=6d0c36381511,ref=08ef4293e8f1
 src/lib/api/mod.ts ServiceEntry 3ec188cdee97 description=c4833b0d92ac,detail=29651862fc5c,enabled=f70a52e841b2,module=6c8b15af3edd,name=6d0c36381511,restartCount=a0cfd3025707,startedAt=2e6346888312,status=606b7556b079
+src/lib/api/mod.ts ServiceWanted 51451d494372 line=bc560d6fa3dd,modules=892fb0fcb0da
 src/lib/api/mod.ts SessionEntry 0a56c775c77c activeAt=10b4d0185fa4,command=6921422266e7,cwd=fb782f68dd39,from=c8d7e716465d,origin=091872a95b05,since=4272066b42ba,tty=6de472af68af,uid=d8def3ee020e,user=f5dd46b51dfb
 src/lib/api/mod.ts ShareException da5cc431f443 name=6d0c36381511,path=3fd20668ef6e,preset=3c5e7e298ab8,type=e22be5ee8605
 src/lib/api/mod.ts ShareGrant ad6a70787dd7 id=1fc1576a213d,kind=2e3b33b5a162,level=81cfde6ff39f,members=43fa641cea6c,name=6d0c36381511,path=c29ab32b39f5,personPath=5ad26cc58ba7,role=9af6fa252533,source=649202b27368,title=22df3e6ba489
@@ -1234,10 +1260,15 @@ src/lib/api/mod.ts StatsOverview 5a3a5f827164 nodeTypes=aa49233bcb23
 src/lib/api/mod.ts StorageTier c986b68fc0db bytesPerDay=c3b39afb60fd,daysUntilFull=185b0321edc0,device=dc9837b78932,filesBytes=5000403da816,freeBytes=83f01c00d354,path=3fd20668ef6e,tier=61a16a28c047,totalBytes=d9605855ffba,usedPercent=bea966994fba
 src/lib/api/mod.ts StoryboardRendition 0d8fdf517ec9 columns=03d908b52c17,maxTiles=20eceeda8f93,minInterval=073eadf9c3db,quality=f53f72d7683c,tile=b4392b86f5e2
 src/lib/api/mod.ts StreamInfo a64afa04e054 audio=dd6b7c7de43b,codec=44de2b8e40b6,fps=a6dd5c29456f,height=64579e3c11b3,width=a3309c29fc2e
+src/lib/api/mod.ts StreamedFile 85ce9864ac40 id=752fa5797ebe,title=f6007128d157,type=e22be5ee8605,url=53273d06d6ef
+src/lib/api/mod.ts StreamedPage 0245d91a093f hls=fbd0e8da9119,path=3fd20668ef6e,remote=e07a301c76b1
 src/lib/api/mod.ts SubjectEntry 0565fcbee9e5 error=03c9a5b2b69b,ids=9122864f7055,match=da2b6926c5b0,path=c29ab32b39f5,ref=5bab60719c93,truncated=3ea297a2e647
 src/lib/api/mod.ts SubjectListing fa4b7e68258d subjects=d0ef21a7668d
 src/lib/api/mod.ts SubjectMatch 01cef5f7c778 attr=5043d8c692fc,value=5647ee15e4bf
 src/lib/api/mod.ts SubjectsOf c9746fc70700 media=8d2eed26ba20,subjects=237958bac244
+src/lib/api/mod.ts SupervisedService 1b1d055f7413 built=5e85549d1123,gives=828e8270c667,health=a3eeb52818cd,image=0725b2bfeda8,installed=408b24ae566e,line=600ffe57ff8f,name=6d0c36381511,optional=5619ce6d25f8,since=0c957a4c8f18,size=2569de6b74f3,state=08da4259d27c,title=f6007128d157,unknown=1797d27bc66d,version=b3cf6f09d5d6,wanted=54dfd93f8595
+src/lib/api/mod.ts SupervisorJob 86cd047d6fb6 args=3d90c35b349d,by=2e436585632a,endedAt=eaa8c370ccb5,id=752fa5797ebe,lines=4b85d992ef3f,startedAt=f7a48429c31f,state=02bcf625bf3b
+src/lib/api/mod.ts SupervisorStatus 1d0b6f9744fd configured=11d162315d51,engine=25a6a4eaf8a3,error=03c9a5b2b69b,job=0dababb538e1,services=4eb5da9c854f,updateAt=f116cb72ce9b,version=b3cf6f09d5d6
 src/lib/api/mod.ts SystemInfo 7dd0b2089adc api=0398aee21fe0,build=a2a6852185c3,database=be65addccaf9,denoVersion=c9c36a453d5f,hostname=c983f8ec2462,timeZone=244a6abd36d3,uptimeMs=7f31c93a294f,version=103f4ae183fc
 src/lib/api/mod.ts TextEmbedding 8f4c92e08581 model=9574a17f64c2,vectors=4a9c29e273fc
 src/lib/api/mod.ts TrashEntry b7fba30a32e2 count=5f7a2d24acdb,id=752fa5797ebe,label=995d88c00ff2,mimetype=fc3dc85c3380,name=6d0c36381511,origPath=8c19a28ebd5f,path=3fd20668ef6e,trashedAt=2c8ead892bf3,type=e22be5ee8605

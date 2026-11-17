@@ -291,19 +291,25 @@ Deno.test('ui-nav: panels put a module route in a shell page, by slot and order'
   assertEquals(nav.warnings, ['archive.half: no route']);
 });
 
-Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one that is not { has } is left out', () => {
+Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one that is not { has, live } is left out', () => {
   const archive: NamedLayer = {
     source: 'archive',
     layer: {
       panels: [
         { id: 'archive.trips', slot: 'device.tabs', label: 'Trips', route: '/trips?device={path}', when: { has: 'track' } },
+        { id: 'archive.watch', slot: 'device.tabs', label: 'Watch', route: '/watch?device={path}', when: { has: 'stream', live: true } },
         { id: 'archive.odd', slot: 'device.tabs', label: 'Odd', route: '/odd', when: { kind: 'track' } as never },
         { id: 'archive.list', slot: 'device.tabs', label: 'List', route: '/list', when: 'track' as never },
+        { id: 'archive.maybe', slot: 'device.tabs', label: 'Maybe', route: '/maybe', when: { has: 'stream', live: 'yes' } as never },
       ],
     },
   };
-  assertEquals(resolveNav([archive], [], user).panels.map((panel) => [panel.id, panel.when]), [['archive.trips', { has: 'track' }]]);
-  assertEquals(resolveNav([archive], [], user).warnings, ['archive.odd: when is not { has: <node type> }', 'archive.list: when is not { has: <node type> }']);
+  assertEquals(resolveNav([archive], [], user).panels.map((panel) => [panel.id, panel.when]), [
+    ['archive.trips', { has: 'track' }],
+    ['archive.watch', { has: 'stream', live: true }],
+  ]);
+  const refused = (id: string) => `${id}: when is not { has: <node type>, live: <true or false> }`;
+  assertEquals(resolveNav([archive], [], user).warnings, [refused('archive.odd'), refused('archive.list'), refused('archive.maybe')]);
   const everywhere = resolveNav([archive], [{ source: '/etc/ui/nav.json', layer: { panels: [{ id: 'archive.trips', when: null }] } }], user);
   assertEquals(everywhere.panels.find((panel) => panel.id === 'archive.trips')?.when, undefined);
 });

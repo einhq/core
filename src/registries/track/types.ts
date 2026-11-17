@@ -19,11 +19,13 @@ export type TrackPoint = {
   alt?: number;
   speed?: number;
   course?: number;
+  /** How far off the fix may be, in metres, as its receiver said. */
+  accuracy?: number;
   /**
    * Why the fix is left out, on a fix read with its rejected ones: the rule that rejected it
    * (`rules.ts`), or `manual` when a person did.
    */
-  rejected?: 'excursion' | 'manual';
+  rejected?: 'excursion' | 'inaccurate' | 'manual';
   /** What a person said of the fix, which overrules the rules; on a read that keeps detail. */
   manual?: TrackVerdict;
 };
@@ -94,7 +96,7 @@ export type TrackReadOptions = TrackRange & {
   /**
    * Douglas–Peucker tolerance in degrees. Set from zoom by the caller: roughly
    * the size of one screen pixel, so the line loses only what cannot be seen.
-   * Omitted means every point, and `alt`/`speed`/`course` survive — a simplified
+   * Omitted means every point, and `alt`/`speed`/`course`/`accuracy` survive — a simplified
    * read keeps position and time only.
    */
   tolerance?: number;

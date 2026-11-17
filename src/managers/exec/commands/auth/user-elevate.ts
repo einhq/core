@@ -2,6 +2,7 @@ import type { UserElevated } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { passwordReader } from './password-stdin.ts';
 
 export const userElevate = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
@@ -13,7 +14,8 @@ export const userElevate = async (cmd: Command): CmdReturn => {
     if (flags.off) {
       await cmd.unelevate(flags.session);
     } else {
-      await cmd.elevate(flags.password ?? await cmd.prompt('Password: ', 'secret', 'add --password'), flags.session);
+      const password = await passwordReader(cmd)(flags.password);
+      await cmd.elevate(password ?? await cmd.prompt('Password: ', 'secret', 'add --password=- and give it on stdin'), flags.session);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -40,7 +42,7 @@ userElevate.spec = {
     {
       name: 'password',
       type: 'string' as const,
-      description: 'your own password (prompts if not given); --password=<value> for one starting with a dash',
+      description: 'your own password, or - to read it from stdin; prompts if not given',
     },
     {
       name: 'session',

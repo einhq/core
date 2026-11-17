@@ -1,7 +1,7 @@
 import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
 import type { Access } from '../../../lib/access/mod.ts';
-import type { Node, NodeEntry } from '../../../vfs/mod.ts';
+import { type Node, type NodeEntry, NodeNotFoundError } from '../../../vfs/mod.ts';
 import { NODE_TYPE_STREAM } from '../../../vfs/types/device.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import type { DownloadLog } from '../download-log.ts';
@@ -33,6 +33,29 @@ type GetFileOptions = {
 const RENDITION_PATH = /^(.+)\/thumbnails\/([^/]+)$/;
 
 /**
+ * What a file opened on its own may do: nothing that runs. `sandbox` gives the page an origin of its
+ * own with no scripts, so a member's file cannot reach the viewer's session or `/__shell`
+ * (ein/core#1350). A page loading the file as an image, a video or by `fetch` ignores it.
+ */
+const FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'";
+
+/** Types a browser opens as a page of its own: HTML, and XML, which may be XHTML. SVG is a picture and keeps its type. */
+const isPageType = (type: string): boolean => type === 'text/html' || type === 'text/xml' || type === 'application/xml' || (type.endsWith('+xml') && type !== 'image/svg+xml');
+
+/**
+ * The headers a file from the tree goes out with, which are never more than its stored mimetype
+ * allows: a page type is sent as plain text, so it shows its source, and nothing is sniffed. A PDF is
+ * left out of the sandbox: the browser's own viewer shows it, apart from the page, and not every
+ * browser's viewer runs in a sandboxed one.
+ */
+function setFileHeaders(headers: Headers, mimetype: string | undefined): void {
+  const type = (mimetype ?? '').split(';')[0].trim().toLowerCase();
+  headers.set('Content-Type', !type ? 'application/octet-stream' : isPageType(type) ? 'text/plain; charset=utf-8' : mimetype ?? type);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  if (type !== 'application/pdf') headers.set('Content-Security-Policy', FILE_POLICY);
+}
+
+/**
  * For a file's own rendition, `<file>/thumbnails/<name>`, the same rendition of the picture its
  * `shown` attr names (a restored copy among its versions); undefined when the file shows itself,
  * or that picture has no rendition of the name, so the file's own is served.
@@ -62,9 +85,52 @@ async function shownRendition(
 }
 
 export async function handleGetFile(config: HttpServerConfig, req: Request, url: URL, opts: GetFileOptions = {}): Promise<Response> {
+  const vfsPath = decodeURIComponent(url.pathname.replace('/file', ''));
+  // An encoded `..` survives the URL's own normalising: a site path would climb out of the site.
+  if (vfsPath.split('/').some((segment) => segment === '.' || segment === '..')) throw new NodeNotFoundError(vfsPath);
+  const ticket = url.searchParams.get('ticket');
+  if (ticket !== null) return await ticketFile(config, req, url, vfsPath, ticket);
   const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
   if (!opts.site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
-  const vfsPath = decodeURIComponent(url.pathname.replace('/file', ''));
+  return await serveFile(config, req, url, vfsPath, access, responseHeaders, { ...opts, sessionPath });
+}
+
+/**
+ * A file read with a ticket a driver gave a device on the network (`fileTicket`): as the access the
+ * ticket holds, without a session, and from any page, since a Cast device's player fetches from one.
+ * A DLNA renderer that asks how the file may be read (`getcontentFeatures.dlna.org`) is told it may
+ * seek by byte, and the transfer mode it asks for is granted.
+ */
+async function ticketFile(config: HttpServerConfig, req: Request, url: URL, vfsPath: string, ticket: string): Promise<Response> {
+  const responseHeaders = new Headers({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges' });
+  if (req.headers.get('getcontentfeatures.dlna.org') === '1') responseHeaders.set('contentFeatures.dlna.org', DLNA_FEATURES);
+  const mode = req.headers.get('transfermode.dlna.org');
+  if (mode && /^(Streaming|Interactive|Background)$/.test(mode)) responseHeaders.set('transferMode.dlna.org', mode);
+  const access = config.devices?.fileTicketAccess(ticket, vfsPath);
+  if (!access) return new Response('the ticket has run out or is for another file', { status: 403, headers: responseHeaders });
+  return await serveFile(config, req, url, vfsPath, access, responseHeaders, {});
+}
+
+/** DLNA's flags for a file: seeks by byte range (OP=01), not converted (CI=0), streamed or read in the background. */
+const DLNA_FEATURES = 'DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000';
+
+/** What a page asks before it reads a file with a ticket and a `Range`: anyone may, the ticket decides. */
+export const ticketPreflight = (): Response =>
+  new Response(null, {
+    status: 204,
+    headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, HEAD', 'Access-Control-Allow-Headers': '*', 'Access-Control-Max-Age': '600' },
+  });
+
+async function serveFile(
+  config: HttpServerConfig,
+  req: Request,
+  url: URL,
+  vfsPath: string,
+  access: Access,
+  responseHeaders: Headers,
+  opts: GetFileOptions & { sessionPath?: string },
+): Promise<Response> {
+  const { sessionPath } = opts;
   // Resolved once for both the `get` and the `open` below: a static asset's path runs through
   // softlinks and a mount, and every softlink restarts the walk from the root
   // (ein/core#437). Both calls still check read access on the node itself.
@@ -104,6 +170,10 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
     return new Response(null, { status: 404, headers: responseHeaders });
   }
 
+  // The site's own pages, the shell's document among them, are EiN's and go out as they are typed.
+  if (opts.site) responseHeaders.set('Content-Type', node.attrs.mimetype || 'application/octet-stream');
+  else setFileHeaders(responseHeaders, node.attrs.mimetype);
+
   const etag = node.attrs.sha256 ? `"${node.attrs.sha256}"` : undefined;
 
   if (etag) {
@@ -139,7 +209,6 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
 
   const range = parseByteRange(req.headers.get('range'), size);
 
-  responseHeaders.set('Content-Type', node.attrs.mimetype || 'application/octet-stream');
   // Without this, <video> cannot seek: the browser has to buffer the whole
   // transcode before a scrub works
   responseHeaders.set('Accept-Ranges', 'bytes');
@@ -150,7 +219,7 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   }
 
   // A read from the start is a download; the requests a player seeks with are part of the one before.
-  if (req.method === 'GET' && (!range || range.start === 0)) await opts.downloads?.file(access, sessionPath, opts.from, vfsPath, node);
+  if (req.method === 'GET' && (!range || range.start === 0)) await opts.downloads?.file(access, sessionPath ?? '', opts.from, vfsPath, node);
 
   if (!range) {
     responseHeaders.set('Content-Length', size.toString());

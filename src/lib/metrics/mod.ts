@@ -1,3 +1,4 @@
+export * from './activity.ts';
 export * from './derive.ts';
 export * from './disk.ts';
 export * from './host.ts';

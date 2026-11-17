@@ -3,7 +3,7 @@
  * for them — an account that has none yet, or whose person forgot it.
  *
  *   user-invite <user> [--new [--days <n>]|--off]     an administrator shows, makes or takes away the link
- *   user-invite-accept <token> [--password=<p>]      whoever holds it sees which account it is for, and chooses its password
+ *   user-invite-accept <token> [--password=<p>|-]    whoever holds it sees which account it is for, and chooses its password
  *
  * The administrator sends the link however they like; EiN sends no e-mail. Choosing a password
  * with it spends it, sets the password whether or not the account had one, and signs in.
@@ -19,6 +19,7 @@ import type { UserInvite, UserInviteAccepted } from '../../../../lib/api/users.t
 import { isUserNode, type UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { passwordReader } from './password-stdin.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -84,6 +85,7 @@ userInvite.spec = {
 export const userInviteAccept = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { string: ['password'], boolean: ['session'] });
   const token = String(flags._[0] ?? '');
+  const password = await passwordReader(cmd)(flags.password);
   // A token that names nothing, an expired one and one whose account is disabled get the same
   // answer, which tells a guesser nothing.
   const dead = 'this sign-in link does not work any more';
@@ -94,21 +96,21 @@ export const userInviteAccept = async (cmd: Command): CmdReturn => {
     const { username, userPath, userNode } = account;
     const { name: title, email } = userNode.attrs;
 
-    if (flags.password === undefined) {
+    if (password === undefined) {
       const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), ...(email ? { email } : {}), signedIn: false };
       if (cmd.json) await cmd.writeJSON(answer satisfies UserInviteAccepted);
       else await cmd.writeLn(`For ${username}${title ? ` (${title})` : ''}`);
       return 0;
     }
-    if (flags.password === '') return await fail(cmd, 'user-invite-accept', 'the password cannot be empty');
+    if (password === '') return await fail(cmd, 'user-invite-accept', 'the password cannot be empty');
 
     // Spent first: two who hold the link at once cannot both choose the password.
     await removeInvite(cmd.sys.vfs, userPath);
-    await setAccountPassword(cmd.sys.vfs, { ...cmd.access, admin: true }, userPath, flags.password, cmd.launchEnv);
+    await setAccountPassword(cmd.sys.vfs, { ...cmd.access, admin: true }, userPath, password, cmd.launchEnv);
     if (userNode.attrs.mustResetPassword) {
       await cmd.sys.vfs.update<UserAttrs>({ ...cmd.access, admin: true }, userPath, { attrs: { mustResetPassword: false } });
     }
-    await cmd.login(username, flags.password, flags.session);
+    await cmd.login(username, password, flags.session);
 
     const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), ...(email ? { email } : {}), signedIn: true };
     if (cmd.json) await cmd.writeJSON(answer satisfies UserInviteAccepted);
@@ -126,9 +128,9 @@ userInviteAccept.spec = {
   description: 'Which account a sign-in link is for, and with --password, choose its password with it, which spends the link and signs in',
   args: [{ name: 'token', type: 'string' as const, description: 'the token after /invite/ in the link' }],
   flags: [
-    { name: 'password', type: 'string' as const, writes: true, description: "the account's new password; give it as --password=<p>" },
+    { name: 'password', type: 'string' as const, writes: true, description: "the account's new password, as --password=<p>, or --password=- to read it from stdin" },
     { name: 'session', type: 'bool' as const, description: 'sign in the whole session, not just this shell' },
   ],
-  examples: ['user-invite-accept AbCdEfGhIjKlMnOpQrStUv', 'user-invite-accept AbCdEfGhIjKlMnOpQrStUv --password=correct-horse --session'],
+  examples: ['user-invite-accept AbCdEfGhIjKlMnOpQrStUv', 'user-invite-accept AbCdEfGhIjKlMnOpQrStUv --password=- --session'],
   returns: 'UserInviteAccepted',
 };

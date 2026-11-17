@@ -3,14 +3,17 @@
  *
  * A driver turns a device's raw input and output into its endpoints. A module's service registers
  * its drivers when it starts, in core's process, and core calls them while a write waits: `input`
- * for what is written to a device (`/file/dev/<device>`, `cat ride.gpx > /dev/old-etrex`), `write`
- * for a value written to one of its controls, `frame` and `live` for a reader of one of its
+ * for what a device posts to itself (`/file/dev/<device>`, a webhook's body), `write` for a value
+ * written to one of its controls (`echo 30 > /dev/kitchen-speaker/volume`, the paths a screen is to
+ * show), `frame` and `live` for a reader of one of its
  * streams. What a driver reads from its devices it appends with `append`, which publishes it on
  * `dev.<device>.<endpoint>` too.
  */
 
 import type { Access } from '../../lib/access/types.ts';
-import type { DeviceAttrs, DeviceFix, DeviceValue, DriverConfigField, EndpointAttrs, EndpointType } from '../../lib/api/devices.ts';
+import type { DeviceAttrs, DeviceFix, DeviceValue, DriverAnswer, DriverConfigField, EndpointAttrs, EndpointType } from '../../lib/api/devices.ts';
+
+export type { DriverAnswer };
 
 /** Raw input written to a device, as its driver is given it. */
 export type DriverInput = {
@@ -24,6 +27,8 @@ export type DriverInput = {
   query?: string;
   /** Who wrote it: an account's name, or `device:<name>` for a write made with the device's key. */
   by: string;
+  /** The writer's access, for what the driver reads on the writer's behalf. */
+  access: Access;
 };
 
 /** A value written to a control, checked against its schema, as its device's driver is given it. */
@@ -35,6 +40,8 @@ export type DriverWrite = {
   endpointAttrs: EndpointAttrs;
   value: DeviceValue;
   by: string;
+  /** The writer's access, for what the driver reads on the writer's behalf: the files a screen is to show. */
+  access: Access;
 };
 
 /** One of a device's streams, as its driver is asked for a frame of it or where to watch it. */
@@ -56,9 +63,6 @@ export type StreamFrame = { bytes: Uint8Array<ArrayBuffer>; type: string };
  */
 export type StreamLive = { url: string; headers?: Record<string, string> };
 
-/** What a driver answers raw input with: how much it took, and a word for the writer. */
-export type DriverAnswer = { taken?: number; message?: string };
-
 /** A driver, as a module's service registers it. */
 export type Driver = {
   description: string;
@@ -68,8 +72,8 @@ export type Driver = {
   config?: DriverConfigField[];
   /** Raw input written to one of its devices; refuses what it cannot read by throwing. */
   input?(raw: DriverInput): Promise<DriverAnswer | void>;
-  /** A value written to one of its devices' controls, sent on to the device. */
-  write?(command: DriverWrite): Promise<void>;
+  /** A value written to one of its devices' controls, sent on to the device; a word for the writer, when it has one. */
+  write?(command: DriverWrite): Promise<{ message?: string } | void>;
   /** One of its devices is being forgotten: let go of what would make it again. */
   forget?(device: string): Promise<void>;
   /**
@@ -79,7 +83,10 @@ export type Driver = {
   setup?(device: string): Promise<void>;
   /** One frame of one of its devices' streams, as it is now; throws when the device does not give one. */
   frame?(stream: DriverStream): Promise<StreamFrame>;
-  /** Where one of its devices' streams is watched live; throws when it cannot be. */
+  /**
+   * Where one of its devices' streams is watched live; throws when it cannot be. A driver that
+   * cannot watch any live leaves it out, so its streams are not offered live (`EndpointSummary.live`).
+   */
   live?(stream: DriverStream): Promise<StreamLive>;
   /**
    * An address another service reads one of its devices' streams at, with what it signs in with
@@ -137,4 +144,54 @@ export interface ModuleDevices {
    * `source` says, credentials and all; the caller must be the administrator, as a service is.
    */
   streamSource(access: Access, device: string, endpoint: string): Promise<string>;
+  /**
+   * A ticket for a device on the network, which cannot sign in, to read the file `path` with as
+   * `access` would: `/file<path>?ticket=<ticket>` answers that path, and no other, to whoever
+   * presents it. It runs out a few minutes after it was made unless it is renewed. Throws when
+   * `access` cannot read the file.
+   */
+  fileTicket(access: Access, path: string): Promise<string>;
+  /** Keep a file ticket from running out for a few minutes more; false when it already has. */
+  renewFileTicket(ticket: string): boolean;
+  /** End a file ticket now. */
+  dropFileTicket(ticket: string): void;
+  /**
+   * A path for a browser that cannot sign in, the media service's rendering a page for a screen:
+   * opened once within a minute, `/__page/<ticket>` signs it in as `access`, read-only as a share
+   * link's visitor reads, and sends it to `route` (a path of this server, `/dashboard-wall/Kitchen`).
+   */
+  pageSignIn(access: Access, route: string): string;
+  /**
+   * Serve a live stream to a device on the network, which cannot sign in: `<path>.mp4` and
+   * `<path>.ts` answer whoever has the path, its id long and random, with what `open` gives one
+   * reader, until `end` or until `open` answers that the stream has ended.
+   */
+  serveLive(open: LiveOpen): LiveServed;
+  /**
+   * Serve files made on demand to a device on the network, which cannot sign in, as a set: an HLS
+   * playlist and its segments. `<path>/<name>` answers whoever has the path, its id long and random,
+   * with what `get(name)` gives, or 404 when it gives nothing, until `end`.
+   */
+  serveFiles(get: ServedFiles): LiveServed;
 }
+
+/** A live stream's two forms: fragmented MP4 (a Cast player's) and MPEG-TS (a DLNA screen's). */
+export type LiveFormat = 'mp4' | 'ts';
+
+/**
+ * One reader's bytes of a live stream in `format`, cancelled when the reader goes; undefined once
+ * the stream has ended for good.
+ */
+export type LiveOpen = (format: LiveFormat) => Promise<ReadableStream<Uint8Array> | undefined>;
+
+/** One file of a set served to a device: its bytes, or a stream of them, and its media type. */
+export type ServedFile = { body: Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>; type: string };
+
+/**
+ * The file `name` of a set served (`index.m3u8`, `12.ts`); undefined when the set has none by that
+ * name. Throwing says it cannot be made now, which the reader is told as 503.
+ */
+export type ServedFiles = (name: string) => Promise<ServedFile | undefined>;
+
+/** A live stream or a set of files served: where (`/live/<id>`, without a format's extension or a name), and how to stop serving it. */
+export type LiveServed = { path: string; end(): void };

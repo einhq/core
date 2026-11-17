@@ -1,7 +1,7 @@
 import { AppShell, Box, MantineProvider } from '@mantine/core';
 import { useDisclosure, useDocumentTitle, useMediaQuery } from '@mantine/hooks';
 import { useSignals } from '@preact/signals-react/runtime';
-import { AppHeader, AppNavbar, CodeEditorModal, DialogHost, DrawerHost, FullscreenHost, ShareModalHost, Terminal } from '@ein/ui/components';
+import { AppHeader, AppNavbar, CodeEditorModal, DialogHost, DrawerHost, FullscreenHost, ShareModalHost, ShowOnHost, Terminal } from '@ein/ui/components';
 import { CommandPalette } from './components/Palette/CommandPalette.tsx';
 import { ToastHost } from './components/Toast/ToastHost.tsx';
 import { BackToTop } from './components/Layout/BackToTop.tsx';
@@ -10,6 +10,7 @@ import { PageScrollbar } from './components/Layout/PageScrollbar.tsx';
 import { ShortcutHelp } from './components/Palette/ShortcutHelp.tsx';
 import { watchSidebarSwipe } from './lib/sidebar-swipe.ts';
 import { DRAWER_SLIDE_MS } from './lib/drawer-slide.ts';
+import { fullscreenRouteFromSearch } from './lib/fullscreen-search.ts';
 import {
   checkAuth,
   DRAWER_BESIDE_QUERY,
@@ -112,7 +113,11 @@ function Frame({ children }: Props) {
   // A visitor held to their link sees the pages of what it opens, and none of the frame that leads
   // elsewhere: no sidebar.
   const confined = linkVisitor.value;
-  const withinLink = !authenticated && heldLinkRoutes.value.some((link) => withinRoute(location.pathname, link.route));
+  // A route shown full screen over a page is what the page shows: a dashboard's wall opens over the
+  // dashboard's page.
+  const shownFullscreen = fullscreenRouteFromSearch(location.search);
+  const withinLink = !authenticated &&
+    heldLinkRoutes.value.some((link) => withinRoute(location.pathname, link.route) || (shownFullscreen !== undefined && withinRoute(shownFullscreen, link.route)));
   const connected = shellClientConnected.value;
   // The side drawer steps aside on its route's own page (the chat's), which is the same
   // route at full size; it is left open, so leaving the page brings it back.
@@ -325,6 +330,7 @@ function Frame({ children }: Props) {
       <FullscreenHost />
       <FloatHost />
       <ShareModalHost />
+      <ShowOnHost />
       <CodeEditorModal />
       <BackToTop />
       <ToastHost />

@@ -305,6 +305,28 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Search',
     emptyMeans: 'by words alone',
   },
+  {
+    key: 'CFG_PAGE_STREAMER',
+    scope: 'system',
+    type: 'string',
+    default: '',
+    label: 'Page streamer',
+    description:
+      "The command that renders a page of EiN as live video, which a screen near the browser — on the network of a phone that reaches EiN over the internet — plays from EiN's address. Empty offers no screen near the browser in Show on. The media service sets itself here when it is installed.",
+    group: 'Devices',
+    emptyMeans: 'no screen near the browser',
+  },
+  {
+    key: 'CFG_FILE_STREAMER',
+    scope: 'system',
+    type: 'string',
+    default: '',
+    label: 'File streamer',
+    description:
+      "The command that makes a recording or video into what a screen near the browser fetches from EiN's address, run with start <path>, renew <id> and stop <id>. Empty offers a screen near the browser for pages only. The devices module sets itself here when it is installed.",
+    group: 'Devices',
+    emptyMeans: 'no recording or video goes to a screen near the browser',
+  },
 
   /* Modules — where `mod search`, `mod install` and the Modules settings find the published ones. */
   {
@@ -336,6 +358,28 @@ export const CORE_OPTIONS: ConfigOption[] = [
     label: 'Tokens for module sources',
     description:
       'Access tokens for module sources that are not public, as host=token separated by spaces, such as forge.example:3000=… github.com=…. Each token is sent to its own host only.',
+    group: 'Modules',
+  },
+
+  /* The supervisor — the services beside EiN, installed and updated from Settings → Modules. */
+  {
+    key: 'CFG_SUPERVISOR_URL',
+    scope: 'system',
+    type: 'string',
+    default: '',
+    label: 'Supervisor',
+    description:
+      "The address of the supervisor beside EiN, which installs the services modules talk to — the media service, the language model, the devices sidecar — when the administrator asks, and updates them and EiN itself. setup.sh sets it in an installation from GitHub's einhq.",
+    group: 'Modules',
+    emptyMeans: 'none: the services are installed and updated on the machine, with setup.sh',
+  },
+  {
+    key: 'CFG_SUPERVISOR_KEY',
+    scope: 'system',
+    type: 'secret',
+    default: '',
+    label: 'Supervisor key',
+    description: 'The key EiN asks the supervisor with, which setup.sh makes.',
     group: 'Modules',
   },
 

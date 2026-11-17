@@ -2,20 +2,21 @@ import { parseArgs } from '../../../lib/args/mod.ts';
 import { accountByLoginName } from '../../../lib/auth/email.ts';
 import type { Command } from '../command.ts';
 import type { CmdReturn } from '../types.ts';
+import { passwordReader } from './auth/password-stdin.ts';
 
 export const login = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
     boolean: ['session'],
   });
   const username = flags._[0] as string;
-  const passwordArg = flags._[1] as string | undefined;
+  const given = await passwordReader(cmd)(flags._[1] as string | undefined);
 
   if (!username) {
     await cmd.writeError('login: missing username\n');
     return 1;
   }
 
-  const password = passwordArg ?? await cmd.prompt('Password: ', 'secret', 'give the password after the username');
+  const password = given ?? await cmd.prompt('Password: ', 'secret', 'give - after the username and the password on stdin');
 
   try {
     await cmd.login(username, password, flags.session);
@@ -48,7 +49,7 @@ login.spec = {
     {
       name: 'password',
       type: 'string' as const,
-      description: 'password (optional, prompts if not provided)',
+      description: 'password, or - to read it from stdin; prompts if not given',
       optional: true,
     },
   ],

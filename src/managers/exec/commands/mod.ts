@@ -75,6 +75,8 @@ import { logAppend } from './node/log-append.ts';
 import { logRead } from './node/log-read.ts';
 import { deviceHistory, devices, deviceShow } from './devices/read.ts';
 import { deviceConfig, deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
+import { streamFile } from './devices/stream-file.ts';
+import { streamPage } from './devices/stream-page.ts';
 import { relate, unrelate } from './node/relate.ts';
 import { relationsGuard } from './node/relations-guard.ts';
 import { star } from './node/star.ts';
@@ -133,6 +135,10 @@ import { modStatus } from './mod/mod-status.ts';
 import { modCache } from './mod/mod-cache.ts';
 import { modSetup } from './mod/mod-setup.ts';
 import { mod } from './mod/mod.ts';
+import { supervisor } from './supervisor/supervisor.ts';
+import { supervisorInstall } from './supervisor/supervisor-install.ts';
+import { supervisorStatus } from './supervisor/supervisor-status.ts';
+import { supervisorUpdate } from './supervisor/supervisor-update.ts';
 import { fileStat } from './node/file-stat.ts';
 import { fileSync } from './node/file-sync.ts';
 import { serviceAdd } from './service/service-add.ts';
@@ -338,6 +344,8 @@ export const COMMAND_NAMES: CmdFunction[] = [
   deviceLabel,
   deviceForget,
   deviceKey,
+  streamFile,
+  streamPage,
   relate,
   unrelate,
   relationsGuard,
@@ -372,6 +380,10 @@ export const COMMAND_NAMES: CmdFunction[] = [
   modRemove,
   modSearch,
   modStatus,
+  supervisor,
+  supervisorInstall,
+  supervisorStatus,
+  supervisorUpdate,
 
   // Service management
   service,

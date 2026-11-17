@@ -229,7 +229,22 @@ export type { TrackSummary } from '../registries/track/types.ts';
 export { type Gpx, isGpx, parseGpx, timedPoints } from '../lib/track/gpx.ts';
 
 // Devices: a module's drivers and the writes they make (`cmd.sys.devices`).
-export type { AppendOptions, Driver, DriverAnswer, DriverInput, DriverStream, DriverWrite, ModuleDevices, StreamFrame, StreamLive } from '../managers/devices/types.ts';
+export type {
+  AppendOptions,
+  Driver,
+  DriverAnswer,
+  DriverInput,
+  DriverStream,
+  DriverWrite,
+  LiveFormat,
+  LiveOpen,
+  LiveServed,
+  ModuleDevices,
+  ServedFile,
+  ServedFiles,
+  StreamFrame,
+  StreamLive,
+} from '../managers/devices/types.ts';
 
 // A series out of a log: the latest samples of a metrics series, core's own or one a module's
 // service keeps, or any log's entries by time, as they are or summed up per interval.

@@ -80,6 +80,12 @@ export const modInfo = async (cmd: Command): CmdReturn => {
       }
     }
 
+    const services = Object.entries(manifest.services ?? {});
+    if (services.length > 0) {
+      await cmd.write(`\nRequires services:\n`);
+      for (const [service, range] of services) await cmd.write(`  ${service} ${range}\n`);
+    }
+
     // The public interface: what another module may import, and under which specifier.
     const exported = Object.entries(manifest.exports ?? {});
     if (exported.length > 0) {

@@ -931,9 +931,13 @@ walked twice. The first pass writes nothing: zip.js refuses a name with a `..` c
 absolute one, which refuses the archive, and the bytes of the files that will be written are
 summed against the disk tier's free space (`df` on `EIN_FILE_ROOT_PATH`, read then), refusing
 unless 1.1 × that fits; with no disk root published (a store in memory) the space is not checked.
+A folder below `-d` that cannot be read counts as empty there, and its entries fail as they are
+written.
 The second pass makes the directories and writes the files, each created, filled through the
 upload's attrs collector (size, sha256, mimetype from its bytes) and dated with the entry's time as
-`writtenAt`. A file already at an entry's path is left at the entry's size (`-n`, the default, so a
+`writtenAt`. Each directory below `-d` is looked at as itself (`readlink`), its parent first, so a
+softlink there, a folder's or in a file's place, is never followed out of the directory: the
+entries through it fail. A file already at an entry's path is left at the entry's size (`-n`, the default, so a
 run again goes on where one stopped) and is a failed entry at another size; `-o` writes over it. A
 file with no sha256 is one whose write never ended and is written again, and a file this run
 created and could not fill is removed. An entry that fails is named on stderr and in `failed`, the
@@ -941,7 +945,8 @@ rest are still expanded, and the command exits non-zero, so `unzip … && rm ARC
 archive. Its JSON answer is `UnzipAnswer` (`@ein/api`). The archive module's `staging-unzip`
 pipeline runs it for a zip written into a staging category, on the media pool, once the zip's
 upload has ended (its `sha256` is stored): an `updated` event while its bytes are still arriving
-starts nothing.
+starts nothing. The step runs it as the zip's owner (`runas`), so what the zip holds lands with
+that account's rights and is that account's, as the upload was.
 
 **Categories:**
 
@@ -1216,7 +1221,8 @@ cuts a device's track into trips and owns `/archive/locations` and every command
 **Devices** are core's too (`src/managers/devices/`): a `device` node at `/dev/<device>`, its
 endpoints the `log`, `track`, `control` and `stream` nodes under it. A driver turns the device's raw input
 and output into its endpoints: core's `tracker` (every protocol `tracker-protocols.ts` reads, GPX
-files included, into a `position` track), `webhook`, `host` (the machine EiN runs on,
+files included, into a `position` track, each fix with the accuracy its receiver gave; and what the
+device says of itself into its `battery`, `charging` and `activity` logs), `webhook`, `host` (the machine EiN runs on,
 `/dev/<hostname>`, in the administrators' group, whose readings `metrics-sampler` writes through
 `host.ts`) or a module's, registered by the module's service with
 `cmd.sys.devices.registerDriver` (`@ein/client`'s `Driver`). The VFS hands what is written to a
@@ -1232,7 +1238,17 @@ never cached), and `/stream/dev/<device>/<stream>` is a WebSocket that core open
 driver's `live` says (a restreamer's, with its credentials) and passes every message through, for
 whoever may read the stream. A service, the administrator, asks `streamSource` for the address
 another service reads a stream at (the driver's `source`, an RTSP address with its credentials),
-which is how the media service is told what to watch. A driver's config field it declares `secret` is kept in the device's
+which is how the media service is told what to watch. A driver whose device fetches a file itself
+(a Cast speaker, given recordings to play) makes it a file ticket with `fileTicket`, from the access
+its `input` was written with: `GET /file/<path>?ticket=…` reads that path alone as that access, with
+no session and from any origin, until a few minutes after the driver last renewed it
+(`file-tickets.ts`, in memory). A screen shown a page (a dashboard wall, a slideshow) gets it
+as video the media service renders in a browser of its own: `pageSignIn` makes a page ticket from
+the writer's access, and `GET /__page/<ticket>` opens one session for that browser, once and within
+a minute, acting as that access with a link held (`link.id` `page`), so it reads as the writer and
+writes nothing, and sends it on to the page (`page-tickets.ts`). `serveLive` serves the stream made
+of it at `/live/<id>.mp4` and `.ts`, an unguessable path the device fetches with no session and from
+any origin, until the driver ends it or its source says it has ended (`live-streams.ts`). A driver's config field it declares `secret` is kept in the device's
 `.secret` (a JSON object, the administrator's alone), which `device-create` writes and the driver
 reads with `secret`. A driver
 appends what it reads with `append`, through the VFS (so a track's change reaches whoever follows
@@ -1523,6 +1539,9 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 | `PUT\|POST /file/dev/<device>`  | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key                                                                     |
 | `GET /file/dev/<device>?key=…`  | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input                                                                   |
 | `POST /file/dev/<device>/<ep>`  | `dev-write`                           | A value: appended to a log or a track, or written to a control                                                                            |
+| `GET /file/<path>?ticket=…`     | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                     |
+| `GET /__page/<ticket>`          | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                            |
+| `GET /live/<id>.mp4\|.ts`       | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                           |
 | `GET /file/dev/<device>/<s>`    | `get-file` → `stream`                 | A frame of a stream now, from its driver (a JPEG, never cached)                                                                           |
 | `/stream/dev/<device>/<s>` (WS) | `stream`                              | Watch a stream live: passed through to where its driver says                                                                              |
 | `GET /*`                        | `get-default`                         | SPA fallback, vhost support                                                                                                               |

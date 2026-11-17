@@ -3,7 +3,8 @@
  * entries' time; a run again leaves the files already there and goes on past one it may not write
  * over; an archive with an entry that would land outside the directory is refused before anything
  * is written; and the free space is checked against what the run will write, not against the
- * whole archive. With `--as-upload` a file of a type `/etc/frozen-uploads` lists is frozen, as an
+ * whole archive. A softlink below the directory, to a folder or in a file's place, is not followed:
+ * the entries through it fail. With `--as-upload` a file of a type `/etc/frozen-uploads` lists is frozen, as an
  * upload of it is; without, none is. The zips are `fixtures/unzip/`, made by `make.ts` there.
  */
 
@@ -151,6 +152,33 @@ Deno.test({
       assertMatch(String(result.error), /refusing entry '\.\.\/utanfor\.txt'/);
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/z/slip'), false);
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/z/utanfor.txt'), false);
+    });
+
+    await t.step('a softlink below the directory is not followed, at any level', async () => {
+      await cmd.shouldSucceed('mkdir -p /z/linked /z/elsewhere && mkfile /z/elsewhere/blad.txt');
+      await cmd.shouldSucceed('ln -s /z/elsewhere /z/linked/Exempelresa && ln -s /z/elsewhere/blad.txt /z/linked/lösa-blad.txt');
+
+      const answer = await expand('/z/linked');
+
+      assertEquals(answer.files, 0);
+      assertEquals(answer.failed.map((failure) => failure.entry).sort(), [
+        'Exempelresa/',
+        'Exempelresa/dag-1/anteckningar.txt',
+        'Exempelresa/dag-1/karta/rutt.txt',
+        'Exempelresa/dag-2/tom/',
+        'Exempelresa/dag-2/väder.txt',
+        'lösa-blad.txt',
+      ]);
+      assertMatch(answer.failed[0].error, /^\/z\/linked\/Exempelresa is a softlink, which unzip does not follow/);
+      assertEquals(await client.execJson<unknown[]>('ls /z/elsewhere').then((names) => names.length), 1);
+      assertEquals((await vfs.get(ADMIN_ACCESS, '/z/elsewhere/blad.txt')).attrs.size ?? 0, 0);
+    });
+
+    await t.step("the directory itself is the caller's, and is followed when a softlink", async () => {
+      await cmd.shouldSucceed('mkdir -p /z/real && ln -s /z/real /z/via');
+
+      assertEquals((await expand('/z/via')).files, 4);
+      assertEquals(await text('/z/real/lösa-blad.txt'), 'Anna Andersson var med.');
     });
 
     await t.step('the space check refuses what would not fit, before anything is written', async () => {

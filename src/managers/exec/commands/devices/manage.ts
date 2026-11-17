@@ -234,9 +234,10 @@ deviceForget.spec = {
 };
 
 /**
- * The key that lets the device itself write to `/file/dev/<device>` without signing in, and the URL a
- * phone or a tracker is given: shown, made new (the old one stops working) or taken away. For
- * whoever may change the device.
+ * The key that lets the device itself write to `/file/dev/<device>` and its endpoints without
+ * signing in, and the URL a phone or a tracker is given: its track's (`/file/dev/<phone>/position`)
+ * when it has one, else the device's, which a webhook posts to. Shown, made new (the old one stops
+ * working) or taken away, for whoever may change the device.
  */
 export const deviceKey = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -262,7 +263,9 @@ export const deviceKey = async (cmd: Command): CmdReturn => {
     const record = flags.new ? await newDeviceKey(cmd.sys.vfs, device, cmd.access.uid) : flags.off ? undefined : await readDeviceKey(cmd.sys.vfs, device);
     const answer: DeviceKeyAnswer = { device, enabled: record !== undefined };
     if (record) {
-      const path = `/file${devicePath(device)}?key=${record.attrs.key}`;
+      const children = await cmd.sys.vfs.children(cmd.access, devicePath(device)).catch(() => []);
+      const track = children.find((child) => child.node.type === 'track');
+      const path = `/file${devicePath(device)}${track ? `/${track.name}` : ''}?key=${record.attrs.key}`;
       answer.url = origin ? `${origin}${path}` : path;
       answer.createdAt = new Date(record.attrs.createdAt).toISOString();
       if (origin) {
@@ -285,7 +288,7 @@ deviceKey.spec = {
   name: 'device-key',
   effect: 'write' as const,
   description:
-    'The key that lets a device write to /file/dev/<device> without signing in, and the URL a phone or tracker is given: shown, made new (--new) or taken away (--off)',
+    "The key that lets a device write to /file/dev/<device> and its endpoints without signing in, and the URL a phone or tracker is given (its track's, /file/dev/<device>/position): shown, made new (--new) or taken away (--off)",
   args: [{ name: 'device', type: 'string' as const, description: "the device's name" }],
   flags: [
     { name: 'new', type: 'bool' as const, description: 'make a new key; a URL given out before stops working' },

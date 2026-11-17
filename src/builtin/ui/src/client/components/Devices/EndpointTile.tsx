@@ -225,7 +225,10 @@ function TrackTile({ device, deviceClass, endpoint, onHistory }: EndpointTilePro
           : <Skeleton height={180} animate={fixes === undefined} />}
         {last && (
           <Box>
-            <Text size='sm' fw={600}>{degreesText(last.lat, 'N', 'S')}, {degreesText(last.lng, 'E', 'W')}</Text>
+            <Text size='sm' fw={600}>
+              {degreesText(last.lat, 'N', 'S')}, {degreesText(last.lng, 'E', 'W')}
+              {last.accuracy !== undefined && <Text span size='sm' fw={400} c='dimmed'>{` ±${Math.round(last.accuracy)} m`}</Text>}
+            </Text>
             {motion && <Text size='sm'>{motion}</Text>}
           </Box>
         )}

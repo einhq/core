@@ -66,6 +66,9 @@ export const titleOf = (node: Node, path: string): string => {
 export const heldShareLinks = async (cmd: Command): Promise<HeldShareLink[]> => {
   const id = cmd.access.link?.id;
   if (!id || !linkLive(cmd.access)) return [];
+  // A page ticket's session opens its page, and has no record.
+  const route = cmd.access.link?.route;
+  if (route) return [{ id, path: route.split('?')[0], type: 'page', title: route, route }];
   const record = await readLink(cmd, id);
   if (!record || isExpired(record.attrs)) return [];
   const path = await targetPath(cmd, record.attrs);

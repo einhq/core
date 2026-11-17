@@ -23,3 +23,21 @@ Deno.test({
     await harness.stop();
   }
 });
+
+Deno.test({
+  name: 'ssh server: exec output past the client window arrives whole, then stderr and the exit status',
+  sanitizeResources: false,
+  sanitizeOps: false,
+}, async () => {
+  await harness.start();
+  try {
+    // 6,888,896 bytes, more than three times the 2 MiB window an SSH client opens with
+    const result = await harness.runSSH('seq 1 1000000; echo done >&2; exit 3');
+    assertEquals(result.stdout.length, 6_888_896);
+    assertEquals(result.stdout.slice(-15), '999999\n1000000\n');
+    assertEquals(result.stderr, 'done\n');
+    assertEquals(result.code, 3);
+  } finally {
+    await harness.stop();
+  }
+});

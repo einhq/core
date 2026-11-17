@@ -1,8 +1,9 @@
 /**
- * Devices on a booted EiN: the devices group's /dev, a tracker device a phone posts to with its key
+ * Devices on a booted EiN: the devices group's /dev, a tracker's track a phone posts to with its key
  * and a GPX file is written to, a driver's readings kept and published, a device shared with someone
  * outside the group, a control written through its driver as whoever wrote it, values over HTTP, a
- * webhook device's posts kept and published, and forgetting a device.
+ * webhook device's posts kept and published, the screens and speakers found by their `show` and the
+ * paths written to it, and forgetting a device.
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert';
@@ -53,44 +54,68 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       const devicesGid = (await admin.execJson<{ gid: number }>('group-info devices')).gid;
       assertEquals([phone.props.uid, phone.props.gid, phone.props.mode & 0o777], [0, devicesGid, 0o770]);
       const key = await anna.execJson<DeviceKeyAnswer>('device-key ruby-phone --new --origin https://ein.example');
-      assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone?key='), key.qrSvg?.startsWith('<svg')], [true, true, true]);
+      assertEquals([key.enabled, key.url?.startsWith('https://ein.example/file/dev/ruby-phone/position?key='), key.qrSvg?.startsWith('<svg')], [true, true, true]);
       // Traccar Client takes the server from `url` whole, key and all, only from its own scheme.
       const qr = new URL(key.qrText!);
       assertEquals([qr.protocol, qr.searchParams.get('url'), qr.searchParams.get('id')], ['org.traccar.client:', key.url, 'ruby-phone']);
       const secret = new URL(key.url!).searchParams.get('key')!;
 
-      const osmand = await fetch(`${baseUrl}/file/dev/ruby-phone?key=${secret}&lat=57.7&lon=11.9&timestamp=1717236000`);
-      assertEquals([osmand.status, (await osmand.json()).taken], [200, 1]);
-      const traccar = await fetch(`${baseUrl}/file/dev/ruby-phone`, {
+      const osmand = await fetch(`${baseUrl}/file/dev/ruby-phone/position?key=${secret}&lat=57.7&lon=11.9&timestamp=1717236000`);
+      assertEquals([osmand.status, (await osmand.json()).appended], [200, 1]);
+      const traccar = await fetch(`${baseUrl}/file/dev/ruby-phone/position`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ location: { coords: { latitude: 57.71, longitude: 11.91 }, timestamp: '2024-06-01T10:10:00Z' } }),
       });
-      assertEquals([traccar.status, (await traccar.json()).taken], [200, 1]);
+      assertEquals([traccar.status, (await traccar.json()).appended], [200, 1]);
 
       const info = await anna.execJson<DeviceInfo>('device-show ruby-phone');
       assertEquals(info.endpointList.map((ep) => [ep.name, ep.type, ep.track?.points]), [['position', 'track', 2]]);
-      assertEquals([info.driver, info.driverRunning, info.input, info.tracks], ['tracker', true, true, true]);
+
+      // What it says of itself goes to logs of its own, made the first time it says it.
+      const status = await fetch(`${baseUrl}/file/dev/ruby-phone/position`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: {
+            coords: { latitude: 57.711, longitude: 11.911, accuracy: 6 },
+            timestamp: '2024-06-01T10:15:00Z',
+            battery: { level: 0.42, is_charging: true },
+            activity: { type: 'on_foot' },
+          },
+        }),
+      });
+      assertEquals([status.status, (await status.json()).appended], [200, 1]);
+      const told = await anna.execJson<DeviceInfo>('device-show ruby-phone');
+      assertEquals(
+        told.endpointList.map((ep) => [ep.name, ep.last?.value ?? null, ep.category ?? null]),
+        [['activity', 'on_foot', null], ['battery', 42, 'diagnostic'], ['charging', true, 'diagnostic'], ['position', null, null]],
+      );
+      assertEquals([told.battery, told.main?.endpoint], [{ level: 42, charging: true }, 'activity']);
+      const fixes = (await anna.execJson<DeviceHistory>('device-history ruby-phone/position')).fixes!;
+      assertEquals(fixes.at(-1)?.accuracy, 6);
+      assertEquals((await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'ruby-phone')?.battery, { level: 42, charging: true });
+      assertEquals([info.driver, info.driverRunning, info.input, info.tracks], ['tracker', true, false, true]);
       // Its driver cannot tell whether it answers: a fix from 2024 says nothing, one from now says online.
       assertEquals(info.online, undefined);
-      const now = await fetch(`${baseUrl}/file/dev/ruby-phone?key=${secret}&lat=57.72&lon=11.92&timestamp=${Math.floor(Date.now() / 1000)}`);
+      const now = await fetch(`${baseUrl}/file/dev/ruby-phone/position?key=${secret}&lat=57.72&lon=11.92&timestamp=${Math.floor(Date.now() / 1000)}`);
       await now.body?.cancel();
       const listed = (await anna.execJson<{ name: string; online?: boolean }[]>('devices')).find((device) => device.name === 'ruby-phone');
       assertEquals([(await anna.execJson<DeviceInfo>('device-show ruby-phone')).online, listed?.online], [true, true]);
 
-      const wrong = await fetch(`${baseUrl}/file/dev/ruby-phone?key=not-the-key&lat=1&lon=1`);
+      const wrong = await fetch(`${baseUrl}/file/dev/ruby-phone/position?key=not-the-key&lat=1&lon=1`);
       await wrong.body?.cancel();
       await anna.execString("device-create 'Old logger' --driver tracker");
-      const elsewhere = await fetch(`${baseUrl}/file/dev/old-logger?key=${secret}&lat=1&lon=1`);
+      const elsewhere = await fetch(`${baseUrl}/file/dev/old-logger/position?key=${secret}&lat=1&lon=1`);
       await elsewhere.body?.cancel();
       assertEquals([wrong.status, elsewhere.status], [403, 403]);
     });
 
-    await t.step("a GPX file written to a tracker device fills its track, the devices group's; a device with no driver refuses one", async () => {
+    await t.step("a GPX file written to a tracker's track fills it, the devices group's; a device with no driver refuses what is written to it", async () => {
       await admin.execString(`echo '${GPX}' > /tmp/walk.gpx`);
       const track = await admin.execJson<{ props: { uid: number; gid: number; mode: number } }>('stat /dev/old-logger/position');
       assertEquals([track.props.uid, track.props.gid, track.props.mode & 0o777], [0, (await admin.execJson<{ gid: number }>('group-info devices')).gid, 0o770]);
-      await anna.execString('cat /tmp/walk.gpx > /dev/old-logger');
+      await anna.execString('cat /tmp/walk.gpx > /dev/old-logger/position');
       const history = await anna.execJson<DeviceHistory>('device-history old-logger/position');
       assertEquals(history.fixes?.map((fix) => [fix.at, fix.lat]), [['2024-06-01T10:00:00.000Z', 57.7], ['2024-06-01T10:05:00.000Z', 57.71]]);
       await anna.execString('device-create Thermometer');
@@ -153,7 +178,7 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       await testCommands(bo).shouldFailWith('device-history lamp/power', 'denied');
 
       await anna.execString('share-set -m u:bo:rx /dev/lamp');
-      assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => device.name), ['lamp']);
+      assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => [device.name, device.writable]), [['lamp', false]]);
       assertEquals((await bo.execJson<DeviceHistory>('device-history lamp/power')).readings.map((reading) => reading.value), [41.8, 40.5]);
       await devices.ensureEndpoint(ADMIN_ACCESS, 'lamp', 'motion', 'log', { label: 'Motion', deviceClass: 'motion' });
       await devices.append(ADMIN_ACCESS, 'lamp', 'motion', true);
@@ -165,6 +190,29 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       assertEquals((await bo.execJson<DeviceInfo>('device-show lamp')).endpointList.map((endpoint) => endpoint.name), ['button', 'power', 'switch']);
 
       await anna.execString('share-set -m u:bo:rwx /dev/lamp');
+      assertEquals((await bo.execJson<DeviceSummary[]>('devices')).map((device) => [device.name, device.writable]), [['lamp', true]]);
+    });
+
+    await t.step('the screens and speakers are the devices with a show the caller may write and a driver to take it, which takes paths as the writer', async () => {
+      const shown: { value: unknown; uid: number }[] = [];
+      const unregisterScreen = devices.registerDriver('screen', {
+        description: 'a screen for the test',
+        async write(command) {
+          shown.push({ value: command.value, uid: command.access.uid });
+          return { message: 'showing it' };
+        },
+      });
+      try {
+        await devices.ensureDevice(ADMIN_ACCESS, 'hall-tv', { label: 'Hall TV', driver: 'screen', class: 'media' });
+        await devices.ensureEndpoint(ADMIN_ACCESS, 'hall-tv', 'show', 'control', { label: 'Show', schema: { type: 'text', lines: true } });
+        assertEquals((await anna.execJson<DeviceSummary[]>('devices --endpoint show')).map((device) => device.name), ['hall-tv']);
+        await anna.execString("printf '/media?q=sailboat&slideshow=screen\\n/albums/Summer\\n' > /dev/hall-tv/show");
+        assertEquals(shown.map((each) => [each.value, each.uid === ADMIN_ACCESS.uid]), [['/media?q=sailboat&slideshow=screen\n/albums/Summer', false]]);
+        assertEquals(await devices.command(ADMIN_ACCESS, '/dev/hall-tv/show', '/albums/Summer\n'), { value: '/albums/Summer', message: 'showing it' });
+      } finally {
+        unregisterScreen();
+      }
+      assertEquals(await anna.execJson<DeviceSummary[]>('devices --endpoint show'), []);
     });
 
     await t.step('a control is written through its driver as whoever wrote it, and only what it takes', async () => {

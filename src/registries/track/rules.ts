@@ -21,6 +21,9 @@
  *   a real fix does not repeat one to the last decimal after the track has
  *   been away for long; coming back from a spike to where it lay is the
  *   other way round. These go first, so the rest is judged without them.
+ * - **inaccurate**: a fix whose receiver said it may be more than
+ *   `INACCURATE_M` off (its `accuracy`), as a phone's guess from a cell tower
+ *   is. These are set aside first, so nothing else is judged against them.
  * - **jump**: a jump that is no part of an excursion, with steady going on
  *   both sides of it, as when a logger starts again somewhere else. The fixes
  *   are fine; the line is cut before the fix it lands on.
@@ -30,10 +33,20 @@
  */
 import { haversineMeters } from '../../lib/geo/distance.ts';
 
-export type TrackRule = 'excursion' | 'jump';
+export type TrackRule = 'excursion' | 'inaccurate' | 'jump';
 
-/** A fix as the rules see it: time in epoch ms and position. */
-export type RuleFix = { ms: number; lat: number; lng: number };
+/** The rules that leave a fix out; a `jump` only cuts the line before it. */
+export const REJECTING_RULES = ['excursion', 'inaccurate'] as const;
+type RejectingRule = typeof REJECTING_RULES[number];
+
+/** Whether a rule leaves its fix out. */
+export const rejects = (rule: string | null | undefined): rule is RejectingRule => (REJECTING_RULES as readonly (string | null | undefined)[]).includes(rule);
+
+/** A fix as the rules see it: time in epoch ms, position, and how far off its receiver said it may be, in metres. */
+export type RuleFix = { ms: number; lat: number; lng: number; accuracy?: number };
+
+/** A fix said to be more than this many metres off is no position to draw or travel by. */
+export const INACCURATE_M = 150;
 
 /** A step shorter than this is never a jump, however fast it looks. */
 export const JUMP_MIN_M = 1000;
@@ -104,7 +117,9 @@ function fallbacks(fixes: RuleFix[]): boolean[] {
  * Judge time-ordered fixes. Returns each fix's rule, or null for a fix that is
  * accepted and joined to the one before it.
  */
-export function judgeFixes(all: RuleFix[]): (TrackRule | null)[] {
+export function judgeFixes(given: RuleFix[]): (TrackRule | null)[] {
+  const precise = given.flatMap((fix, i) => fix.accuracy !== undefined && fix.accuracy > INACCURATE_M ? [] : [i]);
+  const all = precise.map((i) => given[i]);
   const stale = fallbacks(all);
   const kept = all.flatMap((_, i) => stale[i] ? [] : [i]);
   const fixes = kept.map((i) => all[i]);
@@ -165,5 +180,7 @@ export function judgeFixes(all: RuleFix[]): (TrackRule | null)[] {
 
   const judged: (TrackRule | null)[] = stale.map((isStale) => isStale ? 'excursion' : null);
   kept.forEach((index, i) => judged[index] = rules[i]);
-  return judged;
+  const verdicts: (TrackRule | null)[] = new Array(given.length).fill('inaccurate');
+  precise.forEach((index, i) => verdicts[index] = judged[i]);
+  return verdicts;
 }

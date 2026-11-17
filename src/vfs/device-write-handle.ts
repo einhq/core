@@ -1,10 +1,10 @@
 import { AbstractResourceHandle, type RegistryIf, type ResourceMode, type ResourceOptions } from '../registries/types.ts';
 
 /**
- * What the VFS hands a writer of a device or a control: the bytes are kept until the writer closes,
- * then given to the device's driver whole (`onClose`), and the writer hears its answer from the
- * close, so `echo on > /dev/hall-plug/switch` fails when the driver refuses. Nothing is written
- * anywhere by the handle itself; a close with nothing written gives the driver nothing.
+ * What the VFS hands a writer of a device, a control or a device's track: the bytes are kept until
+ * the writer closes, then given whole to the device manager (`onClose`), and the writer hears its
+ * answer from the close, so `echo on > /dev/hall-plug/switch` fails when the driver refuses. Nothing
+ * is written anywhere by the handle itself; a close with nothing written gives nothing.
  */
 export class DeviceWriteHandle extends AbstractResourceHandle {
   #chunks: Uint8Array[] = [];

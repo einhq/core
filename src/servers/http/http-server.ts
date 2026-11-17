@@ -6,9 +6,11 @@ import { DownloadLog } from './download-log.ts';
 import { handleDevWrite } from './handlers/dev-write.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
-import { handleGetFile } from './handlers/get-file.ts';
+import { handleGetFile, ticketPreflight } from './handlers/get-file.ts';
 import { handleGetSession } from './handlers/get-session.ts';
 import { handleGetShell } from './handlers/get-shell.ts';
+import { handleLive } from './handlers/live.ts';
+import { handlePageSignIn } from './handlers/page-sign-in.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
 import { handlePostFile } from './handlers/post-file.ts';
 import { handlePutFile } from './handlers/put-file.ts';
@@ -33,9 +35,14 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetShell({ ...config, interactiveTerminals }, req, url, info.remoteAddr);
       } else if (url.pathname === '/__session' && req.method === 'GET') {
         return await handleGetSession(config, req);
+      } else if (url.pathname.startsWith('/__page/') && req.method === 'GET') {
+        return await handlePageSignIn(config, req, url);
+      } else if (url.pathname.startsWith('/live/')) {
+        return await handleLive(config, req, url);
       } else if (url.pathname.startsWith('/stream/') && req.method === 'GET') {
         return await handleStreamLive(config, req, url);
       } else if (url.pathname.startsWith('/file/')) {
+        if (req.method === 'OPTIONS' && url.searchParams.has('ticket')) return ticketPreflight();
         const devWrite = await handleDevWrite(config, req, url, info.remoteAddr);
         if (devWrite) return devWrite;
         if (req.method === 'GET' || req.method === 'HEAD') {

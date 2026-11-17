@@ -9,6 +9,7 @@ import { ADMIN_ACCESS, ADMIN_GID } from '../../../lib/access/constants.ts';
 import { SystemTestHarness, testCommands } from '../../../testing/mod.ts';
 import { HostDevice, hostDeviceName, hostReadings } from '../host.ts';
 import { parseDf, volumesOf } from '../../../lib/metrics/disk.ts';
+import { activityRates, parseDiskstats, parseNetDev } from '../../../lib/metrics/activity.ts';
 
 Deno.test('hostDeviceName: the first label of the hostname, as a device name', () => {
   assertEquals(hostDeviceName('fry.local'), 'fry');
@@ -45,6 +46,60 @@ Deno.test('hostReadings: each reading an endpoint, named and rounded as a polled
   assertEquals([attrs['acpitz-temperature'].category, attrs['acpitz-temperature'].deviceClass], ['diagnostic', 'temperature']);
   assertEquals([attrs['sdc1-used'].unit, attrs['sdc1-used'].retention], ['%', '365 day']);
   assertEquals(hostReadings({}), []);
+});
+
+Deno.test('hostReadings: disk activity, network traffic and fans', () => {
+  const readings = hostReadings({
+    disks: [{ name: 'sdc', readBytesPerSecond: 1_234_567, writtenBytesPerSecond: 0, busyPercent: 12.34 }],
+    interfaces: [{ name: 'enp2s0', receivedBytesPerSecond: 125_000, sentBytesPerSecond: 1_250 }],
+    fans: [{ fan: 'nct6798 fan2', rpm: 812.4 }, { fan: 'CPU Fan', rpm: 1500 }, { fan: 'CPU Fan', rpm: 0 }],
+  });
+  assertEquals(readings.map((reading) => [reading.endpoint, reading.value, reading.attrs.unit]), [
+    ['nct6798-fan2-speed', 812, 'rpm'],
+    ['cpu-fan-speed', 1500, 'rpm'],
+    ['cpu-fan-2-speed', 0, 'rpm'],
+    ['sdc-read', 1.23, 'MB/s'],
+    ['sdc-written', 0, 'MB/s'],
+    ['sdc-busy', 12.3, '%'],
+    ['enp2s0-received', 1, 'Mbit/s'],
+    ['enp2s0-sent', 0.01, 'Mbit/s'],
+  ]);
+  assertEquals(readings.every((reading) => reading.attrs.category === 'diagnostic' && reading.attrs.retention === '30 day'), true, 'the card keeps showing the CPU');
+});
+
+Deno.test('parseDiskstats and parseNetDev: the counters of the disks and interfaces asked for', () => {
+  const diskstats = [
+    '   7       0 loop0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0',
+    '   8       0 sda 25561360 10767193 992224379 22669231 22421411 20951319 634163682 52957894 0 15928018 84110020 0 0 0 0 8021267 8482893',
+    '   8       2 sda2 25560968 10766166 992203314 22669064 22421409 20951319 634163680 52957890 0 17989186 75626955 0 0 0 0 0 0',
+  ].join('\n');
+  assertEquals(parseDiskstats(diskstats, (name) => name === 'sda'), [{ name: 'sda', readBytes: 992224379 * 512, writtenBytes: 634163682 * 512, busyMs: 15928018 }]);
+
+  const netDev = [
+    'Inter-|   Receive                                                |  Transmit',
+    ' face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed',
+    '    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0',
+    'enp2s0: 19761429364 12338001    0    0    0     0          0         0 7446277893 8314536    0    0    0     0       0          0',
+  ].join('\n');
+  assertEquals(parseNetDev(netDev, (name) => name !== 'lo'), [{ name: 'enp2s0', receivedBytes: 19761429364, sentBytes: 7446277893 }]);
+});
+
+Deno.test('activityRates: per second between two samples; a counter that went down gives none', () => {
+  const before = {
+    at: 0,
+    disks: [{ name: 'sda', readBytes: 1000, writtenBytes: 0, busyMs: 0 }, { name: 'sdb', readBytes: 5000, writtenBytes: 0, busyMs: 0 }],
+    interfaces: [{ name: 'eth0', receivedBytes: 0, sentBytes: 100 }],
+  };
+  const after = {
+    at: 60_000,
+    disks: [{ name: 'sda', readBytes: 61_000, writtenBytes: 120, busyMs: 90_000 }, { name: 'sdb', readBytes: 10, writtenBytes: 0, busyMs: 0 }],
+    interfaces: [{ name: 'eth0', receivedBytes: 600, sentBytes: 160 }, { name: 'eth1', receivedBytes: 9, sentBytes: 9 }],
+  };
+  assertEquals(activityRates(before, after), {
+    disks: [{ name: 'sda', readBytesPerSecond: 1000, writtenBytesPerSecond: 2, busyPercent: 100 }],
+    interfaces: [{ name: 'eth0', receivedBytesPerSecond: 10, sentBytesPerSecond: 1 }],
+  });
+  assertEquals(activityRates(after, after), { disks: [], interfaces: [] }, 'no time between them');
 });
 
 Deno.test("volumesOf: the machine's disks once each, block devices only", () => {

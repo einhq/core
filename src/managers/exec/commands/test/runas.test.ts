@@ -1,15 +1,16 @@
 /**
  * runas: a line run as another account has that account's rights, name, home and settings and no
- * more, is the administrator's to give, and leaves no session behind.
+ * more, is the administrator's to give, stops when runas is interrupted, and leaves no session
+ * behind.
  */
 
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
 
 const testCtx = createTestContext({ boot: true });
 
 Deno.test({ name: 'runas command', sanitizeResources: false, sanitizeOps: false }, async (t) => {
-  await testCtx.setup();
+  const { shell } = await testCtx.setup();
   const admin = await testCtx.server.createShellClient();
   const clients: ShellClient[] = [admin];
   const cmd = testCommands(admin);
@@ -45,6 +46,20 @@ Deno.test({ name: 'runas command', sanitizeResources: false, sanitizeOps: false 
       await admin.execString('user-disable bo');
       await cmd.shouldFailWith(`runas bo 'echo x'`, 'no active account');
       await cmd.shouldFailWith(`runas nobody 'echo x'`, 'no active account');
+    });
+
+    await t.step('interrupting runas stops the line', async () => {
+      const hangUp = new AbortController();
+      const started = Date.now();
+      const capture = shell.runAndCapture(`runas anna 'sleep 60'`, undefined, { signal: hangUp.signal });
+      setTimeout(() => hangUp.abort(), 500);
+      await capture;
+
+      // The line has ended once its session is gone: runas removes it when the line returns.
+      while ((await admin.execString('ls /var/sessions')).includes('runas-')) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      assert(Date.now() - started < 10_000, `the line went on after runas was interrupted, for ${Date.now() - started}ms`);
     });
 
     await t.step('no session is left behind', async () => {

@@ -124,6 +124,8 @@ export type HeldShareLink = {
   type: string;
   title: string;
   expiresAt?: number;
+  /** The page it opens, for a page ticket's session, which opens a page rather than a node (`path` is then the page's too). */
+  route?: string;
 };
 
 /**

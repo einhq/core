@@ -1,6 +1,7 @@
 /**
  * What phones and trackers post, read into track points: GPRMC, OsmAnd, Traccar Client's JSON and
- * EiN's own, with speed in m/s and a request without a fix read as no points.
+ * EiN's own, with speed in m/s and a request without a fix read as no points; and what the device
+ * says of itself, its battery and what it is doing.
  */
 
 import { assertAlmostEquals, assertEquals } from '@std/assert';
@@ -47,6 +48,16 @@ Deno.test('fromOsmAnd: epoch seconds or milliseconds, speed in knots, bearing an
   assertEquals(dated.ts, '2024-06-01T10:00:00.000Z');
 });
 
+Deno.test('fromOsmAnd: accuracy on the point, the battery in percent and whether it charges as the status', () => {
+  const read = fromOsmAnd(new URLSearchParams('id=phone&lat=57.5&lon=11.9&timestamp=1700000000&accuracy=12.5&batt=87.0&charge=true'));
+  assertEquals(read, {
+    points: [{ lat: 57.5, lng: 11.9, ts: '2023-11-14T22:13:20.000Z', accuracy: 12.5 }],
+    status: { battery: 87, charging: true, ts: '2023-11-14T22:13:20.000Z' },
+  });
+  assertEquals(fromOsmAnd(new URLSearchParams('id=phone&batt=40&charge=false')), { points: [], status: { battery: 40, charging: false } });
+  assertEquals(fromOsmAnd(new URLSearchParams('lat=1&lon=2&batt=-1&accuracy=0')), { points: [{ lat: 1, lng: 2 }] });
+});
+
 Deno.test('fromOsmAnd: a ping without a position is no points, half a position an error', () => {
   assertEquals(fromOsmAnd(new URLSearchParams('id=phone&notificationToken=abc')), { points: [] });
   assertEquals('error' in fromOsmAnd(new URLSearchParams('lat=57.5')), true);
@@ -63,6 +74,21 @@ Deno.test('fromTraccarJson: speed in m/s, an unknown heading and speed left out'
   const moving = { location: { timestamp: '2024-06-01T10:00:00Z', coords: { latitude: 57.5, longitude: 11.9, speed: 4.2, heading: 90 } } };
   assertEquals(points(fromTraccarJson(moving))[0].speed, 4.2);
   assertEquals(points(fromTraccarJson(moving))[0].course, 90);
+});
+
+Deno.test('fromTraccarJson: accuracy on the point; the battery, a fraction, and the activity of the newest location as the status', () => {
+  const at = (minute: number, level: number, activity: string) => ({
+    timestamp: `2024-06-01T10:0${minute}:00Z`,
+    coords: { latitude: 57.5, longitude: 11.9, accuracy: 9 },
+    battery: { level, is_charging: false },
+    activity: { type: activity, confidence: 100 },
+  });
+  const read = fromTraccarJson({ device_id: 'phone', location: [at(2, 0.53, 'in_vehicle'), at(1, 0.55, 'still')] });
+  assertEquals(points(read).map((fix) => fix.accuracy), [9, 9]);
+  assertEquals('status' in read && read.status, { battery: 53, charging: false, activity: 'in_vehicle', ts: '2024-06-01T10:02:00.000Z' });
+
+  const unknown = fromTraccarJson({ location: { ...at(1, -1, 'unknown'), battery: { level: -1 } } });
+  assertEquals('status' in unknown, false);
 });
 
 Deno.test('fromTraccarJson: a list of locations is each of them', () => {

@@ -161,13 +161,15 @@ whole app by `FloatHost` in a layer of no size of its own, so the panel places w
 and follows the node on screen with `useShownNode` — the picture in the lightbox, else what the page declares with
 `usePageSubject`; `device.tabs`, a tab of a device's page after its own, whose route gets the device's path
 (`/dev/<device>`) for `{path}` (archive's Trips); `devices.header`, a button in the Devices page's header
-beside its filters, which draws nothing while it has nothing to say (automation's devices found on the network); `settings.views`, a
+beside its filters, which draws nothing while it has nothing to say (devices' hosts found on the network); `settings.views`, a
 settings view that sets up one thing with the settings it takes (core's Language and time, Sign-in and Module sources, the
-assistant's language model, automation's MQTT broker and restreamer, ems's media service and transcription, media's
+assistant's language model, devices' MQTT broker and restreamer, ems's media service and transcription, media's
 processing levels), listed under Set up before the categories on Settings → System and before the parameters on its
 module's Settings tab, which `source` — the fragment that gave the entry, filled in by `ui-nav` — picks out; its `description`
 is the line under its name. An entry's `when: { has: <node type> }` keeps it to a node with a
-child of that type, where the slot has a node: archive's Trips only on a device with a `track`. The page draws each
+child of that type, where the slot has a node: archive's Trips only on a device with a `track`; with
+`live: true` too, to a device with a stream watched live now (`device-show`'s `live`, set while the
+device's driver runs and gives a live view): devices' Live tab. The page draws each
 with `RoutePanel` (`components/Surface/`), the surface router of the dialog and the drawer with a
 `panel` kind: no frame of its own, and a navigation that leaves the route opens on the page. A route
 an answer names is drawn the same way — a chat card, an entry on the home page — and where the

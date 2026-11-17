@@ -35,6 +35,7 @@ export * from './node.ts';
 export * from './relation.ts';
 export * from './models.ts';
 export * from './renditions.ts';
+export * from './supervisor.ts';
 export type { Kind } from '../kinds/vocabulary.ts';
 export type { ArgCompleteType, CmdArgDef, CmdEffect, CmdFlagDef, CmdSpec, FlagCompleteType } from '../../managers/exec/spec.ts';
 export type { ContainerListing, ContainerMember } from '../containers/types.ts';

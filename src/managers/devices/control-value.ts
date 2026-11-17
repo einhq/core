@@ -1,6 +1,6 @@
 /**
  * What a control takes, read from what was written to it: `on` for a switch, `21.5` for a setpoint,
- * a word from a mode's options, `#ff8000` for a colour. A value its schema does not take is refused with why, so the writer
+ * a word from a mode's options, `#ff8000` for a colour, the paths a screen is to show, one a line. A value its schema does not take is refused with why, so the writer
  * hears it from its write.
  */
 
@@ -58,9 +58,15 @@ export const parseControlValue = (schema: ControlSchema, text: string, current?:
     case 'enum':
       if (!schema.options.includes(word)) throw new ControlValueError(`takes one of ${schema.options.join(', ')}, not '${word}'`);
       return word;
-    case 'text':
-      if (word === '') throw new ControlValueError('takes a line of text, not nothing');
-      return word;
+    case 'text': {
+      if (!schema.lines) {
+        if (word === '') throw new ControlValueError('takes a line of text, not nothing');
+        return word;
+      }
+      const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+      if (!lines.length) throw new ControlValueError('takes one or more lines, not nothing');
+      return lines.join('\n');
+    }
     case 'color': {
       const rgb = colorOf(word);
       if (!rgb) throw new ControlValueError(`takes a colour as #rrggbb or r,g,b, not '${word}'`);

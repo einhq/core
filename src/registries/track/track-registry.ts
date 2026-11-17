@@ -23,7 +23,7 @@ import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { countPoints, DEFAULT_MARGIN, normalizePoints, stripSegments, summarize } from './lib.ts';
-import { judgeFixes, JUMP_MAX_GAP_MS, JUMP_MIN_M, RULES_REACH_MS, RULES_VERSION } from './rules.ts';
+import { INACCURATE_M, judgeFixes, JUMP_MAX_GAP_MS, JUMP_MIN_M, REJECTING_RULES, rejects, RULES_REACH_MS, RULES_VERSION } from './rules.ts';
 import { capSegments, dropLoneSpikes, expandBounds, splitRuns, STILL_MAX_SPEED, toSegments } from './segment.ts';
 import { TrackHandle } from './track-handle.ts';
 import {
@@ -78,6 +78,7 @@ type PointRow = {
   alt: number | null;
   speed: number | null;
   course: number | null;
+  accuracy: number | null;
   rule: string | null;
   manual: string | null;
 };
@@ -86,7 +87,9 @@ type PointRow = {
  * The fixes a read keeps unless it asks for the rejected ones: those a person accepted, and
  * those no rule rejected that a person did not reject.
  */
-const ACCEPTED = `(CASE manual WHEN 'accept' THEN true WHEN 'reject' THEN false ELSE rule IS DISTINCT FROM 'excursion' END)`;
+const ACCEPTED = `(CASE manual WHEN 'accept' THEN true WHEN 'reject' THEN false ELSE COALESCE(rule NOT IN (${
+  REJECTING_RULES.map((rule) => `'${rule}'`).join(', ')
+}), true) END)`;
 
 /** The fixes the rules judge: all but those a person rejected, so the track is judged without them. */
 const JUDGED = `manual IS DISTINCT FROM 'reject'`;
@@ -172,9 +175,12 @@ export class TrackRegistry implements TrackRegistryIf {
       )
     `);
 
-    // What the rules made of the fix: NULL for accepted, `excursion` for rejected, `jump` for a fix
-    // the line is cut before.
+    // What the rules made of the fix: NULL for accepted, `excursion` or `inaccurate` for rejected,
+    // `jump` for a fix the line is cut before.
     await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS rule TEXT`);
+
+    // How far off the fix may be, in metres, as its receiver said; NULL when it did not.
+    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION`);
 
     // What a person said of the fix, which judging never touches: NULL for nothing, `reject` or
     // `accept`. A fix a person rejected is not judged, and has no rule.
@@ -346,6 +352,7 @@ export class TrackRegistry implements TrackRegistryIf {
     const alt = incoming.map((point) => point.alt ?? null);
     const speed = incoming.map((point) => point.speed ?? null);
     const course = incoming.map((point) => point.course ?? null);
+    const accuracy = incoming.map((point) => point.accuracy ?? null);
 
     return await this.transaction(async (q) => {
       // Both the track row lock and the existence check, in one statement.
@@ -361,13 +368,14 @@ export class TrackRegistry implements TrackRegistryIf {
 
       const inserted = await q(
         `
-        INSERT INTO ${this.pointsTable} (track_id, ts, geog, alt, speed, course)
-        SELECT $1, point.ts, ST_SetSRID(ST_MakePoint(point.lng, point.lat), 4326)::geography, point.alt, point.speed, point.course
-        FROM unnest($2::timestamptz[], $3::double precision[], $4::double precision[], $5::double precision[], $6::double precision[], $7::double precision[])
-          AS point(ts, lng, lat, alt, speed, course)
+        INSERT INTO ${this.pointsTable} (track_id, ts, geog, alt, speed, course, accuracy)
+        SELECT $1, point.ts, ST_SetSRID(ST_MakePoint(point.lng, point.lat), 4326)::geography, point.alt, point.speed, point.course, point.accuracy
+        FROM unnest($2::timestamptz[], $3::double precision[], $4::double precision[], $5::double precision[], $6::double precision[], $7::double precision[],
+            $8::double precision[])
+          AS point(ts, lng, lat, alt, speed, course, accuracy)
         ON CONFLICT (track_id, ts) DO NOTHING
         `,
-        [id, ts, lng, lat, alt, speed, course],
+        [id, ts, lng, lat, alt, speed, course, accuracy],
       );
 
       const written = inserted.rowCount ?? 0;
@@ -410,7 +418,7 @@ export class TrackRegistry implements TrackRegistryIf {
    * With a tolerance, postgres builds one `LINESTRINGM` per UTC day out of the
    * matching fixes and simplifies it, so what crosses the wire is already
    * drawable. The M ordinate carries the fix time, which is what lets the day
-   * and pause split happen afterwards; `alt`/`speed`/`course` are not vertices
+   * and pause split happen afterwards; `alt`/`speed`/`course`/`accuracy` are not vertices
    * of a line and do not survive a simplified read.
    *
    * A day holding a single fix is kept: `ST_Simplify` with `preserveCollapsed`
@@ -453,7 +461,7 @@ export class TrackRegistry implements TrackRegistryIf {
       );
     }
 
-    const columns = `ts, geog, alt, speed, course, rule, manual`;
+    const columns = `ts, geog, alt, speed, course, accuracy, rule, manual`;
     const numbered = opts.rejected === 'only'
       ? `
         SELECT * FROM (
@@ -523,7 +531,7 @@ export class TrackRegistry implements TrackRegistryIf {
     } else {
       const result = await this.query<PointRow & { run: number }>(
         `
-        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule, manual, run
+        SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, accuracy, rule, manual, run
         FROM (${numbered}) numbered
         ORDER BY ts
         `,
@@ -559,7 +567,7 @@ export class TrackRegistry implements TrackRegistryIf {
     }
 
     const sql = `
-      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, rule, manual
+      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, alt, speed, course, accuracy, rule, manual
       FROM ${this.pointsTable}
       WHERE track_id = $1 ${cursor}
       ORDER BY ts
@@ -718,10 +726,10 @@ export class TrackRegistry implements TrackRegistryIf {
         `
         WITH gone AS (
           DELETE FROM ${this.pointsTable} WHERE ${where.join(' AND ')}
-          RETURNING ts, geog, alt, speed, course, manual
+          RETURNING ts, geog, alt, speed, course, accuracy, manual
         ), landed AS (
-          INSERT INTO ${this.pointsTable} (track_id, ts, geog, alt, speed, course, manual)
-          SELECT $2, ts, geog, alt, speed, course, manual FROM gone
+          INSERT INTO ${this.pointsTable} (track_id, ts, geog, alt, speed, course, accuracy, manual)
+          SELECT $2, ts, geog, alt, speed, course, accuracy, manual FROM gone
           ON CONFLICT (track_id, ts) DO NOTHING
         )
         SELECT COUNT(*) AS moved, MIN(ts) AS first, MAX(ts) AS last FROM gone
@@ -772,8 +780,9 @@ export class TrackRegistry implements TrackRegistryIf {
   /**
    * Judge again what a change between `from` and `to` (epoch ms) can have
    * changed the verdict of: the fixes within `RULES_REACH_MS` of it. Every rule
-   * needs a leap, so a window holding none, and no fix a rule marked, is left
-   * as it is without reading it. Returns how many verdicts changed.
+   * but `inaccurate` needs a leap, so a window holding none, no fix a rule
+   * marked and no inaccurate fix, is left as it is without reading it. Returns
+   * how many verdicts changed.
    */
   private async judgeAround(q: QueryFn, id: string, from: number, to: number): Promise<number> {
     const low = from - RULES_REACH_MS;
@@ -782,18 +791,18 @@ export class TrackRegistry implements TrackRegistryIf {
       `
       SELECT EXISTS (
         SELECT 1 FROM (
-          SELECT rule,
+          SELECT rule, accuracy,
             EXTRACT(EPOCH FROM ts - LAG(ts) OVER w) * 1000 AS gap,
             ST_Distance(LAG(geog) OVER w, geog, false) AS distance
           FROM ${this.pointsTable}
           WHERE track_id = $1 AND ts >= $2 AND ts <= $3 AND ${JUDGED}
           WINDOW w AS (ORDER BY ts)
         ) steps
-        WHERE rule IS NOT NULL OR (gap <= $4 AND distance > $5)
+        WHERE rule IS NOT NULL OR accuracy > $6 OR (gap <= $4 AND distance > $5)
       ) AS found
       `,
       // A spheroid is not a sphere: a little short of the rules' distance, so no leap is missed.
-      [id, new Date(low), new Date(high), JUMP_MAX_GAP_MS, JUMP_MIN_M * 0.99],
+      [id, new Date(low), new Date(high), JUMP_MAX_GAP_MS, JUMP_MIN_M * 0.99, INACCURATE_M],
     );
 
     return check.rows[0]?.found ? await this.judgeWindow(q, id, low, high) : 0;
@@ -806,9 +815,9 @@ export class TrackRegistry implements TrackRegistryIf {
    * rejected is neither judged nor judged against.
    */
   private async judgeWindow(q: QueryFn, id: string, from: number, to: number): Promise<number> {
-    const result = await q<{ ts: Date; lat: number; lng: number; rule: string | null }>(
+    const result = await q<{ ts: Date; lat: number; lng: number; accuracy: number | null; rule: string | null }>(
       `
-      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, rule
+      SELECT ts, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng, accuracy, rule
       FROM ${this.pointsTable}
       WHERE track_id = $1 AND ts >= $2 AND ts <= $3 AND ${JUDGED}
       ORDER BY ts
@@ -816,7 +825,7 @@ export class TrackRegistry implements TrackRegistryIf {
       [id, new Date(from - RULES_REACH_MS), new Date(to + RULES_REACH_MS)],
     );
 
-    const fixes = result.rows.map((row) => ({ ms: new Date(row.ts).getTime(), lat: row.lat, lng: row.lng }));
+    const fixes = result.rows.map((row) => ({ ms: new Date(row.ts).getTime(), lat: row.lat, lng: row.lng, accuracy: row.accuracy ?? undefined }));
     const verdicts = judgeFixes(fixes);
     const ts: Date[] = [];
     const rules: (string | null)[] = [];
@@ -1077,8 +1086,9 @@ const fromRow = (row: PointRow): TrackPoint => {
   if (row.alt !== null) point.alt = row.alt;
   if (row.speed !== null) point.speed = row.speed;
   if (row.course !== null) point.course = row.course;
+  if (row.accuracy !== null) point.accuracy = row.accuracy;
   if (row.manual === 'reject') point.rejected = 'manual';
-  else if (row.manual === null && row.rule === 'excursion') point.rejected = row.rule;
+  else if (row.manual === null && rejects(row.rule)) point.rejected = row.rule;
   if (row.manual === 'reject' || row.manual === 'accept') point.manual = row.manual;
 
   return point;

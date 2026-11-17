@@ -8,7 +8,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative } from '@std/p
 import { ulid } from '@std/ulid';
 import { Access, AccessLevel } from '../lib/access/types.ts';
 import { ADMIN_ACCESS, modeUnder } from '../lib/access/constants.ts';
-import { isTrashPath } from '../lib/paths.ts';
+import { DEV_PATH, isTrashPath } from '../lib/paths.ts';
 import type { RelationAttrs } from '../lib/api/relation.ts';
 import { isAdmin, verifyAccess } from '../lib/access/verify-access.ts';
 import { IdLockManager } from '../lib/async/mod.ts';
@@ -4972,18 +4972,22 @@ export class LocalNodeVFS implements NodeVFS {
       // A path-addressed store's registry takes the path within the mount
       const id = this.store.pathAddressed ? entry.vfsAbsPath : entry.id;
 
-      // What is written to a device is raw input for its driver, and what is written to a control a
-      // value for it: neither is stored by the write. Only a control's driver appends to it (`a`),
-      // reporting the state the device then has; drivers run as services, the administrator's.
+      // What is written to a device is raw input for its driver, what is written to a control a
+      // value for it, and what is written over a device's track (`cat ride.gpx > /dev/etrex/position`)
+      // fixes in a tracker's form: none is stored by the write as it came. Only a control's driver
+      // appends to it (`a`), reporting the state the device then has; drivers run as services, the
+      // administrator's. A track appended to (`>>`) takes EiN's own fixes, one a line, as any track does.
       const writing = mode.includes('w') || mode.includes('a') || mode.includes('+');
       const reporting = node.type === NODE_TYPE_CONTROL && mode.includes('a');
-      if (writing && (node.type === NODE_TYPE_DEVICE || (node.type === NODE_TYPE_CONTROL && !reporting))) {
+      const deviceTrack = node.type === 'track' && mode.includes('w') && dirname(dirname(entry.vfsAbsPath)) === DEV_PATH;
+      if (writing && (node.type === NODE_TYPE_DEVICE || deviceTrack || (node.type === NODE_TYPE_CONTROL && !reporting))) {
         const sink = this.deviceSink;
         if (!sink) throw new NodeNotSupportedError(node.type);
         const path = entry.vfsAbsPath;
         const decoder = new TextDecoder();
         return new DeviceWriteHandle(id, this.tierOpts(node), mode, reg, async (bytes) => {
           if (node.type === NODE_TYPE_DEVICE) await sink.input(access, path, { bytes });
+          else if (deviceTrack) await sink.fixes(access, path, { bytes });
           else await sink.command(access, path, decoder.decode(bytes));
         });
       }

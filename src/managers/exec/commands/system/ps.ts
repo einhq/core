@@ -4,17 +4,18 @@
  *
  * Every core command, command node and `#!ts` bin is a process of its own, and a bash script is
  * the commands it runs. They all run in this one process, so the execution manager's table is the
- * whole list. Anyone but admin sees only their own: a command line can carry what its author
- * would not show anyone else.
+ * whole list. Anyone but admin sees only their own, and a visitor only its session's
+ * (`seesRunsOf`): a command line can carry what its author would not show anyone else.
  */
 
+import { seesRunsOf } from '../../../../lib/access/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import type { ProcessEntry } from '../../../../lib/api/system.ts';
 import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { colorer, cut, Table } from '../../../shell/terminal/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
-import { accountNames, seesEveryone } from './accounts.ts';
+import { accountNames } from './accounts.ts';
 import { fmtAge, fmtTty, lastColumnRoom } from './lib.ts';
 
 /** A word that reads the same quoted or not. */
@@ -38,14 +39,13 @@ export const commandLine = (name: string, args: string[], label?: string): strin
 
 /** Every running command the caller may see, oldest first. */
 export const listProcesses = async (cmd: Command): Promise<ProcessEntry[]> => {
-  const everyone = seesEveryone(cmd);
   const nameOf = await accountNames(cmd);
   const processes: ProcessEntry[] = [];
 
   for (const state of cmd.sys.cem.states()) {
     const opts = state.opts;
     if (state.state !== 'running' || !opts) continue;
-    if (!everyone && opts.access.uid !== cmd.access.uid) continue;
+    if (!seesRunsOf(cmd.access, opts.access)) continue;
 
     const origin = opts.tty.origin;
     processes.push({
@@ -102,7 +102,8 @@ export const ps = async (cmd: Command): CmdReturn => {
 ps.spec = {
   name: 'ps',
   effect: 'read' as const,
-  description: "List the commands running now: pid, user, shell, how long, and the command line. Admin sees everyone's, anyone else their own",
+  description:
+    "List the commands running now: pid, user, shell, how long, and the command line. Admin sees everyone's, a member their own, and a visitor only its own session's",
   args: [],
   flags: [
     { name: 'user', type: 'user' as const, description: "Only this user's commands (-u)" },
