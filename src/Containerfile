@@ -63,6 +63,7 @@ WORKDIR /app
 COPY src src
 COPY deno.jsonc deno.jsonc
 COPY deno.lock deno.lock
+COPY version.json version.json
 RUN deno cache src/main.ts && deno task bundle-ui
 
 FROM docker.io/library/debian:trixie-20261027-slim
@@ -87,6 +88,7 @@ COPY src src
 COPY --from=guide /guide guide
 COPY deno.jsonc deno.jsonc
 COPY deno.lock deno.lock
+COPY version.json version.json
 COPY Makefile Makefile
 COPY LICENSE LICENSE
 

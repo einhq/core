@@ -297,18 +297,42 @@ export type ControlAnswer = { value: DeviceValue; message?: string };
  * MP4, for Cast), `<path>.ts` (MPEG-TS), `remote` (an MP4 whose header says it lasts a day, which
  * Chrome hands a screen near it) or the live HLS playlist `hls` (which Safari hands an AirPlay
  * screen) without signing in, at whatever address EiN is reached at, until nobody has read it for
- * a while.
+ * a while. `id` is the stream's, which `stream-page --press <id> <key>` presses keys in the page by.
  */
-export type StreamedPage = { path: string; remote: string; hls: string };
+export type StreamedPage = { id: string; path: string; remote: string; hls: string };
 
 /**
- * `stream-file <path>`: a recording or video made for a screen near the browser by the command
- * `CFG_FILE_STREAMER` names (the devices module's), kept while `stream-file --renew <id>` is run
- * within five minutes of the last time. `url` is a path read without signing in, at whatever address
- * EiN is reached at: the file with a ticket for it alone, or H.264 HLS made while it is read; `type`
- * is its media type.
+ * A key a page takes from a screen's controls: the key as the media service presses it
+ * (`ArrowRight`, `Space`, a letter or a digit), what it does there, and the icon of its button.
  */
-export type StreamedFile = { id: string; url: string; type: string; title: string };
+export type ScreenKey = { key: string; label: string; icon: string };
+
+/**
+ * What a page streamed for a screen says it shows (`stream-page --state`, the page's
+ * `globalThis.einScreen.state()`): what to call it, the file it shows and its kind (`photo`,
+ * `video`, `audio`, `document`), where that is in a list (`3 of 31`), and for a recording or video
+ * where it is, in seconds, and whether it is paused. A page says what it has; any part may be left out.
+ */
+export type ScreenState = {
+  title?: string;
+  path?: string;
+  kind?: string;
+  position?: string;
+  media?: { time: number; duration: number; paused: boolean };
+};
+
+/** What a page streamed for a screen is told (`stream-page --message`, its `einScreen.message()`): to move its recording or video to `seek` seconds. */
+export type ScreenMessage = { seek: number };
+
+/**
+ * `stream-file <path>`: a recording, video or picture made for a screen near the browser by the
+ * command `CFG_FILE_STREAMER` names (the devices module's), kept while `stream-file --renew <id>` is
+ * run within five minutes of the last time. `url` is a path read without signing in, at whatever
+ * address EiN is reached at: the file with a ticket for it alone, or H.264 HLS made while it is read;
+ * `type` is its media type. `captions`, when a recording or video has a transcript, is that WebVTT
+ * file the same way.
+ */
+export type StreamedFile = { id: string; url: string; type: string; title: string; captions?: string };
 
 /** A driver, as `devices --drivers` answers. */
 export type DriverSummary = {

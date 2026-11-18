@@ -38,6 +38,7 @@ import { HeaderSearch } from './HeaderSearch.tsx';
 import { ElevateDialog } from './ElevateDialog.tsx';
 import { EinMark } from './EinMark.tsx';
 import { UploadIndicator } from '../Upload/UploadIndicator.tsx';
+import { NearbyIndicator } from '../ShowOn/NearbyIndicator.tsx';
 import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
 import { usePhone } from '../../hooks/usePhone.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
@@ -379,6 +380,8 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
 
         {/* Upload indicator (shows when uploads in queue) */}
         <UploadIndicator />
+
+        <NearbyIndicator phone={phone} />
 
         {!confined && <TopbarZone spot={{ kind: 'topbar' }} entries={actions} room={phone ? PHONE_TOPBAR_ROOM : TOPBAR_ROOM} phone={phone} busy={busy} run={run} />}
 

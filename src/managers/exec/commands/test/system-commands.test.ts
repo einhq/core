@@ -17,6 +17,7 @@ import type { PipelineOverview } from '../../../../lib/api/pipeline.ts';
 import { UNSERVABLE_GRACE_MS, unservableKinds } from '../../../pipeline/unservable.ts';
 import { MODULE_API_VERSION } from '../../../../modules/mod.ts';
 import { thisHost } from '../../../devices/host.ts';
+import release from '../../../../../version.json' with { type: 'json' };
 
 const testCtx = createTestContext();
 let client: ShellClient;
@@ -44,7 +45,7 @@ Deno.test({
       assertEquals(typeof info.denoVersion, 'string');
       assertEquals(info.uptimeMs >= 0, true);
       assertEquals(info.api, MODULE_API_VERSION);
-      assertEquals(typeof info.version, 'string');
+      assertEquals(info.version, release.version);
 
       const overview = await client.execJson<PipelineOverview>('pipeline-overview');
       assertEquals(overview.coverage, undefined);

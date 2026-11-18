@@ -1,5 +1,5 @@
 /**
- * stream-file — a recording or video for a screen EiN does not reach itself: one on the network of a
+ * stream-file — a recording, video or picture for a screen EiN does not reach itself: one on the network of a
  * phone that reaches EiN over the internet, which the browser hands the file's address to.
  *
  * The making is the command the `CFG_FILE_STREAMER` setting names (the devices module's
@@ -43,8 +43,8 @@ export const streamFile = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
-  const { id: made, url, type, title } = JSON.parse(run.stdout) as StreamedFile;
-  if (cmd.json) await cmd.writeJSON({ id: made, url, type, title } satisfies StreamedFile);
+  const { id: made, url, type, title, captions } = JSON.parse(run.stdout) as StreamedFile;
+  if (cmd.json) await cmd.writeJSON({ id: made, url, type, title, ...(captions ? { captions } : {}) } satisfies StreamedFile);
   else await cmd.writeLn(`${made}  ${type}  ${url}`);
   return 0;
 };
@@ -52,12 +52,13 @@ export const streamFile = async (cmd: Command): CmdReturn => {
 streamFile.spec = {
   name: 'stream-file',
   effect: 'read' as const,
-  description: 'A recording or video for a screen near the browser to fetch, as the caller: by the command CFG_FILE_STREAMER names; renew it to keep it',
-  args: [{ name: 'path', type: 'string', optional: true, description: 'The recording or video' }],
+  description: 'A recording, video or picture for a screen near the browser to fetch, as the caller: by the command CFG_FILE_STREAMER names; renew it to keep it',
+  args: [{ name: 'path', type: 'string', optional: true, description: 'The recording, video or picture' }],
   flags: [
     { name: 'renew', type: 'string' as const, description: 'keep what an earlier stream-file made, by its id, five minutes more' },
     { name: 'stop', type: 'string' as const, description: 'let go of what an earlier stream-file made, by its id' },
   ],
   examples: ['stream-file /media/2024/boat.mp4', 'stream-file --renew near-3f2a9c0d1e4b5a6c'],
-  returns: 'id (for --renew and --stop), url (a path read without signing in until it is let go of), type and title',
+  returns:
+    'id (for --renew and --stop), url (a path read without signing in until it is let go of), type, title, and captions (its transcript, read the same way) when there is one',
 };

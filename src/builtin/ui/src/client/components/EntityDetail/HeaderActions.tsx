@@ -26,9 +26,11 @@ export type PageAction = {
   lead?: boolean;
   /** As a button, its icon alone, the label its tooltip. */
   iconOnly?: boolean;
+  /** As a button, beside ⋮ on a phone too, rather than folded into it. */
+  stays?: boolean;
   /** Busy: a spinner in place of its icon, and not to be pressed again. */
   loading?: boolean;
-  /** Filled, as a button: waiting for the next press, or what it started is under way. */
+  /** In the accent colour, as a button: waiting for the next press, or what it started is under way. */
   active?: boolean;
 };
 
@@ -36,8 +38,8 @@ export type PageAction = {
  * What can be done to what a page shows, laid out the same on every page: Upload (or the page's
  * own `lead` buttons), Share and Edit as buttons in the header's corner, in that order, then the
  * page's own buttons and the cast icon for a screen near the browser, then ⋮ with the page's own
- * items and Move to trash last. On a phone, and scrolled down in the header's last row, ⋮ stands
- * alone with all of them in it.
+ * items and Move to trash last. On a phone, and scrolled down in the header's last row, ⋮ has all
+ * of them in it but the cast icon, which stays beside it.
  */
 export type PageActions = {
   /** Files into a directory: Upload, and a drop target over the window. */
@@ -98,7 +100,7 @@ export function useActionGroups(
     ...(share ? [{ label: 'Share', icon: 'share', onClick: () => openShareModal(share) }] : []),
     ...(edit ? [{ label: 'Edit', icon: 'pencil', onClick: edit }] : []),
     ...items.filter((item) => item.button && !item.lead),
-    ...(nearby ? [{ ...nearby, iconOnly: true }] : []),
+    ...(nearby ? [{ ...nearby, iconOnly: true, stays: true }] : []),
   ];
   const menu = [
     ...(upload?.keepFolders ? [{ label: 'Upload a folder', icon: 'folder-up', disabled: upload.disabled, onClick: () => openFolder.current?.() }] : []),
@@ -143,7 +145,7 @@ export function ActionsMenu({ groups, label = 'More actions' }: { groups: PageAc
 
 /**
  * The header's corner: the buttons, then ⋮ with the rest. On a phone the buttons fold into ⋮ too,
- * where even as icons they would crowd the title.
+ * where even as icons they would crowd the title, but for one that `stays` beside it.
  */
 export function CornerActions({ groups: [buttons, menu, last] }: { groups: ActionGroups }) {
   return (
@@ -153,8 +155,8 @@ export function CornerActions({ groups: [buttons, menu, last] }: { groups: Actio
           ? (
             <Tooltip key={`icon:${action.icon}`} label={action.label}>
               <ActionIcon
-                className='mrx-header-wide'
-                variant={action.active ? 'filled' : 'light'}
+                className={action.stays ? undefined : 'mrx-header-wide'}
+                variant='light'
                 size='lg'
                 color={action.color}
                 disabled={action.disabled}
@@ -162,7 +164,7 @@ export function CornerActions({ groups: [buttons, menu, last] }: { groups: Actio
                 aria-label={action.label}
                 onClick={action.onClick}
               >
-                <TablerIcon name={action.icon} size={18} />
+                <TablerIcon name={action.icon} size={18} color={action.active ? 'var(--mrx-accent)' : undefined} />
               </ActionIcon>
             </Tooltip>
           )
@@ -187,7 +189,7 @@ export function CornerActions({ groups: [buttons, menu, last] }: { groups: Actio
         </Box>
       )}
       <Box className='mrx-header-narrow'>
-        <ActionsMenu groups={[buttons, menu, last]} />
+        <ActionsMenu groups={[buttons.filter((action) => !action.stays), menu, last]} />
       </Box>
     </Group>
   );

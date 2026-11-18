@@ -16,9 +16,10 @@ import { MODULE_API_VERSION } from '../../../../modules/mod.ts';
 import { REPO_ROOT } from '../../../../modules/repo.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import release from '../../../../../version.json' with { type: 'json' };
 
-/** Core's own version. */
-const CORE_VERSION = '0.1.0';
+/** Core's own version: version.json's, which the publish releases (ein/core#1419). */
+const CORE_VERSION = release.version;
 
 /** `3d 4h`, `5h 12m`, `42m` — uptime is read at a glance, not to the second. */
 export const formatUptime = (ms: number): string => {

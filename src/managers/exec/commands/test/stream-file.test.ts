@@ -1,5 +1,5 @@
 /**
- * `stream-file` asks the command `CFG_FILE_STREAMER` names to make a recording or video for a screen
+ * `stream-file` asks the command `CFG_FILE_STREAMER` names to make a recording, video or picture for a screen
  * near the browser, to renew it and to let go of it, and refuses without one, so "Show on" offers a
  * screen near the browser for a file only where a module makes them.
  */
@@ -37,7 +37,7 @@ Deno.test({ name: 'stream-file', sanitizeResources: false, sanitizeOps: false },
         await handle.write(
           new TextEncoder().encode(
             [
-              `[ "$1" = start ] && [ "$2" = '/films/a boat.mp4' ] && echo '{"id":"near-1","url":"/file/films/a%20boat.mp4?ticket=t","type":"video/mp4","title":"a boat.mp4"}' && exit 0`,
+              `[ "$1" = start ] && [ "$2" = '/films/a boat.mp4' ] && echo '{"id":"near-1","url":"/file/films/a%20boat.mp4?ticket=t","type":"video/mp4","title":"a boat.mp4","captions":"/file/films/a%20boat.mp4/metadata/transcript?ticket=c"}' && exit 0`,
               `[ "$1" = renew ] && [ "$2" = near-1 ] && exit 0`,
               `[ "$1" = stop ] && [ "$2" = near-1 ] && exit 0`,
               `echo "fake-files: $2: none of yours" >&2`,
@@ -60,6 +60,7 @@ Deno.test({ name: 'stream-file', sanitizeResources: false, sanitizeOps: false },
           url: '/file/films/a%20boat.mp4?ticket=t',
           type: 'video/mp4',
           title: 'a boat.mp4',
+          captions: '/file/films/a%20boat.mp4/metadata/transcript?ticket=c',
         });
         assertEquals((await streamer.exec('stream-file --renew near-1')).success, true);
         assertEquals((await streamer.exec('stream-file --stop near-1')).success, true);

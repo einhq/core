@@ -1,0 +1,20 @@
+# The Deno that EiN's checks run: core's own, and every module's, which check out core and use
+# this action from it (ein/core#1425), so one Deno version decides how all of them are formatted.
+# From deno's own server, then GitHub's releases, each retried: one source answering 504 does not
+# fail the run.
+name: Install Deno
+description: Installs the Deno version EiN's checks run and puts it on the PATH
+
+runs:
+  using: composite
+  steps:
+    - name: Install Deno
+      shell: bash
+      run: |
+        zip=deno-x86_64-unknown-linux-gnu.zip
+        for url in https://dl.deno.land/release/v2.9.6/$zip https://github.com/denoland/deno/releases/download/v2.9.6/$zip; do
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/deno.zip" "$url" && break
+        done
+        mkdir -p "$HOME/.deno/bin"
+        unzip -q -o "$RUNNER_TEMP/deno.zip" -d "$HOME/.deno/bin"
+        echo "$HOME/.deno/bin" >> "$GITHUB_PATH"

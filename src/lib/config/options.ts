@@ -317,6 +317,17 @@ export const CORE_OPTIONS: ConfigOption[] = [
     emptyMeans: 'no screen near the browser',
   },
   {
+    key: 'CFG_PAGE_CONTROL',
+    scope: 'system',
+    type: 'string',
+    default: '',
+    label: 'Page control',
+    description:
+      "The command that controls a page the page streamer renders: `press <id> <key>...` presses keys in it, `state <id>` says what it shows, `message <id> <json>` hands it a message. A screen's controls step through a slideshow with it, say what it shows and move in its video. Empty gives a page on a screen near the browser no controls. The media service sets itself here when it is installed.",
+    group: 'Devices',
+    emptyMeans: 'no controls for a page on a screen',
+  },
+  {
     key: 'CFG_FILE_STREAMER',
     scope: 'system',
     type: 'string',
