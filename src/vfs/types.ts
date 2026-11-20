@@ -32,8 +32,8 @@ export type VfsRegistries = {
 
 /**
  * Where the VFS sends what is written to a device, a control or a device's track
- * (`DeviceWriteHandle`), and where it asks for a stream's frame (`FrameHandle`): core's device
- * manager, which hands it the device's driver. The writer hears the answer from its close.
+ * (`DeviceWriteHandle`): core's device manager, which hands it the device's driver. The writer
+ * hears the answer from its close.
  */
 export interface DeviceSink {
   /** Raw input written to the device node at `path`: a webhook's body. */
@@ -42,8 +42,6 @@ export interface DeviceSink {
   command(access: Access, path: NodePath, text: string): Promise<unknown>;
   /** What is written over a device's track at `path`: fixes in whatever form a tracker sends them, a GPX file. */
   fixes(access: Access, path: NodePath, raw: { bytes: Uint8Array }): Promise<unknown>;
-  /** One frame of the stream at `path`, as its device's driver gives it now. */
-  frame(access: Access, path: NodePath): Promise<{ bytes: Uint8Array; type: string }>;
 }
 
 /**
@@ -213,6 +211,14 @@ export type NodeResolveOptions = {
    * root of the mounted vfs, default false.
    */
   readmount?: boolean;
+
+  /**
+   * The path is resolved to be written: to create or remove a name in it, or to change or write
+   * the node it leads to. An administrator's access then follows no softlink that someone other
+   * than an administrator or the writer owns, since a link grants nothing its owner lacks and the
+   * administrator could otherwise be led to write anywhere (ein/core#1413). Default false.
+   */
+  write?: boolean;
 };
 
 /**

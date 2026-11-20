@@ -1,4 +1,5 @@
-import { Access, AccessLevel, isAdmin, verifyAccess } from '../lib/access/mod.ts';
+import { Access, AccessLevel, ADMIN_UID, isAdmin, verifyAccess } from '../lib/access/mod.ts';
+import { MODE_STICKY } from '../lib/mode/mod.ts';
 import type { GroupId, Ownership, UserId } from '../lib/mode/mod.ts';
 import { NodeAccessDeniedError, NodeInvalidOperationError } from './errors.ts';
 import type { NodeAttrs, NodeId, NodeType } from './node.ts';
@@ -19,6 +20,22 @@ export const assertAccess = (
   if (!verifyAccess(access, node.props, level)) {
     throw new NodeAccessDeniedError(node.id, level);
   }
+};
+
+/**
+ * Assert that `access` may take `node`'s name out of `dir` — remove it, move it away, or replace it
+ * by a move — beyond writing `dir`. In a sticky directory (`MODE_STICKY`) only the node's owner,
+ * the directory's owner, an administrator or someone who may write the node may: everyone writes
+ * `/tmp`, and the users group the archive's roots, and write on those would otherwise let anyone
+ * delete what someone else keeps private there. Unlike Linux, write on the node is enough, since
+ * here it already lets them rename it and change everything in it — except on a node that is itself
+ * sticky, such as an archive root in `/archive`: the group writes it to add to it, not to remove it.
+ */
+export const assertStickyAllows = (access: Access, dir: { props: Ownership }, node: { props: Ownership }, path: string) => {
+  if (!(dir.props.mode & MODE_STICKY) || isAdmin(access)) return;
+  if (access.uid === node.props.uid || access.uid === dir.props.uid) return;
+  if (!(node.props.mode & MODE_STICKY) && verifyAccess(access, node.props, 'w')) return;
+  throw new NodeAccessDeniedError(path, 'remove from a sticky directory');
 };
 
 /**
@@ -44,6 +61,31 @@ export const assertOwnershipAllowed = (
   if (props.gid !== undefined && props.gid !== current.gid && props.gid !== access.gid && !access.gids.includes(props.gid)) {
     throw new NodeAccessDeniedError(node, 'change gid');
   }
+};
+
+/**
+ * Assert that a write by `access` may go through the softlink at `path`, which `owner` owns: an
+ * administrator's follows only an administrator's links and its own. A link anyone else laid —
+ * under a file of theirs that a pipeline step writes beside, say — could otherwise lead the
+ * administrator to write wherever it points, `/etc` included. Anyone else's write is held to their
+ * own access at the target, so a link grants them nothing.
+ */
+export const assertSoftlinkWritable = (access: Access, owner: UserId, path: string) => {
+  if (isAdmin(access) && owner !== ADMIN_UID && owner !== access.uid) {
+    throw new NodeAccessDeniedError(path, `write through a softlink owned by uid ${owner}`);
+  }
+};
+
+/**
+ * Assert that `access` may give `node` another name, as Linux's `protected_hardlinks` does: its
+ * owner, an administrator, or someone who may read and write it. Otherwise a name of someone
+ * else's node in a folder of theirs would make whatever writes there as the administrator write
+ * that node.
+ */
+export const assertHardLinkable = (access: Access, node: { props: Ownership }, path: string) => {
+  if (isAdmin(access) || node.props.uid === access.uid) return;
+  if (verifyAccess(access, node.props, 'r') && verifyAccess(access, node.props, 'w')) return;
+  throw new NodeAccessDeniedError(path, 'link');
 };
 
 /** The node types whose attrs become who someone is: an account, a group, a signed-in session. */

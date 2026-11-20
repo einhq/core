@@ -3,7 +3,6 @@ import { IconAdjustmentsHorizontal, IconCheck } from '@tabler/icons-react';
 import type { ReactNode, RefObject } from 'react';
 import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { usePhone } from '../../hooks/usePhone.ts';
 import { scrollToTop } from '../../lib/scroll-to-top.ts';
 
 /**
@@ -221,19 +220,19 @@ const WIDE_BOX_ROOM = 360;
  * while the page is scrolled goes back to the top, where its answer starts.
  *
  * The box has the keyboard when the page opens, so typing filters straight
- * away — on a desktop only, where it costs nothing; a phone would put its
- * keyboard over the page just opened. It leaves the focus alone when a text
- * box elsewhere, like the chat's, already has it.
+ * away — with a mouse or trackpad only, where it costs
+ * nothing; a phone or tablet, whose main pointer is a finger, would put its
+ * on-screen keyboard over the page just opened. It leaves the focus alone when
+ * a text box elsewhere, like the chat's, already has it.
  */
 export function HeaderFilterBar({ input, wide, children }: HeaderFilterBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
-  const phone = usePhone();
   useFoldedChoices(barRef, controlsRef, input ? (wide ? WIDE_BOX_ROOM : BOX_ROOM) : 0);
 
   useEffect(() => {
-    if (phone) return;
+    if (globalThis.matchMedia('(pointer: coarse)').matches) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && (active.isContentEditable || active.matches('input, textarea, select'))) return;
     inputRef.current?.querySelector<HTMLInputElement>('input:not([type=hidden])')?.focus({ preventScroll: true });

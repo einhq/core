@@ -1,18 +1,18 @@
 /**
  * A camera's streams on a booted EiN, through a stub driver: a secret config field kept in the
  * device's `.secret` for the administrator alone and changed with `device-config`, a stream endpoint
- * shown with what it is, a frame read with `cat` and over HTTP for whoever may read it, the live
- * socket passed through to where the driver says with its credentials, the stream's address for a
- * service, nothing appended to a stream, and a stream watched live only while its driver runs and
- * gives a live view.
+ * shown with what it is, its bytes from its writer read with `cat` and over HTTP by whoever may read
+ * it, a picture over HTTP from a stream of pictures, made when asked, a file ticket reading a stream
+ * as live, a stream under a mount read alike, nothing appended to a stream nor written by its
+ * readers, and a stream watched live only when it is fragmented MP4 and its driver runs.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
+import { isStreamWriter } from '../../../registries/stream/mod.ts';
 import { accessOfUid } from '../../../lib/auth/member-gids.ts';
 import type { DeviceConfigAnswer, DeviceInfo, DeviceSummary } from '../../../lib/api/devices.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../testing/mod.ts';
-import type { DriverStream } from '../types.ts';
 
 const harness = new SystemTestHarness({ boot: true, ssh: false });
 
@@ -23,15 +23,6 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
   const { baseUrl, devices, vfs } = await harness.start();
   const admin = await harness.createShellClient();
   const clients: ShellClient[] = [admin];
-  // Where the stub's streams are watched: it echoes what it is sent, after the header it was opened with.
-  const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen: () => {} }, (req) => {
-    const authorization = req.headers.get('authorization');
-    const { socket, response } = Deno.upgradeWebSocket(req);
-    socket.onopen = () => socket.send(`authorization: ${authorization}`);
-    socket.onmessage = (event) => socket.send(`echo: ${event.data}`);
-    return response;
-  });
-  const asked: DriverStream[] = [];
   const setUp: string[] = [];
   const unregister = devices.registerDriver('stub-camera', {
     description: 'a camera for the test',
@@ -41,20 +32,11 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
     ],
     async setup(device) {
       setUp.push(device);
-      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'main', 'stream', { label: 'Main stream', codec: 'h264', width: 1280, height: 720 });
-      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'sub', 'stream', { label: 'Smaller stream', width: 640, height: 360 });
-    },
-    async frame(stream) {
-      asked.push(stream);
-      return { bytes: FRAME, type: 'image/jpeg' };
-    },
-    async source(stream) {
-      const secret = await devices.secret(ADMIN_ACCESS, stream.device);
-      return `rtsp://ein:${secret.password}@192.0.2.1:8554/${stream.device}-${stream.endpoint}`;
-    },
-    async live(stream) {
-      const secret = await devices.secret(ADMIN_ACCESS, stream.device);
-      return { url: `ws://127.0.0.1:${upstream.addr.port}/${stream.endpoint}`, headers: { authorization: `Basic ${btoa(`ein:${secret.password}`)}` } };
+      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'main.ts', 'stream', { label: 'Main stream', mimetype: 'video/mp2t', codec: 'h264', width: 1280, height: 720 });
+      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'main.mp4', 'stream', { label: 'Main stream', mimetype: 'video/mp4', codec: 'h264', width: 1280, height: 720 });
+      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'sub.ts', 'stream', { label: 'Smaller stream', mimetype: 'video/mp2t', width: 640, height: 360 });
+      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'main.jpg', 'stream', { label: 'Main picture', mimetype: 'image/jpeg', width: 1280, height: 720 });
+      await devices.ensureEndpoint(ADMIN_ACCESS, device, 'sub.jpg', 'stream', { label: 'Smaller picture', mimetype: 'image/jpeg', width: 640, height: 360 });
     },
   });
 
@@ -98,76 +80,128 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
       await anna.execString('device-config front-door password=s3cret');
     });
 
-    await t.step('a stream is shown with what it is and that it is watched live, and a card shows a frame of the smallest', async () => {
+    await t.step('a stream is shown with what it is and, when it is fragmented MP4, that it is watched live, and a card shows the smallest stream of pictures', async () => {
       const info = await anna.execJson<DeviceInfo>('device-show front-door');
       assertEquals(info.endpointList.map((endpoint) => [endpoint.name, endpoint.type, endpoint.stream, endpoint.live]), [
-        ['main', 'stream', { codec: 'h264', width: 1280, height: 720 }, true],
-        ['sub', 'stream', { width: 640, height: 360 }, true],
+        ['main.jpg', 'stream', { mimetype: 'image/jpeg', width: 1280, height: 720 }, undefined],
+        ['main.mp4', 'stream', { mimetype: 'video/mp4', codec: 'h264', width: 1280, height: 720 }, true],
+        ['main.ts', 'stream', { mimetype: 'video/mp2t', codec: 'h264', width: 1280, height: 720 }, undefined],
+        ['sub.jpg', 'stream', { mimetype: 'image/jpeg', width: 640, height: 360 }, undefined],
+        ['sub.ts', 'stream', { mimetype: 'video/mp2t', width: 640, height: 360 }, undefined],
       ]);
       const card = (await anna.execJson<DeviceSummary[]>('devices')).find((device) => device.name === 'front-door');
-      assertEquals(card?.picture, 'sub');
-      assertEquals((await anna.execJson<{ readings: unknown[] }>('device-history front-door/main')).readings, []);
-      assertStringIncludes(await anna.execString('JSON_OUTPUT=0 device-show front-door'), '  main  stream  1280x720 h264\n');
+      assertEquals(card?.picture, 'sub.jpg');
+      assertEquals((await anna.execJson<{ readings: unknown[] }>('device-history front-door/main.ts')).readings, []);
+      assertStringIncludes(await anna.execString('JSON_OUTPUT=0 device-show front-door'), '  main.ts  stream  1280x720 h264\n');
     });
 
-    await t.step('a frame is read with cat and over HTTP by whoever may read the stream, never cached', async () => {
-      assertEquals((await anna.execString('cat /dev/front-door/main | wc -c')).trim(), String(FRAME.length));
-      assertEquals(asked.at(-1)?.endpoint, 'main');
+    await t.step("a stream's bytes come from its writer, read with cat and over HTTP by whoever may read it", async () => {
+      const writer = await vfs.open(ADMIN_ACCESS, '/dev/front-door/sub.ts', { mode: 'w' });
+      assert(isStreamWriter(writer));
+      /** Write `parts` once someone reads, then close: what the readers there then get, to their end. */
+      const feed = async (parts: string[]) => {
+        while (!writer.wanted) await new Promise((resolve) => setTimeout(resolve, 10));
+        for (const part of parts) await writer.write(new TextEncoder().encode(part));
+      };
+      const counted = anna.execString('cat /dev/front-door/sub.ts | wc -c');
       const cookie = await cookieOf('anna');
-      const response = await fetch(`${baseUrl}/file/dev/front-door/sub`, { headers: { cookie } });
+      const response = await fetch(`${baseUrl}/file/dev/front-door/sub.ts`, { headers: { cookie } });
+      assertEquals([response.status, response.headers.get('content-type'), response.headers.get('cache-control')], [200, 'video/mp2t', 'no-store']);
+      // Both have joined once the stream holds two readers.
+      while ((await vfs.stat(ADMIN_ACCESS, '/dev/front-door/sub.ts') as { readers?: number }).readers !== 2) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await feed(['live ', 'bytes']);
+      await writer.close();
+      assertEquals(await response.text(), 'live bytes');
+      assertEquals((await counted).trim(), '10');
+      const refused = await fetch(`${baseUrl}/file/dev/front-door/sub.ts`, { headers: { cookie: await cookieOf('bo') } });
+      assert(refused.status === 403 || refused.status === 404, `bo got ${refused.status}`);
+      await refused.body?.cancel();
+    });
+
+    await t.step('a file ticket reads a stream from its latest start point, which a DLNA renderer is told is live', async () => {
+      const { uid } = (await admin.execJson<{ attrs: { uid: number } }>('stat /etc/users/anna')).attrs;
+      const ticket = await devices.fileTicket((await accessOfUid(vfs, uid))!, '/dev/front-door/sub.ts');
+      const writer = await vfs.open(ADMIN_ACCESS, '/dev/front-door/sub.ts', { mode: 'w' });
+      assert(isStreamWriter(writer));
+      await writer.writeHeader(new TextEncoder().encode('[header] '));
+      await writer.writeStart(new TextEncoder().encode('key '));
+      await writer.write(new TextEncoder().encode('since '));
+      const response = await fetch(`${baseUrl}/file/dev/front-door/sub.ts?ticket=${ticket}`, { headers: { 'getcontentFeatures.dlna.org': '1' } });
+      assertEquals(response.status, 200);
+      assertStringIncludes(response.headers.get('contentfeatures.dlna.org') ?? '', 'DLNA.ORG_OP=00');
+      while ((await vfs.stat(ADMIN_ACCESS, '/dev/front-door/sub.ts') as { readers?: number }).readers !== 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await writer.write(new TextEncoder().encode('now'));
+      await writer.close();
+      assertEquals(await response.text(), '[header] key since now');
+      devices.dropFileTicket(ticket);
+    });
+
+    await t.step('a stream under a mount is read over HTTP as one elsewhere', async () => {
+      await admin.execString('mknode -t stream /tmp/mounted.ts --as mimetype=video/mp2t');
+      const writer = await vfs.open(ADMIN_ACCESS, '/tmp/mounted.ts', { mode: 'w' });
+      assert(isStreamWriter(writer));
+      await writer.writeStart(new TextEncoder().encode('from a keyframe'));
+      const response = await fetch(`${baseUrl}/file/tmp/mounted.ts`, { headers: { cookie: (await harness.createHttpSession(ADMIN_ACCESS)).cookie } });
+      assertEquals(response.status, 200);
+      const reader = response.body!.getReader();
+      assertEquals(new TextDecoder().decode((await reader.read()).value), 'from a keyframe');
+      await reader.cancel();
+      await writer.close();
+    });
+
+    await t.step("a stream is written with the shell's redirect by whoever may write it", async () => {
+      await admin.execString('mknode -t stream /home/admin/probe.ts');
+      const reader = await vfs.open(ADMIN_ACCESS, '/home/admin/probe.ts', { mode: 'r' });
+      try {
+        await admin.execString('echo hello > /home/admin/probe.ts');
+        assertEquals(new TextDecoder().decode(await reader.read(64)), 'hello\n');
+      } finally {
+        await reader.close();
+      }
+    });
+
+    await t.step('a picture is read over HTTP by whoever may read the stream of pictures, made while one is asked for, never cached', async () => {
+      const writer = await vfs.open(ADMIN_ACCESS, '/dev/front-door/sub.jpg', { mode: 'w' });
+      assert(isStreamWriter(writer));
+      const made: boolean[] = [];
+      writer.onWanted((wanted) => {
+        made.push(wanted);
+        if (wanted) void writer.write(FRAME);
+      });
+      const cookie = await cookieOf('anna');
+      const response = await fetch(`${baseUrl}/file/dev/front-door/sub.jpg`, { headers: { cookie } });
       assertEquals([response.status, response.headers.get('content-type'), response.headers.get('cache-control')], [200, 'image/jpeg', 'no-store']);
       assertEquals(new Uint8Array(await response.arrayBuffer()), FRAME);
-      const refused = await fetch(`${baseUrl}/file/dev/front-door/sub`, { headers: { cookie: await cookieOf('bo') } });
+      // A second read while the picture is fresh is given it, and asks the writer for none.
+      assertEquals(new Uint8Array(await (await fetch(`${baseUrl}/file/dev/front-door/sub.jpg`, { headers: { cookie } })).arrayBuffer()), FRAME);
+      assertEquals([made, writer.wanted], [[true, false], false]);
+      const refused = await fetch(`${baseUrl}/file/dev/front-door/sub.jpg`, { headers: { cookie: await cookieOf('bo') } });
       assert(refused.status === 403 || refused.status === 404, `bo got ${refused.status}`);
       await refused.body?.cancel();
+      await writer.close();
     });
 
-    await t.step("the live socket reaches where the driver says, with the driver's credentials, for a reader alone", async () => {
-      const { cookie } = await harness.createHttpSession();
-      // Deno's WebSocket takes headers in its options, which its type does not have.
-      const socket = new WebSocket(`${baseUrl.replace(/^http/, 'ws')}/stream/dev/front-door/main`, { headers: { cookie } } as unknown as string[]);
-      const heard: string[] = [];
-      await new Promise<void>((resolve, reject) => {
-        socket.onopen = () => socket.send('hello');
-        socket.onmessage = (event) => {
-          heard.push(String(event.data));
-          if (heard.length === 2) resolve();
-        };
-        socket.onerror = () => reject(new Error('the live socket failed'));
-      });
-      socket.close();
-      assertEquals(heard, [`authorization: Basic ${btoa('ein:s3cret')}`, 'echo: hello']);
-
-      const refused = await fetch(`${baseUrl}/stream/dev/front-door/main`, { headers: { cookie: await cookieOf('bo'), upgrade: 'websocket' } });
-      assert(refused.status === 403 || refused.status === 404, `bo got ${refused.status}`);
-      await refused.body?.cancel();
+    await t.step('nothing is appended to a stream, and those who read it do not write it', async () => {
+      const appended = await devices.append(ADMIN_ACCESS, 'front-door', 'main.ts', 1).then(() => 'taken', (error: Error) => error.message);
+      assertStringIncludes(appended, 'nothing keeps');
+      await testCommands(anna).shouldFailWith('echo x > /dev/front-door/main.ts', 'denied');
     });
 
-    await t.step("a stream's address for another service is the administrator's alone", async () => {
-      assertEquals(await devices.streamSource(ADMIN_ACCESS, 'front-door', 'sub'), 'rtsp://ein:s3cret@192.0.2.1:8554/front-door-sub');
-      const anna = await accessOfUid(vfs, (await admin.execJson<{ attrs: { uid: number } }>('stat /etc/users/anna')).attrs.uid);
-      const refused = await devices.streamSource(anna!, 'front-door', 'sub').then(() => 'given', (error: Error) => error.message);
-      assertStringIncludes(refused, 'only the administrator');
-    });
-
-    await t.step('nothing is appended to a stream, nor written to it', async () => {
-      const appended = await devices.append(ADMIN_ACCESS, 'front-door', 'main', 1).then(() => 'taken', (error: Error) => error.message);
-      assertStringIncludes(appended, 'keeps nothing');
-      await testCommands(anna).shouldFailWith('echo x > /dev/front-door/main', 'never written');
-    });
-
-    await t.step('a stream is not watched live when its driver gives no live view, nor while its driver is not running', async () => {
+    await t.step('a stream is watched live whatever its driver, but not while its driver is not running', async () => {
       const unregisterStill = devices.registerDriver('still-camera', {
-        description: 'a camera with pictures and no live view, for the test',
-        frame: () => Promise.resolve({ bytes: FRAME, type: 'image/jpeg' }),
+        description: 'a camera with pictures alone, for the test',
       });
       try {
         await devices.ensureDevice(ADMIN_ACCESS, 'porch', { label: 'Porch', driver: 'still-camera', class: 'camera' });
-        await devices.ensureEndpoint(ADMIN_ACCESS, 'porch', 'main', 'stream', { label: 'Main stream' });
+        await devices.ensureEndpoint(ADMIN_ACCESS, 'porch', 'main.mp4', 'stream', { label: 'Main stream', mimetype: 'video/mp4' });
         const live = async (device: string) => (await anna.execJson<DeviceInfo>(`device-show ${device}`)).endpointList.map((endpoint) => endpoint.live);
-        assertEquals(await live('porch'), [undefined]);
+        assertEquals(await live('porch'), [true]);
         unregister();
-        assertEquals(await live('front-door'), [undefined, undefined]);
+        assertEquals(await live('front-door'), [undefined, undefined, undefined, undefined, undefined]);
       } finally {
         unregisterStill();
       }
@@ -175,7 +209,6 @@ Deno.test({ name: 'streams', sanitizeResources: false, sanitizeOps: false }, asy
   } finally {
     unregister();
     for (const client of clients) client.close();
-    await upstream.shutdown();
     await harness.stop();
   }
 });

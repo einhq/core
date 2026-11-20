@@ -4,6 +4,7 @@
 
 // @ts-types="@types/leaflet"
 import L from 'leaflet';
+import type { MapMarkerTag } from './types.ts';
 
 export const MARKER_COLOR = '#0d9488';
 /** Highlighted marker — matches the amber the locations list uses for suggestions. */
@@ -105,6 +106,29 @@ export function pileIcon(url: string, count: number | string): L.DivIcon {
     iconSize: [48, 48],
     iconAnchor: [24, 24],
     popupAnchor: [0, -26],
+  });
+}
+
+const escapeHtml = (text: string): string => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+/**
+ * A tag in its own colours over a dot on the spot: a vehicle with its line's badge. The icon is an
+ * empty box on the spot, the dot centred on it and the tag standing above, so a tag of any width is
+ * centred over its dot.
+ */
+export function tagIcon(tag: MapMarkerTag): L.DivIcon {
+  const border = tag.border ?? tag.background;
+  const badge = `position:absolute;left:0;bottom:9px;transform:translateX(-50%);min-width:24px;padding:1px 4px;` +
+    `box-sizing:border-box;border:1.5px solid ${border};border-radius:4px;background:${tag.background};color:${tag.color};` +
+    `font:700 11px/13px sans-serif;text-align:center;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.45)`;
+  const dot = `position:absolute;left:-7px;top:-7px;width:14px;height:14px;box-sizing:border-box;border-radius:50%;` +
+    `background:${tag.dot ?? border};border:2.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.45)`;
+  return L.divIcon({
+    className: '',
+    html: `<div style="${dot}"></div><div style="${badge}">${escapeHtml(tag.text)}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    tooltipAnchor: [0, -30],
   });
 }
 

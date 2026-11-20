@@ -154,6 +154,19 @@ link and the rest of the walk. Each VFS on the way up joins that directory onto 
 and the one that is not mounted resolves the target from its root — an absolute target as the
 caller's `/`, a relative one from the link's directory as the caller sees it.
 
+**An administrator's write follows only an administrator's softlinks.** Every write resolves its
+path with `write` set (`NodeResolveOptions`): the parent a node is created, moved, copied or linked
+into or removed from, and the node an update or an `open` for writing changes. On such a walk an
+administrator's access goes through no softlink owned by anyone other than uid 0 or the writer
+(`assertSoftlinkWritable`), checked where the link is followed, so in the outermost VFS for one
+inside a mount. Pipeline steps write as the administrator under members' files (`metadata/`,
+renditions, regions, versions), where the member may lay links; a link grants nothing its owner
+lacks. Reads still follow any link, and a non-administrator's write is held to their own access at
+the target. A command that resolves a path and writes to the entry later (`cp` onto a link,
+`trash`, the recursive `share` walk) resolves it with `write` too. Hard links have the matching
+rule (`assertHardLinkable`, Linux's `protected_hardlinks`): a node is given another name only by its
+owner, an administrator, or someone who may read and write it.
+
 ### Mirror stores and the sftp mount
 
 `FilesystemStore` and `SftpStore` mirror a tree kept elsewhere — a host directory, a directory on
@@ -689,6 +702,14 @@ against 22 s and 36,000 for a walk per path.
 
 Registries are a unified resource management layer sitting alongside the VFS. All implement `RegistryIf` ([src/registries/types.ts](../src/registries/types.ts)) with `touch`, `open`, `exists`, `stat`, `delete`, `list`, `count`.
 
+A `stream` node's registry keeps nothing on disk: it carries one writer's bytes to every reader in
+this process's memory, each joining at the latest start point its writer marked (a keyframe) or
+at now, with a bounded buffer per reader and `wanted` for the writer, so a producer runs only while
+someone reads ([src/registries/stream/](../src/registries/stream/)). A stream of `image/*` is one
+of pictures: each write one whole picture, each read the latest while it is fresh, and otherwise
+the next, which the writer is wanted for only while a reader waits, so pictures nobody asked for
+are never made.
+
 Each registry set belongs to one `LocalNodeVFS` backend and is private to it. Node operations
 resolve their target backend before selecting its registry; cross-backend operations such as
 embedding and location search are exposed as `NodeVFS` methods that recurse through mounts. Code
@@ -1163,7 +1184,16 @@ node until it is removed for good: by `trash empty`, which takes a batch like an
 `trash-purger` service, after `CFG_TRASH_RETENTION_DAYS` (30) counted from the entry's or the
 batch's `trashedAt` (a batch's is that of the last entries put into it).
 
-**Scratch.** `/tmp` is a memory mount, so whatever is left there holds memory until a restart. The
+**Sticky directories.** The sticky bit (`MODE_STICKY`) is `LocalNodeVFS`'s: taking an entry's name
+out of such a directory — unlink, rename away, replace by a move — is refused unless the caller owns
+the entry or the directory, is an administrator, or may write the entry and it is not sticky itself
+(`assertStickyAllows`). `/archive` and its roots are `1771`, so a member removes only what they own
+or may change in a root, and no root. In a
+sticky directory everyone writes, a new node is its creator's alone (`0700`, their own group, no
+access list) rather than the directory's group's.
+
+**Scratch.** `/tmp` is a memory mount with the mode `1777`, sticky and everyone's. Process
+substitution's scratch nodes are made there, so they are their caller's. Whatever is left there holds memory until a restart. The
 `tmp-sweeper` service removes a file directly in it once it has not changed for
 `CFG_TMP_RETENTION_HOURS` (24); directories, mounts such as `dev-modules` among them, are left alone.
 What a reader puts there — a picture to search with — is never indexed: the archive bridge ignores
@@ -1196,7 +1226,7 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 | `track`      | description, routingKeys; the summary is the registry's (`trackSummaries`)                     | track registry                           |
 | `device`     | label, class, driver, manufacturer, model, firmware, serial, mac, online, config               | device registry (keeps nothing)          |
 | `control`    | label, unit, schema, requested; its states are a log's entries                                 | control registry (log registry's tables) |
-| `stream`     | label, codec, width, height, fps, audio                                                        | stream registry (keeps nothing)          |
+| `stream`     | label, mimetype, codec, width, height, fps, audio                                              | stream registry (keeps nothing)          |
 | `device-key` | key, createdBy, createdAt                                                                      | PgStore                                  |
 | `command`    | name, args, flags                                                                              | CommandStore                             |
 | `session`    | secret, access, env, expiresSec, bootId                                                        | PgStore                                  |
@@ -1232,16 +1262,18 @@ control's `requested` (the audit's record of who switched what) and awaits the d
 the writer hears the driver's answer from its close. A control's states are the device's reports,
 appended by its driver (opened `a`, the administrator's alone) and kept in the log registry's
 tables under the control's id, so `cat`, `tail -f` and `log-read` read a control as a log. A
-`stream` is a camera's live picture and keeps nothing: a read of it is a `FrameHandle`, which asks
-`DeviceManager.frame`, the driver's `frame`, for a JPEG of it now (`cat`, and `GET /file/dev/…`,
-never cached), and `/stream/dev/<device>/<stream>` is a WebSocket that core opens to where the
-driver's `live` says (a restreamer's, with its credentials) and passes every message through, for
-whoever may read the stream. A service, the administrator, asks `streamSource` for the address
-another service reads a stream at (the driver's `source`, an RTSP address with its credentials),
-which is how the media service is told what to watch. A driver whose device fetches a file itself
+`stream` endpoint is live bytes its driver writes, a camera's MPEG-TS (`main.ts`) or fragmented MP4
+(`main.mp4`), its name's extension saying what the bytes are and its `mimetype` attr the media type: the driver opens it to
+write (`StreamWriter`) and feeds it while its `wanted` says someone reads. A stream node is no
+device's: what a read of one is, `cat` and `GET /file/…` included, is the stream registry's
+(`src/registries/stream/`). A camera's picture is a stream of pictures (`main.jpg`, an `image/*`),
+which its driver writes one picture at a time while a reader waits for one: reading it, `cat` or
+`GET /file/…`, gives the latest. A page watches a stream live by reading it over `GET /file/…` into
+a MediaSource, which takes fragmented MP4: `device-show` marks such a stream `live` while its
+device's driver runs. A driver whose device fetches a file itself
 (a Cast speaker, given recordings to play) makes it a file ticket with `fileTicket`, from the access
-its `input` was written with: `GET /file/<path>?ticket=…` reads that path alone as that access, with
-no session and from any origin, until a few minutes after the driver last renewed it
+its `input` was written with: `GET /file/<path>?ticket=…` reads that path alone, a file or a stream,
+as that access, with no session and from any origin, until a few minutes after the driver last renewed it
 (`file-tickets.ts`, in memory). A screen shown a page (a dashboard wall, a slideshow) gets it
 as video the media service renders in a browser of its own: `pageSignIn` makes a page ticket from
 the writer's access, and `GET /__page/<ticket>` opens one session for that browser, once and within
@@ -1527,24 +1559,23 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 
 ### HTTP (`:8080`) — [src/servers/http/](../src/servers/http/)
 
-| Route                           | Handler                               | Purpose                                                                                                                                   |
-| ------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `/__shell` (WS upgrade)         | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                                                                                        |
-| `GET /__session`                | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie                                                                |
-| `GET /file/<path>`              | `get-file`                            | Stream file from VFS (ETag via sha256); a file's `shown` picture's renditions stand in for its own under `thumbnails/` unless `?original` |
-| `PUT /file/<path>`              | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME                                                                      |
-| `POST /file/<dir>/?name=`       | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`                                                                         |
-| `POST /archive`                 | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it                                                                          |
-| `GET /archive/<token>`          | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                                                                                    |
-| `PUT\|POST /file/dev/<device>`  | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key                                                                     |
-| `GET /file/dev/<device>?key=…`  | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input                                                                   |
-| `POST /file/dev/<device>/<ep>`  | `dev-write`                           | A value: appended to a log or a track, or written to a control                                                                            |
-| `GET /file/<path>?ticket=…`     | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                     |
-| `GET /__page/<ticket>`          | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                            |
-| `GET /live/<id>.mp4\|.ts`       | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                           |
-| `GET /file/dev/<device>/<s>`    | `get-file` → `stream`                 | A frame of a stream now, from its driver (a JPEG, never cached)                                                                           |
-| `/stream/dev/<device>/<s>` (WS) | `stream`                              | Watch a stream live: passed through to where its driver says                                                                              |
-| `GET /*`                        | `get-default`                         | SPA fallback, vhost support                                                                                                               |
+| Route                          | Handler                               | Purpose                                                                                                                                   |
+| ------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/__shell` (WS upgrade)        | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                                                                                        |
+| `GET /__session`               | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie                                                                |
+| `GET /file/<path>`             | `get-file`                            | Stream file from VFS (ETag via sha256); a file's `shown` picture's renditions stand in for its own under `thumbnails/` unless `?original` |
+| `PUT /file/<path>`             | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME                                                                      |
+| `POST /file/<dir>/?name=`      | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`                                                                         |
+| `POST /archive`                | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it                                                                          |
+| `GET /archive/<token>`         | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                                                                                    |
+| `PUT\|POST /file/dev/<device>` | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key                                                                     |
+| `GET /file/dev/<device>?key=…` | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input                                                                   |
+| `POST /file/dev/<device>/<ep>` | `dev-write`                           | A value: appended to a log or a track, or written to a control                                                                            |
+| `GET /file/<path>?ticket=…`    | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                     |
+| `GET /__page/<ticket>`         | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                            |
+| `GET /live/<id>.mp4\|.ts`      | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                           |
+| `GET /file/<stream>`           | `get-file` → `stream`                 | A stream's bytes from its latest start point on, as its writer writes them, or of a stream of pictures one picture (never cached)         |
+| `GET /*`                       | `get-default`                         | SPA fallback, vhost support                                                                                                               |
 
 **Device keys.** A device cannot sign in, so what it writes to `/file/dev/<device>` carries its key
 (`handlers/dev-write.ts`): `Authorization: Bearer <key>`, or `key=` in the query for a client that
@@ -1686,6 +1717,15 @@ EiN serves plain HTTP itself; HTTPS is a TLS-terminating proxy in front of it. T
 `Secure` when the request says it came over HTTPS (`X-Forwarded-Proto: https`, or `proto=https` in
 `Forwarded`), so one server answers both. The header is believed from any client: claiming HTTPS
 over plain HTTP only earns a cookie that client's own browser will not send back.
+
+The cookie is `SameSite=Lax`, which keeps it off cross-site requests but not off same-site ones:
+a page on another port of the same host, or on a sibling host name of the same domain, sends it
+too. So the server refuses, with a 403, a `/__shell` handshake or any write (a method other than
+`GET`, `HEAD` or `OPTIONS`) that carries the cookie and that the browser says comes from a page of
+another origin (`same-origin.ts`): `Sec-Fetch-Site` other than `same-origin` or `none` where the
+browser sends it (over HTTPS), else an `Origin` whose host is not the request's `Host`. A request
+with neither header is not a browser page's and passes, and without the cookie the shell is the
+guest's anyway.
 
 The cookie is written with `Path=/` explicitly: without it a browser derives the path from the
 request URI, so an entry on a nested route (`/system/pipelines/<p>/<id>`) scoped the cookie to that

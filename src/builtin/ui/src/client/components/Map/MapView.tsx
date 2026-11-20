@@ -49,6 +49,11 @@ function toGeoBounds(b: L.LatLngBounds): GeoBounds {
   return { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
 }
 
+const toLatLngBounds = (b: GeoBounds): L.LatLngBounds => L.latLngBounds([b.south, b.west], [b.north, b.east]);
+
+/** Room left around fitted bounds, in pixels. */
+const FIT_PADDING: L.PointTuple = [20, 20];
+
 export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, onBaseLayerChange, layerSwitcher = true, details = true, style, children }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<L.Map | null>(null);
@@ -70,6 +75,9 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
       // Wheel and pinch zoom; buttons would only cover the map.
       zoomControl: false,
     });
+    // A map given bounds starts on them, rather than flying in from the default view and
+    // reporting that view as its first.
+    if (bounds) m.fitBounds(toLatLngBounds(bounds), { padding: FIT_PADDING, animate: false });
 
     const defs = mapLayers();
     const baseLayers: Record<string, L.Layer> = {};
@@ -132,7 +140,7 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
 
   useEffect(() => {
     if (!map || !bounds) return;
-    map.fitBounds(L.latLngBounds([bounds.south, bounds.west], [bounds.north, bounds.east]), { padding: [20, 20] });
+    map.fitBounds(toLatLngBounds(bounds), { padding: FIT_PADDING });
   }, [map, bounds?.north, bounds?.south, bounds?.east, bounds?.west]);
 
   useEffect(() => {

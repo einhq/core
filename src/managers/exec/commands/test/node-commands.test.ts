@@ -108,6 +108,14 @@ Deno.test({
           await cmd.shouldSucceed(`ln -s ${point}/real/conf.txt ${point}/link`);
           await cmd.shouldSucceed(`ln -s real/conf.txt ${point}/rel`);
 
+          // A filesystem mount's nodes are the host's: the links are the administrator's only when
+          // the host runs EiN as root, and an administrator's write follows no one else's.
+          if (point === '/d/disk' && Deno.uid() !== 0) {
+            await cmd.shouldFailWith(`cp /d/through/fresh.txt ${point}/link`, `write through a softlink owned by uid ${Deno.uid()}' on node: ${point}/link`);
+            await cmd.shouldSucceed(`unmount ${point}`);
+            continue;
+          }
+
           await cmd.shouldSucceed(`cp /d/through/fresh.txt ${point}/link`);
           assertEquals((await client.execString(`cat ${point}/real/conf.txt`)).trim(), 'new');
           assertEquals((await client.execJson<{ softlink: string }>(`props -L ${point}/link`)).softlink, `${point}/real/conf.txt`);

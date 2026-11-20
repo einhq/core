@@ -4,8 +4,8 @@
  *
  * A device is a node of type `device` whose children are its endpoints: a `log` of values or
  * events, a `track` of positions, a `control` that is written to change the device, or a `stream`,
- * a camera's live picture. A driver (a module's, or core's `tracker`) turns the device's raw input
- * and output into those endpoints.
+ * live bytes such as a camera's video. A driver (a module's, or core's `tracker`) turns the device's
+ * raw input and output into those endpoints.
  */
 
 /** The group whose members see, switch, share, make, name and forget every device under `/dev`. */
@@ -61,10 +61,13 @@ export type DeviceAttrs = {
 };
 
 /**
- * What a `stream` is: a live picture its device sends, which nothing keeps. Reading the endpoint
- * gives one frame of it, a JPEG; its driver says where to watch it live.
+ * What a `stream` endpoint carries, as its driver knows it: a camera's video, or its pictures.
+ * Reading the endpoint gives its bytes from its latest start point on, as its driver writes them,
+ * or of pictures one.
  */
 export type StreamInfo = {
+  /** The media type of its bytes: `video/mp2t`, or an `image/*` for a stream of pictures, a read of which is the latest. */
+  mimetype?: string;
   /** The video's codec as the device sends it: `h264`, `h265`, `mjpeg`. */
   codec?: string;
   width?: number;
@@ -160,7 +163,10 @@ export type EndpointSummary = {
   track?: { points: number; firstAt?: string; lastAt?: string };
   /** A stream's: what it is, as its driver last said. */
   stream?: StreamInfo;
-  /** A stream's: set when it can be watched live now, its device's driver running and giving a live view. */
+  /**
+   * A stream's: set when a page can watch it live now, its bytes fragmented MP4 (`video/mp4`, which
+   * a browser's MediaSource reads over `GET /file/…`) and its device's driver running to write them.
+   */
   live?: boolean;
 };
 
@@ -193,7 +199,7 @@ export type DeviceSummary = {
   battery?: { level: number; charging?: boolean };
   /** Whether it has a track, which a page shows as a map. */
   tracks: boolean;
-  /** The stream a card shows a frame of: of a camera's streams, the one with the fewest pixels. */
+  /** The stream of pictures a card shows (an `image/*` stream): of a camera's, the one with the fewest pixels. */
   picture?: string;
   /** Whether the caller may write to it: raw input for its driver, such as a path for a screen to show. */
   writable: boolean;
@@ -293,11 +299,12 @@ export type ControlAnswer = { value: DeviceValue; message?: string };
 
 /**
  * `stream-page <route>`: a page of EiN as live video, from the command `CFG_PAGE_STREAMER` names
- * (the media service's `page-stream start`). Anyone with the paths reads `<path>.mp4` (fragmented
- * MP4, for Cast), `<path>.ts` (MPEG-TS), `remote` (an MP4 whose header says it lasts a day, which
- * Chrome hands a screen near it) or the live HLS playlist `hls` (which Safari hands an AirPlay
- * screen) without signing in, at whatever address EiN is reached at, until nobody has read it for
- * a while. `id` is the stream's, which `stream-page --press <id> <key>` presses keys in the page by.
+ * (the media service's `page-stream start`). `<path>.mp4` (fragmented MP4, for Cast) and
+ * `<path>.ts` (MPEG-TS) are its stream nodes, the caller's to read; anyone with the paths reads
+ * `remote` (an MP4 whose header says it lasts a day, which Chrome hands a screen near it) or the live
+ * HLS playlist `hls` (which Safari hands an AirPlay screen) without signing in, at whatever address
+ * EiN is reached at, until nobody has read it for a while. `id` is the stream's, which
+ * `stream-page --press <id> <key>` presses keys in the page by.
  */
 export type StreamedPage = { id: string; path: string; remote: string; hls: string };
 
@@ -310,8 +317,10 @@ export type ScreenKey = { key: string; label: string; icon: string };
 /**
  * What a page streamed for a screen says it shows (`stream-page --state`, the page's
  * `globalThis.einScreen.state()`): what to call it, the file it shows and its kind (`photo`,
- * `video`, `audio`, `document`), where that is in a list (`3 of 31`), and for a recording or video
- * where it is, in seconds, and whether it is paused. A page says what it has; any part may be left out.
+ * `video`, `audio`, `document`), where that is in a list (`3 of 31`), for a recording or video
+ * where it is, in seconds, and whether it is paused, and the keys it takes as they are now, which
+ * replace those it was given with where one changes with what it does (a slideshow's Space is Play
+ * while it is held). A page says what it has; any part may be left out.
  */
 export type ScreenState = {
   title?: string;
@@ -319,6 +328,7 @@ export type ScreenState = {
   kind?: string;
   position?: string;
   media?: { time: number; duration: number; paused: boolean };
+  keys?: ScreenKey[];
 };
 
 /** What a page streamed for a screen is told (`stream-page --message`, its `einScreen.message()`): to move its recording or video to `seek` seconds. */

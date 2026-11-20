@@ -5,7 +5,7 @@
 
 import { join } from '@std/path';
 import { ADMIN_ACCESS } from '../access/constants.ts';
-import { emailProblem, normalizeEmail } from '../api/users.ts';
+import { accountNameProblem, emailProblem, normalizeEmail } from '../api/users.ts';
 import { USERS_PATH } from '../paths.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { Node } from '../../vfs/node.ts';
@@ -36,7 +36,10 @@ export const emailHolder = async (vfs: NodeVFS, usersPath: string, email: string
 /**
  * The account a name typed at sign-in is: with an `@`, the one account whose address it is, in any
  * case — none when two hold it, which the account commands never let happen; otherwise the user node at `<USERS_PATH>/<name>`, lower-cased, since usernames are. Undefined
- * when there is none. Whether it may sign in is the caller's to ask (`loginRefusal`).
+ * when there is none, and for anything an account could not be named (`accountNameProblem`), such
+ * as `./bob`: the username returned is the account's own, one name per account, which the sign-in
+ * throttle and the ending of a disabled account's connections key by. Whether it may sign in is
+ * the caller's to ask (`loginRefusal`).
  */
 export const accountByLoginName = async (
   vfs: NodeVFS,
@@ -48,7 +51,7 @@ export const accountByLoginName = async (
     if (holders.length !== 1) return undefined;
     username = holders[0];
   }
-  if (!username) return undefined;
+  if (accountNameProblem(username)) return undefined;
   const userPath = join(USERS_PATH, username);
   const userNode = await vfs.get<UserAttrs>(ADMIN_ACCESS, userPath).catch(() => undefined);
   if (!userNode || !isUserNode(userNode)) return undefined;

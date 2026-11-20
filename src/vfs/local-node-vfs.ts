@@ -14,7 +14,7 @@ import { isAdmin, verifyAccess } from '../lib/access/verify-access.ts';
 import { IdLockManager } from '../lib/async/mod.ts';
 import { globToRegex } from '../lib/glob/mod.ts';
 import { getMimeFromBuffer, getMimeFromExt, isUntypedMimetype } from '../lib/media/mime.ts';
-import { GroupId, Ownership, UserId } from '../lib/mode/mod.ts';
+import { GroupId, MODE_STICKY, Ownership, UserId } from '../lib/mode/mod.ts';
 import { createLogger } from '../managers/logger/mod.ts';
 import { RouterManagerIf } from '../managers/router/mod.ts';
 import { SimilarityMatch, SimilarPair } from '../registries/embedding/mod.ts';
@@ -42,17 +42,20 @@ import { ContentWriteHandle } from './content-write-handle.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.ts';
 import { type AuditInput, type AuditOp, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
-import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM } from './types/device.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
+import { NODE_TYPE_STREAM } from './types/stream.ts';
 import { NODE_TYPE_LOG } from './types/log.ts';
 import { DeviceWriteHandle } from './device-write-handle.ts';
-import { FrameHandle } from './frame-handle.ts';
 import {
   assertAccess,
   assertAdminAttrsUnchanged,
+  assertHardLinkable,
   assertIdentityCreatable,
   assertIdentityUnchanged,
   assertOwnerAttrsUnchanged,
   assertOwnershipAllowed,
+  assertSoftlinkWritable,
+  assertStickyAllows,
 } from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
@@ -148,7 +151,8 @@ const heldDeliveries = new AsyncLocalStorage<(() => Promise<void>)[]>();
 const MAX_SOFTLINK_DEPTH = 40;
 
 /** A softlink met during a path walk: its target, the directory it sits in and the path past it. */
-type SoftlinkStep = { target: string; dir: NodePath; rest: string[]; depth: number };
+/** A softlink met on a walk: where it is (`dir`, `name`), whose it is, what it holds, and the walk left after it. */
+type SoftlinkStep = { target: string; dir: NodePath; name: string; owner: UserId; rest: string[]; depth: number };
 
 /**
  * Thrown by a mounted VFS that meets a softlink: its target names a path in the global namespace,
@@ -2027,6 +2031,8 @@ export class LocalNodeVFS implements NodeVFS {
           return this.followSoftlink(access, {
             target: node.props.softlink,
             dir: dirname(accumulatedPath),
+            name: segment,
+            owner: node.props.uid,
             rest: segments.slice(i + 1),
             depth,
           }, opts);
@@ -2061,10 +2067,12 @@ export class LocalNodeVFS implements NodeVFS {
 
   /**
    * Resolve the path a softlink leads to: its target, relative to the directory holding the link
-   * unless absolute, followed by the rest of the walk. A mounted VFS hands it to the VFS above.
+   * unless absolute, followed by the rest of the walk. A mounted VFS hands it to the VFS above. A
+   * walk to be written goes through only a link `assertSoftlinkWritable` allows.
    */
   private followSoftlink(access: Access, step: SoftlinkStep, opts?: NodeResolveOptions): Promise<NodeEntry> {
     if (this.mounted) throw new SoftlinkRedirect(step);
+    if (opts?.write) assertSoftlinkWritable(access, step.owner, join(step.dir, step.name));
     const target = isAbsolute(step.target) ? step.target : join(step.dir, step.target);
     return this.resolvePathInternal(access, join(target, ...step.rest), step.depth + 1, opts);
   }
@@ -2645,7 +2653,7 @@ export class LocalNodeVFS implements NodeVFS {
       ensure?: boolean;
     },
   ): Promise<Node<T>> {
-    const entry = await this.resolveEntry(access, parentRef, opts);
+    const entry = await this.resolveEntry(access, parentRef, { ...opts, write: true });
 
     this.assertMountWritable(entry);
 
@@ -2704,7 +2712,7 @@ export class LocalNodeVFS implements NodeVFS {
     specs: NodeTreeSpec<T>[],
     opts?: NodeResolveOptions,
   ): Promise<Node<T>[]> {
-    const entry = await this.resolveEntry(access, parentRef, opts);
+    const entry = await this.resolveEntry(access, parentRef, { ...opts, write: true });
 
     this.assertMountWritable(entry);
 
@@ -2758,16 +2766,19 @@ export class LocalNodeVFS implements NodeVFS {
       // they could see the parent. The parent's access list comes along, the way a Linux default
       // ACL does, so a person, group or share link granted the album sees what is added to it.
       // An administrator's access that creates in someone's name (`Access.creator`) records the
-      // node as created by them.
+      // node as created by them. In a scratch directory, sticky and everyone's to write (`/tmp`),
+      // the node is its creator's alone instead: 0700, in their own group, with no access list.
+      const scratch = (parent.props.mode & (MODE_STICKY | 0o002)) === (MODE_STICKY | 0o002);
+      const gid = scratch ? access.gid : parent.props.gid;
       const props: NodePropsCreate = {
-        mode: modeUnder(parent.props.mode),
+        mode: scratch ? 0o700 : modeUnder(parent.props.mode),
         uid: access.uid,
-        gid: parent.props.gid,
-        ...(parent.props.acl?.length ? { acl: parent.props.acl } : {}),
+        gid,
+        ...(!scratch && parent.props.acl?.length ? { acl: parent.props.acl } : {}),
         ...(access.creator !== undefined && isAdmin(access) ? { birthtime: { uid: access.creator, timestamp: Date.now() } } : {}),
         ...(spec.props || {}),
       };
-      assertOwnershipAllowed(access, path, { uid: access.uid, gid: parent.props.gid }, spec.props);
+      assertOwnershipAllowed(access, path, { uid: access.uid, gid }, spec.props);
       assertIdentityCreatable(access, path, spec.type);
       assertAdminAttrsUnchanged(access, { id: path, attrs: {} }, spec.attrs);
       this.declareWrite(mut, spec.type);
@@ -2832,7 +2843,7 @@ export class LocalNodeVFS implements NodeVFS {
     entries: AsyncIterable<TreeEntry>,
     opts?: NodeResolveOptions & { written?: (files: number) => void | Promise<void> },
   ): Promise<number> {
-    const entry = await this.resolveEntry(access, ref, opts);
+    const entry = await this.resolveEntry(access, ref, { ...opts, write: true });
 
     this.assertMountWritable(entry);
 
@@ -2953,7 +2964,7 @@ export class LocalNodeVFS implements NodeVFS {
       attrs?: NodeAttrsUpdate<T>;
     },
   ): Promise<Node<T>> {
-    const entry = await this.resolveEntry(access, ref, opts);
+    const entry = await this.resolveEntry(access, ref, { ...opts, write: true });
 
     this.assertMountWritable(entry);
 
@@ -2984,7 +2995,7 @@ export class LocalNodeVFS implements NodeVFS {
     refs: NodeReference[],
     opts: UpdateManyOptions<T> = {},
   ): Promise<PromiseSettledResult<Node<T>>[]> {
-    return await this.byOwner(access, refs, opts, (entry) => this.assertMountWritable(entry), (vfs, entries) => {
+    return await this.byOwner(access, refs, { ...opts, write: true }, (entry) => this.assertMountWritable(entry), (vfs, entries) => {
       return vfs === this ? this.updateBatches<T>(access, entries, opts) : vfs.updateMany<T>(access, entries, opts);
     });
   }
@@ -2996,11 +3007,11 @@ export class LocalNodeVFS implements NodeVFS {
   ): Promise<PromiseSettledResult<Node<T>>[]> {
     const results: PromiseSettledResult<Node<T>>[] = new Array(changes.length);
     const owners = new Map<NodeVFS, { index: number; entry: NodeEntry; change: NodeChange<T> }[]>();
-    const plain = await this.plainEntries(access, changes.map((change) => ({ ref: change.ref, opts: change })));
+    const plain = await this.plainEntries(access, changes.map((change) => ({ ref: change.ref, opts: { ...change, write: true } })));
 
     for (const [index, change] of changes.entries()) {
       try {
-        const entry = plain[index] ?? await this.resolveEntry(access, change.ref, change);
+        const entry = plain[index] ?? await this.resolveEntry(access, change.ref, { ...change, write: true });
         this.assertMountWritable(entry);
         owners.set(entry.vfs, [...owners.get(entry.vfs) ?? [], { index, entry, change }]);
       } catch (reason) {
@@ -3030,15 +3041,16 @@ export class LocalNodeVFS implements NodeVFS {
    */
   private async plainEntries(access: Access, refs: { ref: NodeReference; opts?: NodeResolveOptions }[]): Promise<(NodeEntry | undefined)[]> {
     const entries: (NodeEntry | undefined)[] = new Array(refs.length);
-    const dirs = new Map<string, { dir: NodePath; follow: boolean; readlink: boolean; items: { index: number; name: string }[] }>();
+    const dirs = new Map<string, { dir: NodePath; follow: boolean; readlink: boolean; write: boolean; items: { index: number; name: string }[] }>();
     for (const [index, { ref, opts }] of refs.entries()) {
       if (typeof ref !== 'string' || ref.startsWith('!') || opts?.readmount) continue;
       const path = this.normalizePath(ref);
       if (path === '/') continue;
       const follow = opts?.follow !== false;
       const readlink = opts?.readlink ?? false;
-      const key = `${follow}\0${readlink}\0${dirname(path)}`;
-      const group = dirs.get(key) ?? { dir: dirname(path), follow, readlink, items: [] };
+      const write = opts?.write ?? false;
+      const key = `${follow}\0${readlink}\0${write}\0${dirname(path)}`;
+      const group = dirs.get(key) ?? { dir: dirname(path), follow, readlink, write, items: [] };
       group.items.push({ index, name: basename(path) });
       dirs.set(key, group);
     }
@@ -3046,7 +3058,7 @@ export class LocalNodeVFS implements NodeVFS {
     const local: { parent: NodeEntry; group: { readlink: boolean; follow: boolean; items: { index: number; name: string }[] } }[] = [];
     for (const group of dirs.values()) {
       if (group.items.length < 2) continue;
-      const parent = await this.resolvePath(access, group.dir, { follow: group.follow }).catch(() => undefined);
+      const parent = await this.resolvePath(access, group.dir, { follow: group.follow, write: group.write }).catch(() => undefined);
       if (!parent) continue;
       if (parent.vfs === this) {
         local.push({ parent, group });
@@ -3055,7 +3067,7 @@ export class LocalNodeVFS implements NodeVFS {
       if (!(parent.vfs instanceof LocalNodeVFS)) continue;
       const found = await parent.vfs.plainEntries(
         access,
-        group.items.map((item) => ({ ref: join(parent.vfsAbsPath, item.name), opts: { follow: group.follow, readlink: group.readlink } })),
+        group.items.map((item) => ({ ref: join(parent.vfsAbsPath, item.name), opts: { follow: group.follow, readlink: group.readlink, write: group.write } })),
       );
       group.items.forEach((item, i) => {
         const entry = found[i];
@@ -3432,8 +3444,8 @@ export class LocalNodeVFS implements NodeVFS {
     newName: string,
     opts?: NodeResolveOptions & { failIfExists?: boolean },
   ): Promise<Node<T>> {
-    const oldParentEntry = await this.resolveEntry(access, oldParentRef, { follow: opts?.follow });
-    const newParentEntry = await this.resolveEntry(access, newParentRef, { follow: opts?.follow });
+    const oldParentEntry = await this.resolveEntry(access, oldParentRef, { follow: opts?.follow, write: true });
+    const newParentEntry = await this.resolveEntry(access, newParentRef, { follow: opts?.follow, write: true });
 
     this.assertMountWritable(oldParentEntry);
     this.assertMountWritable(newParentEntry);
@@ -3480,6 +3492,7 @@ export class LocalNodeVFS implements NodeVFS {
 
         const node = await this.store.getNode<T>(childEntry.id, mut.tx);
         assertAccess(access, node, 'w');
+        assertStickyAllows(access, oldParent, node, join(oldParentEntry.absPath || oldParentEntry.vfsAbsPath, oldName));
 
         const newParent = oldParentEntry.id === newParentEntry.id ? oldParent : await this.store.getNode(newParentEntry.id, mut.tx);
         assertAccess(access, newParent, 'w');
@@ -3570,6 +3583,7 @@ export class LocalNodeVFS implements NodeVFS {
 
     const dest = await this.store.getNode(destId, mut.tx);
     assertAccess(access, dest, 'w');
+    assertStickyAllows(access, await this.store.getNode(parentEntry.id, mut.tx), dest, destPath);
 
     if (!this.store.pathAddressed) {
       await this.detachEdge(access, mut, parentEntry, destId, destPath);
@@ -3595,7 +3609,9 @@ export class LocalNodeVFS implements NodeVFS {
     assertAccess(access, oldParent, 'x');
 
     const sourcePath = join(oldParentEntry.vfsAbsPath, oldName);
-    assertAccess(access, await oldParentEntry.vfs.get(access, sourcePath, { follow: false }), 'w');
+    const source = await oldParentEntry.vfs.get(access, sourcePath, { follow: false });
+    assertAccess(access, source, 'w');
+    assertStickyAllows(access, oldParent, source, join(oldParentEntry.absPath || oldParentEntry.vfsAbsPath, oldName));
 
     // Before the copy: removing the source would refuse only once the copy is made. `mounts` lists
     // the points in the source VFS's own paths, its nested mounts included.
@@ -3700,7 +3716,7 @@ export class LocalNodeVFS implements NodeVFS {
     const parent = (path: NodePath): Promise<NodeEntry> => {
       let entry = parents.get(path);
       if (!entry) {
-        entry = this.resolveEntry(access, path);
+        entry = this.resolveEntry(access, path, { write: true });
         parents.set(path, entry);
       }
       return entry;
@@ -3938,6 +3954,7 @@ export class LocalNodeVFS implements NodeVFS {
         const node = childId === move.childId ? nodes.get(childId) : undefined;
         if (!node) throw new NodeNotFoundError(move.from);
         assertAccess(access, node, 'w');
+        assertStickyAllows(access, oldParent, node, move.from);
 
         const newParent = nodes.get(move.toParent.id);
         if (!newParent) throw new NodeNotFoundError(dirname(move.to));
@@ -3972,6 +3989,7 @@ export class LocalNodeVFS implements NodeVFS {
           const dest = nodes.get(move.replaces!);
           if (!dest) throw new NodeAlreadyExistsError(move.toParent.id, move.toName);
           assertAccess(access, dest, 'w');
+          assertStickyAllows(access, move.newParent, dest, move.to);
           if (this.mountpoints.some((mount) => mount.point.id === move.replaces)) throw new NodeBusyError(move.to);
         } catch (reason) {
           refused.set(move.index, reason);
@@ -4148,7 +4166,7 @@ export class LocalNodeVFS implements NodeVFS {
     opts?: NodeResolveOptions,
   ): Promise<Node<T>> {
     const entry = await this.resolveEntry(access, ref, opts);
-    const parentEntry = await this.resolveEntry(access, parentRef, { follow: opts?.follow });
+    const parentEntry = await this.resolveEntry(access, parentRef, { follow: opts?.follow, write: true });
 
     this.assertMountWritable(parentEntry);
 
@@ -4196,6 +4214,7 @@ export class LocalNodeVFS implements NodeVFS {
 
     const node = await this.store.getNode<T>(entry.id, mut.tx);
     assertIdentityCreatable(access, join(parentEntry.vfsAbsPath, name), node.type, 'link');
+    assertHardLinkable(access, node, join(parentEntry.vfsAbsPath, name));
 
     // One new edge, whatever the directory's size
     await this.store.linkChild(access.uid, parent.id, entry.id, name, mut.tx);
@@ -4221,8 +4240,8 @@ export class LocalNodeVFS implements NodeVFS {
       recursive?: boolean;
     },
   ): Promise<boolean> {
-    const entry = await this.resolveEntry(access, ref, opts);
-    const parentEntry = await this.resolveEntry(access, parentRef, { follow: opts?.follow });
+    const entry = await this.resolveEntry(access, ref, { ...opts, write: true });
+    const parentEntry = await this.resolveEntry(access, parentRef, { follow: opts?.follow, write: true });
 
     this.assertMountWritable(parentEntry);
 
@@ -4252,6 +4271,7 @@ export class LocalNodeVFS implements NodeVFS {
       if (!opts?.recursive) return await detach();
       const node = await this.store.getNode(entry.id);
       if (node.props.count > 1) return await detach();
+      assertStickyAllows(access, await this.store.getNode(parentEntry.id), node, entry.absPath || entry.vfsAbsPath);
       if (this.store.deleteTree && node.type === NODE_TYPE_DIRECTORY && bypassesAccess(access)) {
         return await this.withTransaction([parentEntry.id, entry.id], (mut) => this.deleteTree(access, mut, parentEntry, entry));
       }
@@ -4294,7 +4314,7 @@ export class LocalNodeVFS implements NodeVFS {
             if (path === '/') throw new NodeInvalidOperationError('cannot unlink the root');
             let entry = parents.get(dirname(path));
             if (!entry) {
-              entry = this.resolveEntry(access, dirname(path));
+              entry = this.resolveEntry(access, dirname(path), { write: true });
               parents.set(dirname(path), entry);
             }
             parent = await entry;
@@ -4386,7 +4406,18 @@ export class LocalNodeVFS implements NodeVFS {
     items: (PlannedUnlink & { childId: NodeId })[],
     results: PromiseSettledResult<boolean>[],
   ): Promise<(PlannedUnlink & { childId: NodeId })[]> {
-    const nodes = await this.readNodes(items.map((item) => item.childId));
+    const nodes = await this.readNodes([...items.map((item) => item.childId), ...items.map((item) => item.parent.id)]);
+    // An entry of a sticky directory that the caller may not remove is refused before its subtree is emptied.
+    items = items.filter((item) => {
+      const [parent, node] = [nodes.get(item.parent.id), nodes.get(item.childId)];
+      try {
+        if (parent && node) assertStickyAllows(access, parent, node, item.path);
+        return true;
+      } catch (reason) {
+        results[item.index] = { status: 'rejected', reason };
+        return false;
+      }
+    });
     const taken = new Map<NodeId, number>();
     for (const item of items) taken.set(item.childId, (taken.get(item.childId) ?? 0) + 1);
     const roots = new Map<NodeId, NodeEntry>();
@@ -4445,6 +4476,7 @@ export class LocalNodeVFS implements NodeVFS {
         assertAccess(access, parentNode, 'x');
         const node = edges.get(edgeKey(item.parent.id, item.name)) === item.childId ? nodes.get(item.childId) : undefined;
         if (!node) throw new NodeNotFoundError(item.path);
+        assertStickyAllows(access, parentNode, node, item.path);
         accepted.push({ ...item, parentNode, node });
       } catch (reason) {
         refused.set(item.index, reason);
@@ -4580,6 +4612,7 @@ export class LocalNodeVFS implements NodeVFS {
     }
 
     const path = nodePath || join(parentEntry.vfsAbsPath, childInfo.name);
+    assertStickyAllows(access, parent, node, join(parentEntry.absPath || parentEntry.vfsAbsPath, basename(path)));
 
     const newCount = node.props.count - 1;
 
@@ -4732,7 +4765,7 @@ export class LocalNodeVFS implements NodeVFS {
     opts?: NodeResolveOptions & CopyOptions,
   ): Promise<Node<T>> {
     const sourceEntry = await this.resolveEntry(access, sourceRef, opts);
-    const destParentEntry = await this.resolveEntry(access, destParentRef, { follow: opts?.follow });
+    const destParentEntry = await this.resolveEntry(access, destParentRef, { follow: opts?.follow, write: true });
 
     this.assertMountWritable(destParentEntry);
 
@@ -4937,11 +4970,12 @@ export class LocalNodeVFS implements NodeVFS {
       tx?: Transaction;
     },
   ): Promise<ResourceHandleIf> {
-    const entry = await this.resolveEntry(access, ref, opts);
     const mode = opts?.mode || 'r';
+    const writes = mode.includes('w') || mode.includes('a') || mode.includes('+');
+    const entry = await this.resolveEntry(access, ref, { ...opts, write: writes });
 
     // Reject writes into a read-only mount before delegating to its backend
-    if (mode.includes('w') || mode.includes('a') || mode.includes('+')) {
+    if (writes) {
       this.assertMountWritable(entry);
     }
 
@@ -4955,7 +4989,7 @@ export class LocalNodeVFS implements NodeVFS {
       }
 
       // Check write access for write/append modes
-      if (mode.includes('w') || mode.includes('a') || mode.includes('+')) {
+      if (writes) {
         assertAccess(access, node, 'w');
 
         if (node.attrs.frozen) {
@@ -4977,10 +5011,9 @@ export class LocalNodeVFS implements NodeVFS {
       // fixes in a tracker's form: none is stored by the write as it came. Only a control's driver
       // appends to it (`a`), reporting the state the device then has; drivers run as services, the
       // administrator's. A track appended to (`>>`) takes EiN's own fixes, one a line, as any track does.
-      const writing = mode.includes('w') || mode.includes('a') || mode.includes('+');
       const reporting = node.type === NODE_TYPE_CONTROL && mode.includes('a');
       const deviceTrack = node.type === 'track' && mode.includes('w') && dirname(dirname(entry.vfsAbsPath)) === DEV_PATH;
-      if (writing && (node.type === NODE_TYPE_DEVICE || deviceTrack || (node.type === NODE_TYPE_CONTROL && !reporting))) {
+      if (writes && (node.type === NODE_TYPE_DEVICE || deviceTrack || (node.type === NODE_TYPE_CONTROL && !reporting))) {
         const sink = this.deviceSink;
         if (!sink) throw new NodeNotSupportedError(node.type);
         const path = entry.vfsAbsPath;
@@ -4995,14 +5028,9 @@ export class LocalNodeVFS implements NodeVFS {
         throw new NodeAccessDeniedError(entry.vfsAbsPath, 'report a control state');
       }
 
-      // A stream keeps nothing: reading one is a frame its driver gives now.
-      if (node.type === NODE_TYPE_STREAM) {
-        const sink = this.deviceSink;
-        const path = entry.vfsAbsPath;
-        if (writing) throw new NodeNotSupportedError(`${path}: a stream is its device's live picture, read and never written`);
-        if (!sink) throw new NodeNotSupportedError(node.type);
-        return new FrameHandle(id, this.tierOpts(node), mode, reg, async () => (await sink.frame(access, path)).bytes);
-      }
+      // A stream is live bytes: read from now on, or written by its one writer to whoever reads. A
+      // mode that writes opens the writer, though it reads as well, as the shell's `>` (`w+`) does.
+      if (node.type === NODE_TYPE_STREAM) return await reg.open(id, this.tierOpts(node) as any, writes ? 'w' : 'r');
 
       // A device's log or track keeps its history: writing one appends to it, `>` as `>>`.
       const endpoint = (node.type === NODE_TYPE_LOG || node.type === 'track') && DEVICE_ENDPOINT_RE.test(entry.vfsAbsPath);
@@ -5017,8 +5045,7 @@ export class LocalNodeVFS implements NodeVFS {
       // at the same moment as the length. A `null` means the handle could not
       // see the whole file in order (append, read-write, a seek) and the attr is
       // cleared rather than left stale.
-      const writable = mode.includes('w') || mode.includes('a') || mode.includes('+');
-      if (writable && node.type === NODE_TYPE_FILE) {
+      if (writes && node.type === NODE_TYPE_FILE) {
         const path = entry.vfsAbsPath;
         let startSize = 0;
         try {
@@ -5052,7 +5079,7 @@ export class LocalNodeVFS implements NodeVFS {
       // the node is touched after the write to give subscribers an `updated`
       // event — with no attr changed, which is how a subscriber tells a moved
       // point from attr bookkeeping on the node.
-      if (writable && node.type === NODE_TYPE_POSITION) {
+      if (writes && node.type === NODE_TYPE_POSITION) {
         const path = entry.vfsAbsPath;
         return new ContentWriteHandle(handle, async () => {
           try {
@@ -5067,7 +5094,7 @@ export class LocalNodeVFS implements NodeVFS {
       // A track's points are registry content too, and its handle stays itself
       // (callers test `instanceof TrackHandle`), so it reports a change of its
       // fixes through its own hook rather than a wrapper.
-      if (writable && handle instanceof TrackHandle) {
+      if (writes && handle instanceof TrackHandle) {
         const path = entry.vfsAbsPath;
         handle.onChanged = async () => {
           try {

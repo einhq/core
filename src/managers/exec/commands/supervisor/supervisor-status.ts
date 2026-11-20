@@ -1,6 +1,7 @@
 /**
  * supervisor status — the services beside EiN as the supervisor sees them: each one's container,
- * image and version, what the modules ask of it, and the install or update it runs or last ran. In
+ * image and release, the newer release an update would install, what the modules ask of it, and the
+ * install or update it runs or last ran. In
  * an installation without a supervisor it says so, and JSON says `configured: false`; a supervisor
  * that does not answer is a failure, and in JSON an answer with `error`, as a page shows it.
  */
@@ -17,7 +18,8 @@ const describe = (service: SupervisedService): string => {
   else if (!service.state) parts.push('no container');
   else parts.push(service.health ? `${service.state}, ${service.health}` : service.state);
   if (service.image) parts.push(service.image);
-  if (service.version) parts.push(`interface ${service.version}`);
+  if (service.version && !service.image?.endsWith(`:${service.version}`)) parts.push(service.version);
+  if (service.available) parts.push(`update to ${service.available.version ?? service.available.image}`);
   if (service.wanted) {
     const asking = service.wanted.modules.map(({ module, range }) => `${module} ${range}`).join(', ');
     parts.push(`asked for by ${asking}`);
@@ -52,7 +54,11 @@ export const supervisorStatus = async (cmd: Command): CmdReturn => {
   }
   const width = Math.max(...status.services.map((service) => service.name.length));
   for (const service of status.services) await cmd.write(`${service.name.padEnd(width)}  ${describe(service)}\n`);
-  await cmd.write(status.updateAt ? `Every service is updated each night at ${status.updateAt}.\n` : 'The services are updated only when asked.\n');
+  if (!status.services.some((service) => service.available)) await cmd.write('Every service runs its newest release.\n');
+  await cmd.write(
+    status.updateAt ? `Every service with an update is updated each night at ${status.updateAt}.\n` : 'The services are updated only when asked.\n',
+  );
+  if (status.checkError) await cmd.write(`GitHub's registry did not answer for every service: ${status.checkError}\n`);
   const job = status.job;
   if (job) {
     const what = `setup.sh ${job.args.join(' ')}, asked by ${job.by} at ${job.startedAt}`;

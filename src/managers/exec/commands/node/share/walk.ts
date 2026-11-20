@@ -313,7 +313,8 @@ export const applySubtrees = async (
 };
 
 /**
- * The roots of a walk with their entries and nodes, as `vfs.get` would read them. A directory
+ * The roots of a walk with their entries and nodes, as `vfs.get` would read them, each path resolved
+ * to be written (`write`). A directory
  * holding many of them, and not many more besides, is listed once for all of them, so they cost
  * no path walk each; every other root is resolved by its own path, so a root in a wide directory
  * reads nothing of its siblings. A root that is a softlink to follow, a mount point, or not found
@@ -343,7 +344,7 @@ const resolveRoots = async (
   for (const [, indexes] of dirs) if (indexes.length < LIST_MIN_ROOTS) byPath.push(...indexes);
 
   const sized = await Promise.allSettled(candidates.map(async ([dir, indexes]) => {
-    const entry = await vfs.resolveEntry(access, dir);
+    const entry = await vfs.resolveEntry(access, dir, { write: true });
     return await vfs.childCount(access, entry, { all: true }) <= LIST_RATIO * indexes.length ? entry : undefined;
   }));
   const listable = candidates.flatMap(([, indexes], i) => {
@@ -387,7 +388,7 @@ const resolveRoots = async (
 
   for (const index of byPath) {
     try {
-      const entry = await vfs.resolveEntry(access, paths[index], resolve);
+      const entry = await vfs.resolveEntry(access, paths[index], { ...resolve, write: true });
       outcomes[index] = { status: 'fulfilled', value: { entry, node: await vfs.get(access, entry) } };
     } catch (reason) {
       outcomes[index] = { status: 'rejected', reason };

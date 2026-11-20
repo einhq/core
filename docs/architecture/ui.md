@@ -168,8 +168,8 @@ processing levels), listed under Set up before the categories on Settings → Sy
 module's Settings tab, which `source` — the fragment that gave the entry, filled in by `ui-nav` — picks out; its `description`
 is the line under its name. An entry's `when: { has: <node type> }` keeps it to a node with a
 child of that type, where the slot has a node: archive's Trips only on a device with a `track`; with
-`live: true` too, to a device with a stream watched live now (`device-show`'s `live`, set while the
-device's driver runs and gives a live view): devices' Live tab. The page draws each
+`live: true` too, to a device with a stream watched live now (`device-show`'s `live`, set on a
+stream of fragmented MP4 while the device's driver runs): devices' Live tab. The page draws each
 with `RoutePanel` (`components/Surface/`), the surface router of the dialog and the drawer with a
 `panel` kind: no frame of its own, and a navigation that leaves the route opens on the page. A route
 an answer names is drawn the same way — a chat card, an entry on the home page — and where the

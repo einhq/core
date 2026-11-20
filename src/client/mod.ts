@@ -170,6 +170,8 @@ export type {
 } from '../vfs/query.ts';
 export { NodeAccessDeniedError, NodeAlreadyExistsError, NodeError, NodeNotFoundError } from '../vfs/errors.ts';
 export type { ResourceHandleIf } from '../registries/types.ts';
+/** A stream's writer, as `vfs.open` gives it to the one who opens a stream node to write. */
+export { isStreamWriter, type StreamWriter } from '../registries/stream/types.ts';
 
 /* Shell helpers */
 export { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../lib/args/mod.ts';
@@ -234,7 +236,6 @@ export type {
   Driver,
   DriverAnswer,
   DriverInput,
-  DriverStream,
   DriverWrite,
   LiveFormat,
   LiveOpen,
@@ -242,8 +243,6 @@ export type {
   ModuleDevices,
   ServedFile,
   ServedFiles,
-  StreamFrame,
-  StreamLive,
 } from '../managers/devices/types.ts';
 
 // A series out of a log: the latest samples of a metrics series, core's own or one a module's

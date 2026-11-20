@@ -112,7 +112,7 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     });
 
     await t.step("a GPX file written to a tracker's track fills it, the devices group's; a device with no driver refuses what is written to it", async () => {
-      await admin.execString(`echo '${GPX}' > /tmp/walk.gpx`);
+      await anna.execString(`echo '${GPX}' > /tmp/walk.gpx`);
       const track = await admin.execJson<{ props: { uid: number; gid: number; mode: number } }>('stat /dev/old-logger/position');
       assertEquals([track.props.uid, track.props.gid, track.props.mode & 0o777], [0, (await admin.execJson<{ gid: number }>('group-info devices')).gid, 0o770]);
       await anna.execString('cat /tmp/walk.gpx > /dev/old-logger/position');

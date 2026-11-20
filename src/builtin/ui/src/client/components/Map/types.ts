@@ -20,11 +20,25 @@ export type PositionShape = PositionPoint & {
   polygon?: PositionPoint[];
 };
 
+/**
+ * A short label in its own colours, as a line's badge: `color` is the writing, `border` the frame
+ * (`background` unless given), `dot` the dot on the spot under it (`border` unless given).
+ */
+export type MapMarkerTag = {
+  text: string;
+  background: string;
+  color: string;
+  border?: string;
+  dot?: string;
+};
+
 export type MapMarkerSpec = {
   id: string;
   lat: number;
   lng: number;
   label?: string;
+  /** Renders the marker as this tag over a dot on the spot. */
+  tag?: MapMarkerTag;
   /** Renders the marker as a small thumbnail instead of a pin. */
   thumbnailUrl?: string;
   /** Renders the marker as a count circle (cluster), or with a thumbnail as a pile with this count on it. */

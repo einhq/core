@@ -24,6 +24,13 @@ export const MaskACL: ModeMask = {
   EXEC: 0o001,
 };
 
+/**
+ * The sticky bit, on a directory: writing it is not enough to remove or rename what is in it; only an
+ * entry's owner, the directory's owner, an administrator or whoever may write the entry may — the
+ * last not for an entry that is itself sticky. `/tmp` (1777), `/archive` and its roots (1771) have it.
+ */
+export const MODE_STICKY = 0o1000;
+
 export const MaskWhoKeys = ['u', 'g', 'o'] as const;
 
 export const MaskWho: Record<string, ModeMask> = {

@@ -8,7 +8,8 @@ import { NODE_TYPE_EMBEDDING } from '../../../../vfs/types/embedding.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
 import { NODE_TYPE_POSITION } from '../../../../vfs/types/position.ts';
 import { NODE_TYPE_LOG } from '../../../../vfs/types/log.ts';
-import { NODE_TYPE_CONTROL, NODE_TYPE_STREAM } from '../../../../vfs/types/device.ts';
+import { NODE_TYPE_CONTROL } from '../../../../vfs/types/device.ts';
+import { NODE_TYPE_STREAM } from '../../../../vfs/types/stream.ts';
 import { NODE_TYPE_NULL } from '../../../../vfs/types/null.ts';
 import { NODE_TYPE_POOL } from '../../../../vfs/types/pool.ts';
 import { NODE_TYPE_QUEUE } from '../../../../vfs/types/queue.ts';
@@ -19,8 +20,8 @@ import { signalExitCode } from '../../signal.ts';
 import type { CmdReturn } from '../../types.ts';
 
 const LOG_BATCH = 1000;
-/** How much of a frame is written at a time. */
-const FRAME_CHUNK = 65_536;
+/** The most of a stream written at a time. */
+const STREAM_CHUNK = 65_536;
 
 /** Stdin's bytes to stdout as they arrive, until it ends or the command is interrupted. */
 const catStdin = async (cmd: Command): CmdReturn => {
@@ -108,20 +109,27 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
       case NODE_TYPE_NULL:
         return 0;
 
-      // A stream is one frame, from its device now: shown as a picture is on a terminal, its JPEG's
-      // bytes otherwise, for `cat /dev/front-door/main > door.jpg`.
+      // A stream is its bytes from now on, until its writer stops or the command is interrupted:
+      // `cat /dev/front-door/main.ts > door.ts` records a camera. They are not written to a terminal.
       case NODE_TYPE_STREAM: {
         if (cmd.tty) {
-          const outputId = ulid();
-          for (let i = 0; i < mediaLines; i++) await cmd.write(`__IMG:${path}:${outputId}:${mediaLines}:${i}\n`);
-          return 0;
+          await cmd.writeError(`cat: ${path}: a live stream, which goes to a file: cat ${path} > <file>\n`);
+          return 1;
         }
         const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+        const stop = new AbortController();
+        cmd.onInterrupt(() => stop.abort());
         try {
-          for (let chunk = await handle.read(FRAME_CHUNK); chunk.length > 0 && !cmd.interrupted; chunk = await handle.read(FRAME_CHUNK)) {
-            await cmd.stdout.write(chunk);
+          while (!cmd.interrupted) {
+            const chunk = await handle.read(STREAM_CHUNK, stop.signal).catch((error) => {
+              if (stop.signal.aborted) return new Uint8Array(0);
+              throw error;
+            });
+            if (chunk.length === 0) break;
+            await cmd.write(chunk);
           }
         } finally {
+          cmd.onInterrupt(null);
           await handle.close();
         }
         return cmd.interrupted ? 130 : 0;
@@ -187,7 +195,21 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
         const mimetype = attrs.mimetype || '';
         const outputId = ulid();
 
-        // Media is written as markers, one per line of the preview, which the terminal renders.
+        // Anything but text goes to a file or a pipe as its bytes: `cat clip.mp4 > copy.mp4`.
+        if (!cmd.tty && !isTextMimetype(mimetype)) {
+          const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+          try {
+            for await (const chunk of handle.readable) {
+              if (cmd.interrupted) break;
+              await cmd.write(chunk);
+            }
+          } finally {
+            await handle.close();
+          }
+          return cmd.interrupted ? 130 : 0;
+        }
+
+        // On a terminal, media is written as markers, one per line of the preview, which the terminal renders.
         if (mimetype.startsWith('image/')) {
           for (let i = 0; i < mediaLines; i++) {
             await cmd.write(`__IMG:${path}:${outputId}:${mediaLines}:${i}\n`);
@@ -247,7 +269,7 @@ cat.spec = {
   effect: 'read' as const,
   json: false,
   description:
-    "Print nodes' contents, one after the other: a text file, a log (one JSON entry a line), a position or an embedding (JSON), a camera's stream (a JPEG of it now)",
+    "Print nodes' contents, one after the other: a text file, a log (one JSON entry a line), a position or an embedding (JSON), a stream (its bytes from now on, to a file); a picture, video or recording is a preview on a terminal and its bytes to a file or a pipe",
   args: [
     {
       name: 'path',

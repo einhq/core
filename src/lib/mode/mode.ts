@@ -1,4 +1,4 @@
-import { MaskACL, MaskGroup, MaskOther, MaskOwner, MaskWho, MaskWhoKeys } from './constants.ts';
+import { MaskACL, MaskGroup, MaskOther, MaskOwner, MaskWho, MaskWhoKeys, MODE_STICKY } from './constants.ts';
 import { ChownLookup, GroupId, Mode, ModeMask, ModeStringOptions, SimpleOwnership, UserId } from './types.ts';
 
 export const getMode = (modestr: string, masks: ModeMask) => {
@@ -43,7 +43,9 @@ export const getModeString = (mode: Mode, options?: ModeStringOptions) => {
   }
 
   if (!options || options?.other) {
-    modestr += modeStringMask(mode, MaskOther);
+    // The sticky bit takes the others' execute position, as `ls` shows it: `t`, or `T` without execute.
+    const other = modeStringMask(mode, MaskOther);
+    modestr += mode & MODE_STICKY ? other.slice(0, 2) + (other[2] === 'x' ? 't' : 'T') : other;
   }
 
   return modestr;
@@ -61,7 +63,8 @@ export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
 
   for (const clause of clauses) {
     // An empty `=` clears the class, as `chmod o=` does; an empty `+` or `-` changes nothing.
-    const match = clause.match(/^([ugoa]*)([+=-])([rwx]*)$/);
+    // `t` is the sticky bit, which belongs to the others' class: `+t`, `o+t` and `a+t` set it.
+    const match = clause.match(/^([ugoa]*)([+=-])([rwxt]*)$/);
     if (!match) {
       throw new Error(`invalid mode clause: "${clause}"`);
     }
@@ -77,6 +80,7 @@ export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
       if (perms.includes('r')) permBits |= mask.READ;
       if (perms.includes('w')) permBits |= mask.WRITE;
       if (perms.includes('x')) permBits |= mask.EXEC;
+      if (perms.includes('t') && t === 'o') permBits |= MODE_STICKY;
 
       switch (op) {
         case '+':
@@ -86,8 +90,8 @@ export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
           mode &= ~permBits;
           break;
         case '=':
-          // clear r/w/x for this class first
-          mode &= ~(mask.READ | mask.WRITE | mask.EXEC);
+          // clear r/w/x for this class first, and the others' the sticky bit
+          mode &= ~(mask.READ | mask.WRITE | mask.EXEC | (t === 'o' ? MODE_STICKY : 0));
           mode |= permBits;
           break;
       }

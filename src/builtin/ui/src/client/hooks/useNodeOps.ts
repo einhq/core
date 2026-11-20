@@ -67,7 +67,7 @@ export function useNodeOps(): NodeOps {
   }, [run]);
   const remove = useCallback((paths: string[], recursive: boolean) => run(`rm ${recursive ? '-r ' : ''}${paths.map(shq).join(' ')}`, paths.map(parentPath)), [run]);
   const mkdir = useCallback((parent: string, name: string) => run(`mkdir ${shq(parent === '/' ? `/${name}` : `${parent}/${name}`)}`, [parent]), [run]);
-  const chmod = useCallback((path: string, mode: number) => run(`chmod ${(mode & 0o777).toString(8)} ${shq(path)}`, [parentPath(path)]), [run]);
+  const chmod = useCallback((path: string, mode: number) => run(`chmod ${(mode & 0o1777).toString(8)} ${shq(path)}`, [parentPath(path)]), [run]);
   const chown = useCallback(
     (path: string, user: string, group?: string) => run(`chown ${shq(group ? `${user}:${group}` : user)} ${shq(path)}`, [parentPath(path)]),
     [run],

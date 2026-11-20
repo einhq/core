@@ -222,9 +222,9 @@ type ServicesPanelProps = {
 
 /**
  * The services beside EiN, as the panel the Modules tab opens beside its list: each with its state,
- * the image it runs and the version of its interface, and what the modules ask of it; Install for
- * one not installed and Update for one that is, and Update all. Without a supervisor, how the
- * services are installed and updated on the machine instead.
+ * the release it runs, and what the modules ask of it; Install for one not installed, and, as for a
+ * module, Update to the newer release for one that has one, and Update all when any has. Without a
+ * supervisor, how the services are installed and updated on the machine instead.
  */
 export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
   const { status, refresh } = supervisor;
@@ -232,6 +232,7 @@ export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const running = status?.job?.state === 'running';
+  const updatable = status?.services.some((service) => service.installed && service.available) ?? false;
 
   const update = async (names: string[]) => {
     setBusy(names.join(' ') || 'all');
@@ -255,10 +256,9 @@ export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
             The media service, the language model and the devices sidecar run beside EiN, each in a container of its own, and modules talk to them.
           </Text>
         </Box>
-        {admin && status?.configured && !status.error && (
+        {admin && status?.configured && !status.error && updatable && (
           <Button
             size='sm'
-            variant='default'
             leftSection={<IconRefresh size={16} />}
             loading={busy === 'all'}
             disabled={running || busy !== null}
@@ -299,7 +299,7 @@ export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
                   {service.image && (
                     <Text size='xs' c='dimmed' ff='monospace' truncate title={service.image}>
                       {service.image}
-                      {service.version ? ` · ${service.version}` : ''}
+                      {service.version && !service.image.endsWith(`:${service.version}`) ? ` · ${service.version}` : ''}
                     </Text>
                   )}
                   {service.built && <Text size='xs' c='dimmed'>Built {formatDateTime(service.built)}</Text>}
@@ -318,16 +318,16 @@ export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
                       Install
                     </Button>
                   )}
-                  {admin && service.installed && (
+                  {admin && service.installed && service.available && (
                     <Button
                       size='compact-sm'
-                      variant='default'
                       leftSection={<IconRefresh size={14} />}
                       loading={busy === service.name}
                       disabled={running || busy !== null}
+                      title={service.available.image}
                       onClick={() => void update([service.name])}
                     >
-                      Update
+                      {service.available.version ? `Update to ${service.available.version}` : 'Update'}
                     </Button>
                   )}
                 </Stack>
@@ -338,8 +338,11 @@ export function ServicesPanel({ supervisor, admin }: ServicesPanelProps) {
       )}
       {status?.configured && !status.error && (
         <Text size='xs' c='dimmed'>
-          {status.updateAt ? `Every service is updated each night at ${status.updateAt}, ` : 'The services are updated only when asked, '}
-          and the media service and the sidecar as soon as a module asks for a newer one. A service whose new image does not come up goes back to the one it ran.
+          {updatable ? '' : 'Every service runs its newest release. '}
+          {status.updateAt ? `A service with a newer release is updated each night at ${status.updateAt}, ` : 'The services are updated only when asked, '}
+          and the media service and the sidecar as soon as a module asks for a newer one. A service whose new release does not come up goes back to the one it ran.
+          {status.checkedAt && ` Releases last checked ${formatTime(status.checkedAt)}.`}
+          {status.checkError && ` GitHub's registry did not answer for every service: ${status.checkError}.`}
           {status.engine && ` The supervisor runs them under ${status.engine}.`}
         </Text>
       )}

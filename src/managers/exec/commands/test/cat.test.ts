@@ -56,6 +56,17 @@ Deno.test({
       assertEquals(content.trim().split('\n'), ['2016-09-04T16:13:27.739Z\t{"value":83.4}', '2016-09-11T08:00:00.000Z\t{"value":82.4}']);
     });
 
+    await t.step('media goes to a pipe or a file as its bytes, and to a terminal as preview markers', async () => {
+      await cmd.shouldSucceed('mknode -t file --as "name=clip.mp4" --as "mimetype=video/mp4" /clip.mp4');
+      await client.exec('printf "not really a video" > /clip.mp4');
+      assertEquals((await client.execString('cat /clip.mp4 | wc -c')).trim(), '18');
+      await cmd.shouldSucceed('cat /clip.mp4 > /copy.mp4');
+      assertEquals(await client.execString('cat /copy.mp4 | cat'), 'not really a video');
+      const markers = (await client.execString('TERM=1 cat -s /clip.mp4')).trim().split('\n');
+      assertEquals(markers.length, 10);
+      assertEquals(markers.every((line) => line.startsWith('__VID:/clip.mp4:')), true, markers.join('\n'));
+    });
+
     await t.step('prints an empty log and exits', async () => {
       await cmd.shouldSucceed('mknode -t log /emptylog');
       const result = await client.exec('cat /emptylog');

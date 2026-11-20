@@ -294,9 +294,9 @@ export class SystemTestHarness {
       }
       // The archive and core's label tree, as 02_archive.sh makes them at boot; the other roots are
       // the modules' (below).
-      await ensurePath(ARCHIVE_PATH, 0o771);
+      await ensurePath(ARCHIVE_PATH, 0o1771);
       await ensureArchiveRoots(vfs, [TAGS_ROOT]);
-      await vfs.update(ADMIN_ACCESS, TEMP_PATH, { props: { mode: 0o777 } });
+      await vfs.update(ADMIN_ACCESS, TEMP_PATH, { props: { mode: 0o1777 } });
 
       shell = await this.createSystemShell(cem, vfs, bufferManager, env);
       this.shell = shell;
@@ -442,15 +442,17 @@ export class SystemTestHarness {
       client.on('error', (err: Error) => reject(err));
     });
 
-    await client.connect({
-      host: 'localhost',
-      port: this.instance.sshPort,
-      username: opts?.username ?? 'admin',
-      password: opts?.password ?? ADMIN_PASSWORD,
-      algorithms: { serverHostKey: ['ssh-ed25519'] },
-    });
-
-    await ready;
+    // A refused sign-in rejects both; the first one's rejection is the caller's
+    await Promise.all([
+      client.connect({
+        host: 'localhost',
+        port: this.instance.sshPort,
+        username: opts?.username ?? 'admin',
+        password: opts?.password ?? ADMIN_PASSWORD,
+        algorithms: { serverHostKey: ['ssh-ed25519'] },
+      }),
+      ready,
+    ]);
     return client;
   }
 

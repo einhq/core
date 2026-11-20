@@ -9,6 +9,7 @@
 
 import type { LiveFormat } from '../../../managers/devices/types.ts';
 import type { HttpServerConfig } from '../types.ts';
+import { DLNA_LIVE_FEATURES } from './stream.ts';
 
 const MEDIA_TYPES: Record<LiveFormat, string> = { mp4: 'video/mp4', ts: 'video/mp2t' };
 
@@ -16,9 +17,6 @@ const PATH = /^\/live\/([0-9a-f]{64})\.(mp4|ts)$/;
 const FILE = /^\/live\/([0-9a-f]{64})\/([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 
 const CORS = { 'Access-Control-Allow-Origin': '*' };
-
-/** DLNA's flags for a live stream: no seeking (OP=00), made for the reader (CI=1), streamed. */
-const DLNA_LIVE_FEATURES = 'DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000';
 
 /** What a DLNA renderer is told of a live stream, when it asks. */
 const dlnaHeaders = (req: Request): Record<string, string> => {

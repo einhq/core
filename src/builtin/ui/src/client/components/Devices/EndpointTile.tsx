@@ -136,7 +136,7 @@ function StreamTile({ device, endpoint }: EndpointTileProps) {
             )
             : (
               <Image
-                src={`/file/dev/${encodeURIComponent(device)}/${encodeURIComponent(endpoint.name)}?at=${tick}`}
+                src={`/stream/dev/${encodeURIComponent(device)}/${encodeURIComponent(endpoint.name)}?at=${tick}`}
                 alt={endpoint.label}
                 h='100%'
                 w='100%'

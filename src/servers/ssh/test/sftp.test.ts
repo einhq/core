@@ -514,6 +514,18 @@ Deno.test({
         }
       });
 
+      await t.step('a stream is a file: written by its one writer, read from now on', async () => {
+        await harness.instance!.vfs.create(ADMIN_ACCESS, 'stream', '/home/admin', 'live.ts', { attrs: { mimetype: 'video/mp2t' } });
+        assertEquals(fileType((await sftp.stat('/home/admin/live.ts')).mode), S_IFREG);
+        const reader = await harness.instance!.vfs.open(ADMIN_ACCESS, '/home/admin/live.ts', { mode: 'r' });
+        try {
+          await sftp.writeFile('/home/admin/live.ts', new TextEncoder().encode('live bytes'));
+          assertEquals(new TextDecoder().decode(await reader.read(64)), 'live bytes');
+        } finally {
+          await reader.close();
+        }
+      });
+
       await t.step('closes the subsystem channel after client EOF', async () => {
         // OpenSSH finishes a one-shot transfer by half-closing its channel and
         // waiting for the server's CHANNEL_CLOSE. ssh2's high-level SFTP.end()

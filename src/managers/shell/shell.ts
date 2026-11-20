@@ -898,8 +898,10 @@ export class Shell implements TtyIf {
    * nodes, and `waitForCommand` passes it on to the command running at that
    * moment as a SIGTERM. A loop script otherwise survives a signal to its
    * running command and starts the next pass. The script then runs in a
-   * subcontext, as `runAndCapture` does, so the signal does not stay on the
-   * shell's own context after the script is gone.
+   * context spawned from the shell's, so the signal does not stay on the
+   * shell's own context after the script is gone, while what the script sets,
+   * its traps among them, is still the shell's: an EXIT trap runs when the
+   * shell ends.
    */
   async run(script: string, ctx?: ExecContextIf, opts: { signal?: AbortSignal; history?: boolean } = {}): Promise<number> {
     // A closed shell has no fds: executing would bridge the inherited stdin '0'
@@ -920,7 +922,7 @@ export class Shell implements TtyIf {
     }
     let runCtx = ctx || this.ctx;
     if (opts.signal) {
-      runCtx = runCtx.subContext();
+      runCtx = runCtx.spawnContext();
       runCtx.setAbortSignal(opts.signal);
     }
     const exited = { value: false };

@@ -47,22 +47,28 @@ function Control({ label, icon, onClick, size = 'xl' }: { label: string; icon: s
 /** How often the dialog asks a page on the screen what it shows. */
 const PAGE_STATE_MS = 1000;
 
-/** What the page on the screen says it shows, asked every second while `stream` is set; `null` until it says. */
-function usePageState(stream: string | undefined): ScreenState | null {
+/**
+ * What the page on the screen says it shows, asked every second while `stream` is set; `null` until
+ * it says. The function asks again at once, as after a key is pressed.
+ */
+function usePageState(stream: string | undefined): [ScreenState | null, () => void] {
   const [state, setState] = useState<ScreenState | null>(null);
+  const again = useRef(() => {});
   useEffect(() => {
     setState(null);
     if (!stream) return;
     let live = true;
     const read = () => void nearbyPageState().then((found) => live && setState(found)).catch(() => {});
+    again.current = read;
     read();
     const timer = setInterval(read, PAGE_STATE_MS);
     return () => {
       live = false;
+      again.current = () => {};
       clearInterval(timer);
     };
   }, [stream]);
-  return state;
+  return [state, () => again.current()];
 }
 
 /**
@@ -136,17 +142,18 @@ function Playing({ shown }: { shown: ShowOnTarget }) {
   const [problem, setProblem] = useState<string | null>(null);
   const screen = nearbyScreen.value;
   const playback = nearbyPlayback.value;
-  const state = usePageState(screen?.page ? screen.stream : undefined);
+  const [state, readState] = usePageState(screen?.page ? screen.stream : undefined);
   if (!screen) return null;
   const timed = !screen.page && Number.isFinite(playback.duration);
-  // The page the dialog is opened from knows its keys as they are now; what the screen was given
-  // when it started, kept with it, may be from an older EiN.
+  // The page on the screen says its keys as they are now (a held slideshow's Play); else the page
+  // the dialog is opened from knows them as this EiN has them, where what the screen was given when
+  // it started, kept with it, may be from an older EiN.
   const sent = shown.path === screen.target.path ? shown : screen.target;
-  const keys = screen.page && screen.stream ? sent.keys ?? [] : [];
+  const keys = screen.page && screen.stream ? state?.keys ?? sent.keys ?? [] : [];
   const failed = (error: unknown) => setProblem(error instanceof Error ? error.message : String(error));
   const press = (key: string) => {
     setProblem(null);
-    pressNearby(key).catch(failed);
+    pressNearby(key).then(readState, failed);
   };
   const seek = (seconds: number) => {
     setProblem(null);

@@ -23,11 +23,17 @@ import type { ResourceHandleIf } from '../../registries/types.ts';
 import { type AccessInput, type EventSubscription, type Node, type NodeEvent, type NodeVFS, recordAccess } from '../../vfs/mod.ts';
 import { StepTimer } from '../../lib/metrics/mod.ts';
 import type { SessionAttrs } from '../../vfs/types/session.ts';
-import { loginRefusal, NODE_TYPE_USER, type UserAttrs } from '../../vfs/types/user.ts';
+import { isUserNode, loginRefusal, NODE_TYPE_USER, type UserAttrs } from '../../vfs/types/user.ts';
 import { findAuthorizedKey } from './authorized-keys.ts';
 import { SFTPHandler } from './sftp-handler.ts';
 
 const logger = createLogger('ssh-server');
+
+/** What the server calls itself; see the `ident` option below. */
+const SERVER_IDENT = 'OpenSSH_compatible EiN';
+
+/** Connections the server keeps at once, signed in or not. */
+const MAX_CONNECTIONS = 1000;
 
 export type SSHServerConfig = {
   port: number;
@@ -55,10 +61,22 @@ export class SSHServer {
     this.server = new Server(
       {
         hostKeys: [this.config.hostKey],
+        // OpenSSH's client tells a server that calls itself OpenSSH when it can write no more of a
+        // command's output (`ssh host cmd | head`), and otherwise waits for the command for good
+        ident: SERVER_IDENT,
         debug: (msg: string) => {
           logger.debug('SSH2', { msg });
         },
         algorithms: {
+          // No MODP Diffie-Hellman: it runs on the event loop, and a client that
+          // has not signed in could choose the 8192-bit group over and over
+          kex: [
+            'curve25519-sha256',
+            'curve25519-sha256@libssh.org',
+            'ecdh-sha2-nistp256',
+            'ecdh-sha2-nistp384',
+            'ecdh-sha2-nistp521',
+          ],
           serverHostKey: [
             'ssh-ed25519',
             'rsa-sha2-512',
@@ -69,6 +87,13 @@ export class SSHServer {
       },
       (client: Connection, info: ConnectionInfo) => this.handleConnection(client, info),
     );
+    // Connections still signing in have ssh2's limits: 120 s to authenticate, 100
+    // at once and 10 from one address; this bounds all of them
+    this.server.maxConnections = MAX_CONNECTIONS;
+    // A failed accept, after which the server asks again, or a connection it could not set up
+    this.server.on('error', (err: Error) => {
+      logger.warn('SSH server error', { error: err.message });
+    });
   }
 
   async start(): Promise<number> {
@@ -168,7 +193,13 @@ export class SSHServer {
         void record({ event: 'sign-in', uid: authenticatedUser.access.uid, method: authenticatedUser.method });
       }
 
-      client.on('session', (accept, _reject) => {
+      client.on('session', async (accept, reject) => {
+        if (!await this.mayStillAct(authenticatedUser!)) {
+          logger.info('ending SSH connection of a disabled or deleted account', { connId, username: authenticatedUser?.username });
+          reject();
+          client.end();
+          return;
+        }
         const session = accept();
         if (!session) return;
         this.handleSession(client, session, authenticatedUser!, connId, info.ip);
@@ -201,6 +232,16 @@ export class SSHServer {
       return null;
     }
     return account;
+  }
+
+  /**
+   * Whether the account a connection signed in as may still act: it is there, with the uid it
+   * signed in with, and not disabled. Asked as each shell, command or SFTP session opens, behind
+   * the watch that ends the connections of a disabled or deleted account (`watchUsers`).
+   */
+  private async mayStillAct(user: AuthenticatedUser): Promise<boolean> {
+    const userNode = await this.config.vfs.get<UserAttrs>(ADMIN_ACCESS, join(USERS_PATH, user.username)).catch(() => undefined);
+    return !!userNode && isUserNode(userNode) && userNode.attrs.uid === user.access.uid && userNode.attrs.inactive !== true;
   }
 
   private async authenticatedAs(username: string, userNode: Node<UserAttrs>, method: AuthenticatedUser['method'], sid: string): Promise<AuthenticatedUser> {
@@ -406,18 +447,26 @@ export class SSHServer {
 
         // Without a terminal the client keeps the two apart, as `ssh host cmd 2>/dev/null` relies on.
         const stderr = channel.stderr as StderrWritable;
+        const stdout = await cmdShell.openIOHandle('stdout', 'r');
         const output = [
-          this.pipeHandleToChannel(await cmdShell.openIOHandle('stdout', 'r'), channel),
+          this.pipeHandleToChannel(stdout, channel),
           this.pipeHandleToChannel(await cmdShell.openIOHandle('stderr', 'r'), stderr),
         ];
         timer.mark('pipes');
 
-        // A client that goes away hangs up what it ran, as an interactive session's does.
+        // The client can write no more of what the command writes (`ssh host cmd | head`): its
+        // next write fails as to a closed pipe, and the command ends with SIGPIPE.
+        channel.on('eow', () => void this.config.bufferManager.closeRead(stdout.id));
+
+        // A client that goes away hangs up what it ran, as an interactive session's does: the script
+        // too, or a loop would start its next pass when the command running in it ends.
+        const hangUp = new AbortController();
         channel.on('close', () => {
+          hangUp.abort();
           cmdShell.close().catch((err) => logger.error('shell close failed', { error: (err as Error).message }));
         });
 
-        const exitCode = await cmdShell.run(info.command);
+        const exitCode = await cmdShell.run(info.command, undefined, { signal: hangUp.signal });
         timer.mark('run');
 
         // Closing the shell ends its output buffers; what the command wrote is
@@ -459,7 +508,21 @@ export class SSHServer {
         { server: true },
       );
 
-      this.pipeReadable(channel.readable, (data) => sftp.push(data), () => {
+      const handler = new SFTPHandler({
+        vfs: this.config.vfs,
+        access: { ...user.access, gids: [...user.access.gids] },
+        homePath: homePath(user.username),
+        from,
+      });
+
+      handler.attach(sftp);
+
+      // The channel is read only while the handler takes more requests, so a client that
+      // queues many waits for its window instead of having them all held here.
+      this.pipeReadable(channel.readable, (data) => {
+        sftp.push(data);
+        return handler.ready();
+      }, () => {
         // One-shot OpenSSH clients finish by sending CHANNEL_EOF, then wait
         // for the subsystem server to complete its half of the teardown.
         // Closing only the SFTP file handle does not close the SSH channel. The
@@ -469,15 +532,6 @@ export class SSHServer {
         channel.exit(0);
         channel.end();
       });
-
-      const handler = new SFTPHandler({
-        vfs: this.config.vfs,
-        access: { ...user.access, gids: [...user.access.gids] },
-        homePath: homePath(user.username),
-        from,
-      });
-
-      handler.attach(sftp);
       logger.info('SFTP session started', { connId, username: user.username });
     });
   }
@@ -591,7 +645,7 @@ export class SSHServer {
 
   private pipeReadable(
     readable: ReadableStream<Uint8Array>,
-    onData: (data: Uint8Array) => void,
+    onData: (data: Uint8Array) => void | Promise<void>,
     onEnd: () => void,
   ): void {
     const reader = readable.getReader();
@@ -601,7 +655,7 @@ export class SSHServer {
           const { done, value } = await reader.read();
           if (done) break;
           if (value) {
-            onData(value);
+            await onData(value);
           }
         }
       } catch (_err) {

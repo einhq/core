@@ -5,10 +5,11 @@ import { HttpServerConfig } from '../types.ts';
 import { handleApiShellWebSocket, handleShellWebSocket } from '../ws/mod.ts';
 import { errorMessage, isExpectedWebSocketTeardownError } from '../ws/base-handler.ts';
 import type { InteractiveTerminalRegistry } from '../ws/interactive-terminal-registry.ts';
+import type { OpenSockets } from '../ws/open-sockets.ts';
 
 const logger = createLogger('http');
 
-type ShellHttpServerConfig = HttpServerConfig & { interactiveTerminals: InteractiveTerminalRegistry };
+type ShellHttpServerConfig = HttpServerConfig & { interactiveTerminals: InteractiveTerminalRegistry; sockets: OpenSockets };
 
 const TERMINAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -28,7 +29,7 @@ export async function handleGetShell(config: ShellHttpServerConfig, req: Request
     }
 
     const { sessionPath } = await getSession(config, req.headers, { ephemeral: true });
-    const { socket, response } = Deno.upgradeWebSocket(req);
+    const { socket, response } = config.sockets.upgrade(req);
 
     // Handle shell WebSocket. Setup runs async for the session lifetime; a
     // failure (e.g. the client disconnects mid-init, tearing down the tty
@@ -60,7 +61,7 @@ export async function handleGetShell(config: ShellHttpServerConfig, req: Request
   }
 
   const { sessionPath } = await getSession(config, req.headers, { ephemeral: true });
-  const { socket, response } = Deno.upgradeWebSocket(req);
+  const { socket, response } = config.sockets.upgrade(req);
 
   // Handle API shell WebSocket (see note above about not crashing on setup failure).
   handleApiShellWebSocket({

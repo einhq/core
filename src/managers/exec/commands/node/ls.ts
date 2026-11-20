@@ -128,7 +128,7 @@ const longListing = (cmd: Command, entries: NodeChildEntry[], flags: LsFlags, uc
         return color('yellow', c);
       } else if (c === 'w') {
         return color('red', c);
-      } else if (c === 'x') {
+      } else if (c === 'x' || c === 't' || c === 'T') {
         return color('green', c);
       } else if (c === '+') {
         return color('magenta', c);

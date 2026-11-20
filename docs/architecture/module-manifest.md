@@ -149,12 +149,12 @@ dependency is
 Services beside EiN this module talks to, as name → caret range of the version of the service's
 interface: `"services": { "ems": "^0.4.4" }`. Core runs none of them and knows none by name; the
 installation does. `mod setup` checks only the field's form: a name, and a caret range, which names
-the image line the installation pulls (`^0.4.4` the line `0.4`, `^1.2.0` the line `1`), so a
-service is updated together with the modules that use it. The module checks the version the
+the line whose newest release the installation runs (`^0.4.4` the line `0.4`, `^1.2.0` the line
+`1`), so a service is updated together with the modules that use it. The module checks the version the
 running service reports against the same range, and says so in its status when they disagree.
 `mod list` gives the field as `serviceRanges`, which Settings → Modules shows on the module's
 Overview. Where the installation has a supervisor (`CFG_SUPERVISOR_URL`), the `supervisor` commands
-ask it for each service's state, to install one, or to update them: it holds the container engine's
+ask it for each service's state and the newer release it has, to install one, or to update them: it holds the container engine's
 socket, which core never gets, and core asks it for named services alone, never for an image, a
 mount or a capability.
 

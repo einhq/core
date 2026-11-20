@@ -32,6 +32,25 @@ const standIn = () => {
           installed: false,
           gives: ['the graphics card'],
           wanted: { line: '0.4', modules: [{ module: 'ems', range: '^0.4.4' }] },
+        }, {
+          name: 'core',
+          title: 'EiN',
+          optional: false,
+          installed: true,
+          gives: [],
+          state: 'running',
+          image: 'ghcr.io/einhq/core:0.1.1',
+          version: '0.1.1',
+          available: { version: '0.1.2', image: 'ghcr.io/einhq/core:0.1.2' },
+        }, {
+          name: 'db',
+          title: 'the database',
+          optional: false,
+          installed: true,
+          gives: [],
+          state: 'running',
+          image: 'ghcr.io/einhq/db:0.1.0',
+          version: '0.1.0',
         }],
         job: null,
       });
@@ -59,7 +78,10 @@ Deno.test({ name: 'supervisor', sanitizeResources: false, sanitizeOps: false }, 
       assertEquals(status.configured, true);
       assertEquals(status.services[0].name, 'ems');
       assertEquals(supervisor.requests.at(-1), { method: 'GET', path: '/v0/status', authorization: 'Bearer a-supervisor-key', body: undefined });
-      assertStringIncludes(`${(await client.exec('JSON_OUTPUT=0 supervisor status')).data}`, 'asked for by ems ^0.4.4');
+      const said = `${(await client.exec('JSON_OUTPUT=0 supervisor status')).data}`;
+      assertStringIncludes(said, 'asked for by ems ^0.4.4');
+      assertStringIncludes(said, 'core  running · ghcr.io/einhq/core:0.1.1 · update to 0.1.2');
+      assertStringIncludes(said, 'db    running · ghcr.io/einhq/db:0.1.0\n');
     });
 
     await t.step('install and update ask for what they name, saying who asks', async () => {

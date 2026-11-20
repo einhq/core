@@ -42,6 +42,13 @@ Deno.test({
       }
     });
 
+    await t.step('a username is spelled one way: a path to the account is no name for it', async () => {
+      assertEquals((await passwordSignIn(vfs, ' Anna ', 'hunter2', origin())).username, 'anna');
+      for (const name of ['./anna', 'x/../anna', 'a/b/../../anna', '../users/anna', '.', '..', '/etc/users/anna']) {
+        await assertRejects(() => passwordSignIn(vfs, name, 'hunter2', origin()), Error, AUTHENTICATION_FAILED, name);
+      }
+    });
+
     await t.step("a disabled account's reason shows only with its right password", async () => {
       await assertRejects(() => passwordSignIn(vfs, 'bo', 'swordfish', origin()), Error, 'account disabled');
     });

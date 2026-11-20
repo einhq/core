@@ -36,7 +36,7 @@ export const cp = async (cmd: Command): CmdReturn => {
   const replace = dest !== undefined && !into;
   // The file a copy replaces is the one DEST leads to: through a softlink, its target, so the link
   // stays and leads to the new content.
-  const target = replace ? (await cmd.sys.vfs.resolvePath(cmd.access, destPath)).absPath : destPath;
+  const target = replace ? (await cmd.sys.vfs.resolvePath(cmd.access, destPath, { write: true })).absPath : destPath;
 
   if (replace && destArg.endsWith('/')) {
     await cmd.writeError(`cp: cannot copy to '${destArg}': Not a directory\n`);

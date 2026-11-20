@@ -23,14 +23,19 @@ import type {
 import { SYSTEM_TIME_ZONE } from '../../lib/datetime/timezone.ts';
 import { readBuckets, readRange, readTail } from '../../lib/metrics/read.ts';
 import { DEV_PATH, devicePath } from '../../lib/paths.ts';
+import { isPictureStream } from '../../registries/stream/types.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
 import type { Node } from '../../vfs/node.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
-import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM } from '../../vfs/types/device.ts';
+import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../vfs/types/device.ts';
+import { NODE_TYPE_STREAM } from '../../vfs/types/stream.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import type { DeviceManager } from './device-manager.ts';
 
 const ENDPOINT_NODE_TYPES = new Set<string>([NODE_TYPE_LOG, 'track', NODE_TYPE_CONTROL, NODE_TYPE_STREAM]);
+
+/** What a stream's bytes are when a page watches it as they come: fragmented MP4, which a browser's MediaSource reads. */
+const LIVE_MIMETYPE = 'video/mp4';
 
 type Entry = { value?: DeviceValue };
 
@@ -150,6 +155,7 @@ const batteryOf = async (vfs: ModuleVFS, access: Access, device: string, endpoin
 
 /** What a stream's attrs say it is. */
 const streamInfo = (attrs: EndpointAttrs): StreamInfo => ({
+  ...(attrs.mimetype ? { mimetype: attrs.mimetype } : {}),
   ...(attrs.codec ? { codec: attrs.codec } : {}),
   ...(attrs.width ? { width: attrs.width } : {}),
   ...(attrs.height ? { height: attrs.height } : {}),
@@ -157,11 +163,11 @@ const streamInfo = (attrs: EndpointAttrs): StreamInfo => ({
   ...(typeof attrs.audio === 'boolean' ? { audio: attrs.audio } : {}),
 });
 
-/** The stream a card shows a frame of: the one with the fewest pixels, which is the quickest to give. */
+/** The stream of pictures a card shows: the one with the fewest pixels, which is the quickest to make. */
 const pictureOf = (endpoints: EndpointNode[]): string | undefined => {
   const pixels = (ep: EndpointNode) => ((ep.node.attrs as EndpointAttrs).width ?? Infinity) * ((ep.node.attrs as EndpointAttrs).height ?? 1);
   return endpoints
-    .filter((ep) => ep.node.type === NODE_TYPE_STREAM && !(ep.node.attrs as EndpointAttrs).retired)
+    .filter((ep) => ep.node.type === NODE_TYPE_STREAM && !(ep.node.attrs as EndpointAttrs).retired && isPictureStream((ep.node.attrs as EndpointAttrs).mimetype))
     .sort((a, b) => pixels(a) - pixels(b))[0]?.name;
 };
 
@@ -229,8 +235,8 @@ export const listDevices = async (vfs: ModuleVFS, access: Access): Promise<Devic
   return summaries.sort((a, b) => a.label.localeCompare(b.label));
 };
 
-/** An endpoint as `device-show` lists it; `live` is whether the device's driver runs now and gives a stream's live view. */
-const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, ep: EndpointNode, live: boolean): Promise<EndpointSummary> => {
+/** An endpoint as `device-show` lists it; `running` is whether the device's driver runs now, and so writes its streams. */
+const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, ep: EndpointNode, running: boolean): Promise<EndpointSummary> => {
   const attrs = ep.node.attrs as EndpointAttrs;
   const path = join(devicePath(device), ep.name);
   const type = ep.node.type as EndpointType;
@@ -254,7 +260,7 @@ const endpointSummary = async (vfs: ModuleVFS, access: Access, device: string, e
     summary.track = { points: track?.points ?? 0, ...(track?.firstTs ? { firstAt: track.firstTs } : {}), ...(track?.lastTs ? { lastAt: track.lastTs } : {}) };
   } else if (type === 'stream') {
     summary.stream = streamInfo(attrs);
-    if (live) summary.live = true;
+    if (running && attrs.mimetype === LIVE_MIMETYPE) summary.live = true;
   } else {
     const last = (await valuesOf(vfs, access, path, 1))[0];
     if (last) summary.last = last;
@@ -268,7 +274,7 @@ export const deviceInfo = async (vfs: ModuleVFS, access: Access, devices: Device
   if (node.type !== NODE_TYPE_DEVICE) throw new Error(`${device} is not a device`);
   const endpoints = await endpointsOf(vfs, access, device);
   const driver = node.attrs.driver ? devices?.driver(node.attrs.driver) : undefined;
-  const endpointList = await Promise.all(endpoints.map((ep) => endpointSummary(vfs, access, device, ep, driver?.live !== undefined)));
+  const endpointList = await Promise.all(endpoints.map((ep) => endpointSummary(vfs, access, device, ep, driver !== undefined)));
   const summary = await withMain(vfs, access, device, summaryOf(device, node.attrs, endpoints, verifyAccess(access, node.props, 'w')), endpoints);
   const latest = endpointList.map((ep) => ep.last?.at ?? ep.track?.lastAt).filter((at): at is string => Boolean(at)).sort().at(-1);
   return {

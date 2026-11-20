@@ -1,8 +1,8 @@
 /**
  * supervisor update — have the supervisor update services beside EiN now, EiN itself among them:
  * each pulled, made again from a new image, and put back on the one it ran when the new one does
- * not come up. Every installed service when none is named. It runs on after the command returns;
- * `supervisor status` says how far it got.
+ * not come up. Every service with a newer release when none is named, as `supervisor status` lists
+ * them. It runs on after the command returns; `supervisor status` says how far it got.
  */
 
 import type { Command } from '../../command.ts';
@@ -18,7 +18,9 @@ export const supervisorUpdate = async (cmd: Command): CmdReturn => {
     return 1;
   }
   if (cmd.json) await cmd.writeJSON({ ok: true });
-  else await cmd.write(`The supervisor is updating ${services.length > 0 ? services.join(', ') : 'every service'}; supervisor status says how far it got\n`);
+  else {
+    await cmd.write(`The supervisor is updating ${services.length > 0 ? services.join(', ') : 'every service with an update'}; supervisor status says how far it got\n`);
+  }
   return 0;
 };
 
@@ -26,7 +28,7 @@ supervisorUpdate.spec = {
   name: 'supervisor-update',
   admin: true,
   effect: 'write' as const,
-  description: 'Have the supervisor update services beside EiN now, EiN among them; every installed one when none is named',
+  description: 'Have the supervisor update services beside EiN now, EiN among them; every one with a newer release when none is named',
   args: [
     {
       name: 'services',

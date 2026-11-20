@@ -5,10 +5,10 @@
  * A device is `/dev/<device>`, its endpoints the `log`, `track`, `control` and `stream` nodes under
  * it. What a driver reads from a device it appends through `append`, which keeps it on the endpoint
  * (through the VFS, so a track's change reaches those who follow it) and publishes it on
- * `dev.<device>.<endpoint>`, for queues and rules. The VFS gives writes to devices and controls to
- * `input` and `command` here (`DeviceSink`), and reads of a stream to `frame`; so does the HTTP
- * server, which also asks `live` where to watch a stream. What a person gave a driver that is secret
- * is the device's `.secret` file, a JSON object only the administrator reads. A driver whose
+ * `dev.<device>.<endpoint>`, for queues and rules; a stream it writes itself, as its writer. The VFS
+ * gives writes to devices and controls to `input` and `command` here (`DeviceSink`). The HTTP server
+ * asks a stream's driver for a `frame` of it. What a person gave a driver that is secret is the
+ * device's `.secret` file, a JSON object only the administrator reads. A driver whose
  * device fetches a file itself gives it a file ticket (`file-tickets.ts`), which the HTTP server
  * checks here. A page the media service renders for a screen is signed in with a page ticket
  * (`page-tickets.ts`), and the stream it makes of it served to the device at an unguessable path
@@ -40,7 +40,8 @@ import { isAdmin } from '../../lib/access/verify-access.ts';
 import { NodeNotFoundError } from '../../vfs/errors.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
 import type { DeviceSink } from '../../vfs/types.ts';
-import { type ControlAttrs, type DeviceNodeAttrs, NODE_TYPE_CONTROL, NODE_TYPE_DEVICE, NODE_TYPE_STREAM, type StreamAttrs } from '../../vfs/types/device.ts';
+import { type ControlAttrs, type DeviceNodeAttrs, NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../vfs/types/device.ts';
+import { NODE_TYPE_STREAM } from '../../vfs/types/stream.ts';
 import { NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
 import { isUserNode } from '../../vfs/types/user.ts';
@@ -50,20 +51,7 @@ import { FileTickets } from './file-tickets.ts';
 import { LiveStreams } from './live-streams.ts';
 import { type PageTicket, PageTickets } from './page-tickets.ts';
 import { decide, type Published } from './throttle.ts';
-import type {
-  AppendOptions,
-  Driver,
-  DriverAnswer,
-  DriverStream,
-  LiveFormat,
-  LiveOpen,
-  LiveServed,
-  ModuleDevices,
-  ServedFile,
-  ServedFiles,
-  StreamFrame,
-  StreamLive,
-} from './types.ts';
+import type { AppendOptions, Driver, DriverAnswer, LiveFormat, LiveOpen, LiveServed, ModuleDevices, ServedFile, ServedFiles } from './types.ts';
 import { webhookDriver } from './webhook.ts';
 import { HOST_DRIVER, hostDriver } from './host.ts';
 
@@ -75,11 +63,14 @@ const logger = createLogger('devices');
  */
 const WRITE_TIMEOUT_MS = 45_000;
 
-/** How long a stream's frame, or where to watch it, is waited for from its driver. */
-const STREAM_TIMEOUT_MS = 15_000;
-
 /** A device's or endpoint's name: lower-case letters, digits and dashes, as a slug is. */
 const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
+/**
+ * A stream's name, which may also have an extension saying what its bytes are (`main.ts`): a stream
+ * is published on no routing key, which a dot would split.
+ */
+const STREAM_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}(\.[a-z0-9]{1,8})?$/;
 
 /** A write to a device that cannot be done as asked: no driver, one not running, a value refused. */
 export class DeviceError extends Error {
@@ -92,8 +83,11 @@ export class DeviceError extends Error {
 /** Whether `name` may be a device's: a slug, and none of core's own nodes in `/dev`. */
 export const isDeviceName = (name: string): boolean => NAME_RE.test(name) && !DEV_RESERVED_NAMES.includes(name);
 
-const assertName = (what: string, name: string): void => {
-  if (!NAME_RE.test(name)) throw new DeviceError(`${what} '${name}' is not a name: lower-case letters, digits, - and _`);
+/** That `name` is a `what`'s name; with `extension`, one a stream may have. */
+const assertName = (what: string, name: string, extension = false): void => {
+  if (!(extension ? STREAM_NAME_RE : NAME_RE).test(name)) {
+    throw new DeviceError(`${what} '${name}' is not a name: lower-case letters, digits, - and _${extension ? ', and an extension' : ''}`);
+  }
   if (what === 'device' && DEV_RESERVED_NAMES.includes(name)) throw new DeviceError(`'${name}' is core's own in ${DEV_PATH}, not a device's name`);
 };
 
@@ -245,32 +239,11 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     return { appended, skipped: fixes.points.length - appended };
   }
 
-  /** One frame of the stream at `path`, from its device's driver, for a reader who may read it. */
-  async frame(access: Access, path: string): Promise<StreamFrame> {
-    const { stream, driver } = await this.streamOf(access, path);
-    if (!driver.frame) throw new DeviceError(`${stream.device}'s driver ${stream.attrs.driver} gives no frame of ${stream.endpoint}`);
-    return await this.withinTimeout(stream, () => driver.frame!(stream));
-  }
-
-  /** Where the stream at `path` is watched live, from its device's driver, for a reader who may read it. */
-  async live(access: Access, path: string): Promise<StreamLive> {
-    const { stream, driver } = await this.streamOf(access, path);
-    if (!driver.live) throw new DeviceError(`${stream.device}'s ${stream.endpoint} cannot be watched live`);
-    return await this.withinTimeout(stream, () => driver.live!(stream));
-  }
-
-  async streamSource(access: Access, device: string, endpoint: string): Promise<string> {
-    if (!isAdmin(access)) throw new DeviceError(`only the administrator asks where ${device}/${endpoint} is read`);
-    const { stream, driver } = await this.streamOf(access, join(devicePath(device), endpoint));
-    if (!driver.source) throw new DeviceError(`${device}'s driver ${stream.attrs.driver} names no address for ${endpoint}`);
-    return await this.withinTimeout(stream, () => driver.source!(stream));
-  }
-
   // ===== Tickets for a device to read a file with =====
 
   async fileTicket(access: Access, path: string): Promise<string> {
     const node = await this.sys.vfs.get(access, path);
-    if (node.type !== NODE_TYPE_FILE) throw new DeviceError(`${path}: not a file`);
+    if (node.type !== NODE_TYPE_FILE && node.type !== NODE_TYPE_STREAM) throw new DeviceError(`${path}: not a file or a stream`);
     assertAccess(access, node, 'r');
     return this.tickets.issue(path, access);
   }
@@ -320,37 +293,6 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     return await this.liveStreams.open(id, format);
   }
 
-  private async streamOf(access: Access, path: string): Promise<{ stream: DriverStream; driver: Driver }> {
-    const node = await this.sys.vfs.get<StreamAttrs>(access, path);
-    if (node.type !== NODE_TYPE_STREAM) throw new DeviceError(`${path}: not a stream`);
-    assertAccess(access, node, 'r');
-    const parent = dirname(path);
-    const deviceNode = await this.sys.vfs.get<DeviceNodeAttrs>(ADMIN_ACCESS, parent);
-    if (deviceNode.type !== NODE_TYPE_DEVICE || dirname(parent) !== DEV_PATH) throw new DeviceError(`${path}: not under a device`);
-    const device = basename(parent);
-    const name = deviceNode.attrs.driver;
-    const driver = name ? this.drivers.get(name) : undefined;
-    if (!name) throw new DeviceError(`${device} has no driver to give its ${basename(path)}`);
-    if (!driver) throw new DeviceError(`${device}'s driver ${name} is not running`);
-    return { stream: { device, endpoint: basename(path), path, attrs: deviceNode.attrs, endpointAttrs: node.attrs }, driver };
-  }
-
-  private async withinTimeout<T>(stream: DriverStream, ask: () => Promise<T>): Promise<T> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      return await Promise.race([
-        ask(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new DeviceError(`${stream.device} did not answer within ${STREAM_TIMEOUT_MS / 1000} s`)), STREAM_TIMEOUT_MS);
-        }),
-      ]);
-    } catch (error) {
-      throw error instanceof DeviceError ? error : new DeviceError(`${stream.device}/${stream.endpoint}: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   // ===== What drivers write =====
 
   async ensureDevice(access: Access, name: string, attrs: Partial<DeviceAttrs>): Promise<string> {
@@ -377,7 +319,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   }
 
   async ensureEndpoint(access: Access, device: string, name: string, type: EndpointType, attrs: EndpointAttrs, mode?: number): Promise<string> {
-    assertName('endpoint', name);
+    assertName('endpoint', name, type === 'stream');
     const parent = devicePath(device);
     const path = join(parent, name);
     const existing = await this.sys.vfs.get(access, path).catch((error) => {
@@ -394,15 +336,15 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     }
     // An endpoint is its device's owner's and group's, and takes the device's access list with it, so
     // whoever the device is shared with reads what it reports from then on too. The group reads it
-    // and writes it: switches a control, adds to a log, shares it. A track is also passed through,
-    // for what archive keeps under it (its homes, its trips). Only the administrator gives a node to
-    // another, which a driver's service is. A log's or control's entries are `{ value }`, a bare one
-    // written by hand too.
+    // and writes it: switches a control, adds to a log, shares it. A stream the group only reads: its
+    // driver is its writer. A track is also passed through, for what archive keeps under it (its
+    // homes, its trips). Only the administrator gives a node to another, which a driver's service is.
+    // A log's or control's entries are `{ value }`, a bare one written by hand too.
     const owner = (await this.sys.vfs.get(ADMIN_ACCESS, parent)).props;
     await this.sys.vfs.create(access, type, parent, name, {
       attrs: { ...attrs, ...(type === 'track' || type === 'stream' ? {} : { valueField: 'value' }) },
       props: {
-        mode: mode ?? (type === 'track' ? 0o770 : 0o660),
+        mode: mode ?? (type === 'track' ? 0o770 : type === 'stream' ? 0o640 : 0o660),
         ...(isAdmin(access) && owner.uid !== access.uid ? { uid: owner.uid } : {}),
       },
     });
@@ -411,7 +353,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   }
 
   async removeEndpoint(access: Access, device: string, endpoint: string): Promise<void> {
-    assertName('endpoint', endpoint);
+    assertName('endpoint', endpoint, true);
     const key = `${device}/${endpoint}`;
     await this.sys.vfs.unlink(access, join(devicePath(device), endpoint), devicePath(device), { recursive: true });
     this.endpoints.delete(key);
@@ -421,7 +363,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
 
   async append(access: Access, device: string, endpoint: string, value: DeviceValue | DeviceFix, opts: AppendOptions = {}): Promise<boolean> {
     const ep = await this.endpointOf(access, device, endpoint);
-    if (ep.type === 'stream') throw new DeviceError(`${device}/${endpoint} is a stream, which keeps nothing appended`);
+    if (ep.type === 'stream') throw new DeviceError(`${device}/${endpoint} is a stream, which its writer writes and nothing keeps`);
     const at = opts.at ?? new Date();
     if (ep.type === 'track') {
       if (!isFix(value)) throw new DeviceError(`${device}/${endpoint} is a track: it takes a fix`);

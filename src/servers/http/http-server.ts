@@ -14,11 +14,16 @@ import { handlePageSignIn } from './handlers/page-sign-in.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
 import { handlePostFile } from './handlers/post-file.ts';
 import { handlePutFile } from './handlers/put-file.ts';
-import { handleStreamLive } from './handlers/stream.ts';
+import { isCrossOrigin } from './same-origin.ts';
+import { carriesSessionCookie } from './session.ts';
 import { HttpServerConfig } from './types.ts';
 import { InteractiveTerminalRegistry } from './ws/interactive-terminal-registry.ts';
+import { OpenSockets } from './ws/open-sockets.ts';
 
 const logger = createLogger('http-server');
+
+/** Methods that change nothing, which a page of another origin may send with the cookie. */
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   // Per server rather than module-level: a token means nothing outside the process holding
@@ -26,21 +31,34 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   const archiveTickets = new ArchiveTicketStore();
   const downloads = new DownloadLog(config.vfs);
   const interactiveTerminals = new InteractiveTerminalRegistry(config);
+  const sockets = new OpenSockets();
+  // Before `Deno.serve` adds its own listener, so each socket's close frame is this one.
+  config.signal.addEventListener('abort', () => sockets.closeAll(1001, 'server stopping'), { once: true });
 
   const handler = async (req: Request, info: Deno.ServeHandlerInfo): Promise<Response> => {
     try {
       const url = new URL(req.url);
 
+      // The shell acts as the session, and a write changes what it may reach: neither is open to
+      // a page of another origin that the browser hands the cookie to.
+      if ((url.pathname.startsWith('/__shell') || !READ_METHODS.has(req.method)) && carriesSessionCookie(config, req.headers) && isCrossOrigin(req.headers)) {
+        logger.warn('refused a request from a page of another origin', {
+          method: req.method,
+          path: url.pathname,
+          origin: req.headers.get('origin'),
+          from: clientAddress(req.headers, info.remoteAddr),
+        });
+        return new Response('a page of another origin may not use this session', { status: 403 });
+      }
+
       if (url.pathname.startsWith('/__shell')) {
-        return await handleGetShell({ ...config, interactiveTerminals }, req, url, info.remoteAddr);
+        return await handleGetShell({ ...config, interactiveTerminals, sockets }, req, url, info.remoteAddr);
       } else if (url.pathname === '/__session' && req.method === 'GET') {
         return await handleGetSession(config, req);
       } else if (url.pathname.startsWith('/__page/') && req.method === 'GET') {
         return await handlePageSignIn(config, req, url);
       } else if (url.pathname.startsWith('/live/')) {
         return await handleLive(config, req, url);
-      } else if (url.pathname.startsWith('/stream/') && req.method === 'GET') {
-        return await handleStreamLive(config, req, url);
       } else if (url.pathname.startsWith('/file/')) {
         if (req.method === 'OPTIONS' && url.searchParams.has('ticket')) return ticketPreflight();
         const devWrite = await handleDevWrite(config, req, url, info.remoteAddr);

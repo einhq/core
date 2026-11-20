@@ -18,7 +18,7 @@
  */
 
 import { walk } from '@std/fs/walk';
-import { fromFileUrl, join } from '@std/path';
+import { fromFileUrl, join, resolve } from '@std/path';
 import { repoModules, UI_SOURCE_DIR } from '../src/modules/repo.ts';
 
 const repoRoot = fromFileUrl(new URL('..', import.meta.url));
@@ -30,10 +30,12 @@ const collect = async (root: string) => {
   }
 };
 
-await collect(join(UI_SOURCE_DIR, 'src', 'client'));
+// The shell's components and every module's pages; or one module's pages.
+if (!Deno.args[0]) await collect(join(UI_SOURCE_DIR, 'src', 'client'));
+const moduleDirs = Deno.args[0] ? [resolve(Deno.args[0])] : repoModules().map((module) => module.dir);
 
 // Each module's pages: the files its `mod.json` `ui.routes` names are under its `ui/`.
-for (const { dir } of repoModules()) {
+for (const dir of moduleDirs) {
   const uiRoot = join(dir, 'ui');
   try {
     if (!(await Deno.stat(uiRoot)).isDirectory) continue;
@@ -45,6 +47,10 @@ for (const { dir } of repoModules()) {
 }
 
 sources.sort();
+if (sources.length === 0) {
+  console.log('no UI source files found');
+  Deno.exit(0);
+}
 
 const check = new Deno.Command(Deno.execPath(), {
   args: ['check', '--config', join(repoRoot, 'deno.jsonc'), ...sources],

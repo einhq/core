@@ -27,6 +27,12 @@ const GIVEN_KEY = 'ein.cast.given';
 /** How long the script may take to say whether Cast is there. */
 const SDK_LOAD_MS = 10_000;
 
+/** The Cast media protocol's namespace, which what the screen plays is asked and told in. */
+const MEDIA_NAMESPACE = 'urn:x-cast:com.google.cast.media';
+
+/** Where the ids of the requests sent here in the media protocol start, apart from the script's own. */
+const REQUEST_ID_BASE = 2 ** 30;
+
 // The parts of Google's API used here; the script defines them on `window`.
 type CastMediaInfo = {
   contentId: string;
@@ -37,6 +43,8 @@ type CastMediaInfo = {
   tracks?: unknown[];
   textTrackStyle?: unknown;
   customData?: unknown;
+  /** In seconds, as the receiver tells it. */
+  duration?: number;
   hlsSegmentFormat?: string;
   hlsVideoSegmentFormat?: string;
 };
@@ -53,6 +61,8 @@ type CastMedia = {
 type CastSessionApi = {
   loadMedia(request: unknown): Promise<string | undefined>;
   getMediaSession(): CastMedia | null;
+  sendMessage(namespace: string, message: unknown): Promise<string | undefined>;
+  addMessageListener(namespace: string, listener: (namespace: string, message: unknown) => void): void;
   endSession(stopCasting: boolean): void;
 };
 type RemotePlayer = {
@@ -65,7 +75,7 @@ type RemotePlayer = {
   mediaInfo: CastMediaInfo | null;
   title: string | null;
 };
-type CastSessionEvents = {
+type CastSessionEvents = CastSessionApi & {
   addEventListener(type: string, listener: (event: { mediaSession?: { addUpdateListener(listener: () => void): void } }) => void): void;
 };
 type CastContext = {
@@ -73,19 +83,26 @@ type CastContext = {
   requestSession(): Promise<string | undefined>;
   getCurrentSession(): CastSessionApi | null;
   endCurrentSession(stopCasting: boolean): void;
-  addEventListener(type: string, listener: (event: { session?: CastSessionEvents }) => void): void;
+  addEventListener(type: string, listener: (event: { session?: CastSessionEvents; sessionState?: string }) => void): void;
 };
+
+/** What the receiver says it plays, in the media protocol: `media` only when it changed, or when asked. */
+type MediaStatus = { mediaSessionId: number; playerState?: string; currentTime?: number; playbackRate?: number; activeTrackIds?: number[]; media?: CastMediaInfo };
 // deno-lint-ignore no-explicit-any
 type Api = any;
 
 type CastWindow = typeof globalThis & { __onGCastApiAvailable?: (available: boolean) => void; cast?: Api; chrome?: Api };
 const page = globalThis as CastWindow;
 
-/** One thing for the screen: where it fetches it and its type, its title, its captions, and what EiN keeps of it there (`custom`). */
+/**
+ * One thing for the screen: where it fetches it and its type, its title, whether it is live (a
+ * page's stream, with no length), its captions, and what EiN keeps of it there (`custom`).
+ */
 export type CastItem = {
   url: string;
   type: string;
   title: string;
+  live?: boolean;
   /** The WebVTT file the screen draws under a video, shown when `captionsOn`. */
   captions?: string;
   captionsOn: boolean;
@@ -171,16 +188,61 @@ const setUp = (): void => {
   const controller = new framework.RemotePlayerController(remote);
   controller.addEventListener(framework.RemotePlayerEventType.ANY_CHANGE, tell);
   // A session joined, as by a page opened again, may come to know what the screen plays only
-  // through its media session, which the player above does not always hear of.
+  // through its media session, which the player above does not always hear of. The receiver tells
+  // a sender that joins nothing of what it plays until that changes, so it is asked; where the
+  // script makes no media session of the answer, the answer itself is what is known.
+  const { SESSION_STARTED, SESSION_RESUMED, SESSION_ENDED } = framework.SessionState;
   instance.addEventListener(framework.CastContextEventType.SESSION_STATE_CHANGED, (event) => {
-    event.session?.addEventListener(framework.SessionEventType.MEDIA_SESSION, (found) => {
-      found.mediaSession?.addUpdateListener(tell);
-      tell();
-    });
+    const session = event.session;
+    if (session && !heardSessions.has(session)) {
+      heardSessions.add(session);
+      session.addEventListener(framework.SessionEventType.MEDIA_SESSION, (found) => {
+        found.mediaSession?.addUpdateListener(tell);
+        tell();
+      });
+      session.addMessageListener(MEDIA_NAMESPACE, hearStatus);
+    }
+    if (event.sessionState === SESSION_ENDED) heard = undefined;
+    if (session && (event.sessionState === SESSION_STARTED || event.sessionState === SESSION_RESUMED)) {
+      heard = undefined;
+      send(session, { type: 'GET_STATUS' });
+    }
     tell();
   });
   context = instance;
   player = remote;
+  tell();
+};
+
+/** The sessions whose media this hears. */
+const heardSessions = new WeakSet<CastSessionEvents>();
+
+/** What the receiver last said it plays, in the media protocol, and when (`performance.now()`). */
+let heard: { status: MediaStatus; at: number } | undefined;
+
+let requests = REQUEST_ID_BASE;
+
+/** Send the receiver `message` in the media protocol; what it answers is heard by `hearStatus`. */
+const send = (session: CastSessionApi, message: Record<string, unknown>): void => {
+  try {
+    void Promise.resolve(session.sendMessage(MEDIA_NAMESPACE, { ...message, requestId: ++requests })).catch(() => {});
+  } catch {
+    // Not sent; the screen is known only through the script, then.
+  }
+};
+
+/** A media status from the receiver: what it plays, its `media` kept from the last one while the same plays. */
+const hearStatus = (_namespace: string, message: unknown): void => {
+  let said: { type?: string; status?: MediaStatus[] };
+  try {
+    said = typeof message === 'string' ? JSON.parse(message) : message as typeof said;
+  } catch {
+    return;
+  }
+  if (said?.type !== 'MEDIA_STATUS' || !Array.isArray(said.status)) return;
+  const status = said.status[0];
+  const media = status?.media ?? (heard?.status.mediaSessionId === status?.mediaSessionId ? heard?.status.media : undefined);
+  heard = status ? { status: { ...status, media }, at: performance.now() } : undefined;
   tell();
 };
 
@@ -248,19 +310,20 @@ const castState = (): CastState => {
       custom: customOf(remote.mediaInfo, remote.title),
     };
   }
-  // What the player has not heard of, the media session may know.
+  // What the player has not heard of, the media session may know, or else the receiver's own answer.
   const media = context?.getCurrentSession()?.getMediaSession();
-  const state = media?.playerState;
-  if (!media || !state || state === 'IDLE') return { connected: true, paused: true, time: 0, duration: NaN, playerState: null, custom: null };
-  const duration = (media.media as { duration?: number } | undefined)?.duration ?? NaN;
-  return {
-    connected: true,
-    paused: state === 'PAUSED',
-    time: media.getEstimatedTime(),
-    duration: duration > 0 ? duration : NaN,
-    playerState: state,
-    custom: customOf(media.media, null),
-  };
+  if (media) return playingState(media.playerState, media.getEstimatedTime(), media.media);
+  if (!heard) return playingState(undefined, 0, undefined);
+  const { status, at } = heard;
+  const since = status.playerState === 'PLAYING' ? (performance.now() - at) / 1000 * (status.playbackRate ?? 1) : 0;
+  return playingState(status.playerState, (status.currentTime ?? 0) + since, status.media);
+};
+
+/** A connected screen's state from its player's `state`, where it is and what it plays. */
+const playingState = (state: string | undefined, time: number, info: CastMediaInfo | undefined): CastState => {
+  if (!state || state === 'IDLE') return { connected: true, paused: true, time: 0, duration: NaN, playerState: null, custom: null };
+  const duration = info?.duration ?? NaN;
+  return { connected: true, paused: state === 'PAUSED', time, duration: duration > 0 ? duration : NaN, playerState: state, custom: customOf(info, null) };
 };
 
 const tell = (): void => {
@@ -295,8 +358,8 @@ const CAPTIONS_ID = 1;
 /**
  * Give the screen in the session `item` in place of what it plays: a picture is shown, a
  * recording or video played from `start` seconds, with its captions when it has them, and a page's
- * live video as Chrome's own Remote Playback gives it (the MP4 that declares a day). Rejects
- * with the receiver's word when it cannot load it.
+ * live video as live, which the receiver plays from its newest part, with no length. Rejects with
+ * the receiver's word when it cannot load it.
  */
 export const castLoad = async (item: CastItem, start = 0): Promise<void> => {
   const session = context?.getCurrentSession();
@@ -304,7 +367,7 @@ export const castLoad = async (item: CastItem, start = 0): Promise<void> => {
   const media = page.chrome.cast.media;
   const info = new media.MediaInfo(item.url, item.type) as CastMediaInfo;
   info.contentUrl = item.url;
-  info.streamType = media.StreamType.BUFFERED;
+  info.streamType = item.live ? media.StreamType.LIVE : media.StreamType.BUFFERED;
   const picture = item.type.startsWith('image/');
   const metadata = picture ? new media.PhotoMediaMetadata() : new media.GenericMediaMetadata();
   metadata.title = item.title;
@@ -325,44 +388,54 @@ export const castLoad = async (item: CastItem, start = 0): Promise<void> => {
   info.customData = item.custom;
   const request = new media.LoadRequest(info);
   request.autoplay = true;
-  if (!picture) request.currentTime = start;
+  if (!picture && !item.live) request.currentTime = start;
   if (item.captions && item.captionsOn) request.activeTrackIds = [CAPTIONS_ID];
   const failed = await session.loadMedia(request);
   if (failed) throw new Error(failed);
   rememberGiven(item.url, item.custom);
 };
 
-/** Call one of the media session's methods; nothing when the screen plays nothing. */
-const command = (call: (media: CastMedia) => void): void => {
-  const media = context?.getCurrentSession()?.getMediaSession();
+/**
+ * Call one of the media session's methods, or, where the script made none of what the receiver
+ * said it plays, send it `message` in the media protocol; nothing when the screen plays nothing.
+ */
+const command = (call: (media: CastMedia) => void, message: Record<string, unknown>): void => {
+  const session = context?.getCurrentSession();
+  const media = session?.getMediaSession();
   if (media) call(media);
+  else if (session && heard) send(session, { ...message, mediaSessionId: heard.status.mediaSessionId });
 };
 
 const ignore = () => {};
 
-export const castPlay = (): void => command((media) => media.play(new page.chrome.cast.media.PlayRequest(), ignore, ignore));
+export const castPlay = (): void => command((media) => media.play(new page.chrome.cast.media.PlayRequest(), ignore, ignore), { type: 'PLAY' });
 
-export const castPause = (): void => command((media) => media.pause(new page.chrome.cast.media.PauseRequest(), ignore, ignore));
+export const castPause = (): void => command((media) => media.pause(new page.chrome.cast.media.PauseRequest(), ignore, ignore), { type: 'PAUSE' });
 
 /** Move what the screen plays to `seconds`. */
-export const castSeek = (seconds: number): void =>
+export const castSeek = (seconds: number): void => {
+  const at = Math.max(0, seconds);
   command((media) => {
     const request = new page.chrome.cast.media.SeekRequest();
-    request.currentTime = Math.max(0, seconds);
+    request.currentTime = at;
     media.seek(request, ignore, ignore);
-  });
+  }, { type: 'SEEK', currentTime: at });
+};
 
 /** Show or hide the captions of what the screen plays, when it has them. */
-export const castCaptions = (on: boolean): void =>
-  command((media) => {
-    if (!media.media?.tracks?.length) return;
-    const shown = media.activeTrackIds?.includes(CAPTIONS_ID) ?? false;
-    if (shown === on) return;
-    media.editTracksInfo(new page.chrome.cast.media.EditTracksInfoRequest(on ? [CAPTIONS_ID] : []), ignore, ignore);
-  });
+export const castCaptions = (on: boolean): void => {
+  const media = context?.getCurrentSession()?.getMediaSession();
+  const playing = media ?? heard?.status;
+  if (!playing?.media?.tracks?.length) return;
+  const shown = playing.activeTrackIds?.includes(CAPTIONS_ID) ?? false;
+  if (shown === on) return;
+  const ids = on ? [CAPTIONS_ID] : [];
+  command((each) => each.editTracksInfo(new page.chrome.cast.media.EditTracksInfoRequest(ids), ignore, ignore), { type: 'EDIT_TRACKS_INFO', activeTrackIds: ids });
+};
 
 /** End the session: the screen goes back to its own. */
 export const castStop = (): void => {
   forgetGiven();
+  heard = undefined;
   context?.endCurrentSession(true);
 };

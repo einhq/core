@@ -98,13 +98,13 @@ async function entriesIn(cmd: Command, dir: NodeEntry, names: string[]): Promise
   }));
 }
 
-/** A resolver of directories by path, each resolved once. */
+/** A resolver of directories by path, each resolved once to be written in. */
 function directories(cmd: Command): (path: string) => Promise<NodeEntry> {
   const resolved = new Map<string, Promise<NodeEntry>>();
   return (path) => {
     let entry = resolved.get(path);
     if (!entry) {
-      entry = cmd.sys.vfs.resolveEntry(cmd.access, path);
+      entry = cmd.sys.vfs.resolveEntry(cmd.access, path, { write: true });
       resolved.set(path, entry);
     }
     return entry;
@@ -167,7 +167,7 @@ async function entryDirs(cmd: Command, entries: Restorable[]): Promise<Map<strin
   for (const entry of entries) byHolder.set(dirname(entry.dir), [...byHolder.get(dirname(entry.dir)) ?? [], basename(entry.dir)]);
   const found = new Map<string, NodeEntry>();
   for (const [holder, names] of byHolder) {
-    const holderEntry = await cmd.sys.vfs.resolveEntry(cmd.access, holder);
+    const holderEntry = await cmd.sys.vfs.resolveEntry(cmd.access, holder, { write: true });
     for (const [name, entry] of await entriesIn(cmd, holderEntry, names)) found.set(join(holder, name), entry);
   }
   return found;
@@ -322,7 +322,7 @@ export const trash = async (cmd: Command): CmdReturn => {
       }
 
       const holder = batchPath ?? trashPath;
-      const dirs = await entriesIn(cmd, await vfs.resolveEntry(cmd.access, holder), entries.map(({ id }) => id));
+      const dirs = await entriesIn(cmd, await vfs.resolveEntry(cmd.access, holder, { write: true }), entries.map(({ id }) => id));
       const settled = await vfs.renameMany(
         cmd.access,
         entries.map(({ id, target, name }) => ({ fromParent: sources.get(target)!, fromName: name, toParent: dirs.get(id)!, toName: name })),

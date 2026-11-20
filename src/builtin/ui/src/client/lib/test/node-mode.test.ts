@@ -5,13 +5,17 @@ Deno.test('node mode: string and octal renderings', () => {
   assertEquals(modeString(0o750), 'rwxr-x---');
   assertEquals(modeString(0o644), 'rw-r--r--');
   assertEquals(modeString(0), '---------');
+  assertEquals(modeString(0o1777), 'rwxrwxrwt');
   assertEquals(modeOctal(0o750), '0750');
-  assertEquals(modeOctal(0o7777), '0777');
+  assertEquals(modeOctal(0o1777), '1777');
+  assertEquals(modeOctal(0o7777), '1777');
 });
 
-Deno.test('node mode: parseOctal accepts three or four octal digits only', () => {
+Deno.test('node mode: parseOctal accepts three digits, or four with the sticky bit or none first', () => {
   assertEquals(parseOctal('750'), 0o750);
   assertEquals(parseOctal('0644'), 0o644);
+  assertEquals(parseOctal('1777'), 0o1777);
+  assertEquals(parseOctal('4755'), undefined);
   assertEquals(parseOctal('758'), undefined);
   assertEquals(parseOctal('75'), undefined);
   assertEquals(parseOctal('rwx'), undefined);

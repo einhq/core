@@ -1,92 +1,61 @@
 /**
- * A device's streams over HTTP, for whoever may read the stream's node:
+ * Streams over HTTP, for whoever may read the stream's node:
  *
- *   GET /file/dev/<device>/<stream>      one frame of it now, as its driver gives it (a JPEG)
- *   GET /stream/dev/<device>/<stream>    a WebSocket to watch it live
+ *   GET /file/<stream>    its bytes from its latest start point on, as its writer writes them; of a
+ *                         stream of pictures, one picture
  *
- * The live socket is opened by EiN to where the stream's driver says it is watched (a restreamer's,
- * with its credentials), and every message is passed on both ways as it is: what the messages are
- * is between the page and the driver. So the reader never reaches the restreamer itself, nor learns
- * its address or password.
+ * A page watches a stream live by reading it over `GET /file/…`: a camera's fragmented MP4, its
+ * header first, into a MediaSource.
  */
 
-import { DEV_PATH } from '../../../lib/paths.ts';
-import { DeviceError } from '../../../managers/devices/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import type { Access } from '../../../lib/access/types.ts';
-import { getSession, refusesGuest } from '../session.ts';
+import type { NodeReference } from '../../../vfs/types.ts';
 import type { HttpServerConfig } from '../types.ts';
 
 const logger = createLogger('http-stream');
 
-/** A frame of the stream at `path`, never cached: each one is the stream as it is now. */
-export async function streamFrameResponse(config: HttpServerConfig, access: Access, path: string, responseHeaders: Headers, head: boolean): Promise<Response> {
-  if (!config.devices) return new Response('devices are not running here', { status: 404, headers: responseHeaders });
-  try {
-    const frame = await config.devices.frame(access, path);
-    responseHeaders.set('Content-Type', frame.type);
-    responseHeaders.set('Content-Length', String(frame.bytes.length));
-    responseHeaders.set('Cache-Control', 'no-store');
-    return new Response(head ? null : frame.bytes, { headers: responseHeaders });
-  } catch (error) {
-    if (!(error instanceof DeviceError)) throw error;
-    return new Response(error.message, { status: 502, headers: responseHeaders });
-  }
-}
+/** DLNA's flags for a live stream: no seeking (OP=00), made for the reader (CI=1), streamed. */
+export const DLNA_LIVE_FEATURES = 'DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000';
 
-/** `/stream/dev/<device>/<stream>`: the stream's live socket, passed through to its driver's. */
-export async function handleStreamLive(config: HttpServerConfig, req: Request, url: URL): Promise<Response> {
-  const { responseHeaders, access } = await getSession(config, req.headers, { create: false });
-  if (await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
-  const path = decodeURIComponent(url.pathname.replace(/^\/stream/, '')).replace(/\/+$/, '');
-  if (!path.startsWith(`${DEV_PATH}/`) || !config.devices) return new Response('Not Found', { status: 404, headers: responseHeaders });
-  if (req.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
-    return new Response('a stream is watched over a WebSocket', { status: 426, headers: responseHeaders });
-  }
-
-  let live;
-  try {
-    live = await config.devices.live(access, path);
-  } catch (error) {
-    if (!(error instanceof DeviceError)) throw error;
-    return new Response(error.message, { status: 502, headers: responseHeaders });
-  }
-
-  const { socket, response } = Deno.upgradeWebSocket(req);
-  // Deno's WebSocket takes headers in its options, which its type does not have.
-  const upstream = new WebSocket(live.url, { headers: live.headers } as unknown as string[]);
-  socket.binaryType = 'arraybuffer';
-  upstream.binaryType = 'arraybuffer';
-  // What the page says before the driver's socket is open waits for it.
-  const waiting: (string | ArrayBuffer)[] = [];
-  const closeBoth = (code = 1000, reason = '') => {
-    for (const each of [socket, upstream]) {
-      if (each.readyState === WebSocket.OPEN || each.readyState === WebSocket.CONNECTING) {
-        try {
-          each.close(code, reason);
-        } catch { /* closing already */ }
+/**
+ * The stream `ref` names as its bytes come, from its writer's latest start point (or now) until its
+ * writer stops or the reader goes; a reader who falls too far behind is let go, and its response
+ * ends. A DLNA renderer that asked how it may be read is told it is live and cannot be sought in.
+ */
+export async function streamBodyResponse(
+  config: HttpServerConfig,
+  access: Access,
+  ref: NodeReference,
+  mimetype: string | undefined,
+  responseHeaders: Headers,
+  head: boolean,
+): Promise<Response> {
+  responseHeaders.set('Content-Type', mimetype || 'application/octet-stream');
+  responseHeaders.set('Cache-Control', 'no-store');
+  if (responseHeaders.has('contentFeatures.dlna.org')) responseHeaders.set('contentFeatures.dlna.org', DLNA_LIVE_FEATURES);
+  if (head) return new Response(null, { headers: responseHeaders });
+  const handle = await config.vfs.open(access, ref, { mode: 'r' });
+  const done = new AbortController();
+  const close = () => {
+    done.abort();
+    void handle.close().catch(() => {});
+  };
+  const body = new ReadableStream<Uint8Array>({
+    pull: async (controller) => {
+      try {
+        const chunk = await handle.read(STREAM_CHUNK, done.signal);
+        if (chunk.length > 0) return controller.enqueue(chunk);
+      } catch (error) {
+        if (!done.signal.aborted) logger.info('a stream ended under its reader', { path: typeof ref === 'string' ? ref : ref.absPath, error: String(error) });
       }
-    }
-  };
-  // A code a peer may not send on (1005, 1006) is passed on as a plain close.
-  const passable = (code: number) => code === 1000 || (code >= 3000 && code <= 4999) ? code : 1000;
-
-  upstream.onopen = () => {
-    for (const message of waiting.splice(0)) upstream.send(message);
-  };
-  upstream.onmessage = (event) => {
-    if (socket.readyState === WebSocket.OPEN) socket.send(event.data);
-  };
-  upstream.onclose = (event) => closeBoth(passable(event.code), event.reason);
-  upstream.onerror = () => {
-    logger.info('a stream could not be reached', { path });
-    closeBoth(4502, 'the stream could not be reached');
-  };
-  socket.onmessage = (event) => {
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(event.data);
-    else if (upstream.readyState === WebSocket.CONNECTING) waiting.push(event.data);
-  };
-  socket.onclose = (event) => closeBoth(passable(event.code), event.reason);
-  socket.onerror = () => closeBoth();
-  return response;
+      close();
+      controller.close();
+    },
+    cancel: close,
+  });
+  return new Response(body, { headers: responseHeaders });
 }
+
+/** The most one chunk of a stream's response takes. */
+const STREAM_CHUNK = 256 * 1024;

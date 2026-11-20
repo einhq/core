@@ -12,6 +12,9 @@
  *
  * A faint line is what a track left out: thin, dashed and without a casing,
  * with a dot on every point so that a single point shows too.
+ *
+ * Tracks are stacked in the order given, the last on top, and `opacity` dims
+ * one, casing and all.
  */
 
 // @ts-types="@types/leaflet"
@@ -28,6 +31,8 @@ export type MapTrackSpec = {
   label?: string;
   /** Drawn faintly, with a dot on every point: what a track left out. */
   faint?: boolean;
+  /** How strongly it is drawn, from 0 to 1; 1 unless given. */
+  opacity?: number;
 };
 
 export type MapTracksProps = {
@@ -46,6 +51,7 @@ type Drawn = {
   count: number;
   color: string;
   faint: boolean;
+  opacity: number;
 };
 
 const latLngs = (points: PositionPoint[]): [number, number][] => points.map((p) => [p.lat, p.lng]);
@@ -59,11 +65,13 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
     if (!map) return;
     const layers = layersRef.current;
     const seen = new Set<string>();
+    let added = false;
 
     for (const spec of tracks) {
       seen.add(spec.id);
       const color = spec.color ?? MARKER_COLOR;
       const faint = spec.faint === true;
+      const opacity = spec.opacity ?? 1;
       let drawn = layers.get(spec.id);
 
       // A recolor, or a line turning faint, cannot be appended to, so the line is rebuilt from scratch.
@@ -76,13 +84,19 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
 
       if (!drawn) {
         drawn = {
-          under: faint ? L.layerGroup().addTo(map) : L.polyline([], { pane: 'casing', color: '#000', weight: 5, opacity: 0.85, interactive: false }).addTo(map),
-          line: L.polyline([], faint ? { color, weight: 2, opacity: 0.6, dashArray: '4 6' } : { color, weight: 3, opacity: 0.8 }).addTo(map),
+          under: faint ? L.layerGroup().addTo(map) : L.polyline([], { pane: 'casing', color: '#000', weight: 5, opacity: 0.85 * opacity, interactive: false }).addTo(map),
+          line: L.polyline([], faint ? { color, weight: 2, opacity: 0.6 * opacity, dashArray: '4 6' } : { color, weight: 3, opacity: 0.8 * opacity }).addTo(map),
           count: 0,
           color,
           faint,
+          opacity,
         };
         layers.set(spec.id, drawn);
+        added = true;
+      } else if (drawn.opacity !== opacity) {
+        drawn.line.setStyle({ opacity: (faint ? 0.6 : 0.8) * opacity });
+        if (drawn.under instanceof L.Polyline) drawn.under.setStyle({ opacity: 0.85 * opacity });
+        drawn.opacity = opacity;
       }
 
       const under = drawn.under;
@@ -114,6 +128,15 @@ export function MapTracks({ tracks, fit = false, follow = false }: MapTracksProp
       drawn.line.remove();
       drawn.under.remove();
       layers.delete(id);
+    }
+
+    // A line added now lies on top of all; the others are raised over it again in their order.
+    if (added) {
+      for (const spec of tracks) {
+        const drawn = layers.get(spec.id)!;
+        if (drawn.under instanceof L.Polyline) drawn.under.bringToFront();
+        drawn.line.bringToFront();
+      }
     }
 
     const drawnTracks = tracks.filter((spec) => spec.points.length > 0);

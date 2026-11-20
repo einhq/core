@@ -5,9 +5,9 @@
  * its drivers when it starts, in core's process, and core calls them while a write waits: `input`
  * for what a device posts to itself (`/file/dev/<device>`, a webhook's body), `write` for a value
  * written to one of its controls (`echo 30 > /dev/kitchen-speaker/volume`, the paths a screen is to
- * show), `frame` and `live` for a reader of one of its
- * streams. What a driver reads from its devices it appends with `append`, which publishes it on
- * `dev.<device>.<endpoint>` too.
+ * show). What a driver reads from its devices it appends with `append`, which publishes it on `dev.<device>.<endpoint>` too; a stream's bytes, and
+ * a stream of pictures' each picture, it writes itself, opening the stream node to write
+ * (`StreamWriter`).
  */
 
 import type { Access } from '../../lib/access/types.ts';
@@ -44,25 +44,6 @@ export type DriverWrite = {
   access: Access;
 };
 
-/** One of a device's streams, as its driver is asked for a frame of it or where to watch it. */
-export type DriverStream = {
-  device: string;
-  endpoint: string;
-  path: string;
-  attrs: DeviceAttrs;
-  endpointAttrs: EndpointAttrs;
-};
-
-/** One frame of a stream: the picture's bytes and their media type (`image/jpeg`). */
-export type StreamFrame = { bytes: Uint8Array<ArrayBuffer>; type: string };
-
-/**
- * Where a stream is watched live: a WebSocket address, with the headers to open it with (its
- * credentials). Core opens it for a reader who may read the stream and passes every message both
- * ways, so the address and headers never reach the reader.
- */
-export type StreamLive = { url: string; headers?: Record<string, string> };
-
 /** A driver, as a module's service registers it. */
 export type Driver = {
   description: string;
@@ -81,19 +62,6 @@ export type Driver = {
    * it the endpoints it has, and take up its config as it is now. Throws what is wrong with the config.
    */
   setup?(device: string): Promise<void>;
-  /** One frame of one of its devices' streams, as it is now; throws when the device does not give one. */
-  frame?(stream: DriverStream): Promise<StreamFrame>;
-  /**
-   * Where one of its devices' streams is watched live; throws when it cannot be. A driver that
-   * cannot watch any live leaves it out, so its streams are not offered live (`EndpointSummary.live`).
-   */
-  live?(stream: DriverStream): Promise<StreamLive>;
-  /**
-   * An address another service reads one of its devices' streams at, with what it signs in with
-   * in it (`rtsp://user:password@host:8554/front-door-sub`): for the media service to watch it.
-   * Throws when the stream has none.
-   */
-  source?(stream: DriverStream): Promise<string>;
 };
 
 /** How `append` takes a value: when it was read, and whether the device replayed it. */
@@ -115,8 +83,9 @@ export interface ModuleDevices {
   /**
    * The device's endpoint `name` of `type`, made when it is missing, the attrs given set where they
    * differ, a label only when it is made, as a device's. `mode` is its mode when made, for its
-   * device's owner and group, unless said: a reading's and a control's `0660`, a track's `0770`.
-   * Answers its path.
+   * device's owner and group, unless said: a reading's and a control's `0660`, a stream's `0640`
+   * (its driver writes it), a track's `0770`. A stream's name may have an extension saying what its bytes are (`main.ts`), and
+   * its attrs a `mimetype`. Answers its path.
    */
   ensureEndpoint(access: Access, device: string, name: string, type: EndpointType, attrs: EndpointAttrs, mode?: number): Promise<string>;
   /** Remove one endpoint of a device and its history: one the device no longer has, or one of another type now. */
@@ -140,15 +109,10 @@ export interface ModuleDevices {
    */
   secret(access: Access, device: string): Promise<Record<string, string>>;
   /**
-   * The address another service reads the stream `/dev/<device>/<endpoint>` at, as its driver's
-   * `source` says, credentials and all; the caller must be the administrator, as a service is.
-   */
-  streamSource(access: Access, device: string, endpoint: string): Promise<string>;
-  /**
-   * A ticket for a device on the network, which cannot sign in, to read the file `path` with as
-   * `access` would: `/file<path>?ticket=<ticket>` answers that path, and no other, to whoever
+   * A ticket for a device on the network, which cannot sign in, to read the file or stream `path`
+   * with as `access` would: `/file<path>?ticket=<ticket>` answers that path, and no other, to whoever
    * presents it. It runs out a few minutes after it was made unless it is renewed. Throws when
-   * `access` cannot read the file.
+   * `access` cannot read it.
    */
   fileTicket(access: Access, path: string): Promise<string>;
   /** Keep a file ticket from running out for a few minutes more; false when it already has. */

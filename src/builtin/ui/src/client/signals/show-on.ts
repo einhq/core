@@ -214,9 +214,6 @@ let connectedSource = '';
 /** While `castInstead` gives the screen another source, which a browser may answer by letting the screen go. */
 let swapping = false;
 
-/** The video a screen near the browser plays while one does: its play, pause and time go to the screen. */
-export const nearbyPlayer = (): HTMLVideoElement | null => nearbyScreen.peek() ? nearbyVideo ?? null : null;
-
 /** Whether the browser says a screen near it takes the stream; `undefined` while it has not said, or cannot. */
 let nearbyAvailable: boolean | undefined;
 
@@ -324,9 +321,10 @@ const screenFound = (): Promise<void> =>
   });
 
 /**
- * The form of a page's stream the browser hands a screen: Safari (AirPlay) takes the live HLS;
- * Chrome hands a Cast screen no HLS on Android, nor an endless MP4, which it counts as long as it
- * has read, so it gets the MP4 whose header says it lasts a day.
+ * The form of a page's stream the browser's own Remote Playback hands a screen: Safari (AirPlay)
+ * takes the live HLS; Chrome hands a Cast screen no HLS on Android, nor an endless MP4, which it
+ * counts as long as it has read, so it gets the MP4 whose header says it lasts a day. With Google's
+ * Cast script the receiver is given the endless MP4 as live instead (`castShow`).
  */
 const pageSource = (page: StreamedPage): string => 'WebKitPlaybackTargetAvailabilityEvent' in globalThis ? page.hls : page.remote;
 
@@ -867,7 +865,10 @@ const castPick = async (target: ShowOnTarget, asked: number): Promise<PickerOutc
 /**
  * Give the screen held by Cast `target` in place of what it plays: a recording or video as
  * `stream-file` makes it, with its transcript as captions, kept while this renews it; a picture as
- * itself; a page as its live video. What the screen played before is let go of once it has the new.
+ * itself; a page as its endless MP4, played as live with no length: it plays within seconds and a
+ * few seconds behind the page, where the receiver stalls on a new page's live HLS, a segment or two
+ * long, until it has several (ein/core#1445). What the screen played before is let go of once it
+ * has the new.
  */
 const castShow = async (target: ShowOnTarget, asked: number): Promise<void> => {
   clearTimeout(forgetTimer);
@@ -886,9 +887,10 @@ const castShow = async (target: ShowOnTarget, asked: number): Promise<void> => {
       const page = await execCommand<StreamedPage>(`stream-page ${shq(form.page)}`);
       stream = page.id;
       item = {
-        url: address(page.remote),
+        url: address(`${page.path}.mp4`),
         type: 'video/mp4',
         title: target.title,
+        live: true,
         captionsOn: false,
         custom: {
           path: target.path,

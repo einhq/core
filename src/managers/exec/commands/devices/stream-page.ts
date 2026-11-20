@@ -121,5 +121,5 @@ streamPage.spec = {
     'stream-page --message page-3f2a9c41d07b5e18 \'{"seek":80}\'',
   ],
   returns:
-    "id: the stream's, for --press, --state and --message; path: read <path>.mp4 or <path>.ts; remote: the MP4 for a screen near a browser; hls: the live HLS playlist; all without signing in, until nobody has read it for a while. --press, --message: ok. --state: what the page says it shows (title, path, kind, position, media with time, duration and paused), or null.",
+    "id: the stream's, for --press, --state and --message; path: its stream nodes <path>.mp4 and <path>.ts, the caller's; remote: the MP4 for a screen near a browser; hls: the live HLS playlist; those two without signing in, until nobody has read it for a while. --press, --message: ok. --state: what the page says it shows (title, path, kind, position, media with time, duration and paused), or null.",
 };

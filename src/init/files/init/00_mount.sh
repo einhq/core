@@ -6,8 +6,9 @@
 mkdir -p "$BIN_PATH"
 mount "$BIN_PATH" command
 
+# /tmp is everyone's and sticky: what someone leaves there is theirs alone, to read and to remove.
 mkdir -p "$TEMP_PATH"
-mount "$TEMP_PATH" memory "mode=777"
+mount "$TEMP_PATH" memory "mode=1777"
 
 mkdir -p $VAR_DIRS
 

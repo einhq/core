@@ -131,7 +131,7 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     label: 'Stream',
     category: 'system',
     description:
-      "An endpoint of a device that is a live picture, a camera's. Nothing is kept of it: reading it gives a JPEG of it now from the device's driver (`cat /dev/front-door/main > door.jpg`), and the device's page plays it live.",
+      "Live bytes from one writer to whoever reads, such as a camera's video under its device, which its driver writes. Nothing is kept: a reader gets the bytes from the moment it opens it (`cat /dev/front-door/main.ts > door.ts` records the camera until stopped).",
   },
   {
     type: 'device-key',

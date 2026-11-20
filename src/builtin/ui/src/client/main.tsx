@@ -13,6 +13,7 @@ import { crossfadePages } from './lib/page-crossfade.ts';
 import { routes } from './routes.tsx';
 import { caughtError } from './signals/caught-error.ts';
 import { modulePatcher, registerShellRouting } from './signals/module-ui.ts';
+import { watchUiUpdates } from './signals/ui-update.ts';
 
 const router = createBrowserRouter(routes, {
   // A path none of the shell's routes match may be a module's: its routes are added
@@ -25,6 +26,9 @@ crossfadePages(router);
 // The dialog, the drawer and the full-screen surface render routes from the same table, and hand
 // the page what leaves them.
 registerShellRouting(routes, router);
+
+// A page left open across an update of EiN or of a module reloads to run what EiN now serves.
+watchUiUpdates();
 
 addEventListener('DOMContentLoaded', () => {
   createRoot(document.getElementById('app')!, {

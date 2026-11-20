@@ -4,6 +4,7 @@ import type { ModuleRoute, ModuleUi, NodeTypeLook, SearchableKind, UiManifest } 
 import { UI_MANIFEST_PATH } from '@ui/ui-cache';
 import { loadAccessIds } from '../hooks/useAccessIds.ts';
 import { ModuleLoadError } from '../lib/module-load-error.ts';
+import { notePageManifest } from './ui-update.ts';
 import { DEV_PATH } from '@ein/paths';
 import { type DataRouter, type Location, matchPath, matchRoutes, type NavigationType, type RouteObject, type To } from 'react-router-dom';
 
@@ -170,7 +171,12 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
   manifestPromise ??= fetch(`/file${UI_MANIFEST_PATH}`, { cache: 'no-cache' })
     .then((res) => (res.ok ? res.json() as Promise<UiManifest> : null))
     .catch(() => null)
-    .then((manifest) => (manifest ? forReader(manifest) : null))
+    .then((manifest) => {
+      // The whole manifest, before it is cut to the reader: a module kept from them changing is
+      // still EiN changing.
+      if (manifest) notePageManifest(manifest);
+      return manifest ? forReader(manifest) : null;
+    })
     .then((manifest) => {
       if (!manifest) manifestPromise = null;
       // Bundles built against another shell read names this one may not lend. ui-build

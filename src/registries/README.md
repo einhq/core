@@ -36,6 +36,7 @@ ResourceHandleIf (open resource)
 | [pool](pool/)           | PostgreSQL / Memory      | Work pools claimed by capability, with leases |
 | [queue](queue/)         | PostgreSQL / Memory      | Durable message queues with fanout            |
 | [router](router/)       | In-memory                | Pub/sub routing with routing keys             |
+| [stream](stream/)       | In-memory                | Live bytes from one writer to many readers    |
 | [track](track/)         | PostgreSQL + PostGIS     | GPS tracks, spatially indexed and simplified  |
 
 ## Access Modes

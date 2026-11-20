@@ -24,6 +24,8 @@ import { isLoggedDownload, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundE
 import { NODE_TYPE_EMBEDDING } from '../../vfs/types/embedding.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
+import { NODE_TYPE_STREAM } from '../../vfs/types/stream.ts';
+import { isStreamWriter } from '../../registries/stream/types.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
 import { freezesUpload } from '../../lib/media/frozen-uploads.ts';
 
@@ -37,15 +39,32 @@ const SHADOW_SUFFIX = '_';
 // 256 KiB read buffer.
 const MAX_SFTP_READ_DATA = 256 * 1024 - 2 * 1024;
 
+/**
+ * The requests a session runs or queues at once; past it, the channel is not
+ * read, so its window closes and the client waits. OpenSSH's sftp keeps 64 in
+ * flight.
+ */
+const MAX_PENDING_REQUESTS = 64;
+
+/**
+ * The bytes of READ data a session holds for a client that has not taken
+ * them yet: what ssh2 still holds for the client's window, and what reads
+ * running now will add. A READ waits for room before it reads, so a client
+ * that does not read its responses costs no more than this.
+ */
+const MAX_HELD_OUTPUT = 4 * 1024 * 1024;
+
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
 const S_IFREG = 0o100000;
 const S_IFLNK = 0o120000;
 
+/** The node types a client sees as files; a stream is read from now on and written by its one writer. */
 const FILE_TYPES = [
   NODE_TYPE_FILE,
   NODE_TYPE_EMBEDDING,
   NODE_TYPE_LOG,
+  NODE_TYPE_STREAM,
 ];
 
 export type SFTPHandlerConfig = {
@@ -103,6 +122,14 @@ export class SFTPHandler {
   // ssh2-ts orders the resulting channel packets itself.
   private handleOperations = new Map<number, Promise<void>>();
 
+  /** Requests queued or running, and what waits for there to be fewer than MAX_PENDING_REQUESTS. */
+  private pending = 0;
+  private pendingWaiters: Array<() => void> = [];
+
+  /** READ data being read now, and what waits for room within MAX_HELD_OUTPUT. */
+  private reserved = 0;
+  private outputWaiters: Array<() => void> = [];
+
   constructor(private config: SFTPHandlerConfig) {}
 
   private cleanupHandles(): void {
@@ -121,15 +148,48 @@ export class SFTPHandler {
     this.dirHandles.clear();
   }
 
+  /** Resolves once the session takes more requests: fewer than MAX_PENDING_REQUESTS wait, or it closed. */
+  ready(): Promise<void> {
+    if (this.closed || this.pending < MAX_PENDING_REQUESTS) return Promise.resolve();
+    return new Promise((resolve) => this.pendingWaiters.push(resolve));
+  }
+
+  private wake(waiters: Array<() => void>): void {
+    for (const resolve of waiters.splice(0)) resolve();
+  }
+
+  /**
+   * Waits for room to read `length` bytes for the client within
+   * MAX_HELD_OUTPUT, and holds it; the returned function gives it back once
+   * the data is handed to ssh2. When nothing is held, a read goes ahead
+   * whatever its length.
+   */
+  private async reserveOutput(sftp: SFTP, length: number): Promise<() => void> {
+    while (!this.closed) {
+      const held = sftp.bufferedAmount + this.reserved;
+      if (held === 0 || held + length <= MAX_HELD_OUTPUT) break;
+      await new Promise<void>((resolve) => this.outputWaiters.push(resolve));
+    }
+    this.reserved += length;
+    return () => {
+      this.reserved -= length;
+      this.wake(this.outputWaiters);
+    };
+  }
+
   private enqueueRequest(handler: () => Promise<void>, handleId?: number): void {
+    this.pending++;
     const run = async () => {
-      if (this.closed) return;
       try {
+        if (this.closed) return;
         await handler();
       } catch (err) {
         logger.error('SFTP request handler error', {
           error: (err as Error).message,
         });
+      } finally {
+        this.pending--;
+        if (this.pending < MAX_PENDING_REQUESTS) this.wake(this.pendingWaiters);
       }
     };
 
@@ -202,20 +262,21 @@ export class SFTPHandler {
     }
   }
 
+  private close(): void {
+    this.closed = true;
+    this.cleanupHandles();
+    this.wake(this.pendingWaiters);
+    this.wake(this.outputWaiters);
+  }
+
   attach(sftp: SFTP): void {
-    sftp.on('close', () => {
-      this.closed = true;
-      this.cleanupHandles();
-    });
-    sftp.on('end', () => {
-      this.closed = true;
-      this.cleanupHandles();
-    });
+    sftp.on('close', () => this.close());
+    sftp.on('end', () => this.close());
     sftp.on('error', (err: Error) => {
       logger.error('SFTP stream error', { error: err.message });
-      this.closed = true;
-      this.cleanupHandles();
+      this.close();
     });
+    sftp.on('drain', () => this.wake(this.outputWaiters));
 
     sftp.on('OPEN', this.handleOpen.bind(this, sftp));
     sftp.on('READ', this.handleRead.bind(this, sftp));
@@ -470,16 +531,22 @@ export class SFTPHandler {
     }
 
     const readOffset = Number(offset);
-    if (entry.position !== readOffset) {
-      entry.position = await entry.handle.seek(readOffset, ResourceSeekMode.Start);
-    }
-    const data = await entry.handle.read(Math.min(length, MAX_SFTP_READ_DATA));
-    entry.position = readOffset + data.length;
+    const want = Math.min(length, MAX_SFTP_READ_DATA);
+    const release = await this.reserveOutput(sftp, want);
+    try {
+      if (entry.position !== readOffset) {
+        entry.position = await entry.handle.seek(readOffset, ResourceSeekMode.Start);
+      }
+      const data = await entry.handle.read(want);
+      entry.position = readOffset + data.length;
 
-    if (data.length === 0) {
-      this.sendResponse(() => sftp.status(reqid, STATUS_CODE.EOF));
-    } else {
-      this.sendResponse(() => sftp.data(reqid, data));
+      if (data.length === 0) {
+        this.sendResponse(() => sftp.status(reqid, STATUS_CODE.EOF));
+      } else {
+        this.sendResponse(() => sftp.data(reqid, data));
+      }
+    } finally {
+      release();
     }
   }
 
@@ -586,7 +653,8 @@ export class SFTPHandler {
       await fileEntry.handle.close();
       this.handles.delete(handleId);
 
-      if (fileEntry.dirty || fileEntry.writtenAt) {
+      // A stream keeps nothing to sniff: its bytes went to its readers, and its type is its writer's.
+      if ((fileEntry.dirty || fileEntry.writtenAt) && !isStreamWriter(fileEntry.handle)) {
         // Closing the write handle stored size and sha256. The mimetype is
         // sniffed from the content, as an HTTP upload does, so a file whose
         // name says one type and whose bytes say another is filed by its bytes,

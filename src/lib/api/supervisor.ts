@@ -10,6 +10,14 @@ export type ServiceWanted = {
   modules: { module: string; range: string }[];
 };
 
+/** What an update of a service would install that it does not run. */
+export type ServiceAvailable = {
+  /** The newer release, for a service with releases; none for the language model's other image. */
+  version?: string;
+  /** The image: `ghcr.io/einhq/ems:0.4.9`. */
+  image: string;
+};
+
 /** One service beside EiN. */
 export type SupervisedService = {
   /** Its name in the installation: core, db, ems, llm, devices, supervisor, or one a module names. */
@@ -23,7 +31,7 @@ export type SupervisedService = {
   gives: string[];
   /** What installing it fetches. */
   size?: string;
-  /** The line of its image it runs at, `main` before a module asks for one. */
+  /** The line of its image it runs at, which a supervisor from before releases says. */
   line?: string;
   wanted?: ServiceWanted;
   /** Its container's state (`running`, `exited`…), when it has one. */
@@ -34,10 +42,12 @@ export type SupervisedService = {
   since?: string;
   /** The image its container runs. */
   image?: string;
-  /** The version of its interface that image states (its `eu.einhq.api` label). */
+  /** The release that image is (its `eu.einhq.version` label). */
   version?: string;
   /** When that image was built. */
   built?: string;
+  /** What an update would install, when there is something newer: as with modules, nothing to update without it. */
+  available?: ServiceAvailable;
   /** A service a module names that the supervisor does not know, and so cannot install. */
   unknown?: boolean;
 };
@@ -65,8 +75,12 @@ export type SupervisorStatus = {
   version?: string;
   /** The container engine, `podman` or `docker`. */
   engine?: string;
-  /** When every service is updated each night, `HH:MM` in the machine's time; null for never. */
+  /** When every service with something to install is updated each night, `HH:MM` in the machine's time; null for never. */
   updateAt?: string | null;
+  /** When the supervisor last read which releases GitHub's registry has; null before its first reading. */
+  checkedAt?: string | null;
+  /** Why that reading failed for some service. */
+  checkError?: string | null;
   services: SupervisedService[];
   job: SupervisorJob | null;
 };

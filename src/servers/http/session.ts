@@ -31,6 +31,9 @@ function cookieValue(headers: Headers, name: string): string | undefined {
   return value;
 }
 
+/** Whether a request presents the session cookie, valid or not. */
+export const carriesSessionCookie = (config: SessionConfig, headers: Headers): boolean => cookieValue(headers, config.env.COOKIE_NAME) !== undefined;
+
 function parseSessionCookie(value?: string): { name: string; secret: string } | false {
   if (!value || !value.includes('.')) {
     return false;
@@ -112,7 +115,8 @@ export function isForwardedHttps(headers: Headers): boolean {
  * all — is a cross-site navigation, which a `Strict` cookie stays behind on, and
  * the session the document then mints would replace it and sign the reader out.
  * `Lax` still keeps the cookie off cross-site requests that are not a top-level
- * GET: an upload, and the shell's WebSocket.
+ * GET: an upload, and the shell's WebSocket. Same-site pages of other origins get it all the same,
+ * so the server refuses their WebSockets and writes (`same-origin.ts`).
  *
  * `Path=/` is the whole point of this being a function. Without it the
  * browser derives a default-path from the request URI, which is the directory

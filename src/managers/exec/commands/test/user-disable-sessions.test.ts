@@ -4,7 +4,7 @@
  * still running as it.
  */
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertRejects } from '@std/assert';
 import { ADMIN_ACCESS, GUEST_UID } from '../../../../lib/access/mod.ts';
 import { SESSION_ENDED_CLOSE_CODE } from '../../../../servers/http/ws/api-shell-handler.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../../testing/mod.ts';
@@ -42,6 +42,12 @@ Deno.test({
     await t.step('the administrator cannot be disabled or deleted', async () => {
       await cmd.shouldFail('user-disable admin');
       await cmd.shouldFail('user-delete admin');
+    });
+
+    await t.step("SSH signs in by the account's own name only, the one disabling it ends", async () => {
+      for (const username of ['./anna', 'x/../anna']) {
+        await assertRejects(() => harness.connectSSH({ username, password: 'secret' }), Error, undefined, username);
+      }
     });
 
     await t.step('sessions, shells and SSH connections of the account end', async () => {

@@ -1,6 +1,6 @@
 /**
- * A module's archive roots: made when missing, open to everyone signed in, passed through by
- * others, and left as they are once they exist.
+ * A module's archive roots: made when missing, open to everyone signed in, sticky, passed through
+ * by others, and left as they are once they exist.
  */
 
 import { assertEquals } from '@std/assert';
@@ -15,10 +15,10 @@ Deno.test('archive roots', async (t) => {
   try {
     await mkdirp(vfs, ADMIN_ACCESS, '/archive');
 
-    await t.step('a missing root is the users group’s to fill and others only pass through it', async () => {
+    await t.step('a missing root is the users group’s to fill, sticky, and others only pass through it', async () => {
       assertEquals(await ensureArchiveRoots(vfs, ['/archive/things']), ['/archive/things']);
       const { props } = await vfs.get(ADMIN_ACCESS, '/archive/things');
-      assertEquals([props.mode & 0o777, props.uid, props.gid], [0o771, ADMIN_UID, USERS_GID]);
+      assertEquals([props.mode, props.uid, props.gid], [0o1771, ADMIN_UID, USERS_GID]);
     });
 
     await t.step('one that exists keeps its mode', async () => {

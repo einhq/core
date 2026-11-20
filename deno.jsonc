@@ -15,6 +15,8 @@
     "temporal"
   ],
   "lint": {
+    // EiN's own rules (scripts/lint-plugin.ts): the Web UI writes dates by the time locale setting.
+    "plugins": ["./scripts/lint-plugin.ts"],
     "rules": {
       "exclude": [
         "require-await",
@@ -117,7 +119,7 @@
     "remark-gfm": "npm:remark-gfm@^4.0.1",
     "rehype-sanitize": "npm:rehype-sanitize@^6.0.0",
 
-    "ssh2": "jsr:@ein/ssh2-ts@1.2.0",
+    "ssh2": "jsr:@ein/ssh2-ts@1.5.0",
 
     /* Local */
     // The published module contract. Modules import this and nothing else from core;

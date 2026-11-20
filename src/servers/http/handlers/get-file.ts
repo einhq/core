@@ -2,13 +2,13 @@ import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
 import type { Access } from '../../../lib/access/mod.ts';
 import { type Node, type NodeEntry, NodeNotFoundError } from '../../../vfs/mod.ts';
-import { NODE_TYPE_STREAM } from '../../../vfs/types/device.ts';
+import { NODE_TYPE_STREAM } from '../../../vfs/types/stream.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import type { DownloadLog } from '../download-log.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
 import { fileBody } from './file-body.ts';
-import { streamFrameResponse } from './stream.ts';
+import { streamBodyResponse } from './stream.ts';
 
 type GetFileOptions = {
   /**
@@ -141,8 +141,10 @@ async function serveFile(
     if (shown) ({ entry, node } = shown);
   }
 
-  // A camera's stream keeps no bytes: what is read of it is a frame its device gives now.
-  if (node.type === NODE_TYPE_STREAM) return await streamFrameResponse(config, access, entry.vfsAbsPath, responseHeaders, req.method === 'HEAD');
+  // A stream keeps no bytes: what is read of it is what its writer writes from now on.
+  if (node.type === NODE_TYPE_STREAM) {
+    return await streamBodyResponse(config, access, entry, node.attrs.mimetype, responseHeaders, req.method === 'HEAD');
+  }
 
   // Two shapes of a rendition nobody finished writing, both answered as absent and both
   // decided before the ETag and Cache-Control below — a 404 is not a cacheable rendition,
