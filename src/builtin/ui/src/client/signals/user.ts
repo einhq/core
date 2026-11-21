@@ -5,15 +5,10 @@ import { resetTerminalWorkspace } from './terminal.ts';
 import { shq } from '../lib/shquote.ts';
 import type { HeldShareLink, ShareLinkOpened, Whoami } from '@ein/api';
 
-/** The signed-in account as `user-whoami` answers (`@ein/api` `Whoami`), with its avatar. */
-export type User = Whoami & {
-  avatarUrl: string;
-};
-
 /**
- * Current authenticated user (null if not logged in)
+ * Current authenticated user as `user-whoami` answers (null if not logged in)
  */
-export const currentUser = signal<User | null>(null);
+export const currentUser = signal<Whoami | null>(null);
 
 /** Whether someone is signed in, rather than the guest. */
 export const isAuthenticated = computed(() => currentUser.value !== null);
@@ -57,10 +52,7 @@ export async function checkAuth(): Promise<void> {
     const result = await execCommand<Whoami>('user-whoami');
 
     if (result.username !== 'guest') {
-      currentUser.value = {
-        ...result,
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(result.username)}&background=0d9488&color=fff`,
-      };
+      currentUser.value = result;
     } else {
       currentUser.value = null;
     }

@@ -53,6 +53,9 @@ Deno.test('share link: a screen whose session lapsed opens its link again, once 
   assertEquals(linkToReopen(board, 1_000), 'AbC123');
   // Tried just now: a link that keeps failing does not loop.
   assertEquals(linkToReopen(board, 30_000), undefined);
+  // Opening the link again, as the reopen does, keeps the pause.
+  rememberShareLink('AbC123', board);
+  assertEquals(linkToReopen(board, 30_000), undefined);
   assertEquals(linkToReopen(board, 62_000), 'AbC123');
   forgetShareLink();
   assertEquals(linkToReopen(board, 200_000), undefined);

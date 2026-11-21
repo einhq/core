@@ -51,7 +51,7 @@ export const readSettings = async (ctx: SettingsContext, access: Access, opts?: 
  * where every file read here and every module's `etc/config` live: the guest asks this on each
  * request it makes.
  */
-const readSystemSettings = async (vfs: ModuleVFS): Promise<Readonly<Record<string, string>>> => {
+export const readSystemSettings = async (vfs: ModuleVFS): Promise<Readonly<Record<string, string>>> => {
   let cache = systemSettings.get(vfs);
   if (!cache) {
     const entry: SettingsCache = { watched: watchSettings(vfs, () => entry.settings = undefined) };

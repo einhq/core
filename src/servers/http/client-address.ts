@@ -26,24 +26,35 @@ const bareAddress = (value: string): string => {
   return parts.length === 2 ? parts[0] : address;
 };
 
-/** The first hop of `X-Forwarded-For`, or the `for=` of the first `Forwarded` entry. */
-const forwardedFor = (headers: Headers): string | undefined => {
-  const xff = headers.get('x-forwarded-for')?.split(',')[0];
-  if (xff?.trim()) return bareAddress(xff);
+/**
+ * The hops `X-Forwarded-For` names, or the `for=` of each `Forwarded` entry, in order: the client
+ * first, each proxy after it adding the address it was reached from.
+ */
+const forwardedHops = (headers: Headers): string[] => {
+  const xff = headers.get('x-forwarded-for');
+  if (xff?.trim()) return xff.split(',').map(bareAddress).filter(Boolean);
 
-  const pair = headers.get('forwarded')?.split(',')[0].split(';')
-    .map((part) => part.trim().split('='))
-    .find(([key]) => key.toLowerCase() === 'for');
-  return pair?.[1] ? bareAddress(pair[1]) : undefined;
+  return (headers.get('forwarded') ?? '').split(',').flatMap((entry) => {
+    const pair = entry.split(';').map((part) => part.trim().split('=')).find(([key]) => key.toLowerCase() === 'for');
+    return pair?.[1] ? [bareAddress(pair[1])] : [];
+  });
 };
 
 /**
  * The client's address: the socket's peer, or, when that peer is a proxy on this host or one in
- * `TRUSTED_PROXIES`, the first hop it names in `X-Forwarded-For` or `Forwarded`. Anyone else's
- * forwarding headers are ignored, so a client cannot make `who` show an address it does not have.
+ * `TRUSTED_PROXIES`, the last hop it names in `X-Forwarded-For` or `Forwarded` that is not itself
+ * such a proxy (the first hop when all are). A proxy adds the address it was reached from after
+ * whatever the client sent, so the hops before that one are the client's to choose and never
+ * believed, and anyone else's forwarding headers are ignored: a client cannot make `who` or the
+ * sign-in throttle see an address it does not have.
  */
 export function clientAddress(headers: Headers, remoteAddr: Deno.Addr, trusted: Set<string> = TRUSTED_PROXIES): string | undefined {
   if (remoteAddr.transport !== 'tcp' && remoteAddr.transport !== 'udp') return undefined;
   if (!isTrustedProxy(remoteAddr.hostname, trusted)) return remoteAddr.hostname;
-  return forwardedFor(headers) ?? remoteAddr.hostname;
+  let client = remoteAddr.hostname;
+  for (const hop of forwardedHops(headers).reverse()) {
+    client = hop;
+    if (!isTrustedProxy(hop, trusted)) break;
+  }
+  return client;
 }

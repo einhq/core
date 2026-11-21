@@ -49,6 +49,8 @@ export type MapMarkerSpec = {
   color?: string;
   /** Highlighted, and drawn above its neighbours. */
   active?: boolean;
+  /** Drawn under every marker that is not: a place, under the vehicles passing it. */
+  below?: boolean;
   onClick?: () => void;
   /** Pointer entering (true) or leaving (false) the marker. */
   onHover?: (over: boolean) => void;

@@ -21,6 +21,14 @@ group-is-member "$USERS_GROUPNAME" "$ADMIN_USERNAME" || group-add-member "$USERS
 chown "$ADMIN_USERNAME:$ADMIN_GROUPNAME" /dev
 chmod 755 /dev
 
+# The household's accounts and groups, and what the machine runs and logs, are for those signed in
+# (`users`): neither the guest nor a share link lists them or reads below them. The homes they only
+# pass through, to their own, so the account names are not read off them either. Set on every boot,
+# whatever an existing one has.
+chown "$ADMIN_USERNAME:$USERS_GROUPNAME" "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$QUEUES_PATH" "$POOLS_PATH" "$PIPELINES_PATH" "$HOMES_PATH" "$GROUP_HOMES_PATH"
+chmod 750 "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$QUEUES_PATH" "$POOLS_PATH" "$PIPELINES_PATH"
+chmod 751 "$HOMES_PATH" "$GROUP_HOMES_PATH"
+
 # Everyone signed in shares the home of `users`, the household's. Made once, as the attr on the
 # homes' directory records: an administrator who takes it away (group-home --off) does not get it
 # back at the next boot.

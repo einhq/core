@@ -140,25 +140,24 @@ const inGroup = (access: Access, name: string, gid: number): boolean => access.g
 
 /**
  * The entries of `dir` named after a group `access` is in, by name: what a directory of per-group
- * entries (`/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed with
- * `access`. An entry naming no group is in `unknown`, for the caller to warn of.
+ * entries (`/groups`, `/etc/bashrc.d`) holds for whoever `access` is. `dir` is listed as the
+ * administrator, since the guest and a share link may not list `/groups`, and only the caller's own
+ * groups are answered.
  */
-export const groupEntriesFor = async (vfs: ModuleVFS, access: Access, dir: string): Promise<{ groups: string[]; unknown: string[] }> => {
+export const groupEntriesFor = async (vfs: ModuleVFS, access: Access, dir: string): Promise<string[]> => {
   let names: string[];
   try {
-    names = (await vfs.children(access, dir)).map((child) => child.name).sort();
+    names = (await vfs.children(ADMIN_ACCESS, dir)).map((child) => child.name).sort();
   } catch (error) {
-    if (error instanceof NodeNotFoundError) return { groups: [], unknown: [] };
+    if (error instanceof NodeNotFoundError) return [];
     throw error;
   }
   const groups: string[] = [];
-  const unknown: string[] = [];
   for (const name of names) {
     const gid = await groupGid(vfs, name);
-    if (gid === undefined) unknown.push(name);
-    else if (inGroup(access, name, gid)) groups.push(name);
+    if (gid !== undefined && inGroup(access, name, gid)) groups.push(name);
   }
-  return { groups, unknown };
+  return groups;
 };
 
 /**

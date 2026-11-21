@@ -1004,7 +1004,7 @@ Commands are cancelled cooperatively via a small typed **signal** set ([src/mana
 - **Shell close** ([Shell.close](../src/managers/shell/shell.ts)) first ends the shell as bash does — its `HUP` trap when the terminal went away rather than `exit` ending it, then its `EXIT` trap (`AstExecutor.trapSignal`, `runExitTrap`), bounded by a grace — and then `signal(tty, 'SIGHUP', {includeBackground, skipDetached})` before tearing down buffers, so running commands stop instead of being orphaned writing to deleted buffers; a short grace lets them unwind. The traps run first so that one can still reach the jobs. WS and SSH disconnects both route here; `exit` ends the interactive loop (`Shell.hasExited`) and its caller closes the shell.
 - **Job control is split with bash-executor.** The executor owns the job table (numbering, `%` specs, `+`/`-`, `$!`) and the builtins `jobs`, `wait`, `kill`, `disown`, `fg` and `bg`; the shell provides `ShellIf.jobs` (`JobHostIf`): starting a job, signalling a pid (`ExecManager.signalPid`, which also says whether it exists), `fg`/`bg`, and what `disown` means here. Each `&` — a single command, a `&&` list, a `{ }` group, a subshell, a loop, a builtin, a shell function — reaches `jobs.start` as a piece of the parse tree, which the shell runs as a **dynamic command** of its own (pid `bg-<ulid>`, the job's label being the node's source text) with private stdout/stderr buffers that it forwards to the terminal while attached, `forground=false` so Ctrl-C skips it. The command is what gives the job a pid to signal. The signal is bridged onto an `AbortSignal` on the job's context, which the executor checks between nodes, so a hang-up stops the loop rather than only the step inside it. Each job gets a **`TTY_NAME` of its own — its pid** — so the commands it starts form a group: a signal aimed at the shell does not reach them, and `kill <job pid>` does. An interactive shell announces a finished job at the next prompt (`set -b`: at once) and drops it from the table then; a job `wait` or `fg` took is not announced. The API shell runs each call in a subshell, whose job table goes with it: a later call reaches a job by pid, not `%n`.
 - **`disown`/`detach`** (a running job) and **`nohup`** (from the start) mark the command `detached` (SIGHUP-exempt) and re-point its private buffers from the terminal to `/var/logs/jobs/<pid>/{stdout,stderr}.log`, so it survives its shell. The job's fds stay in `fdMap` but are exempt from `Shell.close` (neither closed nor deleted), because the job is still writing to them; `reapJob` closes the buffers for writing so the log pumps drain, then tears them down. The job opens fds of its own — a redirection's pipe, one per `$( )`, one per pipeline stage — before the shell closes and after. Each fd records the jobs whose run opened it (an `AsyncLocalStorage` scope `spawnJob` sets around the job, since the executor's `pipeOpen` names no owner), and `Shell.close` leaves a detached job's fds to the job. It decides what to tear down _before_ its grace period (the fds it has at that moment, by entry identity, so a reused fd number is not mistaken for the old one), and `pipeWrite` after close drops output only for an fd that is actually gone, not for every fd outside the job's two log fds. Both were learned from a detached sweep whose builtins printed nothing inside `$( )` (ein/core#227).
-- **A detached job leaves a record**, `/var/logs/jobs/<pid>/status.json`, written on detach and rewritten on exit with the exit code. It is what `detach --list` lists, and the only durable answer: the shell that started the job is gone by then, and `ExecManager` drops a finished command's state after a minute. The record carries the `BOOT_ID` that wrote it, so one left `running` by an earlier boot is reported as **abandoned** rather than running.
+- **A detached job leaves a record**, `/var/logs/jobs/<pid>/status.json`, written on detach and rewritten on exit with the exit code. It is what `detach --list` lists, and the only durable answer: the shell that started the job is gone by then, and `ExecManager` drops a finished command's state after a minute. The record carries the `BOOT_ID` that wrote it, so one left `running` by an earlier boot is reported as **abandoned** rather than running. It also carries the job's uid and session, and `detach --list` shows a record only to whom `ps` would show the process (`seesRunsOf`). The `<pid>` directory is created owned by the job's account with mode `0700`, its files `0600`, so the command line and output are its owner's and the administrator's alone; `detach <pid>` of a command the caller could not see in `ps` is refused as no such job.
 
 This is what makes a long sweep survivable. A multi-step pass is written to a script node and detached with `nohup source <script>` (with `set -e` to stop at the first failure); `detach --list` says whether it is still going and how it ended, and its output is in the log beside the record. `make remote-import DETACH=1` is the same shape for the import sequence.
 
@@ -1122,7 +1122,10 @@ guest (`isGuest`: not a share link's visitor) gets the sign-in surface and nothi
 manager refuses every command whose spec is not `guest: true` (`login`, `logout`, `user-whoami`,
 `share-link`, `config` and `config-list`) with `sign in first`, before it starts, as it refuses an
 `admin` command. Its shell holds it to the same list (`Shell.refusesGuest`): every builtin and
-every other command, by name or path, refuses it, and nothing of the shell's own reaches the VFS —
+every other command, by name or path, refuses it, the shell's executor (`GuardedExecutor`) runs
+nothing but a command of plain words naming one on the list, alone or in an `&&` or `||` list,
+whose parts are judged as they start — no loop, function, `(( ))`, group, assignment of its own
+or expansion, none of which needs a command —, and nothing of the shell's own reaches the VFS —
 a redirection or a file test finds no file there, a glob matches nothing, and the API socket's
 `vfs.*` and `log.*` messages answer `sign in first`; only the shell's own bashrc runs as before.
 `GET /file`, `POST /archive` and `GET /archive` answer it 401 (`refusesGuest`),
@@ -1552,6 +1555,7 @@ files rather than the environment. It starts from the caller's
 environment, though, which anyone may set on their own command line, so a
 setting that decides what the caller is allowed is read with `readSystemSettings` instead
 (`guestMayBrowse`, `defaultUserGroups`): the files under `/etc` alone, the deployment's included.
+`@ein/client` exports it, for a module's setting of that kind.
 
 ---
 
@@ -1586,7 +1590,9 @@ writes and nothing else, compared in constant time; the write is made as the dev
 (`accessOfUid`), and its driver is told it was the device's (`by: device:<name>`). Every refusal is
 the same 403, logged with the client's address. A GET with a key on a device node is the device
 talking, a tracker that only sends GETs: its query is the raw input. Without a key, a write is the
-signed-in session's, as every `/file` write is, and a GET is a read.
+signed-in session's, as every `/file` write is, and a GET is a read. Whether the write may be made is settled
+before its body is read, and the body is read only up to 4 MB (64 MB for a track's fixes) and
+answered 413 beyond (`body-limit.ts`); `POST /archive` takes at most 2 MB the same way.
 
 File responses own the VFS handle until their body finishes, fails or is cancelled.
 `file-body` pulls bounded chunks directly from the handle and closes it at the
@@ -1631,7 +1637,15 @@ Two WebSocket modes on `/__shell`:
 - **API** — JSON `{ id, command, stdin? }` → JSON `{ id, result }` (used by UI hooks; `stdin` is
   text the command reads as its stdin, such as `comment add <path> --body -`), `exec.cancel [id]` —
   which hangs up that running exec as Ctrl-C would, and with it every script the command started
-  through `cmd.execute`, so a superseded search stops and its EMS requests close — plus `vfs.*`
+  through `cmd.execute`, so a superseded search stops and its EMS requests close; a script gives
+  the event loop a turn every 50 ms of evaluation (bash-executor), so one that does no I/O, such as
+  `while ((1)); do :; done`, leaves the process to everyone else and still ends on `exec.cancel`,
+  Ctrl-C, the exec's 10-minute timeout or its socket closing, as a terminal's line ends with its
+  shell. A visitor's exec or line (`isVisitor`) waits for one of `VISITOR_RUNS` (4) turns shared by
+  all visitors and ends after `VISITOR_RUN_TIMEOUT_MS` (60 s); one that only signs in
+  (`GuardedExecutor.signsIn`) takes none. Memory is bounded below the shell: bash-executor refuses
+  a variable past 16 Mi characters (`setValueLimit`) and a word past a million fields, and
+  bash-parser a brace expansion past 100 000 words in a parse — plus `vfs.*`
   methods (incl. `vfs.subscribe` node-event push) and `log.follow`/`log.unfollow` — a log tail that streams
   existing entries and then live appends via the log registry's blocking reads (no polling); used by
   the UI for realtime tracks. The socket watches its session node and closes with code 4003 when

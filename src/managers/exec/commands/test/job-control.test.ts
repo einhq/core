@@ -371,6 +371,43 @@ Deno.test({
       assertEquals((await stateOf())?.exitCode, 137);
       client.close();
     });
+
+    // A command line can carry what its author would not show anyone else, so
+    // a detached job is its owner's as a process in `ps` is.
+    await t.step("a member neither sees, reads nor detaches another member's job", async () => {
+      const admin = await testCtx.server.createShellClient();
+      await admin.exec('user-create dora && user-passwd dora --new-password secret1');
+      await admin.exec('user-create egil && user-passwd egil --new-password secret1');
+      const dora = await testCtx.server.createShellClient({ username: 'dora', password: 'secret1' });
+      const egil = await testCtx.server.createShellClient({ username: 'egil', password: 'secret1' });
+
+      const detached = await dora.execJson<{ ok: boolean; pid: string }>('nohup sleep 30 --secret-token=dora-abc');
+      assertEquals(detached.ok, true);
+      const attached = bgPidOf(await dora.execString('sleep 30 & jobs -l'));
+
+      const mine = await dora.execJson<{ pid: string }[]>('detach --list');
+      assert(mine.some((entry) => entry.pid === detached.pid), 'the owner lists their own detached job');
+      const theirs = await egil.execJson<{ pid: string }[]>('detach --list');
+      assert(!theirs.some((entry) => entry.pid === detached.pid), `another member must not list it: ${JSON.stringify(theirs)}`);
+      const everyone = await admin.execJson<{ pid: string }[]>('detach --list');
+      assert(everyone.some((entry) => entry.pid === detached.pid), "the administrator lists everyone's");
+
+      for (const file of ['status.json', 'stdout.log']) {
+        const read = await egil.exec(`cat /var/logs/jobs/${detached.pid}/${file}`);
+        assert(!read.success, `another member must not read ${file}: ${JSON.stringify(read)}`);
+        assert((await dora.exec(`cat /var/logs/jobs/${detached.pid}/${file}`)).success, `the owner reads ${file}`);
+      }
+
+      const stolen = await egil.exec(`detach ${attached}`);
+      assert(!stolen.success, `another member must not detach it: ${JSON.stringify(stolen)}`);
+      dora.close();
+      const hungUp = await waitFor(() => exited(ctx.cem, attached)?.exitSignal === 'SIGHUP');
+      assert(hungUp, 'a job another member tried to detach is still hung up with its shell');
+
+      await ctx.cem.signalPid(detached.pid, 'SIGTERM');
+      egil.close();
+      admin.close();
+    });
   } finally {
     await testCtx.teardown();
   }

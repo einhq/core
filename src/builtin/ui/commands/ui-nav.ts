@@ -62,7 +62,7 @@ export const uiNav = async (cmd: Command): CmdReturn => {
   }
 
   const warnings: string[] = [];
-  const { groups } = await groupEntriesFor(cmd.sys.vfs, cmd.access, GROUP_HOMES_PATH);
+  const groups = await groupEntriesFor(cmd.sys.vfs, cmd.access, GROUP_HOMES_PATH);
   // An administrator is given every module, so the fragments in every group's home.
   const fragmentGroups = isAdmin(cmd.access) ? await childNames(cmd, GROUP_HOMES_PATH) : groups;
 

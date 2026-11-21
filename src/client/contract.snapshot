@@ -1,5 +1,6 @@
-MODULE_API_VERSION 0.15.42
+MODULE_API_VERSION 0.15.47
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
+src/builtin/ui/src/client/components/mod.ts AccountFace a95dc46998fb @signature=59ed6a161071,account=715046550be0,eager=f5689222adad,size=422f3ae77ed1
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
 src/builtin/ui/src/client/components/mod.ts AppHeader 3b29a0b58507 @signature=075097f49a7a,menuOpen=9cc8a9d90181,onToggleMenu=ee12d191f585
 src/builtin/ui/src/client/components/mod.ts AppNavbar d994c630097b @signature=0f26317adbca,onNavigate=baa1abc172f4,onToggleRail=acb4609ac282,rail=e4e86772ae31
@@ -97,7 +98,7 @@ src/builtin/ui/src/client/components/mod.ts LoginForm d2adf16b4e60
 src/builtin/ui/src/client/components/mod.ts MARKER_COLOR 1cb5ef13864c
 src/builtin/ui/src/client/components/mod.ts Machines 6edcdde47a85 @signature=d2389b7c8688,own=d475b4112119
 src/builtin/ui/src/client/components/mod.ts MapContext 0a752fffac0f
-src/builtin/ui/src/client/components/mod.ts MapMarkerSpec 767dd3f3e140 active=cf50bf19155a,badge=43669645ec53,color=1238f431f506,id=752fa5797ebe,label=995d88c00ff2,lat=ab04728f0de4,lng=7ef8fe750a12,onClick=5ff6a038515f,onHover=da70ae37fb27,pinNumber=56c03aa9c1f2,tag=acec84478fd5,thumbnailUrl=9928bcd52030
+src/builtin/ui/src/client/components/mod.ts MapMarkerSpec 5d0f9760dac3 active=cf50bf19155a,badge=43669645ec53,below=541e2d7a734f,color=1238f431f506,id=752fa5797ebe,label=995d88c00ff2,lat=ab04728f0de4,lng=7ef8fe750a12,onClick=5ff6a038515f,onHover=da70ae37fb27,pinNumber=56c03aa9c1f2,tag=acec84478fd5,thumbnailUrl=9928bcd52030
 src/builtin/ui/src/client/components/mod.ts MapMarkerTag 71ceb3bbc96a background=df122ac01cfe,border=f25ca21769b2,color=a71a40934adf,dot=70b726011c3c,text=d5eca4c0c5b1
 src/builtin/ui/src/client/components/mod.ts MapMarkers a502cade56e7 @signature=3cebde7a5c31,glide=4afd88237b22,markers=93813d565bfe
 src/builtin/ui/src/client/components/mod.ts MapMarkersProps dd1f4867ce33 glide=fbda767c88e1,markers=6de68d59dec4
@@ -105,7 +106,7 @@ src/builtin/ui/src/client/components/mod.ts MapShape cf5647bc3b0b @signature=101
 src/builtin/ui/src/client/components/mod.ts MapShapeEditor 2c83c17f04cb @signature=070853945bad,mode=741eebeefdf8,onChange=9f54af0b3372,value=9c19b817e1d4
 src/builtin/ui/src/client/components/mod.ts MapShapeEditorProps 18bc078d0ca9 mode=ebbc426dc6fe,onChange=d64cf3fd6beb,value=007c60dfcd7a
 src/builtin/ui/src/client/components/mod.ts MapShapeProps 0b04d1848ad3 color=1238f431f506,fit=811db48a83a6,shape=2d561cc53eeb
-src/builtin/ui/src/client/components/mod.ts MapTrackSpec 236bcf3e4a24 color=1238f431f506,faint=fa0a58c891f6,id=752fa5797ebe,label=995d88c00ff2,opacity=16cdd8eb3e10,points=a1e39655b8c4
+src/builtin/ui/src/client/components/mod.ts MapTrackSpec 2552de922faa color=1238f431f506,fade=63d0d7f226a7,faint=fa0a58c891f6,id=752fa5797ebe,label=995d88c00ff2,opacity=16cdd8eb3e10,points=a1e39655b8c4
 src/builtin/ui/src/client/components/mod.ts MapTracks 37d7c3f2edf9 @signature=1fcae32afe9d,fit=c52cca61a230,follow=53f80b5d83de,tracks=66a87d6cbb55
 src/builtin/ui/src/client/components/mod.ts MapTracksProps d0be718fcecf fit=811db48a83a6,follow=0e2746401d99,tracks=4d615d33e78a
 src/builtin/ui/src/client/components/mod.ts MapView a5babcd99b33 @signature=63947a3f1a59,baseLayer=56c1e849fcdc,bounds=d75a319bb661,center=8d95320f9e92,children=f8549eefbbf8,details=e0fa4266f91c,layerSwitcher=178ea4687612,onBaseLayerChange=8acfa9947a7b,onClick=cba05844a02b,onMoveEnd=dca04917469d,style=5dcc17338766,zoom=02225d9982f8
@@ -432,6 +433,9 @@ src/builtin/ui/src/client/lib/mod.ts FlatAttr bf88b2d1be57 key=fdb05a1ff54c,valu
 src/builtin/ui/src/client/lib/mod.ts GRID_KEYS f07881348eb9
 src/builtin/ui/src/client/lib/mod.ts GeoBounds fa41bfcc8bfd east=fb4ff6c4ec0a,north=31b6f63818f1,south=0330942ce773,west=21744fa5482d
 src/builtin/ui/src/client/lib/mod.ts GridKey 677298b63a5c
+src/builtin/ui/src/client/lib/mod.ts HatPiece 9d5386518ac3 box=0e1e3a26a6fb,clear=f535da26abd2,mirrored=3dadd3390101,outline=575f107f8142,tiles=3b9a823045a6
+src/builtin/ui/src/client/lib/mod.ts HatPieceBox fb76ebc52b4a
+src/builtin/ui/src/client/lib/mod.ts HatPiecesLayout 2c5d01422645 cell=ee66641819cd,columns=03d908b52c17,height=2d6643d8656a,origin=295a7ca55ba4,pieces=77cc3096f9e6,rows=00a8a3453fd7,seed=edc85d16bf62,toEdge=8c5fd00a1f2f,width=4f23b8406a01
 src/builtin/ui/src/client/lib/mod.ts LassoHits 6480da7bd265 items=abf75200a6e8,sections=222597916f45
 src/builtin/ui/src/client/lib/mod.ts LassoRect dc64a3a7cb51 bottom=94309b541786,left=724f4e98fffa,right=cb0d55038708,top=53cbd27c99c3
 src/builtin/ui/src/client/lib/mod.ts MAX_PANES dbd840972c7a
@@ -582,6 +586,7 @@ src/builtin/ui/src/client/lib/mod.ts kindFill f41e3eafb56d 0|e7b8121bac73=e7b812
 src/builtin/ui/src/client/lib/mod.ts kindGlyph f41e3eafb56d 0|e7b8121bac73=e7b8121bac73,@signature=61ef69562617
 src/builtin/ui/src/client/lib/mod.ts languageFor 31360372adc4 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=3800047090bf
 src/builtin/ui/src/client/lib/mod.ts lassoSelection 6a8f7f41d4de 0|2000bd708b8a=2000bd708b8a,1|f4b9ca6a7021=f4b9ca6a7021,2|8cfc9212b495=8cfc9212b495,@signature=cbae968f078e
+src/builtin/ui/src/client/lib/mod.ts layoutHatPieces 878958a463e8 @signature=5624c81c16b9,cell=412884a3a293,columns=8a1ee4eb50eb,height=e191cb7c6f52,origin=f5c6787592fd,pieces=eb5483484184,rows=87ea037089ab,seed=c65dcc6b6c0a,toEdge=6789bd22b1f1,width=babd8fdcece1
 src/builtin/ui/src/client/lib/mod.ts lightboxPathFromSearch 867b58720c90 0|336e2b46aff6=336e2b46aff6,@signature=0baf6bc3bf5c
 src/builtin/ui/src/client/lib/mod.ts lightboxRoute a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
 src/builtin/ui/src/client/lib/mod.ts loadIcon b543d6aa4658 0|336e2b46aff6=336e2b46aff6,@signature=0baf8ec2df5f
@@ -699,7 +704,6 @@ src/builtin/ui/src/client/signals/mod.ts TERMINAL_WORKSPACE_KEY c2a59a76c585
 src/builtin/ui/src/client/signals/mod.ts TerminalTab 127047f17daa connected=c374fd2d9976,id=752fa5797ebe,initialCommand=f87740187249,pwd=ef0c2a772ffc,title=f6007128d157
 src/builtin/ui/src/client/signals/mod.ts Toast 91ca39af7b74 action=ac294cc3717d,color=ead8596887c0,id=1a4af43267b0,message=ef0bf4d895db,progress=e24bc97d8b72
 src/builtin/ui/src/client/signals/mod.ts UiNav 3e9ae57443f0 layers=26e98a03f410,panels=7a10cf5ac8e3,sections=9a3a0fc1dafa,topbar=1b979ecf949b,warnings=9e8d69c3a0d6
-src/builtin/ui/src/client/signals/mod.ts User ae4e5f4d85f1
 src/builtin/ui/src/client/signals/mod.ts activateNodesTab f6f88bb02fa4 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,@signature=a4c7e29d3544
 src/builtin/ui/src/client/signals/mod.ts activeTerminalTab 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts addNodesTab 87af4b99e96d 0|badb793e217b=badb793e217b,1|336e2b46aff6=336e2b46aff6,2|9e8977589afb=9e8977589afb,3|6895b0473416=6895b0473416,@signature=fcb16610c0f1
@@ -1068,6 +1072,7 @@ src/client/mod.ts readComments 32bd81f0ff14 0|8dcbaff60bef=8dcbaff60bef,1|336e2b
 src/client/mod.ts readRange 3ec302a9e182 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|5ddaba732c83=5ddaba732c83,@signature=58c967630f78
 src/client/mod.ts readRenditionTable 090c370c8fff 0|f564a7144c6e=f564a7144c6e,@signature=a28e35f2a1f8
 src/client/mod.ts readSettings 1f20f42ca86e 0|d78cb581f075=d78cb581f075,1|175dd1db44d3=175dd1db44d3,2|619766deeb64=619766deeb64,@signature=b772afb160d7
+src/client/mod.ts readSystemSettings b7ef5f2e74d5 0|f564a7144c6e=f564a7144c6e,@signature=4151f126a78a
 src/client/mod.ts readTail 723b012f72f5 0|f564a7144c6e=f564a7144c6e,1|d7aa62e3541c=d7aa62e3541c,2|336e2b46aff6=336e2b46aff6,3|b3d9da3d9fc5=b3d9da3d9fc5,@signature=0451835f9428
 src/client/mod.ts refineMimeByName 507ea9b3e316 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,@signature=5d850c6098ae
 src/client/mod.ts reportUnknownFlags 6a78c6fb1de8 0|15d7e3c609a0=15d7e3c609a0,1|a16bff8fef55=a16bff8fef55,@signature=278d12e8dcf1

@@ -18,13 +18,31 @@ Deno.test('clientAddress: forwarding headers from a remote peer are ignored', ()
 });
 
 Deno.test('clientAddress: a proxy on this host names the client in X-Forwarded-For', () => {
-  const headers = new Headers({ 'x-forwarded-for': '198.51.100.1, 10.0.0.2' });
+  const headers = new Headers({ 'x-forwarded-for': '198.51.100.1' });
   assertEquals(clientAddress(headers, tcp('127.0.0.1')), '198.51.100.1');
   assertEquals(clientAddress(headers, tcp('::1')), '198.51.100.1');
 });
 
+Deno.test("clientAddress: the hops a client sent before its proxy's are not believed", () => {
+  // nginx's $proxy_add_x_forwarded_for appends the address it was reached from to what the client sent.
+  const headers = new Headers({ 'x-forwarded-for': '203.0.113.66, 198.51.100.1' });
+  assertEquals(clientAddress(headers, tcp('127.0.0.1')), '198.51.100.1');
+  // A client naming a trusted proxy first gains nothing either.
+  assertEquals(clientAddress(new Headers({ 'x-forwarded-for': '127.0.0.1, 198.51.100.1' }), tcp('127.0.0.1')), '198.51.100.1');
+  const forwarded = new Headers({ forwarded: 'for=203.0.113.66, for="[2001:db8::1]:4711"' });
+  assertEquals(clientAddress(forwarded, tcp('127.0.0.1')), '2001:db8::1');
+});
+
+Deno.test('clientAddress: trusted proxies in a chain are skipped from the right', () => {
+  const trusted = parseTrustedProxies('10.0.2.2');
+  const headers = new Headers({ 'x-forwarded-for': '203.0.113.66, 198.51.100.1, 10.0.2.2, 127.0.0.1' });
+  assertEquals(clientAddress(headers, tcp('127.0.0.1'), trusted), '198.51.100.1');
+  // When every hop is a trusted proxy, the client is the first.
+  assertEquals(clientAddress(new Headers({ 'x-forwarded-for': '10.0.2.2, 127.0.0.1' }), tcp('127.0.0.1'), trusted), '10.0.2.2');
+});
+
 Deno.test('clientAddress: Forwarded for= is read when X-Forwarded-For is absent', () => {
-  assertEquals(clientAddress(new Headers({ forwarded: 'for=198.51.100.1:4711;proto=https, for=10.0.0.2' }), tcp('127.0.0.1')), '198.51.100.1');
+  assertEquals(clientAddress(new Headers({ forwarded: 'for=198.51.100.1:4711;proto=https, for=127.0.0.1' }), tcp('127.0.0.1')), '198.51.100.1');
   assertEquals(clientAddress(new Headers({ forwarded: 'for="[2001:db8::1]:4711"' }), tcp('127.0.0.1')), '2001:db8::1');
 });
 

@@ -15,7 +15,22 @@
 
 import { assertEquals } from '@std/assert';
 import { createTestContext } from '../../testing/mod.ts';
-import { GROUP_HOMES_PATH, GROUPS_PATH, SESSIONS_PATH, TAGS_ROOT, VAR_DIRS } from '../../lib/paths.ts';
+import { USERS_GID } from '../../lib/access/mod.ts';
+import {
+  GROUP_HOMES_PATH,
+  GROUPS_PATH,
+  HOMES_PATH,
+  LOGS_PATH,
+  PIPELINE_INSTANCES_PATH,
+  PIPELINES_PATH,
+  POOLS_PATH,
+  QUEUES_PATH,
+  SESSIONS_PATH,
+  SYSTEM_LOG_PATH,
+  TAGS_ROOT,
+  USERS_PATH,
+  VAR_DIRS,
+} from '../../lib/paths.ts';
 
 /** Exactly what `ls /` shows once boot has finished. */
 const ROOT_ENTRIES = ['archive', 'dev', 'etc', 'groups', 'home', 'tmp', 'usr', 'var'];
@@ -70,12 +85,31 @@ Deno.test({
     });
 
     // As on Linux: the administrator's group may read the system tree but not write it, so adding
-    // someone to `admin` does not let them change what every shell sources.
-    await t.step('the system directories are 0755', async () => {
-      for (const path of ['/etc', '/var', '/usr', '/home', GROUP_HOMES_PATH, GROUPS_PATH, SESSIONS_PATH, ...VAR_DIRS]) {
-        const { mode } = await admin.execJson<{ mode: number }>(`props ${path}`);
-        assertEquals(mode.toString(8), '755', path);
+    // someone to `admin` does not let them change what every shell sources. The accounts, the groups
+    // and how the machine runs are for those signed in, `users`, and the homes are passed through but
+    // listed only by them; the pipeline instances are the administrator group's alone.
+    await t.step('the system directories are 0755, those signed in only list some', async () => {
+      const closed = [USERS_PATH, GROUPS_PATH, LOGS_PATH, QUEUES_PATH, POOLS_PATH, PIPELINES_PATH];
+      const passed = [HOMES_PATH, GROUP_HOMES_PATH];
+      for (const path of ['/etc', '/var', '/usr', SESSIONS_PATH, ...VAR_DIRS, ...closed, ...passed]) {
+        const { mode, gid } = await admin.execJson<{ mode: number; gid: number }>(`props ${path}`);
+        const expected = closed.includes(path) ? ['750', USERS_GID] : passed.includes(path) ? ['751', USERS_GID] : [path === PIPELINE_INSTANCES_PATH ? '750' : '755', gid];
+        assertEquals([mode.toString(8), gid], expected, path);
       }
+    });
+
+    // They name everyone's files, sign-ins and step output.
+    await t.step("the system log, service logs and pipeline instances are the administrator group's", async () => {
+      await admin.execString('user-create log-reader && user-passwd log-reader --new-password hunter2');
+      const member = await testCtx.server.createShellClient({ username: 'log-reader', password: 'hunter2' });
+      try {
+        for (const probe of [`tail ${SYSTEM_LOG_PATH}`, 'dmesg', `ls ${LOGS_PATH}/services`, `ls ${PIPELINE_INSTANCES_PATH}`]) {
+          assertEquals((await member.exec(probe)).success, false, `${probe} succeeded`);
+        }
+      } finally {
+        member.close();
+      }
+      assertEquals((await admin.execString(`ls ${LOGS_PATH}/services >/dev/null && tail -n1 ${SYSTEM_LOG_PATH} >/dev/null && echo read`)).trim(), 'read');
     });
 
     // What boot and `mod setup` put in /etc and /var, files included, is no more open to the group.

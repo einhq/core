@@ -204,7 +204,7 @@ export class ExecManager implements ExecutionManager {
     return { id, done: this.pending[command.id] };
   }
 
-  public async signal(tty: string, signal: Signal, opts: SignalOpts = {}) {
+  public async signal(tty: string, signal: Signal, opts: SignalOpts = {}): Promise<number> {
     const commands = Object.values(this.running).filter((cmd) => {
       if (cmd.env.TTY_NAME !== tty) return false;
       if (!opts.includeBackground && !cmd.forground) return false;
@@ -213,6 +213,7 @@ export class ExecManager implements ExecutionManager {
     });
 
     await Promise.all(commands.map((cmd) => this.deliver(cmd, signal)));
+    return commands.length;
   }
 
   /**
@@ -241,8 +242,8 @@ export class ExecManager implements ExecutionManager {
     return commands.length;
   }
 
-  public async interrupt(tty: string) {
-    await this.signal(tty, 'SIGINT');
+  public async interrupt(tty: string): Promise<number> {
+    return await this.signal(tty, 'SIGINT');
   }
 
   public async waitForTty(tty: string, timeoutMs: number): Promise<void> {

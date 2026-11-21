@@ -32,13 +32,16 @@ export function AccountAvatar({ user, size }: { user: UserEntry; size: number })
   );
 }
 
+/** What `AccountFace` draws an account from: its listing (`UserEntry`) or the signed-in account (`Whoami`). */
+type FaceAccount = { username: string; name: string; personPath?: string; inactive?: boolean };
+
 /**
- * An account as a small round face, for a pile of them: its person's cover, or its initials in its
- * hue. Too small for the hat pattern to read, so the initials stand alone.
+ * An account as a small round face, for a pile of them or the top bar: its person's cover, or its
+ * initials in its hue. Too small for the hat pattern to read, so the initials stand alone.
  */
-export function AccountFace({ user, size }: { user: UserEntry; size: number }) {
-  const name = displayName(user);
-  const color = accountColor(user.username);
+export function AccountFace({ account, size, eager }: { account: FaceAccount; size: number; eager?: boolean }) {
+  const { name } = account;
+  const color = accountColor(account.username);
   const initials = (
     <Avatar
       size={size}
@@ -46,10 +49,10 @@ export function AccountFace({ user, size }: { user: UserEntry; size: number }) {
       name={name}
       alt={name}
       styles={{
-        root: { flex: 'none', ...(user.inactive ? { opacity: 0.5, filter: 'grayscale(1)' } : {}) },
+        root: { flex: 'none', ...(account.inactive ? { opacity: 0.5, filter: 'grayscale(1)' } : {}) },
         placeholder: { background: `color-mix(in srgb, ${color} 26%, var(--mrx-surface-raised))`, color, fontSize: Math.round(size * 0.4), fontWeight: 700 },
       }}
     />
   );
-  return user.personPath ? <CoverAvatar path={user.personPath} fallback={initials} size={size} radius='xl' alt={name} /> : initials;
+  return account.personPath ? <CoverAvatar path={account.personPath} fallback={initials} size={size} radius='xl' alt={name} eager={eager} /> : initials;
 }

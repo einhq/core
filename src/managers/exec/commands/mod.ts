@@ -200,6 +200,7 @@ import { pool } from './pool/pool.ts';
 import { queueDead } from './queue/queue-dead.ts';
 import { queuePeek } from './queue/queue-peek.ts';
 import { sshServer } from './ssh-server.ts';
+import { curl } from './remote/curl.ts';
 import { scp } from './remote/scp.ts';
 import { sshCopyId } from './remote/ssh-copy-id.ts';
 import { sshKeygen } from './remote/ssh-keygen.ts';
@@ -362,6 +363,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   // Other machines
   ssh,
   scp,
+  curl,
   sshKeygen,
   sshCopyId,
 

@@ -2,13 +2,17 @@ import { basename } from '@std/path';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import { NodeAccessDeniedError, NodeNotFoundError } from '../../../vfs/mod.ts';
 import { ARCHIVE_MAX_ENTRIES, ArchiveEntry, ArchiveTicketStore, uniqueEntryName } from '../archive-tickets.ts';
+import { BodyTooLargeError, readBody, tooLarge } from '../body-limit.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
+
+/** Room for `ARCHIVE_MAX_ENTRIES` paths of a few hundred bytes each. */
+const ARCHIVE_BODY_LIMIT = 2 * 1024 * 1024;
 
 /**
  * POST /archive — park a list of paths and answer with the URL that downloads them as one zip.
  *
- * Body: `{ paths: string[], name?: string }`. Response: `{ url, filename, count, expiresAt }`.
+ * Body: `{ paths: string[], name?: string }`, at most 2 MB. Response: `{ url, filename, count, expiresAt }`.
  *
  * The paths are resolved here rather than at download time so a selection containing
  * something unreadable fails as a 403/404 the UI can show. A zip is streamed, so by the time
@@ -20,8 +24,9 @@ export async function handlePostArchive(config: HttpServerConfig, req: Request, 
 
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    body = JSON.parse(new TextDecoder().decode(await readBody(req, ARCHIVE_BODY_LIMIT)));
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) return tooLarge(error, responseHeaders);
     return new Response('invalid JSON body', { status: 400, headers: responseHeaders });
   }
 

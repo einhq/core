@@ -11,7 +11,9 @@ export const userWhoami = async (cmd: Command): CmdReturn => {
   const uid = cmd.access.uid;
 
   try {
-    const users = (await cmd.sys.vfs.children<UserAttrs>(cmd.access, cmd.env.USERS_PATH)).filter((entry) => isUserNode(entry.node));
+    // Read as the administrator: the users directory is for those signed in, and the guest and a
+    // share link read their own record all the same — the only one answered.
+    const users = (await cmd.sys.vfs.children<UserAttrs>(ADMIN_ACCESS, cmd.env.USERS_PATH)).filter((entry) => isUserNode(entry.node));
     // A share link's principal has no account of its own: it answers as the guest, with its link.
     const userEntry = users.find((entry) => entry.node.attrs.uid === (cmd.access.link ? GUEST_UID : uid));
 
@@ -22,7 +24,7 @@ export const userWhoami = async (cmd: Command): CmdReturn => {
 
     // A user's optional `person` softlink is their identity in the archive. Read the
     // link itself, which may point at a person not imported yet.
-    const personLink = await cmd.sys.vfs.get(cmd.access, `${cmd.env.USERS_PATH}/${userEntry.name}/person`, { follow: false }).catch(() => undefined);
+    const personLink = await cmd.sys.vfs.get(ADMIN_ACCESS, `${cmd.env.USERS_PATH}/${userEntry.name}/person`, { follow: false }).catch(() => undefined);
     const personPath = personLink?.props.softlink || undefined;
 
     // What the session's share links open, so the Web UI lets a visitor without an account there.

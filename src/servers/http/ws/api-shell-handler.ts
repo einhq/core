@@ -644,6 +644,11 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
 
     await this.sessionWatch?.unsubscribe().catch(() => {});
 
+    // Hang up the execs still running, so a loop of builtins does not outlive its socket
+    for (const controller of this.execs.values()) {
+      controller.abort();
+    }
+
     // Stop all log follow pumps (they close their own handles)
     for (const controller of this.logFollows.values()) {
       controller.abort();

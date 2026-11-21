@@ -41,6 +41,7 @@ export { endMediaDrag, isMediaDrag, MEDIA_DRAG_MIME, mediaDrag, type MediaDragPa
 export { setDragChip } from './drag-chip.ts';
 export { centredOn, clampView, fitScale, fitView, MIN_FIT_SCALE, type PanZoomSize, type PanZoomView, sameView, toDrawing, zoomedAbout } from './pan-zoom.ts';
 export { agoText, readingText } from './device-format.ts';
+export { type HatPiece, type HatPieceBox, type HatPiecesLayout, layoutHatPieces } from './hat-pieces.ts';
 export type { SectionPoint, SectionSelection } from './section-selection.ts';
 export { TO_TOP_EVENT } from './scroll-to-top.ts';
 export type { GeoBounds, PositionPoint, PositionShape } from '../components/Map/types.ts';

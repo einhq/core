@@ -36,12 +36,15 @@ FROM docker.io/denoland/deno:bin-2.9.6 AS deno
 FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:bin-2.9.6 AS build-deno
 
 # The guide the Docs page shows: einhq.eu's documentation, from the site's repository as DOCS_URL
-# archives it (main by default; a tag's or a fork's archive works as well). Cut down to what its
-# pages need, in the site's layout so their relative links hold: the Markdown and diagrams under
-# docs/, the screenshots they name with their 2x files, and the diagrams' fonts. It is the same on
-# every platform, so it is cut once, on the builder's.
+# archives it: by default one commit of github.com/einhq/einhq.github.io, a snapshot the daily
+# publish reviewed, never its main, which a pull request merged on GitHub changes unreviewed. The
+# publish moves it on to each new snapshot of the site, in a commit here (ein/core#1499); another
+# commit's or a fork's archive works as well. Cut down to what its pages need, in the site's layout
+# so their relative links hold: the Markdown and diagrams under docs/, the screenshots they name with
+# their 2x files, and the diagrams' fonts. It is the same on every platform, so it is cut once, on
+# the builder's.
 FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-20261027-slim AS guide
-ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/refs/heads/main.tar.gz
+ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/96448c1fe5da0b490044ca1e7d266a34e8f791f1.tar.gz
 ADD ${DOCS_URL} /site.tar.gz
 WORKDIR /site
 RUN tar -xzf /site.tar.gz --strip-components=1 \

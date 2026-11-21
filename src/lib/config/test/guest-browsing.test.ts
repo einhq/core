@@ -97,6 +97,39 @@ Deno.test({
       }
     });
 
+    await t.step('the guest runs no loop, function, assignment or expansion, which take no command', async () => {
+      const guest = await testCtx.server.createShellClient({ login: false });
+      try {
+        for (
+          const line of [
+            'while ((1)); do :; done',
+            'i=0; while ((i < 1000)); do ((i++)); done',
+            'for ((;;)); do :; done',
+            'f() { f; }; f',
+            's=x',
+            '((1))',
+            '{ user-whoami; }',
+            'user-whoami && s=x',
+            'user-whoami "$(user-whoami)"',
+            'user-whoami $((1 + 1))',
+          ]
+        ) {
+          const result = await guest.exec(line, { json: false });
+          assertEquals([line, result.success], [line, false]);
+          assert(result.error?.includes('sign in first'), `${line}: ${result.error}`);
+        }
+        assertEquals((await guest.exec("config list --scope 'user'")).success, true);
+
+        // A brace range is expanded as the line is read, before anything refuses it: the parser bounds it
+        const started = Date.now();
+        const range = await guest.exec('user-whoami {1..999999999}', { json: false });
+        assert(range.error?.includes('brace expansion'), range.error);
+        assert(Date.now() - started < 2000, `${Date.now() - started} ms`);
+      } finally {
+        guest.close();
+      }
+    });
+
     await t.step('user-whoami tells the guest and the signed-in alike', async () => {
       const guest = await testCtx.server.createShellClient({ login: false });
       try {

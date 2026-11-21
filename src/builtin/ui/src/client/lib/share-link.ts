@@ -60,8 +60,15 @@ const writeRemembered = (value: Remembered | undefined): void => {
   }
 };
 
-/** Keep the link this tab opened and the page it opens, for `linkToReopen`. */
-export const rememberShareLink = (token: string, route: string): void => writeRemembered({ token, route });
+/**
+ * Keep the link this tab opened and the page it opens, for `linkToReopen`. Opening the same link
+ * again keeps when it was last reopened, so a link whose page keeps sending the tab back still waits
+ * out the pause.
+ */
+export const rememberShareLink = (token: string, route: string): void => {
+  const remembered = readRemembered();
+  writeRemembered({ token, route, ...(remembered?.token === token ? { reopenedAt: remembered.reopenedAt } : {}) });
+};
 
 /** Forget the link this tab opened: it no longer works, or someone signed in. */
 export const forgetShareLink = (): void => writeRemembered(undefined);

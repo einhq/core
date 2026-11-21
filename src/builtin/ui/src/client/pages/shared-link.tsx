@@ -1,5 +1,5 @@
 import { Box, Button, Flex, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
-import { IconLinkOff, IconLogin2 } from '@tabler/icons-react';
+import { IconEyeOff, IconLinkOff, IconLogin2 } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { HatField } from '../components/EntityDetail/HatField.tsx';
@@ -11,7 +11,9 @@ import { openShareLink } from '../signals/user.ts';
 /**
  * `/s/<token>`: where a share link lands. It opens the link for this browser and loads the page of
  * what it opens afresh, so that page is read with the link held; a link that no longer opens
- * anything says so, and offers signing in to whoever has an account.
+ * anything says so, and so does one whose node no installed page shows (a plain folder), rather
+ * than leaving the visitor on a page that is not theirs. Both offer signing in to whoever has an
+ * account.
  *
  * Drawn outside the frame, like the sign-in page, because the visitor may have nothing else to see.
  */
@@ -19,6 +21,8 @@ export default function SharedLinkPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
   const [failed, setFailed] = useState(false);
+  // What a working link opens when no page shows it.
+  const [unshown, setUnshown] = useState<string>();
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +31,12 @@ export default function SharedLinkPage() {
         const opened = await openShareLink(token);
         // Which page shows a node is the modules' to say, in the manifest.
         await loadUiManifest();
-        const route = openRoute(opened.type, opened.path) ?? '/';
+        const route = openRoute(opened.type, opened.path);
+        if (!route) {
+          forgetShareLink();
+          if (!cancelled) setUnshown(opened.title || opened.path.split('/').at(-1) || opened.path);
+          return;
+        }
         // A screen left on the page opens the link again should its session lapse.
         rememberShareLink(token, route);
         if (!cancelled) globalThis.location.replace(route);
@@ -64,6 +73,21 @@ export default function SharedLinkPage() {
                 </Group>
                 <Text size='sm' c='dimmed'>
                   It may have expired, or the person who shared it has turned it off. Ask them to send you a new link.
+                </Text>
+                <Button variant='light' leftSection={<IconLogin2 size={16} />} onClick={() => navigate('/login')}>
+                  Sign in
+                </Button>
+              </Stack>
+            )
+            : unshown !== undefined
+            ? (
+              <Stack gap='md'>
+                <Group gap='xs' wrap='nowrap'>
+                  <IconEyeOff size={22} />
+                  <Title order={2} size='h4'>No page here shows this</Title>
+                </Group>
+                <Text size='sm' c='dimmed'>
+                  The link opens “{unshown}”, which EiN has no page to show. Ask the person who shared it to send you a link to an album instead.
                 </Text>
                 <Button variant='light' leftSection={<IconLogin2 size={16} />} onClick={() => navigate('/login')}>
                   Sign in

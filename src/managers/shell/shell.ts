@@ -5,6 +5,9 @@
 
 import {
   AstExecutor,
+  type AstNode,
+  type AstNodeCommand,
+  type AstNodeLogicalExpression,
   BashSyntaxError,
   BROKEN_PIPE_STATUS,
   BrokenPipeError,
@@ -18,11 +21,13 @@ import {
   type Job,
   type JobHostIf,
   type JobTable,
+  parse,
   type PathTestOperation,
   type PipeReadOptions,
   type TabCompletion,
   VOLATILE_PARAMS,
 } from '@ein/bash-executor';
+import { Semaphore } from '../../lib/async/semaphore.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { BASHRC_GROUPS_PATH, ETC_PATH, homePath, LOGS_PATH, MOD_PATH, TEMP_PATH, USERS_PATH } from '../../lib/paths.ts';
 import { groupEntriesFor } from '../../lib/auth/member-gids.ts';
@@ -115,6 +120,8 @@ type ShellJob = {
   outId: string;
   errId: string;
   forwarder: AbortController;
+  /** Whose job it is: who may read its log and see it in `detach --list` */
+  access: Access;
   logForwarder?: AbortController;
   logPumps?: Promise<void>[];
   detached: boolean;
@@ -167,6 +174,9 @@ const JOB_SIGNALS: Record<string, Signal | undefined> = {
  */
 export type DetachedJobStatus = {
   pid: string;
+  /** The account the job runs as, and its session, for who may see the record (`seesRunsOf`) */
+  uid: number;
+  sid?: string;
   command: string;
   bootId: string;
   startedAt: number;
@@ -210,6 +220,65 @@ export type ShellConfig = {
 
 /** No command by that name: the status is 127, as bash's. */
 class CommandNotFoundError extends Error {}
+
+/**
+ * How many lines and execs visitors — the guest and a share link's holders — run at once,
+ * all of them together. The rest wait their turn, so visitors' loops share the event loop
+ * among this many and leave the members theirs. A line that signs in takes no turn.
+ */
+const VISITOR_RUNS = 4;
+const visitorRuns = new Semaphore(VISITOR_RUNS);
+
+/** How long a visitor's line or exec runs before it is ended. */
+const VISITOR_RUN_TIMEOUT_MS = 60_000;
+
+// What the guest who must sign in runs whatever is in it, as it runs each part on its own
+const OPEN_TO_GUEST = new Set(['Script', 'LogicalExpression']);
+
+/**
+ * A shell's executor. Where the guest must sign in, it runs a command only when the whole of it
+ * is plain words naming one of the commands signing in takes, so a loop, a function,
+ * an assignment of its own or an expansion — none of which needs a command — is refused before
+ * it starts, as a command is. A script and `&&` or `||` run, and each command in them is judged
+ * as it starts: `login --session anna secret && user-elevate --session` elevates the account.
+ */
+class GuardedExecutor extends AstExecutor {
+  constructor(private host: Shell, builtins: BuiltinRegistry, private cem: ShellConfig['cem']) {
+    super(host, { builtins });
+  }
+
+  override async executeNode(node: AstNode, ctx: ExecContextIf): Promise<number> {
+    if (!OPEN_TO_GUEST.has(node.type) && !this.isGuestCommand(node) && await this.host.refusesGuest()) {
+      await this.host.pipeWrite(ctx.getStderr(), 'sign in first\n');
+      return 126;
+    }
+    return await super.executeNode(node, ctx);
+  }
+
+  /** Whether `script` does nothing but sign in: commands `isGuestCommand` takes, alone or with `&&` and `||`. */
+  signsIn(script: string): boolean {
+    const plain = (node: AstNode): boolean =>
+      node.type === 'LogicalExpression' ? plain((node as AstNodeLogicalExpression).left) && plain((node as AstNodeLogicalExpression).right) : this.isGuestCommand(node);
+
+    try {
+      const { commands } = parse(script);
+      return commands.length > 0 && commands.every(plain);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * A command naming one the guest may run, with only plain words and assignments before it:
+   * `login --session 'name' -`. A redirection is no word, and the shell refuses it anyway.
+   */
+  private isGuestCommand(node: AstNode): boolean {
+    if (node.type !== 'Command') return false;
+    const { name, prefix = [], suffix = [] } = node as AstNodeCommand;
+    const plain = (word: { type: string; expansion?: unknown[] }) => (word.type === 'Word' || word.type === 'AssignmentWord') && !word.expansion?.length;
+    return !!name && plain(name) && !!this.cem.get(name.text)?.guest && prefix.every(plain) && suffix.every(plain);
+  }
+}
 
 class CaptureGuardError extends Error {
   constructor(readonly code: CaptureGuardErrorCode, message: string) {
@@ -319,7 +388,7 @@ export class Shell implements TtyIf {
   protected ctx: ExecContextIf;
   protected access?: Access;
   protected io: TtyIO;
-  private executor: AstExecutor;
+  private executor: GuardedExecutor;
   private fdMap: Map<string, ShellFdEntry | null> = new Map(); // FD number → FileHandle + buffer ID
   // The fds a detached job took with it. They stay in `fdMap` — the job is still
   // running, and a job that is a whole compound command goes on to start
@@ -340,6 +409,8 @@ export class Shell implements TtyIf {
   private hostJobs = new Map<string, ShellJob>();
   /** Finished jobs waiting for a prompt to be announced before — see `reportJob`. */
   private jobReports: { table: JobTable; job: Job }[] = [];
+  /** Hangs up the line typed at the prompt that is running, if one is — see `onInterrupt`. */
+  protected lineInterrupt?: AbortController;
   /** Set when `exit` ended the shell, rather than its terminal going away */
   private exited = false;
   /** Fingerprint of the state last written to the tty node — see `persist`. */
@@ -354,9 +425,7 @@ export class Shell implements TtyIf {
     this.from = config.from;
     this.rows = config.rows || 24;
     this.cols = config.cols || 80;
-    this.executor = new AstExecutor(this, {
-      builtins: this.guardBuiltins(createBuiltinRegistry()),
-    });
+    this.executor = new GuardedExecutor(this, this.guardBuiltins(createBuiltinRegistry()), config.cem);
     this.ctx = new ExecContext();
     // `$$`, and `$BASHPID` with it, is the shell's own name: EiN has no process
     // numbers, and a job's pid is `bg-…` the same way. It is unique, as a
@@ -484,8 +553,9 @@ export class Shell implements TtyIf {
   /**
    * Whether this is the guest's shell where visitors are asked to sign in (`CFG_GUEST_BROWSING`
    * off). It then runs the commands signing in takes (`CmdSpec.guest`) and nothing else: no
-   * builtin, no other command, and nothing of the shell's own reaches the VFS — no redirection
-   * to or from a file, pathname expansion, file test or `$(< file)`. Its own bashrc still runs.
+   * builtin, no other command, no loop, assignment or expansion (`GuardedExecutor`), and nothing
+   * of the shell's own reaches the VFS — no redirection to or from a file, pathname expansion,
+   * file test or `$(< file)`. Its own bashrc still runs.
    */
   async refusesGuest(): Promise<boolean> {
     return isGuest(this.access!) && !shellSetup.getStore() && !await guestMayBrowse(this.config.vfs);
@@ -607,8 +677,12 @@ export class Shell implements TtyIf {
       onInput: () => {
         this.activeAt = Date.now();
       },
+      // Ctrl-C is the foreground command's to answer; with none running, the shell is in a builtin
+      // or a loop of its own, and the line ends, as bash's does.
       onInterrupt: () => {
-        this.config.cem.interrupt(this.name).catch((error) => logger.warn('interrupting failed', { tty: this.name, error: (error as Error).message }));
+        this.config.cem.interrupt(this.name)
+          .then((reached) => reached || this.lineInterrupt?.abort())
+          .catch((error) => logger.warn('interrupting failed', { tty: this.name, error: (error as Error).message }));
       },
     });
     await this.inputMonitor.start();
@@ -662,7 +736,7 @@ export class Shell implements TtyIf {
     const rcFile = join(etcPath, 'bashrc');
     if (await this.config.vfs.exists(this.access!, rcFile)) files.push(rcFile);
     try {
-      const { groups } = await groupEntriesFor(this.config.vfs, this.access!, BASHRC_GROUPS_PATH);
+      const groups = await groupEntriesFor(this.config.vfs, this.access!, BASHRC_GROUPS_PATH);
       files.push(...groups.map((group) => join(BASHRC_GROUPS_PATH, group)));
     } catch (error) {
       logger.error("failed to list the groups' shell setup", { tty: this.name, error });
@@ -791,6 +865,9 @@ export class Shell implements TtyIf {
       liveShells.delete(this);
     }
 
+    // A line typed at the prompt ends with its terminal, a loop of builtins that no hangup reaches included
+    this.lineInterrupt?.abort();
+
     await this.runEndTraps();
 
     // What to tear down is decided now, before anything is awaited: the fds the
@@ -903,6 +980,20 @@ export class Shell implements TtyIf {
    * its traps among them, is still the shell's: an EXIT trap runs when the
    * shell ends.
    */
+  /**
+   * A visitor's turn at running `script` (`VISITOR_RUNS`), to give back when it ends; anyone
+   * else, and a line that only signs in, takes none.
+   */
+  private async visitorTurn(script: string): Promise<(() => void) | undefined> {
+    if (!isVisitor(this.access!) || this.executor.signsIn(script)) return undefined;
+    await visitorRuns.acquire();
+    let released = false;
+    return () => {
+      if (!released) visitorRuns.release();
+      released = true;
+    };
+  }
+
   async run(script: string, ctx?: ExecContextIf, opts: { signal?: AbortSignal; history?: boolean } = {}): Promise<number> {
     // A closed shell has no fds: executing would bridge the inherited stdin '0'
     // (no longer in fdMap) as a file and read `<cwd>/0`. A stale caller (e.g.
@@ -920,10 +1011,16 @@ export class Shell implements TtyIf {
       this.activeAt = Date.now();
       await this.refreshSettings();
     }
+    // A visitor's line waits its turn and ends after VISITOR_RUN_TIMEOUT_MS
+    const release = ctx ? undefined : await this.visitorTurn(script);
+    const timedOut = new AbortController();
+    const timer = release ? setTimeout(() => timedOut.abort(), VISITOR_RUN_TIMEOUT_MS) : undefined;
+    const signal = release ? AbortSignal.any([timedOut.signal, ...(opts.signal ? [opts.signal] : [])]) : opts.signal;
+
     let runCtx = ctx || this.ctx;
-    if (opts.signal) {
+    if (signal) {
       runCtx = runCtx.spawnContext();
-      runCtx.setAbortSignal(opts.signal);
+      runCtx.setAbortSignal(signal);
     }
     const exited = { value: false };
 
@@ -933,13 +1030,21 @@ export class Shell implements TtyIf {
     } catch (err) {
       // The abort is how the hangup reached the executor, so the throw it
       // raises is the intended stop, not a failure to report.
-      if (opts.signal?.aborted) {
+      if (timedOut.signal.aborted) {
+        await this.pipeWrite('2', `visitors' commands end after ${VISITOR_RUN_TIMEOUT_MS / 1000} s; sign in to run longer ones\n`).catch(() => {});
+        (ctx || this.ctx).setParams({ '?': '124' });
+        return 124;
+      }
+      if (signal?.aborted) {
+        (ctx || this.ctx).setParams({ '?': '130' });
         return 130;
       }
       console.error('run', err);
       await this.pipeWrite('2', `Error: ${(err as Error).message}\n`);
       return 1;
     } finally {
+      clearTimeout(timer);
+      release?.();
       // `exit` ends the shell when the script ran in the shell itself, not in a
       // command's context: a command that runs a script does not end it
       if (exited.value && !ctx) {
@@ -995,9 +1100,13 @@ export class Shell implements TtyIf {
       throw new Error('shell is closed');
     }
     // A request on the shell's own context is someone using it; `cmd.execute` passes a command's.
+    // A visitor's waits its turn and ends after VISITOR_RUN_TIMEOUT_MS.
+    let release: (() => void) | undefined;
     if (ctx === this.ctx) {
       this.activeAt = Date.now();
       await this.refreshSettings();
+      release = await this.visitorTurn(script);
+      if (release) opts = { ...opts, timeoutMs: Math.min(opts.timeoutMs ?? Infinity, VISITOR_RUN_TIMEOUT_MS) };
     }
     if (opts.env || opts.attribution || opts.onProgress || opts.stdin !== undefined) {
       // A subshell of the caller's context, so the variables, the attribution, the progress
@@ -1094,6 +1203,7 @@ export class Shell implements TtyIf {
       return { code: 1, stdout: '', stderr: `Error: ${(err as Error).message}\n` };
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
+      release?.();
       opts.signal?.removeEventListener('abort', hangUp);
       if (stdinPipe) {
         await this.pipeCloseRead(stdinPipe).catch(() => {});
@@ -2104,6 +2214,7 @@ export class Shell implements TtyIf {
       outId,
       errId,
       forwarder,
+      access: this.accessIn(ctx),
       detached: false,
       finished: false,
       done: Promise.resolve(0),
@@ -2413,6 +2524,8 @@ export class Shell implements TtyIf {
   private async writeJobStatus(job: ShellJob, logDir: string): Promise<void> {
     const status: DetachedJobStatus = {
       pid: job.pid,
+      uid: job.access.uid,
+      ...(job.access.sid ? { sid: job.access.sid } : {}),
       command: job.command,
       bootId: BOOT_ID,
       startedAt: job.startedAt,
@@ -2432,11 +2545,17 @@ export class Shell implements TtyIf {
     }
   }
 
+  /**
+   * The job's log directory, its owner's alone: a job's output and command line
+   * are no more anyone else's to read than `ps` shows them.
+   */
   private async ensureJobLogDir(job: ShellJob): Promise<string> {
+    await this.ensureDirPath(JOBS_LOG_BASE);
+    const { uid, gid } = job.access;
+    await this.config.vfs.ensure(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, JOBS_LOG_BASE, job.pid, { props: { uid, gid, mode: 0o700 } });
     const dir = join(JOBS_LOG_BASE, job.pid);
-    await this.ensureDirPath(dir);
     for (const file of ['stdout.log', 'stderr.log', JOB_STATUS_FILE]) {
-      await this.ensureLogFile(join(dir, file));
+      await this.ensureLogFile(join(dir, file), { uid, gid, mode: 0o600 });
     }
     return dir;
   }
@@ -2454,13 +2573,13 @@ export class Shell implements TtyIf {
     }
   }
 
-  private async ensureLogFile(path: string): Promise<void> {
+  private async ensureLogFile(path: string, props: { uid: number; gid: number; mode: number }): Promise<void> {
     if (await this.config.vfs.exists(ADMIN_ACCESS, path)) {
       return;
     }
     const name = basename(path);
     const attrs: FileAttrs = { name, mimetype: await getMimeFromExt(name, 'text/plain'), size: 0 };
-    await this.config.vfs.create(ADMIN_ACCESS, NODE_TYPE_FILE, dirname(path), name, { attrs });
+    await this.config.vfs.create(ADMIN_ACCESS, NODE_TYPE_FILE, dirname(path), name, { props, attrs });
   }
 
   // ===== ShellIf File Bridging Methods =====

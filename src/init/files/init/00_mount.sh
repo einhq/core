@@ -25,3 +25,9 @@ chmod 700 /dev/events /dev/pipeline-events
 
 [ -e "$LOGS_PATH/system" ] || mknode -t log --al routingKeys=system.logs "$LOGS_PATH/system"
 truncate "$LOGS_PATH/system"
+
+# The system log, the services' output and the pipeline instances name everyone's files, sign-ins
+# and step output, so only the administrator's group reads them. Set on every boot, as /dev/null's.
+mkdir -p "$LOGS_PATH/services"
+chmod 640 "$LOGS_PATH/system"
+chmod 750 "$LOGS_PATH/services" "$PIPELINES_PATH/instances"

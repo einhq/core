@@ -1,4 +1,4 @@
-import { ActionIcon, Avatar, Badge, Box, Button, Group, Kbd, Menu, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Badge, Box, Button, Group, Kbd, Menu, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
 import { useSignals } from '@preact/signals-react/runtime';
 import {
   IconArrowsMove,
@@ -39,7 +39,7 @@ import { ElevateDialog } from './ElevateDialog.tsx';
 import { EinMark } from './EinMark.tsx';
 import { UploadIndicator } from '../Upload/UploadIndicator.tsx';
 import { NearbyIndicator } from '../ShowOn/NearbyIndicator.tsx';
-import { CoverAvatar } from '../Cover/CoverAvatar.tsx';
+import { AccountFace } from '../Settings/Accounts/AccountAvatar.tsx';
 import { usePhone } from '../../hooks/usePhone.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { keyCaps, shortcutHelpOpen, shortcutText, topbarShortcuts } from '../../signals/shortcuts.ts';
@@ -438,29 +438,13 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
                   aria-label={currentUser.value?.name ?? 'Account'}
                   style={elevated ? { borderRadius: '50%', outline: '2px solid var(--mantine-color-orange-6)', outlineOffset: 2 } : undefined}
                 >
-                  {currentUser.value?.personPath
-                    ? (
-                      <CoverAvatar
-                        path={currentUser.value.personPath}
-                        fallback={currentUser.value.name?.charAt(0)}
-                        fallbackSrc={currentUser.value.avatarUrl}
-                        size={phone ? 38 : 32}
-                        radius='xl'
-                        color='gray'
-                        alt={currentUser.value.name}
-                        eager
-                      />
-                    )
-                    : (
-                      <Avatar
-                        src={currentUser.value?.avatarUrl}
-                        size={phone ? 38 : 'sm'}
-                        radius='xl'
-                        color='gray'
-                      >
-                        {currentUser.value?.name?.charAt(0)}
-                      </Avatar>
-                    )}
+                  {currentUser.value && (
+                    <AccountFace
+                      account={{ ...currentUser.value, name: currentUser.value.name ?? currentUser.value.username }}
+                      size={phone ? 38 : 32}
+                      eager
+                    />
+                  )}
                   {elevated && (
                     <Box
                       aria-hidden

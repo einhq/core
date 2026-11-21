@@ -79,7 +79,7 @@ directories rather than running `mkdir -p` before queueing.
 
 The docs section has two halves: a written **guide** and a **reference** read from the running installation, under one `EntityDetailHeader` with a search over both.
 
-**The guide** is the documentation at einhq.eu/docs, written once in the site's repository (ein/einhq.github.io) and bundled, never a copy kept here. The image's `guide` build stage ([src/Containerfile](../../src/Containerfile)) fetches the site's archive (`DOCS_URL`) and keeps, in the site's layout, `docs/**/*.md`, `docs/diagrams/*.svg`, the screenshots the pages name with their 2x files, and the diagrams' two fonts; boot ([08_docs.sh](../../src/init/files/init/08_docs.sh)) mounts it read-only at `/usr/docs/guide` from `$DOCS_PATH` (`/app/guide` in the image). `make container-run GUIDE_PATH=<site checkout>` mounts a checkout of the site instead. Without one the Docs page links to einhq.eu.
+**The guide** is the documentation at einhq.eu/docs, written once in the site's repository (ein/einhq.github.io) and bundled, never a copy kept here. The image's `guide` build stage ([src/Containerfile](../../src/Containerfile)) fetches the site's archive (`DOCS_URL`, one reviewed snapshot of its GitHub main, by commit, which the daily publish moves to each new one) and keeps, in the site's layout, `docs/**/*.md`, `docs/diagrams/*.svg`, the screenshots the pages name with their 2x files, and the diagrams' two fonts; boot ([08_docs.sh](../../src/init/files/init/08_docs.sh)) mounts it read-only at `/usr/docs/guide` from `$DOCS_PATH` (`/app/guide` in the image). `make container-run GUIDE_PATH=<site checkout>` mounts a checkout of the site instead. Without one the Docs page links to einhq.eu.
 
 ```
 /usr/docs/guide/
@@ -89,7 +89,7 @@ The docs section has two halves: a written **guide** and a **reference** read fr
   assets/shots/*.webp  assets/fonts/*.woff2
 ```
 
-The sidebar follows `SUMMARY.md` (`useGuide`, [lib/guide.ts](../../src/builtin/ui/src/client/lib/guide.ts)); a page is routed by its path without `.md` (`/docs/shell/ssh-sftp`, an `index.md` by its folder, the welcome page at `/docs`). The site's generated pages — the reference pages and each module section's `commands.md` — are left out: a link to one goes to the live page at the same entry (`liveRoute`), as `reference/settings.md#cfg_x` to `/docs/settings#set-CFG_X`. A section in a part after the first is a module's, so a module's page and its panel list that module's pages. `DocView` reads a page via `GET /file/<path>`; `Markdown` renders it with `react-markdown`, GitHub's heading anchors and `> [!NOTE]` callouts (`plugins.ts`); a relative link resolves to another guide page, a diagram is drawn inline in the bundled fonts with its scripts, handlers and `javascript:` links removed and its ids prefixed, and a screenshot loads with its 2x file.
+The sidebar follows `SUMMARY.md` (`useGuide`, [lib/guide.ts](../../src/builtin/ui/src/client/lib/guide.ts)); a page is routed by its path without `.md` (`/docs/shell/ssh-sftp`, an `index.md` by its folder, the welcome page at `/docs`). The site's generated pages — the reference pages and each module section's `commands.md` — are left out: a link to one goes to the live page at the same entry (`liveRoute`), as `reference/settings.md#cfg_x` to `/docs/settings#set-CFG_X`. A section in a part after the first is a module's, so a module's page and its panel list that module's pages. `DocView` reads a page via `GET /file/<path>`; `Markdown` renders it with `react-markdown`, GitHub's heading anchors and `> [!NOTE]` callouts (`plugins.ts`); a relative link resolves to another guide page, a diagram is drawn inline in the bundled fonts, rebuilt as nodes from an allowlist of shapes, text, markers and gradients and their geometry and presentation attributes (`guideSvg`, [lib/guide-svg.ts](../../src/builtin/ui/src/client/lib/guide-svg.ts)), so no script, handler, link, style, animation or processing instruction comes through, and with its ids prefixed, and a screenshot loads with its 2x file.
 
 **The reference** pages (the `docs` routes in [routes.tsx](../../src/builtin/ui/src/client/routes.tsx), [pages/docs.tsx](../../src/builtin/ui/src/client/pages/docs.tsx), components in `components/Docs/`) are generated, never written:
 
@@ -423,10 +423,11 @@ a 401 it loads `/login?next=<the page>` as a new document ([The session cookie](
 A share link lands on `/s/<token>` (`pages/shared-link.tsx`), drawn outside the frame like the
 login page: it runs `share-link open <token> --session` and loads the page of what the link opens
 afresh (`openRoute`), so that page is read as the link, or says the link no longer works and
-offers signing in. The tab remembers the token and the page in `sessionStorage`
+offers signing in; a link to a node no installed page shows (a plain folder) says that on the same
+page instead of loading one that is not under the link. The tab remembers the token and the page in `sessionStorage`
 (`rememberShareLink`): a screen left on the page whose session lapsed — a dashboard on a wall —
 loads `/s/<token>` again rather than asking to sign in (`linkToReopen`, at most once a minute, only
-on that page), and signing in forgets it. Which nodes the sharing dialog offers a link for, and
+on that page; opening it again keeps the minute), and signing in forgets it. Which nodes the sharing dialog offers a link for, and
 whether the link shows the node as an account sees it, is the modules' to say (`ui.shareLinks`,
 read into `shareLinkKinds` with the manifest; `shareLinkOf`), and so is what it calls the node and
 the pattern it is headed in (`nodeTypes`' `noun` and `pattern`, read into `nodeTypeLooks`; core

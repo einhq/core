@@ -270,12 +270,15 @@ export class InteractiveShell extends Shell {
   /**
    * Run what was typed as the shell's input — expanded and kept in the
    * history line by line — then add what it kept to the end of HISTFILE, so a
-   * session that is cut off keeps its history too.
+   * session that is cut off keeps its history too. Ctrl-C while no command
+   * runs ends it (`lineInterrupt`).
    */
   protected async runInput(text: string): Promise<number> {
+    const interrupt = this.lineInterrupt = new AbortController();
     try {
-      return await this.run(text, undefined, { history: true });
+      return await this.run(text, undefined, { history: true, signal: interrupt.signal });
     } finally {
+      if (this.lineInterrupt === interrupt) this.lineInterrupt = undefined;
       await this.appendHistory().catch(() => {});
     }
   }

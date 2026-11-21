@@ -1,7 +1,8 @@
 /**
  * API shell WebSocket exec: command output larger than the capture pipe
  * capacity (64KB) must be returned, not deadlock the exec, a script reads the exec's `stdin`,
- * and `exec.cancel` hangs up one running exec.
+ * `exec.cancel` hangs up one running exec, and a loop that does no I/O leaves the server to
+ * everyone else.
  */
 
 import { assert, assertEquals, assertLess } from '@std/assert';
@@ -135,6 +136,43 @@ Deno.test({
       const untouched = await other;
       assertEquals(untouched.success, true);
       assert(String(untouched.data).endsWith('other\n'), `the other exec ran to its end: ${JSON.stringify(untouched.data)}`);
+      assertEquals(await shell.execString('echo still-alive'), 'still-alive\n');
+    });
+
+    await t.step('a loop without I/O leaves the server answering, and exec.cancel ends it', async () => {
+      const other = await harness.createShellClient();
+      try {
+        const controller = new AbortController();
+        const looping = shell.exec('while ((1)); do :; done', { signal: controller.signal, timeout: 10_000 });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const started = Date.now();
+        assertEquals(await other.execString('echo answered'), 'answered\n');
+        await (await fetch(instance.baseUrl)).body?.cancel();
+        assertLess(Date.now() - started, 2000);
+
+        controller.abort();
+        assertEquals((await looping).success, false);
+        assertEquals(await shell.execString('echo still-alive'), 'still-alive\n');
+      } finally {
+        other.close();
+      }
+    });
+
+    await t.step('a value that doubles ends its command, not the process, and holds the event loop for no step of it', async () => {
+      let longest = 0;
+      let last = performance.now();
+      const ticks = setInterval(() => {
+        longest = Math.max(longest, performance.now() - last);
+        last = performance.now();
+      }, 10);
+      const started = Date.now();
+      const result = await shell.exec('s=x; while :; do s=$s$s; done', { timeout: 30_000 });
+      clearInterval(ticks);
+      assertEquals(result.success, false);
+      assert(String(result.error).includes('value too large'), String(result.error));
+      assertLess(Date.now() - started, 20_000);
+      assertLess(longest, 1000);
       assertEquals(await shell.execString('echo still-alive'), 'still-alive\n');
     });
 

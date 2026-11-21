@@ -1,7 +1,7 @@
 import { toText } from '@std/streams/to-text';
 import { join } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
-import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { type Access, ADMIN_ACCESS, isAdmin, isVisitor, seesRunsOf } from '../../../../lib/access/mod.ts';
 import { BOOT_ID } from '../../../../lib/boot-id/mod.ts';
 import type { DetachedJobStatus } from '../../../shell/shell.ts';
 import type { Command } from '../../command.ts';
@@ -39,7 +39,19 @@ const readStatus = async (cmd: Command, pid: string): Promise<DetachedJobStatus 
 };
 
 /**
- * `detach --list`: the jobs that outlived the shells that started them.
+ * Whether `viewer` may see a record, by the rule `ps` keeps (`seesRunsOf`): an
+ * administrator sees every one, a member their own account's, and a visitor
+ * only what its own session ran.
+ */
+const seesRecord = (viewer: Access, status: DetachedJobStatus): boolean => {
+  if (isAdmin(viewer)) return true;
+  if (status.uid !== viewer.uid) return false;
+  return !isVisitor(viewer) || (viewer.sid !== undefined && viewer.sid === status.sid);
+};
+
+/**
+ * `detach --list`: the jobs that outlived the shells that started them, those
+ * the caller may see.
  *
  * The shell's own job table cannot answer this: a detached job is deliberately
  * removed from it, and the shell that held it is usually gone by the time
@@ -57,7 +69,7 @@ const listDetached = async (cmd: Command): CmdReturn => {
   const found: DetachedJobStatus[] = [];
   for (const name of names) {
     const status = await readStatus(cmd, name);
-    if (status) found.push(status);
+    if (status && seesRecord(cmd.access, status)) found.push(status);
   }
   found.sort((a, b) => b.startedAt - a.startedAt);
 
@@ -114,7 +126,9 @@ export const detach = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
-  if (sel && cmd.sys.cem.detach(sel)) {
+  // A process `ps` does not show the caller is not there for it.
+  const owner = sel === undefined ? undefined : cmd.sys.cem.states().find((state) => state.id === sel && state.state === 'running')?.opts?.access;
+  if (sel && owner !== undefined && seesRunsOf(cmd.access, owner) && cmd.sys.cem.detach(sel)) {
     if (cmd.json) {
       await cmd.writeJSON({ ok: true });
     } else {
@@ -142,7 +156,7 @@ detach.spec = {
     {
       name: 'list',
       type: 'bool' as const,
-      description: 'list detached jobs system-wide instead, from their records under /var/logs/jobs',
+      description: "list your detached jobs instead (an administrator's lists everyone's), from their records under /var/logs/jobs",
     },
   ],
 };

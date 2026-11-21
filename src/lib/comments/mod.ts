@@ -22,13 +22,15 @@ type CommentAuthor = { username: string; name?: string; personPath?: string };
 
 /**
  * The accounts of `uids`, by uid: each one's username, full name and the person it is linked to. A uid with
- * no account, or every uid when the users directory cannot be read, is left out.
+ * no account, or every uid when the users directory cannot be read, is left out. Read as the
+ * administrator, so a visitor who reads the comments sees who wrote them, and only them: the users
+ * directory is for those signed in.
  */
 export const commentAuthors = async (cmd: VfsCommand, uids: Iterable<number>): Promise<Map<number, CommentAuthor>> => {
   const wanted = new Set(uids);
   let users;
   try {
-    users = (await cmd.sys.vfs.children<UserAttrs>(cmd.access, cmd.env.USERS_PATH)).filter((u) => wanted.has(u.node.attrs.uid));
+    users = (await cmd.sys.vfs.children<UserAttrs>(ADMIN_ACCESS, cmd.env.USERS_PATH)).filter((u) => wanted.has(u.node.attrs.uid));
   } catch {
     return new Map();
   }

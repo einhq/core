@@ -172,6 +172,12 @@ Deno.test({
       assertEquals((await res.text()).includes('/tmp/beta/one.txt'), true);
     });
 
+    await t.step('a body over 2 MB is a 413, unparsed', async () => {
+      const res = await post([`/tmp/${'x'.repeat(3 * 1024 * 1024)}`]);
+      assertEquals(res.status, 413);
+      await res.body?.cancel();
+    });
+
     await t.step('an unknown or expired token is a 404', async () => {
       const res = await fetch(`${baseUrl}/archive/deadbeef`, { headers: { cookie } });
       assertEquals(res.status, 404);

@@ -1,9 +1,10 @@
 import { Anchor, Box, Center, Text } from '@mantine/core';
 import { DOCS_GUIDE_PATH } from '@ein/paths';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGuide } from '../../hooks/useGuide.ts';
 import { PageLoader } from '../Layout/PageLoader.tsx';
 import { fileUrl } from '../../lib/file-url.ts';
+import { guideSvg } from '../../lib/guide-svg.ts';
 import { GUIDE_ROOT, GUIDE_SITE, guideDir, guideRoute, liveRoute, resolveGuidePath } from '../../lib/guide.ts';
 import { Markdown } from '../Markdown/Markdown.tsx';
 import { useScrollToHash } from './reference.tsx';
@@ -30,55 +31,36 @@ const bundleFile = (dir: string, src: string): string | null => {
   return path === null ? null : `${DOCS_GUIDE_PATH}/${path}`;
 };
 
-/**
- * An SVG diagram made safe to draw into the page: no scripts, no handlers, no `javascript:` links;
- * its ids prefixed so two diagrams on a page keep their own gradients and markers; its own size
- * given up to the page's CSS, and labelled for a screen reader.
- */
-function inlineSvg(source: string, prefix: string, label: string): string | null {
-  const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
-  const svg = doc.documentElement;
-  if (svg.nodeName !== 'svg' || doc.querySelector('parsererror')) return null;
-  svg.querySelectorAll('script, foreignObject').forEach((element) => element.remove());
-  for (const element of [svg, ...svg.querySelectorAll('*')]) {
-    for (const attribute of [...element.attributes]) {
-      if (/^on/i.test(attribute.name) || (/href$/i.test(attribute.name) && /^\s*javascript:/i.test(attribute.value))) element.removeAttribute(attribute.name);
-    }
-  }
-  const ids = [...svg.querySelectorAll('[id]')].map((element) => element.id);
-  let text = new XMLSerializer().serializeToString(svg);
-  for (const id of ids) {
-    const quoted = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    text = text
-      .replace(new RegExp(`(\\sid=")${quoted}"`, 'g'), `$1${prefix}-${id}"`)
-      .replace(new RegExp(`url\\(#${quoted}\\)`, 'g'), `url(#${prefix}-${id})`)
-      .replace(new RegExp(`((?:xlink:)?href=")#${quoted}"`, 'g'), `$1#${prefix}-${id}"`);
-  }
-  const escaped = label.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  return text.replace(
-    /<svg\b([^>]*)>/,
-    (_, attributes: string) => `<svg${attributes.replace(/\s(width|height|role|aria-label)="[^"]*"/g, '')} role="img" aria-label="${escaped}">`,
-  );
-}
-
 let diagrams = 0;
 
-/** A diagram from the guide, drawn into the page so it takes the guide's fonts. */
+/** A diagram from the guide, drawn into the page so it takes the guide's fonts; its text until it is. */
 function Diagram({ path, alt }: { path: string; alt: string }) {
-  const [svg, setSvg] = useState<string | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+  const [drawn, setDrawn] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const prefix = `guide-diagram-${++diagrams}`;
+    const draw = (source: string) => {
+      if (cancelled || !ref.current) return;
+      const svg = source ? guideSvg(source, document, prefix, alt) : null;
+      ref.current.replaceChildren(...(svg ? [svg] : []));
+      setDrawn(svg !== null);
+    };
     fetch(fileUrl(path))
       .then((res) => res.ok ? res.text() : '')
-      .then((source) => !cancelled && setSvg(source ? inlineSvg(source, prefix, alt) : null))
-      .catch(() => !cancelled && setSvg(null));
+      .then(draw)
+      .catch(() => draw(''));
     return () => {
       cancelled = true;
     };
   }, [path, alt]);
-  // Trusted markup only: a file of the read-only bundle, with scripts and handlers taken out above.
-  return svg ? <span className='mrx-guide-diagram' dangerouslySetInnerHTML={{ __html: svg }} /> : <span className='mrx-guide-diagram'>{alt}</span>;
+  // React leaves the first span's children alone: they are the diagram's nodes, set above.
+  return (
+    <>
+      <span ref={ref} className='mrx-guide-diagram' style={drawn ? undefined : { display: 'none' }} />
+      {!drawn && <span className='mrx-guide-diagram'>{alt}</span>}
+    </>
+  );
 }
 
 /**

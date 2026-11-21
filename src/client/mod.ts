@@ -135,7 +135,7 @@ export { type DefaultOwnership, resolveDefaultOwnership } from '../lib/access/de
 export { applySharePreference, type SharePreference } from '../lib/access/share-preference.ts';
 
 /* Settings, read as policy rather than from this shell's environment snapshot */
-export { guestMayBrowse, readSettings, serviceKey, type SettingsContext } from '../lib/config/read-settings.ts';
+export { guestMayBrowse, readSettings, readSystemSettings, serviceKey, type SettingsContext } from '../lib/config/read-settings.ts';
 export type { GroupId, Mode, UserId } from '../lib/mode/mod.ts';
 
 /* VFS — the surface behind `cmd.sys.vfs` */

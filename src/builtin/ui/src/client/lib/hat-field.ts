@@ -47,7 +47,7 @@ type HatFieldLayout = {
 };
 
 /** Pixels per `HAT_POINTS` unit: a hat about 38 px across. */
-const SCALE = 7.35;
+export const HAT_SCALE = 7.35;
 /** A hat's mean width in `HAT_POINTS` units, over its twelve orientations. */
 const HAT_WIDTH = 5.17;
 /**
@@ -116,7 +116,7 @@ const WEDGE = { at: .34, lean: .65, fade: 3.2, scatter: 1.6 };
 export function layoutHatField(width: number, height: number, seed: string, kind: HatFieldKind, backdrop?: LuminanceMap | null): HatFieldLayout {
   const covered = HAT_TILING_COVERED;
   // Past the patch's size the hats grow rather than leave bare ground.
-  const scale = Math.max(SCALE, width / covered.width, height / covered.height);
+  const scale = Math.max(HAT_SCALE, width / covered.width, height / covered.height);
   const hash = hashString(seed);
   const ox = covered.x + (hash % 1000) / 1000 * Math.max(0, covered.width - Math.max(width / scale, STEADY.width));
   const oy = covered.y + (Math.floor(hash / 1000) % 1000) / 1000 * Math.max(0, covered.height - Math.max(height / scale, STEADY.height));

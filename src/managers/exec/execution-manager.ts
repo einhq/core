@@ -41,8 +41,8 @@ export interface ExecutionManager extends ManagerIf {
   /** Mark a running command detached so it survives SIGHUP on shell close. */
   detach(id: string): boolean;
 
-  /** Deliver a signal to matching commands on a TTY. */
-  signal(tty: string, signal: Signal, opts?: SignalOpts): Promise<void>;
+  /** Deliver a signal to matching commands on a TTY. Returns how many it reached. */
+  signal(tty: string, signal: Signal, opts?: SignalOpts): Promise<number>;
 
   /**
    * Deliver a signal to every running command acting as `uid` — foreground,
@@ -52,8 +52,8 @@ export interface ExecutionManager extends ManagerIf {
    */
   signalUid(uid: number, signal: Signal, opts?: { elevated?: boolean }): Promise<number>;
 
-  /** SIGINT to the foreground command(s) on a TTY. */
-  interrupt(tty: string): Promise<void>;
+  /** SIGINT to the foreground command(s) on a TTY. Returns how many it reached. */
+  interrupt(tty: string): Promise<number>;
 
   /** Resolve once no command on this TTY is still running, or the timeout elapses. */
   waitForTty(tty: string, timeoutMs: number): Promise<void>;

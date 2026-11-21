@@ -15,6 +15,9 @@
  *
  * A refused key is answered 403 and logged with the client's address, the same for a device that
  * has none and one that does not exist.
+ *
+ * Whether the write may be made is settled before the body is read, and a body is read only up to
+ * its limit, 4 MB (64 MB for a track's fixes); a larger one is answered 413.
  */
 
 import { basename } from '@std/path';
@@ -25,14 +28,21 @@ import { DEV_PATH } from '../../../lib/paths.ts';
 import { DeviceError, isDeviceKey } from '../../../managers/devices/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { LogHandle } from '../../../registries/log/log-handle.ts';
-import { NodeNotFoundError } from '../../../vfs/errors.ts';
+import { assertAccess } from '../../../vfs/assert-access.ts';
+import { NodeAccessDeniedError, NodeNotFoundError } from '../../../vfs/errors.ts';
 import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from '../../../vfs/types/device.ts';
 import { NODE_TYPE_LOG } from '../../../vfs/types/log.ts';
+import { BodyTooLargeError, readBody, tooLarge } from '../body-limit.ts';
 import { clientAddress } from '../client-address.ts';
 import { getSession } from '../session.ts';
 import type { HttpServerConfig } from '../types.ts';
 
 const logger = createLogger('http-dev');
+
+/** The most a device's input, a log entry or a control's value may send. */
+const BODY_LIMIT = 4 * 1024 * 1024;
+/** The most a track's fixes may send: a GPX file of a long trip. */
+const TRACK_BODY_LIMIT = 64 * 1024 * 1024;
 
 /** The device and endpoint a `/file/dev/…` path names, or undefined for any other path. */
 const devTarget = (pathname: string): { device: string; endpoint?: string; path: string } | undefined => {
@@ -96,14 +106,20 @@ export async function handleDevWrite(config: HttpServerConfig, req: Request, url
 
   const query = new URLSearchParams(url.searchParams);
   query.delete('key');
-  const bytes = reading ? new Uint8Array(0) : new Uint8Array(await req.arrayBuffer());
   const contentType = req.headers.get('content-type') ?? '';
   const by = key ? `device:${target.device}` : undefined;
 
   try {
     const node = await config.vfs.get(access, target.path);
+    if (!target.endpoint && node.type !== NODE_TYPE_DEVICE) return undefined;
+    if (target.endpoint && node.type !== NODE_TYPE_CONTROL && node.type !== NODE_TYPE_LOG && node.type !== 'track') {
+      return new Response(`${basename(target.path)} is a ${node.type}, not an endpoint`, { status: 400, headers: responseHeaders });
+    }
+    // Refused before the body is read, so a write nobody may make costs nothing to send.
+    assertAccess(access, node, 'w');
+    const bytes = reading ? new Uint8Array(0) : await readBody(req, node.type === 'track' ? TRACK_BODY_LIMIT : BODY_LIMIT);
+
     if (!target.endpoint) {
-      if (node.type !== NODE_TYPE_DEVICE) return undefined;
       const answer = await config.devices.input(access, target.path, { bytes, contentType, query: query.toString(), by });
       return json(answer, 200, responseHeaders);
     }
@@ -128,13 +144,11 @@ export async function handleDevWrite(config: HttpServerConfig, req: Request, url
       }
       return json({ appended: entries.length }, 200, responseHeaders);
     }
-    if (node.type === 'track') {
-      return json(await config.devices.fixes(access, target.path, { bytes, contentType, query: query.toString() }), 200, responseHeaders);
-    }
-    return new Response(`${basename(target.path)} is a ${node.type}, not an endpoint`, { status: 400, headers: responseHeaders });
+    return json(await config.devices.fixes(access, target.path, { bytes, contentType, query: query.toString() }), 200, responseHeaders);
   } catch (error) {
     if (error instanceof DeviceError) return new Response(error.message, { status: 400, headers: responseHeaders });
-    if (error instanceof NodeNotFoundError && key) return new Response('Forbidden', { status: 403 });
+    if (error instanceof BodyTooLargeError) return tooLarge(error, responseHeaders);
+    if ((error instanceof NodeNotFoundError || error instanceof NodeAccessDeniedError) && key) return new Response('Forbidden', { status: 403 });
     throw error;
   }
 }

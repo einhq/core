@@ -6,7 +6,7 @@
  * paths written to it, and forgetting a device.
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
 import type { DeviceCreated, DeviceHistory, DeviceInfo, DeviceKeyAnswer, DeviceSummary } from '../../../lib/api/devices.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../testing/mod.ts';
@@ -286,6 +286,26 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       const wrong = await fetch(`${baseUrl}/file/dev/porch?key=not-the-key&temperature=1`);
       await wrong.body?.cancel();
       assertEquals(wrong.status, 403);
+    });
+
+    await t.step('a write nobody may make is refused before its body is read, and a body over its limit is 413', async () => {
+      let sent = 0;
+      const endless = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          sent += 64 * 1024;
+          controller.enqueue(new Uint8Array(64 * 1024));
+        },
+      });
+      const guest = await fetch(`${baseUrl}/file/dev/porch`, { method: 'POST', body: endless });
+      await guest.body?.cancel();
+      assertEquals(guest.status, 403);
+      assert(sent < 4 * 1024 * 1024, `${sent} bytes were taken before the refusal`);
+
+      const key = await anna.execJson<DeviceKeyAnswer>('device-key porch --new --origin https://ein.example');
+      const secret = new URL(key.url!).searchParams.get('key')!;
+      const large = await fetch(`${baseUrl}/file/dev/porch`, { method: 'POST', headers: { Authorization: `Bearer ${secret}` }, body: new Uint8Array(5 * 1024 * 1024) });
+      await large.body?.cancel();
+      assertEquals(large.status, 413);
     });
 
     await t.step('a member forgets a device, and nobody else does', async () => {

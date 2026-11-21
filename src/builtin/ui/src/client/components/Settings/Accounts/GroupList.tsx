@@ -46,7 +46,7 @@ function Members({ group, users }: { group: GroupEntry; users: UserEntry[] }) {
   return (
     <>
       <Box className='mrx-face-pile' aria-hidden>
-        {members.slice(0, FACES).map((user) => <AccountFace key={user.username} user={user} size={24} />)}
+        {members.slice(0, FACES).map((user) => <AccountFace key={user.username} account={{ ...user, name: displayName(user) }} size={24} />)}
         {rest > 0 && <Text span size='xs' c='dimmed' className='mrx-face-pile-more'>+{rest}</Text>}
       </Box>
       <VisuallyHidden>{countOf(members.length, 'member', 'members')}</VisuallyHidden>
