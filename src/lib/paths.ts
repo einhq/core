@@ -160,6 +160,11 @@ export const WWW_PATH = `${VAR_PATH}/www`;
  * the store and the image: a folder of the host's keeps them across a new container.
  */
 export const MOD_INSTALL_PATH = `${VAR_PATH}/lib/modules`;
+/**
+ * Uploads sent in pieces collect here until their last byte arrives, one folder per account by its
+ * uid; only the administrator reads it.
+ */
+export const UPLOAD_SPOOL_PATH = `${VAR_PATH}/spool/uploads`;
 
 /** Created by `00_mount.sh`, in `ls /var` order. */
 export const VAR_DIRS = [
@@ -171,6 +176,7 @@ export const VAR_DIRS = [
   QUEUES_PATH,
   SESSIONS_PATH,
   LINKS_PATH,
+  UPLOAD_SPOOL_PATH,
   WWW_PATH,
 ] as const;
 
@@ -208,6 +214,8 @@ export const DEV_RESERVED_NAMES: readonly string[] = ['null', 'events', 'pipelin
 export const devicePath = (device: string): string => `${DEV_PATH}/${device}`;
 /** The child of a device that holds the key its HTTP writes carry. */
 export const DEVICE_KEY_NAME = '.key';
+/** The child of a phone that holds the EiN app's pairing with it. */
+export const DEVICE_APP_NAME = '.app';
 /** The child of a device that holds what its driver keeps secret. */
 export const DEVICE_SECRET_NAME = '.secret';
 
@@ -257,6 +265,7 @@ export const pathEnv = (): Record<string, string> => ({
   PIPELINES_PATH,
   WWW_PATH,
   MOD_INSTALL_PATH,
+  UPLOAD_SPOOL_PATH,
 
   USR_PATH,
   BIN_PATH,

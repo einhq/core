@@ -1,6 +1,7 @@
 /**
  * Which uploads are frozen as they arrive: the types `/etc/frozen-uploads` lists. The HTTP upload
- * and SFTP mark a file they finished writing `frozen` when its mimetype is one of them, and so does
+ * (`/file` and WebDAV) and SFTP mark a file they finished writing `frozen` when its mimetype is one
+ * of them, and so does
  * `unzip --as-upload` for each file it takes out of an uploaded archive; nothing else EiN writes is
  * frozen by it.
  *

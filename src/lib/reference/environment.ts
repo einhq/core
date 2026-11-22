@@ -246,6 +246,7 @@ export const PATH_DESCRIPTIONS: Record<string, string> = {
   PIPELINES_PATH: 'Pipeline definitions and running instances.',
   WWW_PATH: 'Web pages served over HTTP.',
   MOD_INSTALL_PATH: 'The modules `mod install` installed, each linked into /usr/modules.',
+  UPLOAD_SPOOL_PATH: "Uploads sent in pieces until their last piece arrives, a folder per account; the administrator's alone.",
   USR_PATH: 'Code and read-only payload.',
   BIN_PATH: 'Built-in commands.',
   LIB_PATH: "Core's other files: its shell commands, its services and the Web UI.",

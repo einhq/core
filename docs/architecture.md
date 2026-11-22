@@ -11,7 +11,7 @@ The system currently runs as a single **primary** instance with full capabilitie
 ```mermaid
 graph TB
     subgraph Primary["Primary Instance"]
-        HTTP["HTTP Server :8080\n/__shell WebSocket\n/file/* REST"]
+        HTTP["HTTP Server :8080\n/__shell WebSocket\n/file/* REST\n/upload/* tus\n/dav/* WebDAV"]
         SSH["SSH Server :22\nInteractive shell\nSFTP"]
         SYS["SystemCore"]
         VFS["LocalNodeVFS"]
@@ -351,7 +351,7 @@ The audit trail says what changed; the access log says who reached EiN and what 
 `download-archive` (`AccessRecord`, `@ein/api`). A record carries the account (or a share link's
 principal; none for a failed sign-in naming no account — what was typed is not kept, it is
 sometimes a password), the session as the audit trail names it (`sid`), the client's address and
-how it came (`via`: the shell's origin, `sftp` or `http`), and what the event is about: the path, the
+how it came (`via`: the shell's origin, `sftp`, `http` or `dav`), and what the event is about: the path, the
 link, the files in a zip, the reason a sign-in failed, the SSH method.
 
 It is kept by the store that keeps the audit trail (`PgStore`: table `<prefix>_access`), but is not
@@ -366,6 +366,8 @@ events are recorded:
 - `share-link open`, through `cmd.recordAccess`.
 - The SSH server: a connection's sign-in when it is ready, with its method, a failed password, and
   the sign-out when it closes; the SFTP handler a file opened for reading.
+- WebDAV (`DavSignIns`): a sign-in once per password check, and a failed one at most once a minute
+  per address and reason, both `via dav`; its GETs of originals as the downloads below.
 - `GET /file/` and `GET /archive/` (`DownloadLog`, per server). A download is a read from byte 0 of
   a file under `/archive` or `/home` that is not a rendition (`sourceId`) or hidden
   (`isLoggedDownload`); the same session's further reads of the file within ten minutes are not
@@ -768,7 +770,7 @@ Each registry has a memory implementation (dev) and a PostgreSQL implementation 
 - **volatile** — fast, regenerable: thumbnails, face crops, transcodes. Root `VOLATILE_FILE_ROOT_PATH` (a local SSD); defaults to the disk root, so a single-disk install is unchanged.
 - **db** — PostgreSQL large objects: former blob content (comments, life-events, secrets), kept transactional and in `pg_dump`.
 
-**Frozen bytes are read-only on disk.** A `frozen` file refuses writes in `LocalNodeVFS.open`, and the disk registry holds its bytes without write bits as well, so nothing on the host writes them either — an album folder's hard link shares their inode. Every attrs update ends in a registry `touch` with the node's attrs, and `DiskFileRegistry.touch` clears a bucketed file's write bits while `frozen` is set and gives the owner's back once it is lifted (a `cp` of a frozen file is frozen by the same update); a symlink to bytes kept elsewhere is left alone. What is frozen is what a command creates or marks frozen, and an upload over HTTP (`storeBody`) or SFTP (its close, and a rename that retypes it) whose sniffed type `/etc/frozen-uploads` lists (`src/lib/media/frozen-uploads.ts`, seeded once at boot from `src/builtin/core/etc/`), and so is a file of such a type that `unzip --as-upload` takes out of an archive, as the Archive's staging expansion does; nothing else EiN writes itself is.
+**Frozen bytes are read-only on disk.** A `frozen` file refuses writes in `LocalNodeVFS.open`, and the disk registry holds its bytes without write bits as well, so nothing on the host writes them either — an album folder's hard link shares their inode. Every attrs update ends in a registry `touch` with the node's attrs, and `DiskFileRegistry.touch` clears a bucketed file's write bits while `frozen` is set and gives the owner's back once it is lifted (a `cp` of a frozen file is frozen by the same update); a symlink to bytes kept elsewhere is left alone. What is frozen is what a command creates or marks frozen, and an upload over HTTP (`storeBody`, for `/file` and WebDAV's PUT) or SFTP (its close, and a rename that retypes it, as WebDAV's MOVE does) whose sniffed type `/etc/frozen-uploads` lists (`src/lib/media/frozen-uploads.ts`, seeded once at boot from `src/builtin/core/etc/`), and so is a file of such a type that `unzip --as-upload` takes out of an archive, as the Archive's staging expansion does; nothing else EiN writes itself is.
 
 `tier` is a **node prop** (a `NodeSpecialProps` field with a dedicated column, like `softlink`), **set once at creation and immutable thereafter** — the bytes physically live on the tier they were first written to, so changing it would strand them; `vfs.update` rejects a change with `NodeTierImmutableError`. The resolved tier is `props.tier ?? (attrs.sourceId && !attrs.frozen ? 'volatile' : 'disk')`. `LocalNodeVFS` merges `props.tier` into the `opts` bag it threads to the registry on `touch`/`open`/`stat`/`statX`/`delete` (`tierOpts`); `exists`/`list`/`count` fan out across backends since ids are globally unique ULIDs.
 
@@ -1056,7 +1058,7 @@ own group; `users`, everyone's, gets one at the first boot (`01_auth.sh`, which 
 administrator's trash, and `group-delete` refuses while the group has one unless given
 `--remove-home`, which does the same, so what a group kept is never left without its group. As
 with anything a person may write, a member may change who else it is shared with.
-Sign-in — the shell's `login`, SSH and SFTP — takes a username or an account's e-mail address
+Sign-in — the shell's `login`, SSH, SFTP and WebDAV — takes a username or an account's e-mail address
 (`accountByLoginName`, `src/lib/auth/email.ts`): a name with `@` is the one account whose `email`
 attr it is, any other name is lower-cased, as usernames are (`accountNameProblem` in `@ein/api`
 refuses capitals and `@` in a new name). The new-user form suggests a username from the person's
@@ -1128,7 +1130,8 @@ whose parts are judged as they start — no loop, function, `(( ))`, group, assi
 or expansion, none of which needs a command —, and nothing of the shell's own reaches the VFS —
 a redirection or a file test finds no file there, a glob matches nothing, and the API socket's
 `vfs.*` and `log.*` messages answer `sign in first`; only the shell's own bashrc runs as before.
-`GET /file`, `POST /archive` and `GET /archive` answer it 401 (`refusesGuest`),
+`GET /file`, `POST /archive` and `GET /archive` answer it 401 (`refusesGuest`), and `POST /checksums`
+does even where visitors may browse,
 while `get-default` still serves it the site's own pages (`site`). The Web UI sends it to sign in
 (`user-whoami` tells it `guestBrowsing`; see [UI](architecture/ui.md#signing-in-and-the-guest)),
 and the assistant's language model serves neither it nor a link's visitor (`mayUseModel`).
@@ -1231,8 +1234,9 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 | `control`    | label, unit, schema, requested; its states are a log's entries                                 | control registry (log registry's tables) |
 | `stream`     | label, mimetype, codec, width, height, fps, audio                                              | stream registry (keeps nothing)          |
 | `device-key` | key, createdBy, createdAt                                                                      | PgStore                                  |
+| `device-app` | pairing (hash, expiresAt, by), token (id, hash, by, pairedAt, lastUsedAt, lastFrom)            | PgStore                                  |
 | `command`    | name, args, flags                                                                              | CommandStore                             |
-| `session`    | secret, access, env, expiresSec, bootId                                                        | PgStore                                  |
+| `session`    | secret, access, env, expiresSec, bootId, app                                                   | PgStore                                  |
 | `tty`        | rows, cols, env, cwd, bootId                                                                   | PgStore                                  |
 | `user`       | uid, gid, name, email, description, inactive, mustResetPassword                                | PgStore                                  |
 | `group`      | gid, title, description; members are softlinks in its `users` directory                        | PgStore                                  |
@@ -1563,23 +1567,28 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 
 ### HTTP (`:8080`) — [src/servers/http/](../src/servers/http/)
 
-| Route                          | Handler                               | Purpose                                                                                                                                   |
-| ------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `/__shell` (WS upgrade)        | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                                                                                        |
-| `GET /__session`               | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie                                                                |
-| `GET /file/<path>`             | `get-file`                            | Stream file from VFS (ETag via sha256); a file's `shown` picture's renditions stand in for its own under `thumbnails/` unless `?original` |
-| `PUT /file/<path>`             | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME                                                                      |
-| `POST /file/<dir>/?name=`      | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`                                                                         |
-| `POST /archive`                | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it                                                                          |
-| `GET /archive/<token>`         | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                                                                                    |
-| `PUT\|POST /file/dev/<device>` | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key                                                                     |
-| `GET /file/dev/<device>?key=…` | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input                                                                   |
-| `POST /file/dev/<device>/<ep>` | `dev-write`                           | A value: appended to a log or a track, or written to a control                                                                            |
-| `GET /file/<path>?ticket=…`    | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                     |
-| `GET /__page/<ticket>`         | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                            |
-| `GET /live/<id>.mp4\|.ts`      | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                           |
-| `GET /file/<stream>`           | `get-file` → `stream`                 | A stream's bytes from its latest start point on, as its writer writes them, or of a stream of pictures one picture (never cached)         |
-| `GET /*`                       | `get-default`                         | SPA fallback, vhost support                                                                                                               |
+| Route                          | Handler                               | Purpose                                                                                                                                        |
+| ------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/__shell` (WS upgrade)        | `shell-handler` / `api-shell-handler` | Interactive terminal or JSON-RPC command execution                                                                                             |
+| `GET /__session`               | `get-session`                         | 204 when the cookie signs in, else 401; re-issues a known session's cookie                                                                     |
+| `GET /file/<path>`             | `get-file`                            | Stream file from VFS (ETag via sha256); a file's `shown` picture's renditions stand in for its own under `thumbnails/` unless `?original`      |
+| `PUT /file/<path>`             | `put-file`                            | Write exactly this path, creating or replacing the file; detect MIME                                                                           |
+| `POST /file/<dir>/?name=`      | `post-file`                           | Upload into a directory; a taken name is stored as `name (2).ext`                                                                              |
+| `/upload/`, `/upload/<id>`     | `upload/handler`                      | Uploads in pieces that resume (tus 1.0), as the session or the EiN app's token (below)                                                         |
+| `POST /archive`                | `post-archive`                        | Park a selection of paths, answer with the URL that downloads it                                                                               |
+| `GET /archive/<token>`         | `get-archive`                         | Stream that selection as one stored (uncompressed) zip                                                                                         |
+| `POST /checksums`              | `post-checksums`                      | Which of up to 1000 sha256 checksums a file the session (or the EiN app's token) reads carries, outside every trash: known or not, never where |
+| `PUT\|POST /file/dev/<device>` | `dev-write`                           | Raw input for the device's driver, signed in or with the device's key                                                                          |
+| `GET /file/dev/<device>?key=…` | `dev-write`                           | The same from a tracker that only GETs (OsmAnd): its query is the input                                                                        |
+| `POST /file/dev/<device>/<ep>` | `dev-write`                           | A value: appended to a log or a track, or written to a control                                                                                 |
+| `GET /file/<path>?ticket=…`    | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                          |
+| `GET /__page/<ticket>`         | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                                 |
+| `POST /__app/pair`             | `app`                                 | The EiN app trades a phone's one-time pairing code for its token                                                                               |
+| `GET /__app/session`           | `app`                                 | A Web UI session for the app, its token as `Authorization: Bearer`, and sent on to `?next=`                                                    |
+| `GET /live/<id>.mp4\|.ts`      | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                                |
+| `GET /file/<stream>`           | `get-file` → `stream`                 | A stream's bytes from its latest start point on, as its writer writes them, or of a stream of pictures one picture (never cached)              |
+| `/dav/<path>`                  | `dav/handler`                         | The tree over WebDAV, class 1, as the account HTTP Basic signs in (below)                                                                      |
+| `GET /*`                       | `get-default`                         | SPA fallback, vhost support                                                                                                                    |
 
 **Device keys.** A device cannot sign in, so what it writes to `/file/dev/<device>` carries its key
 (`handlers/dev-write.ts`): `Authorization: Bearer <key>`, or `key=` in the query for a client that
@@ -1592,7 +1601,64 @@ the same 403, logged with the client's address. A GET with a key on a device nod
 talking, a tracker that only sends GETs: its query is the raw input. Without a key, a write is the
 signed-in session's, as every `/file` write is, and a GET is a read. Whether the write may be made is settled
 before its body is read, and the body is read only up to 4 MB (64 MB for a track's fixes) and
-answered 413 beyond (`body-limit.ts`); `POST /archive` takes at most 2 MB the same way.
+answered 413 beyond (`body-limit.ts`); `POST /archive` takes at most 2 MB the same way, and
+`POST /checksums` 128 KB.
+
+**The app's token.** The EiN app signs in with a token of its own, never the account's password
+(`managers/devices/app-tokens.ts`, `handlers/app.ts`). `device-app <phone> --pair --origin <url>`,
+by whoever may change the phone and never the administrator's account, makes a one-time pairing
+code that works for 15 minutes and shows it as a QR code, `ein://pair?server=…&device=…&code=…`. The
+app posts the code to `POST /__app/pair` and is answered its token, `<phone>.<secret>`, which acts as
+the account that made the code. The phone's child `.app` (a `device-app` node, mode 0600 and the
+administrator's) keeps the code and the token as their SHA-256 alone. The token writes to the
+phone's endpoints as a device key does, but as that account, and `GET /__app/session` trades it for
+a session whose `app` names the token: `getSession` refuses such a session once the phone holds
+another token or none. Both endpoints go through the sign-in throttle, counted against `app:<phone>`,
+and are written to the access log `via app` (`method` `pairing` or `token`). A new pairing replaces
+the token once its code is used; `device-app --off` and `device-forget` remove `.app`; each removes
+the sessions the token it ended had opened, which closes their shells.
+
+**WebDAV.** `/dav/<path>` is `/<path>` in the tree (`src/servers/http/dav/`), each segment
+percent-encoded as a `/file` URL's is, for programs that sync files over HTTPS, a phone's backup
+app above all, where SSH is not reachable. A request signs in with HTTP Basic, an account's username
+or e-mail address and its password, through `passwordSignIn` and so the throttle; the session
+cookie means nothing there, and a request a browser marks as coming from a page of another origin
+is refused, so no page acts through a sign-in the browser keeps. A check costs a scrypt hash and a
+client sends the password with every request, so `DavSignIns` (per server) keeps a pair that passed
+for an hour, under an HMAC of it with a key made at start, and with every request reads the user
+node and the password's hash again: a password set, a disable or a delete counts from the next
+request, and requests that arrive together with one pair share one check. It serves class 1:
+OPTIONS; PROPFIND, depth 0 the resource and any other depth one level, its children read 500 at a
+time and written as they are read, a softlink listed as what it points to and a file's own nodes
+never; PROPPATCH, a file's modification time and nothing else, all or nothing; GET and HEAD
+through `serveFile`; PUT through `storeBody`, refused over a frozen file, removing the file it made
+when the body breaks off, and taking `X-OC-Mtime` as `writtenAt`; MKCOL; MOVE through `renameMany`
+with the softlinks re-pointed and then the retyping a renamed upload gets, and the upload's name (`attrs.name`) when it was the one it was sent under, never onto a folder, a
+frozen file or one with nodes of its own; and DELETE, which moves into the account's trash
+(`trashPut`, `src/lib/trash/`), a trash being read-only there. Its XML is read by a small parser
+that takes no document type or entity, from bodies of at most 256 KiB, and a request names at most
+100 properties, which an answer repeats for every resource. An ETag is a file's SHA-256 and nothing
+else: a member may set that attr, and the answer would carry it as markup.
+
+**Uploads in pieces.** `/upload/` speaks tus 1.0 (`src/servers/http/upload/`): its core and the
+creation, expiration and termination extensions, as the session cookie signs in or, with the EiN
+app's token in `Authorization: Bearer`, as the account the phone was paired as; the guest is refused.
+A `POST` names the folder (`dir`), the name (`filename`) and the file's time (`mtime`) in
+`Upload-Metadata`, and is refused before a byte is sent when the folder is missing or not the
+sender's to write, or when the account's unfinished uploads would pass `CFG_UPLOAD_SPOOL_GB`. Each
+upload is a file of its own in the spool, `/var/spool/uploads/<uid>/<ulid>`, the administrator's
+alone (mode 0700, made at boot), with what it is for in `attrs.upload`; a `PATCH` appends to it as
+the administrator, and what arrived before a body broke off is kept, so the offset a `HEAD` answers
+is the spool file's size. One request at a time writes an upload (`Uploads`, per server): a request
+for an upload a `PATCH` is still reading stops that one first, since a sender asks again only
+after giving up on its connection. The piece that completes the upload stores it as `POST /file`
+does, under a free name (`createFreeName`) and through `storeBody` as the sender, in one write that
+reads its type and SHA-256 as it streams from the spool, so its pipelines start on its final name;
+an upload that cannot be stored is removed and the answer says why. The spool file then drops its
+bytes and keeps `attrs.upload.stored`, which the answer and every later `HEAD` give as
+`Content-Location`, so a sender whose last answer was lost learns where its file went. A spool file
+unchanged for `CFG_UPLOAD_EXPIRES_HOURS` is answered as gone, and the `upload-reaper` service
+removes it. `/var` lies outside every pipeline's reach, so nothing starts on the pieces.
 
 File responses own the VFS handle until their body finishes, fails or is cancelled.
 `file-body` pulls bounded chunks directly from the handle and closes it at the
@@ -1657,7 +1723,8 @@ holds becomes an expired guest session, so its cookie is refused and its termina
 end as above; every shell acting as it (the process-wide set behind `signOutShellsOf` in
 `src/managers/shell/shell.ts`, which keeps a closed shell while a detached job of its runs, since
 the job's steps start under the shell's access) is logged out to the guest and its jobs killed; and the SSH server, which watches user
-nodes, ends the account's connections, SFTP included. Every command still running as the account —
+nodes, ends the account's connections, SFTP included; WebDAV, which reads the account again with
+every request, refuses its next one. Every command still running as the account —
 background and detached jobs included — gets `SIGKILL` through `ExecutionManager.signalUid`: a job
 meant to outlive its owner's access belongs to a service account. The administrator can be neither disabled nor deleted.
 

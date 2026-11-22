@@ -1,23 +1,16 @@
 import { join } from '@std/path';
-import { Access } from '../../../lib/access/mod.ts';
-import { NodeAlreadyExistsError } from '../../../vfs/mod.ts';
-import { NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
-import { numberedName } from '../numbered-name.ts';
+import { createFreeName } from '../free-name.ts';
 import { getSession } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
 import { storeBody } from './store-body.ts';
-
-/** How many numbered names an upload tries before giving up on a directory. */
-const MAX_NUMBERED = 10_000;
 
 /**
  * POST /file/<directory>/?name=<name> — store an upload under a name nothing in the directory
  * has yet: `name`, or else the first free `name (2)`, `name (3)`, …
  *
  * Cameras number their files alike, so two phones uploading `IMG_0001.jpg` into one directory
- * is ordinary; neither may replace the other. The node is created before any byte is read, and
- * the store's unique-name rule decides which upload gets which name, so two at once both land.
- * A body that fails part-way removes the node it created.
+ * is ordinary; neither may replace the other. The node is created before any byte is read
+ * (`createFreeName`), so two at once both land. A body that fails part-way removes the node it created.
  *
  * Answers 201 with the file's attrs, the `path` it was stored at, and `renamed` when that is
  * not the name asked for.
@@ -50,18 +43,4 @@ export async function handlePostFile(config: HttpServerConfig, req: Request, url
       Location: `/file${vfsPath.split('/').map(encodeURIComponent).join('/')}`,
     },
   });
-}
-
-/** Create an empty file node under `name` or its first free numbered name, and return that name. */
-async function createFreeName(config: HttpServerConfig, access: Access, dirPath: string, name: string): Promise<string | undefined> {
-  for (let n = 1; n <= MAX_NUMBERED; n++) {
-    const candidate = n === 1 ? name : numberedName(name, n);
-    try {
-      await config.vfs.create(access, NODE_TYPE_FILE, dirPath, candidate, { attrs: { name: candidate } });
-      return candidate;
-    } catch (e) {
-      if (!(e instanceof NodeAlreadyExistsError)) throw e;
-    }
-  }
-  return undefined;
 }

@@ -1,5 +1,5 @@
 import { assertEquals } from '@std/assert';
-import { type NamedLayer, resolveNav } from '@ui/nav';
+import { type NamedLayer, resolveNav, withoutAppEntries } from '@ui/nav';
 
 const sections = [{ id: 'main', order: 10 }, { id: 'browse', label: 'Browse', order: 20 }];
 
@@ -355,4 +355,37 @@ Deno.test('ui-nav: map layers come in order, and one without tiles is left out',
   const nav = resolveNav([shell, charts], [{ source: '/etc/ui/nav.json', layer: { hide: ['ui.satellite'] } }], user);
   assertEquals(nav.layers.map((layer) => layer.id), ['ui.map', 'charts.sea']);
   assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options, detail }', 'charts.odd: tiles is not a list of { url, options, detail }']);
+});
+
+Deno.test('ui-nav: entries kept to the EiN app are given to everyone, and a page outside the app leaves them out', () => {
+  const app: NamedLayer = {
+    source: 'ui',
+    layer: {
+      sections,
+      sidebar: [
+        { id: 'ui.home', section: 'main', label: 'Home', icon: 'home', to: '/', order: 10 },
+        { id: 'ui.app', section: 'main', label: 'App', icon: 'device-mobile', to: '/app', order: 20, app: true },
+      ],
+      topbar: [
+        { id: 'ui.phone', title: 'Phone', icon: 'device-mobile', order: 10 },
+        { id: 'ui.phone.backup', parent: 'ui.phone', title: 'Backup', icon: 'cloud-upload', action: { navigate: '/app' }, app: true },
+        { id: 'ui.create', title: 'Create', icon: 'plus', order: 20 },
+        { id: 'ui.create.album', parent: 'ui.create', title: 'Album', icon: 'photo', action: { dialog: '/albums/new' } },
+        { id: 'ui.create.photo', parent: 'ui.create', title: 'Photo', icon: 'camera', action: { navigate: '/app' }, app: true },
+      ],
+      panels: [
+        { id: 'ui.sign-in', slot: 'settings.views', label: 'Sign-in', route: '/settings/sign-in' },
+        { id: 'ui.app-settings', slot: 'settings.views', label: 'App', route: '/app', app: true },
+      ],
+    },
+  };
+  const nav = resolveNav([app], [], user);
+  assertEquals(ids(nav), [['main', ['ui.home', 'ui.app']], ['browse', []]]);
+  assertEquals(nav.topbar.map((e) => [e.id, e.menu?.map((row) => row.id)]), [['ui.phone', ['ui.phone.backup']], ['ui.create', ['ui.create.album', 'ui.create.photo']]]);
+
+  const outside = withoutAppEntries(nav);
+  assertEquals(ids(outside), [['main', ['ui.home']], ['browse', []]]);
+  // The dropdown whose only row was the app's goes with it.
+  assertEquals(outside.topbar.map((e) => [e.id, e.menu?.map((row) => row.id)]), [['ui.create', ['ui.create.album']]]);
+  assertEquals(outside.panels.map((panel) => panel.id), ['ui.sign-in']);
 });

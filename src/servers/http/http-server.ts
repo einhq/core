@@ -2,7 +2,11 @@ import { createLogger } from '../../managers/logger/mod.ts';
 import { NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError } from '../../vfs/mod.ts';
 import { ArchiveTicketStore } from './archive-tickets.ts';
 import { clientAddress } from './client-address.ts';
+import { handleDav } from './dav/handler.ts';
+import { isDavPath } from './dav/paths.ts';
+import { DavSignIns } from './dav/sign-in.ts';
 import { DownloadLog } from './download-log.ts';
+import { handleAppPair, handleAppSession, handleAppUnpair } from './handlers/app.ts';
 import { handleDevWrite } from './handlers/dev-write.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
@@ -12,11 +16,13 @@ import { handleGetShell } from './handlers/get-shell.ts';
 import { handleLive } from './handlers/live.ts';
 import { handlePageSignIn } from './handlers/page-sign-in.ts';
 import { handlePostArchive } from './handlers/post-archive.ts';
+import { handlePostChecksums } from './handlers/post-checksums.ts';
 import { handlePostFile } from './handlers/post-file.ts';
 import { handlePutFile } from './handlers/put-file.ts';
 import { isCrossOrigin } from './same-origin.ts';
 import { carriesSessionCookie } from './session.ts';
 import { HttpServerConfig } from './types.ts';
+import { isUploadPath, Uploads } from './upload/handler.ts';
 import { InteractiveTerminalRegistry } from './ws/interactive-terminal-registry.ts';
 import { OpenSockets } from './ws/open-sockets.ts';
 
@@ -30,6 +36,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   // the files, and the test harness starts several instances in one.
   const archiveTickets = new ArchiveTicketStore();
   const downloads = new DownloadLog(config.vfs);
+  const davSignIns = new DavSignIns(config.vfs, config.env);
+  const uploads = new Uploads(config);
   const interactiveTerminals = new InteractiveTerminalRegistry(config);
   const sockets = new OpenSockets();
   // Before `Deno.serve` adds its own listener, so each socket's close frame is this one.
@@ -57,6 +65,12 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetSession(config, req);
       } else if (url.pathname.startsWith('/__page/') && req.method === 'GET') {
         return await handlePageSignIn(config, req, url);
+      } else if (url.pathname === '/__app/pair' && req.method === 'POST') {
+        return await handleAppPair(config, req, clientAddress(req.headers, info.remoteAddr));
+      } else if (url.pathname === '/__app/session' && req.method === 'GET') {
+        return await handleAppSession(config, req, url, clientAddress(req.headers, info.remoteAddr));
+      } else if (url.pathname === '/__app/unpair' && req.method === 'POST') {
+        return await handleAppUnpair(config, req, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname.startsWith('/live/')) {
         return await handleLive(config, req, url);
       } else if (url.pathname.startsWith('/file/')) {
@@ -70,8 +84,14 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         } else if (req.method === 'POST') {
           return await handlePostFile(config, req, url);
         }
+      } else if (isUploadPath(url.pathname) && req.method !== 'GET') {
+        return await uploads.handle(req, url, clientAddress(req.headers, info.remoteAddr));
+      } else if (isDavPath(url.pathname)) {
+        return await handleDav({ ...config, signIns: davSignIns, downloads }, req, url, info.remoteAddr);
       } else if (url.pathname === '/archive' && req.method === 'POST') {
         return await handlePostArchive(config, req, archiveTickets);
+      } else if (url.pathname === '/checksums' && req.method === 'POST') {
+        return await handlePostChecksums(config, req, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname.startsWith('/archive/') && (req.method === 'GET' || req.method === 'HEAD')) {
         return await handleGetArchive(config, req, url, archiveTickets, downloads, clientAddress(req.headers, info.remoteAddr));
       }

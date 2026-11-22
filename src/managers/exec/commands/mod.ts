@@ -74,7 +74,7 @@ import { label, labels } from './node/label.ts';
 import { logAppend } from './node/log-append.ts';
 import { logRead } from './node/log-read.ts';
 import { deviceHistory, devices, deviceShow } from './devices/read.ts';
-import { deviceConfig, deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
+import { deviceApp, deviceConfig, deviceCreate, deviceForget, deviceKey, deviceLabel } from './devices/manage.ts';
 import { streamFile } from './devices/stream-file.ts';
 import { streamPage } from './devices/stream-page.ts';
 import { relate, unrelate } from './node/relate.ts';
@@ -345,6 +345,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   deviceLabel,
   deviceForget,
   deviceKey,
+  deviceApp,
   streamFile,
   streamPage,
   relate,

@@ -34,8 +34,12 @@ export class SignInFailedError extends Error {
 /** Whether the account at `userPath` has a password set. Read as the administrator, who alone may. */
 export const hasAccountPassword = (vfs: NodeVFS, userPath: string): Promise<boolean> => vfs.exists(ADMIN_ACCESS, join(userPath, PASSWORD_FILE));
 
-/** The hash in the account's `.password`, or undefined when it has none. Read as the administrator, who alone may. */
-async function storedPasswordHash(vfs: NodeVFS, userPath: string): Promise<string | undefined> {
+/**
+ * The hash in the account's `.password`, or undefined when it has none. Read as the administrator,
+ * who alone may. Setting a password writes a new hash, with a new salt, so a hash that differs from
+ * the one a sign-in was checked against says the password changed since.
+ */
+export async function accountPasswordHash(vfs: NodeVFS, userPath: string): Promise<string | undefined> {
   try {
     const handle = await vfs.open(ADMIN_ACCESS, join(userPath, PASSWORD_FILE), { mode: 'r' });
     try {
@@ -50,7 +54,7 @@ async function storedPasswordHash(vfs: NodeVFS, userPath: string): Promise<strin
 
 /** Whether `password` is the one set for the account at `userPath`; false when it has none. */
 export async function isAccountPassword(vfs: NodeVFS, userPath: string, password: string): Promise<boolean> {
-  const passwordHash = await storedPasswordHash(vfs, userPath);
+  const passwordHash = await accountPasswordHash(vfs, userPath);
   return passwordHash !== undefined && await verifyPassword(password, passwordHash);
 }
 
@@ -104,6 +108,12 @@ export async function setAccountPassword(
 /** The account a sign-in names, as `accountByLoginName` finds it. */
 export type SignInAccount = { username: string; userPath: string; userNode: Node<UserAttrs> };
 
+/**
+ * The account a password signed in to, with the hash the password was checked against: a hash that
+ * differs later says the password has been set since (`accountPasswordHash`).
+ */
+type PasswordSignIn = SignInAccount & { passwordHash: string };
+
 /** Where a sign-in comes from: the process's environment, for the hash cost, and the client's address when known. */
 type SignInOrigin = { env: Record<string, string | undefined>; from?: string; throttle?: SignInThrottle };
 
@@ -115,12 +125,12 @@ type SignInOrigin = { env: Record<string, string | undefined>; from?: string; th
  * set all throw `AUTHENTICATION_FAILED`, and only the right password learns why an account may not
  * sign in. Every failure is a `SignInFailedError`.
  */
-export async function passwordSignIn(vfs: NodeVFS, typed: string, password: string, origin: SignInOrigin): Promise<SignInAccount> {
+export async function passwordSignIn(vfs: NodeVFS, typed: string, password: string, origin: SignInOrigin): Promise<PasswordSignIn> {
   const account = await accountByLoginName(vfs, typed);
   const attempt = await (origin.throttle ?? signInThrottle).begin(account?.username ?? typed.trim().toLowerCase(), origin.from).catch((error: Error) => {
     throw new SignInFailedError(error.message, account?.userNode.attrs.uid);
   });
-  const passwordHash = account && await storedPasswordHash(vfs, account.userPath);
+  const passwordHash = account && await accountPasswordHash(vfs, account.userPath);
   const right = await verifyPassword(password, passwordHash ?? await dummyPasswordHash(origin.env));
   if (!account || passwordHash === undefined || !right) {
     await attempt.failed();
@@ -129,5 +139,5 @@ export async function passwordSignIn(vfs: NodeVFS, typed: string, password: stri
   attempt.succeeded();
   const refusal = loginRefusal(account.userNode.attrs);
   if (refusal) throw new SignInFailedError(refusal, account.userNode.attrs.uid);
-  return account;
+  return { ...account, passwordHash };
 }

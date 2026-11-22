@@ -1,6 +1,7 @@
 /**
- * `/file/<vfs path>` URLs — the one endpoint that serves node bytes, for reading
- * (`GET`), for writing a path (`PUT`) and for upload into a directory (`POST …/?name=`).
+ * `/file/<vfs path>` URLs — the endpoint that serves node bytes to the browser, for reading
+ * (`GET`), for writing a path (`PUT`) and for upload into a directory (`POST …/?name=`) — and
+ * `/dav/<vfs path>`, the same tree over WebDAV for other programs.
  *
  * A node name is free text: albums are named after what happened, and real ones
  * contain `?`, `&`, `#`, `%` and `+`. Splicing such a path straight into a URL breaks
@@ -14,3 +15,6 @@ export const encodeVfsPath = (path: string): string => path.split('/').map(encod
 
 /** The `/file` URL for a VFS path. Append literal suffixes (`/thumbnails/…`) to the result. */
 export const fileUrl = (path: string): string => `/file${encodeVfsPath(path)}`;
+
+/** The WebDAV address of a VFS path; `davUrl()` is the server's own, which a WebDAV client is given. */
+export const davUrl = (path = ''): string => `/dav${encodeVfsPath(path)}`;

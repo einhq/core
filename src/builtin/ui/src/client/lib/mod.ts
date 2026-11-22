@@ -13,7 +13,7 @@ export * from './mentions.ts';
 export * from './text-match.ts';
 export * from './natural-search.ts';
 export { mediaItemFrom, type MediaRef } from './media-item.ts';
-export { fileUrl } from './file-url.ts';
+export { davUrl, fileUrl } from './file-url.ts';
 export { displayUrl, documentViewUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, renditionName, thumbnailUrl, VIDEO_SOURCE_TYPE, WAVEFORM_ASPECT } from './derivatives.ts';
 export * from './card-layout.ts';
 export * from './node-path.ts';
@@ -58,3 +58,16 @@ export {
   type UploadTargetSummary,
 } from './upload-queue.ts';
 export { plainMarkdown } from './markdown-plain.ts';
+export {
+  appBackup,
+  appBackupAllow,
+  appBackupNow,
+  appBackupSet,
+  appInfo,
+  type EinAppBackup,
+  type EinAppBackupChange,
+  type EinAppBackupFolder,
+  type EinAppBackupInto,
+  type EinAppInfo,
+  inEinApp,
+} from './ein-app.ts';

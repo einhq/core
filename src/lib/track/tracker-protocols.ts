@@ -12,7 +12,8 @@
  * - A GPRMC sentence over HTTP: `?gprmc=$GPRMC,…`, speed in knots.
  * - A GPX document, as a logger or a phone app saves it: its fixes that have a time.
  * - EiN's own points: a JSON object, a JSON list, or one object a line, each
- *   `{lat, lng, ts?, alt?, speed?, course?, accuracy?}`.
+ *   `{lat, lng, ts?, alt?, speed?, course?, accuracy?}`, and what the device said of itself when it
+ *   took it: `battery?` in percent, `charging?`, `activity?` (Traccar Client's names).
  *
  * Speed is kept in m/s, course in degrees and accuracy in metres. A request that carries no fix —
  * Traccar Client's registration ping, a GPRMC sentence marked void — reads as no points, which is
@@ -196,7 +197,10 @@ export const fromTraccarJson = (body: Record<string, unknown>): TrackerFixes => 
   return withStatus(points, newest(statuses));
 };
 
-/** EiN's own points: a JSON object, a JSON list, or one object a line. */
+/**
+ * EiN's own points: a JSON object, a JSON list, or one object a line. A point's `battery`,
+ * `charging` and `activity` are the device's status then, and the newest point's is kept.
+ */
 const fromNative = (text: string): TrackerFixes => {
   let entries: unknown[];
   try {
@@ -209,7 +213,23 @@ const fromNative = (text: string): TrackerFixes => {
       return { error: 'invalid JSON body' };
     }
   }
-  return { points: entries as TrackPointInput[] };
+  const points: TrackPointInput[] = [];
+  const statuses: (TrackerStatus | undefined)[] = [];
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      points.push(entry as TrackPointInput);
+      continue;
+    }
+    const { battery, charging, activity, ...fix } = entry as Record<string, unknown>;
+    points.push(fix as TrackPointInput);
+    statuses.push(statusOf({
+      battery: percent(finite(battery)),
+      charging: flag(charging),
+      activity: typeof activity === 'string' && activity && activity !== 'unknown' ? activity : undefined,
+      ts: trackerTime(fix.ts),
+    }));
+  }
+  return withStatus(points, newest(statuses));
 };
 
 /** Whether a parsed JSON body is Traccar Client's rather than EiN's own points. */

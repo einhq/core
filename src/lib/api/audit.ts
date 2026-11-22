@@ -115,8 +115,11 @@ export const ACCESS_EVENTS: readonly AccessEvent[] = [
   'download-archive',
 ];
 
-/** How the client reached EiN: a shell's origin, `sftp`, or `http` for a file fetched by URL. */
-export type AccessVia = ShellOrigin | 'sftp' | 'http';
+/**
+ * How the client reached EiN: a shell's origin, `sftp`, `http` for a file fetched by URL, `dav` for
+ * WebDAV, or `app` for the EiN app with its own token.
+ */
+export type AccessVia = ShellOrigin | 'sftp' | 'http' | 'dav' | 'app';
 
 /**
  * One sign-in, sign-out, share-link opening or download. Unlike the audit trail, which records
@@ -138,8 +141,11 @@ export type AccessRecord = {
   /** The client's address. */
   from?: string;
   via?: AccessVia;
-  /** `sign-in` over SSH: how the client proved who it is. */
-  method?: 'password' | 'publickey';
+  /**
+   * `sign-in` over SSH, WebDAV or the app: how the client proved who it is. The app proves it with
+   * a pairing code when it is paired, and with its token when it opens a session.
+   */
+  method?: 'password' | 'publickey' | 'pairing' | 'token';
   /** A failed sign-in or elevation: why, as the client was told. */
   reason?: string;
   /** `link-open`, and a download made through a share link: the link's id. */

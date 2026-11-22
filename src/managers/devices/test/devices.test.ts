@@ -7,8 +7,10 @@
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import { encodeHex } from '@std/encoding';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
-import type { DeviceCreated, DeviceHistory, DeviceInfo, DeviceKeyAnswer, DeviceSummary } from '../../../lib/api/devices.ts';
+import type { AccessLogEntry } from '../../../lib/api/audit.ts';
+import type { DeviceAppAnswer, DeviceCreated, DeviceHistory, DeviceInfo, DeviceKeyAnswer, DeviceSummary } from '../../../lib/api/devices.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../testing/mod.ts';
 import type { DriverWrite } from '../types.ts';
 
@@ -307,6 +309,130 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
       await large.body?.cancel();
       assertEquals(large.status, 413);
     });
+
+    await t.step(
+      'the EiN app pairs with a phone by a one-time code, posts its fixes, sends and asks about files and opens sessions as whoever paired it, until it is unpaired',
+      async () => {
+        await testCommands(admin).shouldFailWith('device-app ruby-phone --pair --origin https://ein.example', 'never as the administrator');
+        await testCommands(bo).shouldFailWith('device-app ruby-phone --pair --origin https://ein.example', 'denied');
+        await testCommands(anna).shouldFailWith('device-app ruby-phone --pair', '--origin');
+        assertEquals((await anna.execJson<DeviceAppAnswer>('device-app ruby-phone')).paired, false);
+
+        const shown = await anna.execJson<DeviceAppAnswer>('device-app ruby-phone --pair --origin https://ein.example');
+        const qr = new URL(shown.qrText!);
+        assertEquals([qr.protocol, qr.searchParams.get('server'), qr.searchParams.get('device'), shown.qrSvg?.startsWith('<svg')], [
+          'ein:',
+          'https://ein.example',
+          'ruby-phone',
+          true,
+        ]);
+        const code = qr.searchParams.get('code')!;
+        // Shown once: reading the pairing again says only until when the code works.
+        const again = await anna.execJson<DeviceAppAnswer>('device-app ruby-phone');
+        assertEquals([again.qrText, typeof again.pairingExpiresAt], [undefined, 'string']);
+
+        const pair = (body: unknown) => fetch(`${baseUrl}/__app/pair`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const wrong = await pair({ device: 'ruby-phone', code: 'A'.repeat(22) });
+        await wrong.body?.cancel();
+        assertEquals(wrong.status, 403);
+        const paired = await pair({ device: 'ruby-phone', code });
+        const { token, user } = await paired.json() as { token: string; user: string };
+        assertEquals([paired.status, user, token.startsWith('ruby-phone.')], [200, 'anna', true]);
+        const reused = await pair({ device: 'ruby-phone', code });
+        await reused.body?.cancel();
+        assertEquals(reused.status, 403);
+
+        // Its fixes are anna's writes to the phone's track; its token opens no other device.
+        const fix = await fetch(`${baseUrl}/file/dev/ruby-phone/position`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: { coords: { latitude: 57.73, longitude: 11.93 }, timestamp: new Date().toISOString() } }),
+        });
+        assertEquals([fix.status, (await fix.json()).appended], [200, 1]);
+        const elsewhere = await fetch(`${baseUrl}/file/dev/old-logger/position?key=${token}&lat=1&lon=1`);
+        await elsewhere.body?.cancel();
+        assertEquals(elsewhere.status, 403);
+
+        // It sends files in pieces that resume, as anna.
+        const tus = { Authorization: `Bearer ${token}`, 'Tus-Resumable': '1.0.0' };
+        const upload = (headers: Record<string, string>) =>
+          fetch(`${baseUrl}/upload/`, {
+            method: 'POST',
+            headers: { ...headers, 'Upload-Length': '5', 'Upload-Metadata': `filename ${btoa('clip.mp4')},dir ${btoa('/home/anna')}` },
+          });
+        const begun = await upload(tus);
+        await begun.body?.cancel();
+        const piece = await fetch(`${baseUrl}${begun.headers.get('location')}`, {
+          method: 'PATCH',
+          headers: { ...tus, 'Upload-Offset': '0', 'Content-Type': 'application/offset+octet-stream' },
+          body: 'bytes',
+        });
+        await piece.body?.cancel();
+        assertEquals([begun.status, piece.status, piece.headers.get('content-location')], [201, 204, '/file/home/anna/clip.mp4']);
+        const [clip, home] = await Promise.all(['/home/anna/clip.mp4', '/home/anna'].map((path) => admin.execJson<{ uid: number }>(`props ${path}`)));
+        assertEquals(clip.uid, home.uid);
+
+        // It asks which files anna has already before it sends them.
+        const clipSha = encodeHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('bytes')));
+        const checksums = () =>
+          fetch(`${baseUrl}/checksums`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ sha256: [clipSha, 'a'.repeat(64)] }) });
+        const asked = await checksums();
+        assertEquals([asked.status, await asked.json()], [200, { known: [clipSha] }]);
+
+        // A session for its WebView, sent on to a path of this server and never another site's.
+        const session = await fetch(`${baseUrl}/__app/session?next=/devices`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' });
+        await session.body?.cancel();
+        assertEquals([session.status, session.headers.get('location')], [303, '/devices']);
+        const cookie = session.headers.get('set-cookie')!.split(';')[0];
+        const offsite = await fetch(`${baseUrl}/__app/session?next=//evil.example/`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' });
+        await offsite.body?.cancel();
+        assertEquals(offsite.headers.get('location'), '/');
+        const signedIn = await fetch(`${baseUrl}/__session`, { headers: { cookie } });
+        await signedIn.body?.cancel();
+        assertEquals(signedIn.status, 204);
+
+        const state = await anna.execJson<DeviceAppAnswer>('device-app ruby-phone');
+        assertEquals([state.paired, state.user, typeof state.lastUsedAt, state.pairingExpiresAt], [true, 'anna', 'string', undefined]);
+        const log = await admin.execJson<AccessLogEntry[]>('access-log --user anna --event sign-in');
+        assertEquals(log.filter((entry) => entry.via === 'app').map((entry) => entry.method).sort(), ['pairing', 'token', 'token']);
+
+        // Unpaired, the token and the sessions it opened stop working at once.
+        await anna.execString('device-app ruby-phone --off');
+        const ended = await fetch(`${baseUrl}/__session`, { headers: { cookie } });
+        await ended.body?.cancel();
+        const refusedFix = await fetch(`${baseUrl}/file/dev/ruby-phone/position?key=${token}&lat=1&lon=1`);
+        await refusedFix.body?.cancel();
+        const refusedSession = await fetch(`${baseUrl}/__app/session`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' });
+        await refusedSession.body?.cancel();
+        const refusedUpload = await upload(tus);
+        await refusedUpload.body?.cancel();
+        const refusedChecksums = await checksums();
+        await refusedChecksums.body?.cancel();
+        assertEquals([ended.status, refusedFix.status, refusedSession.status, refusedUpload.status, refusedChecksums.status], [401, 403, 403, 401, 401]);
+        assertEquals((await anna.execJson<DeviceAppAnswer>('device-app ruby-phone')).paired, false);
+
+        // The app unpairs itself with its token, which ends its sessions as --off does, and works once.
+        const repaired = await pair({
+          device: 'ruby-phone',
+          code: new URL((await anna.execJson<DeviceAppAnswer>('device-app ruby-phone --pair --origin https://ein.example')).qrText!).searchParams.get('code'),
+        });
+        const { token: second } = await repaired.json() as { token: string };
+        const reopened = await fetch(`${baseUrl}/__app/session`, { headers: { Authorization: `Bearer ${second}` }, redirect: 'manual' });
+        await reopened.body?.cancel();
+        const secondCookie = reopened.headers.get('set-cookie')!.split(';')[0];
+        const unpair = () => fetch(`${baseUrl}/__app/unpair`, { method: 'POST', headers: { Authorization: `Bearer ${second}` } });
+        const unpaired = await unpair();
+        await unpaired.body?.cancel();
+        const secondEnded = await fetch(`${baseUrl}/__session`, { headers: { cookie: secondCookie } });
+        await secondEnded.body?.cancel();
+        const unpairedAgain = await unpair();
+        await unpairedAgain.body?.cancel();
+        assertEquals([unpaired.status, secondEnded.status, unpairedAgain.status], [204, 401, 403]);
+        assertEquals((await anna.execJson<DeviceAppAnswer>('device-app ruby-phone')).paired, false);
+        const signedOut = await admin.execJson<AccessLogEntry[]>('access-log --user anna --event sign-out');
+        assertEquals(signedOut.filter((entry) => entry.via === 'app').map((entry) => entry.method), ['token']);
+      },
+    );
 
     await t.step('a member forgets a device, and nobody else does', async () => {
       await testCommands(bo).shouldFailWith('device-forget lamp', 'devices');

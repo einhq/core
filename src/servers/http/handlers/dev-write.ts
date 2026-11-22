@@ -10,8 +10,10 @@
  * A device cannot sign in, so it carries its key (`device-key`): `Authorization: Bearer <key>`, or
  * `key=` in the query for a client that only takes a URL. The key opens the device's own folder for
  * these writes and nothing else; they are made as the device's owner, and its driver is told they
- * were the device's. Without a key a write is the signed-in session's, as every `/file` write is. A
- * GET without a key is a read, which `get-file` answers.
+ * were the device's. A phone paired with the EiN app (`device-app`) carries the app's token the same
+ * way instead, and its writes are made as the account the app was paired as. Without a key a write
+ * is the signed-in session's, as every `/file` write is. A GET without a key is a read, which
+ * `get-file` answers.
  *
  * A refused key is answered 403 and logged with the client's address, the same for a device that
  * has none and one that does not exist.
@@ -25,7 +27,7 @@ import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
 import type { Access } from '../../../lib/access/types.ts';
 import { accessOfUid } from '../../../lib/auth/member-gids.ts';
 import { DEV_PATH } from '../../../lib/paths.ts';
-import { DeviceError, isDeviceKey } from '../../../managers/devices/mod.ts';
+import { appAccess, appTokenDevice, DeviceError, findAppToken, isDeviceKey, touchAppToken } from '../../../managers/devices/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { LogHandle } from '../../../registries/log/log-handle.ts';
 import { assertAccess } from '../../../vfs/assert-access.ts';
@@ -93,11 +95,20 @@ export async function handleDevWrite(config: HttpServerConfig, req: Request, url
       logger.warn('device write refused', { reason, device: target.device, from: clientAddress(req.headers, remoteAddr) });
       return new Response('Forbidden', { status: 403 });
     };
-    if (!(await isDeviceKey(config.vfs, target.device, key))) return refuse('not the device key');
-    const device = await config.vfs.get(ADMIN_ACCESS, `${DEV_PATH}/${target.device}`);
-    const owner = await accessOfUid(config.vfs, device.props.uid);
-    if (!owner) return refuse("the device's owner has no active account");
-    access = owner;
+    if (appTokenDevice(key) !== undefined) {
+      const app = await findAppToken(config.vfs, key);
+      if (!app || app.device !== target.device) return refuse('not the app token of this device');
+      const user = await appAccess(config.vfs, app.by);
+      if (!user) return refuse('the account the app was paired as may not sign in');
+      await touchAppToken(config.vfs, app, clientAddress(req.headers, remoteAddr));
+      access = user;
+    } else {
+      if (!(await isDeviceKey(config.vfs, target.device, key))) return refuse('not the device key');
+      const device = await config.vfs.get(ADMIN_ACCESS, `${DEV_PATH}/${target.device}`);
+      const owner = await accessOfUid(config.vfs, device.props.uid);
+      if (!owner) return refuse("the device's owner has no active account");
+      access = owner;
+    }
   } else {
     const session = await getSession(config, req.headers, { create: false });
     access = session.access;

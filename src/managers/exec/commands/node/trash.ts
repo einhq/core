@@ -1,18 +1,14 @@
 /**
- * trash — the reader's trash: `$HOME/.trash/<entry>/<the trashed node>`, each entry directory
- * carrying where its node came from and when it left. A batch, `$HOME/.trash/<batch>/`, holds
- * entries trashed together — a discard of many files — as one row, restored and purged as one.
+ * trash — the reader's trash, `$HOME/.trash`, laid out as `lib/trash` makes it: an entry directory
+ * per trashed node, or a batch of them.
  *
  *   trash put [--batch [<id>]] [--label <text>] <path>...      move nodes into the trash
  *   trash list                                                what is in it, newest first
  *   trash restore <id | batch | batch/entry>... [--limit n]   put entries back where they were
  *   trash empty [<id>...] [--older-than <days>] [--all]
  *
- * A move, not a copy: the node keeps its id, so its faces, captions and vectors keep pointing at it,
- * and the links to it are left as they are, so they work again once it is restored. Id-to-path
- * resolution leaves out every path inside a trash (`isTrashPath`), which is what takes a trashed
- * node out of every list. `empty --all` (an administrator's) empties every user's trash, which is
- * what the trash-purger service runs.
+ * `empty --all` (an administrator's) empties every user's trash, which is what the trash-purger
+ * service runs.
  */
 
 import { basename, dirname, join, resolve } from '@std/path';
@@ -20,7 +16,8 @@ import { monotonicUlid } from '@std/ulid';
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
 import { isAdmin } from '../../../../lib/access/mod.ts';
 import type { TrashEntry, TrashPutResult, TrashRestoreResult } from '../../../../lib/api/mod.ts';
-import { HOMES_PATH, isTrashPath, USER_TRASH_DIR } from '../../../../lib/paths.ts';
+import { HOMES_PATH, USER_TRASH_DIR } from '../../../../lib/paths.ts';
+import { type BatchAttrs, directories, entriesIn, ENTRY_LIMIT, type EntryAttrs, freeName, isEntryId, namesIn, trashPut } from '../../../../lib/trash/mod.ts';
 import { NodeAlreadyExistsError, type NodeEntry, NodeNotFoundError } from '../../../../vfs/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../../vfs/types/directory.ts';
 import type { Command } from '../../command.ts';
@@ -28,88 +25,12 @@ import type { CmdReturn } from '../../types.ts';
 
 const USAGE = 'Usage: trash <put|list|restore|empty> [<path>|<id>...] [--batch [<id>]] [--label <text>] [--limit <n>] [--older-than <days>] [--all]';
 
-/**
- * Entries one put makes, and one batch holds, at most: a put makes its entry directories in one
- * `createTree` transaction, and a batch is restored or purged as one piece of work.
- */
-const ENTRY_LIMIT = 2_000;
-
 /** How often a restore picks a new name for an entry whose name was taken while it moved. */
 const RESTORE_ROUNDS = 3;
 
-type EntryAttrs = { origPath?: string; trashedAt?: string };
-type BatchAttrs = { batch?: boolean; label?: string; trashedAt?: string };
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** An entry or batch id, as `put` makes them; anything else after `--batch` is the first path. */
-const isEntryId = (value: string): boolean => /^[0-9A-HJKMNP-TV-Z]{26}$/.test(value);
-
-/** `name`, or `name (2).ext`, `name (3).ext`, … — the first not in `used`. */
-const freeName = (name: string, used: Set<string>): string => {
-  if (!used.has(name)) return name;
-  const dot = name.lastIndexOf('.');
-  const stem = dot > 0 ? name.slice(0, dot) : name;
-  const ext = dot > 0 ? name.slice(dot) : '';
-  for (let n = 2;; n++) {
-    const candidate = `${stem} (${n})${ext}`;
-    if (!used.has(candidate)) return candidate;
-  }
-};
-
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
-
-/**
- * The names taken in each of `dirs`, from one read of their child edges; a directory that does not
- * resolve is absent, and one whose edges the caller may not read has none.
- */
-async function namesIn(cmd: Command, dirs: Iterable<string>): Promise<Map<string, Set<string>>> {
-  const ids = new Map<string, string>();
-  for (const dir of new Set(dirs)) {
-    const id = await cmd.sys.vfs.get(cmd.access, dir).then((node) => node.id, () => undefined);
-    if (id !== undefined) ids.set(dir, id);
-  }
-  const edges = await cmd.sys.vfs.getChildLinksByIds(cmd.access, [...ids.values()]);
-  return new Map([...ids].map(([dir, id]) => [dir, new Set((edges.get(id) ?? []).map((link) => link.name))]));
-}
-
-/** Those of `paths` with nothing at them: one read of their directories' edges, and a look at each not among them. */
-async function missingOf(cmd: Command, paths: string[]): Promise<string[]> {
-  const names = await namesIn(cmd, paths.map((path) => dirname(path)));
-  const missing: string[] = [];
-  for (const path of paths) {
-    if (names.get(dirname(path))?.has(basename(path))) continue;
-    if (!(await cmd.sys.vfs.exists(cmd.access, path, { readlink: true }))) missing.push(path);
-  }
-  return missing;
-}
-
-/**
- * `dir`'s children named `names`, as entries of the VFS holding `dir`, from one read of its child
- * edges; a name not there is absent. Only for plain directories the caller made there, which no
- * mount and no softlink stands on, so each is reached from `dir` by name and not resolved alone.
- */
-async function entriesIn(cmd: Command, dir: NodeEntry, names: string[]): Promise<Map<string, NodeEntry>> {
-  const links = (await cmd.sys.vfs.getChildLinksByIds(cmd.access, [dir.id])).get(dir.id) ?? [];
-  const ids = new Map(links.map((link) => [link.name, link.id]));
-  return new Map(names.flatMap((name) => {
-    const id = ids.get(name);
-    return id === undefined ? [] : [[name, { id, vfs: dir.vfs, vfsAbsPath: join(dir.vfsAbsPath, name), absPath: join(dir.absPath || dir.vfsAbsPath, name) }] as const];
-  }));
-}
-
-/** A resolver of directories by path, each resolved once to be written in. */
-function directories(cmd: Command): (path: string) => Promise<NodeEntry> {
-  const resolved = new Map<string, Promise<NodeEntry>>();
-  return (path) => {
-    let entry = resolved.get(path);
-    if (!entry) {
-      entry = cmd.sys.vfs.resolveEntry(cmd.access, path, { write: true });
-      resolved.set(path, entry);
-    }
-    return entry;
-  };
-}
 
 /** The rows of the trash at `trashPath`, newest first: one per entry, one per batch; none when it does not exist. */
 async function readTrash(cmd: Command, trashPath: string): Promise<TrashEntry[]> {
@@ -168,7 +89,7 @@ async function entryDirs(cmd: Command, entries: Restorable[]): Promise<Map<strin
   const found = new Map<string, NodeEntry>();
   for (const [holder, names] of byHolder) {
     const holderEntry = await cmd.sys.vfs.resolveEntry(cmd.access, holder, { write: true });
-    for (const [name, entry] of await entriesIn(cmd, holderEntry, names)) found.set(join(holder, name), entry);
+    for (const [name, entry] of await entriesIn(cmd.sys.vfs, cmd.access, holderEntry, names)) found.set(join(holder, name), entry);
   }
   return found;
 }
@@ -189,10 +110,10 @@ async function restoreEntries(cmd: Command, entries: Restorable[]): Promise<{ re
     return entry.name !== undefined;
   });
   const dirs = await entryDirs(cmd, pending);
-  const directory = directories(cmd);
+  const directory = directories(vfs, cmd.access);
   for (let round = 0; pending.length > 0; round++) {
     // The names taken beside each destination, from one read of their child edges.
-    const used = await namesIn(cmd, pending.map((entry) => dirname(entry.origPath)));
+    const used = await namesIn(vfs, cmd.access, pending.map((entry) => dirname(entry.origPath)));
 
     const moves: { entry: Restorable; to: string; move: { fromParent: NodeEntry; fromName: string; toParent: NodeEntry; toName: string } }[] = [];
     for (const entry of pending) {
@@ -251,7 +172,6 @@ export const trash = async (cmd: Command): CmdReturn => {
   const everyone = sub === 'empty' && flags.all;
   if (!everyone && (!home || home === '/')) return await fail('no home directory (log in first)');
   const trashPath = join(home ?? '/', USER_TRASH_DIR);
-  const owner = { uid: cmd.access.uid, gid: cmd.access.gid, mode: 0o700 };
 
   try {
     if (sub === 'list') {
@@ -273,92 +193,11 @@ export const trash = async (cmd: Command): CmdReturn => {
       const paths = batchFlag && !isEntryId(batchFlag) ? [batchFlag, ...rest] : rest;
       const label = typeof flags.label === 'string' && flags.label !== '' ? flags.label : undefined;
       if (label !== undefined && batchId === undefined) return await fail('--label names a batch, so it needs --batch');
-      if (paths.length === 0) return await fail('put needs at least one path');
 
-      const targets = [...new Set(paths.map((arg) => resolve(cmd.cwd, arg)))];
-      if (targets.length > ENTRY_LIMIT) return await fail(`a put moves at most ${ENTRY_LIMIT} paths, not ${targets.length}`);
-      const inTrash = targets.find((target) => isTrashPath(target));
-      if (inTrash) return await fail(`${inTrash}: already in the trash`);
-      const missing = await missingOf(cmd, targets);
-      if (missing.length > 0) return await fail(`${missing[0]}: not found`);
-
-      // Where each comes from, resolved before anything is made.
-      const directory = directories(cmd);
-      const sources = new Map<string, NodeEntry>();
-      for (const target of targets) sources.set(target, await directory(dirname(target)));
-
-      await vfs.ensure(cmd.access, NODE_TYPE_DIRECTORY, home, USER_TRASH_DIR, { props: owner });
-
-      const trashedAt = new Date().toISOString();
-      const batchPath = batchId === undefined ? undefined : join(trashPath, batchId);
-      let batchIsNew = false;
-      if (batchPath !== undefined) {
-        if (await vfs.exists(cmd.access, batchPath)) {
-          const batch = await vfs.get<BatchAttrs>(cmd.access, batchPath);
-          if (batch.attrs.batch !== true) return await fail(`${batchId}: not a batch`);
-          const held = await vfs.childCount(cmd.access, batchPath, { all: true });
-          if (held + targets.length > ENTRY_LIMIT) {
-            return await fail(`a batch holds at most ${ENTRY_LIMIT} entries: ${batchId} has ${held}, and ${targets.length} more would pass that`);
-          }
-        } else {
-          batchIsNew = true;
-        }
-      }
-
-      const entries = targets.map((target) => ({ id: monotonicUlid(), target, name: basename(target) }));
-      const specs = entries.map(({ id, target }) => ({
-        type: NODE_TYPE_DIRECTORY,
-        name: id,
-        props: owner,
-        attrs: { origPath: target, trashedAt } satisfies EntryAttrs,
-      }));
-      if (batchIsNew) {
-        const attrs: BatchAttrs = { batch: true, trashedAt, ...(label !== undefined ? { label } : {}) };
-        await vfs.createTree(cmd.access, trashPath, [{ type: NODE_TYPE_DIRECTORY, name: batchId!, props: owner, attrs, children: specs }]);
-      } else {
-        await vfs.createTree(cmd.access, batchPath ?? trashPath, specs);
-        // A batch's retention counts from the last entries put into it.
-        if (batchPath !== undefined) await vfs.update(cmd.access, batchPath, { attrs: { trashedAt, ...(label !== undefined ? { label } : {}) } });
-      }
-
-      const holder = batchPath ?? trashPath;
-      const dirs = await entriesIn(cmd, await vfs.resolveEntry(cmd.access, holder, { write: true }), entries.map(({ id }) => id));
-      const settled = await vfs.renameMany(
-        cmd.access,
-        entries.map(({ id, target, name }) => ({ fromParent: sources.get(target)!, fromName: name, toParent: dirs.get(id)!, toName: name })),
-        { failIfExists: true, relink: false },
-      );
-
-      const made: TrashEntry[] = [];
-      const failed: string[] = [];
-      const unused: string[] = [];
-      settled.forEach((outcome, i) => {
-        const { id, target, name } = entries[i];
-        if (outcome.status === 'rejected') {
-          failed.push(`${target}: ${messageOf(outcome.reason)}`);
-          unused.push(join(holder, id));
-          return;
-        }
-        const node = outcome.value.node;
-        made.push({
-          id: batchId === undefined ? id : `${batchId}/${id}`,
-          name,
-          origPath: target,
-          path: join(holder, id, name),
-          trashedAt,
-          type: node.type,
-          ...(typeof node.attrs.mimetype === 'string' ? { mimetype: node.attrs.mimetype } : {}),
-        });
-      });
-      if (unused.length > 0) {
-        await vfs.unlinkMany(cmd.access, unused);
-        if (batchIsNew && made.length === 0) await vfs.unlink(cmd.access, batchPath!, trashPath);
-        return await fail(`${failed.length} of ${targets.length} did not move to the trash; the first, ${failed[0]}`);
-      }
-
-      if (cmd.json) await cmd.writeJSON({ entries: made, ...(batchId !== undefined ? { batch: batchId } : {}) } satisfies TrashPutResult);
-      else if (batchId !== undefined) await cmd.writeLn(`Trashed ${made.length} into batch ${batchId}`);
-      else for (const entry of made) await cmd.writeLn(`Trashed ${entry.origPath} (${entry.id})`);
+      const result = await trashPut(vfs, cmd.access, home!, paths.map((arg) => resolve(cmd.cwd, arg)), { batchId, label });
+      if (cmd.json) await cmd.writeJSON(result satisfies TrashPutResult);
+      else if (batchId !== undefined) await cmd.writeLn(`Trashed ${result.entries.length} into batch ${batchId}`);
+      else for (const entry of result.entries) await cmd.writeLn(`Trashed ${entry.origPath} (${entry.id})`);
       return 0;
     }
 

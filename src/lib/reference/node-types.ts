@@ -141,6 +141,13 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
       "The key a device carries to write to /file/dev/<device> without signing in, as a phone posting its position does: the device's child .key, readable by the administrator alone. `device-key` makes, shows and takes it away.",
   },
   {
+    type: 'device-app',
+    label: 'App pairing',
+    category: 'system',
+    description:
+      "The EiN app's pairing with a phone: a one-time pairing code waiting for the app and the token the app was given, each kept as its SHA-256, in the phone's child .app, readable by the administrator alone. `device-app` pairs the app and takes it away.",
+  },
+  {
     type: 'user-invite',
     label: 'Sign-in link',
     category: 'system',

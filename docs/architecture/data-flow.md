@@ -939,12 +939,22 @@ queue without touching the others.
 ## File upload
 
 ```
-UI: POST /file/albums/2024/?name=photo.jpg  (bytes)
-  → handlePostFile
+UI: POST /upload/  Upload-Length, Upload-Metadata: dir /albums/2024, filename photo.jpg
+  → Uploads.handle: folder writable, spool not over CFG_UPLOAD_SPOOL_GB
+    → VFS.create /var/spool/uploads/<uid>/<ulid>  (attrs.upload)
+  → 201 Location: /upload/<ulid>
+UI: PATCH /upload/<ulid>  Upload-Offset: 0  (8 MB), … until the last byte
+  → appendPiece: append to the spool file as the administrator
+  (a piece that breaks off keeps what arrived; HEAD answers the spool file's size)
+  → the last piece: storeUpload
     → VFS.create photo.jpg, or photo (2).jpg, … when the name is taken
     → detect MIME from first bytes
     → write to file registry (disk); the write handle records size and sha256 at close
     → VFS.update node attrs (mimetype, frozen when /etc/frozen-uploads lists the type)
       → file registry touch: a frozen file's bytes lose their write bits (0444)
-  → 201 + { path, renamed, …attrs }
+    → the spool file drops its bytes and keeps attrs.upload.stored
+  → 204 Content-Location: /file/albums/2024/photo.jpg
 ```
+
+`POST /file/<dir>/?name=` takes a small file in one request the same way, from
+`createFreeName` on, and answers `201` with `{ path, renamed, …attrs }`.

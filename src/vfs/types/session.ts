@@ -17,6 +17,12 @@ export type SessionAttrs = NodeAttrs & {
    * sessions, which are meant to survive a restart. See `session-reap`.
    */
   bootId?: string;
+
+  /**
+   * The EiN app's token the session was opened with (`/__app/session`): the phone it is paired with
+   * and the token's id. The session ends when the phone no longer holds that token.
+   */
+  app?: { device: string; id: string };
 };
 
 export const NODE_TYPE_SESSION: NodeType = 'session';

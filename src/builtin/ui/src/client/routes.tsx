@@ -24,6 +24,7 @@ import SystemPage from './pages/system.tsx';
 import TrashPage from './pages/trash.tsx';
 import { awaitModuleRoutes } from './signals/module-ui.ts';
 import AboutPage, { ABOUT_WIDTH, AboutHero } from './pages/about.tsx';
+import AppPage from './pages/app.tsx';
 
 /** Drawn edge to edge: the frame leaves out its padding (`Layout`), as for a module page saying the same. */
 const fullBleed = { fullBleed: true };
@@ -83,6 +84,8 @@ export const routes: RouteObject[] = [{
     },
     // Opened in the dialog from the account menu; it draws its own header there.
     { path: 'about', element: <AboutPage />, handle: { title: 'About EiN', hero: AboutHero, ground: 'base', signedIn: true, dialogSize: ABOUT_WIDTH } },
+    // The EiN app's own page; only the app's sidebar links it (`ui.app`).
+    { path: 'app', element: <AppPage />, handle: ownPage },
     { path: 'devices', element: <DevicesPage />, handle: fullBleed },
     { path: 'devices/new', element: <NewDevicePage />, handle: newDeviceHandle },
     { path: 'devices/:name', element: <DevicePage />, handle: fullBleed },

@@ -1,9 +1,11 @@
 /**
- * Downloads over HTTP, for the access log: `GET /file/` of an original and `GET /archive/`.
+ * Downloads over HTTP, for the access log: `GET /file/` and WebDAV's GET of an original, and
+ * `GET /archive/`.
  */
 
 import { basename, dirname } from '@std/path';
 import { type Access, isGuest } from '../../lib/access/mod.ts';
+import type { AccessVia } from '../../lib/api/mod.ts';
 import { type AccessInput, isLoggedDownload, type Node, type NodePath, type NodeVFS, recordAccess } from '../../vfs/mod.ts';
 
 /**
@@ -37,21 +39,21 @@ export class DownloadLog {
 
   constructor(private readonly vfs: NodeVFS) {}
 
-  /** Who is downloading, as the access log records it: the account or link, the session and the address. */
-  #who(access: Access, sessionPath: NodePath, from: string | undefined): Omit<AccessInput, 'event'> {
+  /** Who is downloading, as the access log records it: the account or link, the session, the address and the way in. */
+  #who(access: Access, sessionPath: NodePath, from: string | undefined, via: AccessVia = 'http'): Omit<AccessInput, 'event'> {
     return {
       ...(isGuest(access) ? {} : { uid: access.uid }),
       sid: access.sid ?? (sessionPath ? basename(sessionPath) : undefined),
       from,
-      via: 'http',
+      via,
       linkId: access.link?.id,
     };
   }
 
   /** Record a read of `node` at `path` when it is an original, once per session and file within `DOWNLOAD_REPEAT_MS`. */
-  async file(access: Access, sessionPath: NodePath, from: string | undefined, path: NodePath, node: Node, now = Date.now()): Promise<void> {
+  async file(access: Access, sessionPath: NodePath, from: string | undefined, path: NodePath, node: Node, via?: AccessVia, now = Date.now()): Promise<void> {
     if (!isLoggedDownload(path, node)) return;
-    const who = this.#who(access, sessionPath, from);
+    const who = this.#who(access, sessionPath, from, via);
 
     const key = `${who.sid ?? who.from ?? ''}\0${path}`;
     const last = this.#seen.get(key);

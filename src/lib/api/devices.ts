@@ -259,6 +259,32 @@ export type DeviceKeyAnswer = {
   createdAt?: string;
 };
 
+/**
+ * `device-app`: the EiN app's pairing with a phone. The app is paired by scanning `qrText`, which
+ * holds a one-time code it trades for a token of its own; the token acts as the account that asked
+ * for the code.
+ */
+export type DeviceAppAnswer = {
+  device: string;
+  /** Whether an app holds a token for the phone. */
+  paired: boolean;
+  /** The account the app acts as, and when it was paired, ISO 8601. */
+  user?: string;
+  pairedAt?: string;
+  /** When the token was last used, ISO 8601, and from which address, when known. */
+  lastUsedAt?: string;
+  lastFrom?: string;
+  /** A pairing code waiting for the app: until when it works, ISO 8601. */
+  pairingExpiresAt?: string;
+  /**
+   * Only with `--pair --origin`: what the QR code says, `ein://pair?server=<origin>&device=<device>&code=<code>`.
+   * The code is shown this once.
+   */
+  qrText?: string;
+  /** The QR code as an SVG document. */
+  qrSvg?: string;
+};
+
 /** How `device-history --bucket` sums each interval up. */
 export type HistoryAggregate = 'avg' | 'min' | 'max' | 'sum' | 'count' | 'first' | 'last';
 

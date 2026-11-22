@@ -49,6 +49,16 @@
       "order": 20
     },
     {
+      "id": "ui.app",
+      "signedIn": true,
+      "app": true,
+      "section": "system",
+      "label": "App",
+      "icon": "device-mobile",
+      "to": "/app",
+      "order": 25
+    },
+    {
       "id": "ui.settings",
       "signedIn": true,
       "section": "system",

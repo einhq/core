@@ -1,0 +1,5 @@
+{
+  "description": "Removes uploads sent in pieces that no piece has reached for CFG_UPLOAD_EXPIRES_HOURS",
+  "restartPolicy": "on-failure",
+  "workClass": "background"
+}

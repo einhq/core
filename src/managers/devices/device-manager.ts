@@ -32,6 +32,7 @@ import { createLogger } from '../logger/mod.ts';
 import { groupGid } from '../../lib/auth/member-gids.ts';
 import { readTail } from '../../lib/metrics/read.ts';
 import { DEV_PATH, DEV_RESERVED_NAMES, DEVICE_SECRET_NAME, devicePath, USERS_PATH } from '../../lib/paths.ts';
+import { endAppSessions } from './app-tokens.ts';
 import { readTrackerRequest, type TrackerStatus } from '../../lib/track/tracker-protocols.ts';
 import { LogHandle } from '../../registries/log/log-handle.ts';
 import { TrackHandle } from '../../registries/track/track-handle.ts';
@@ -434,6 +435,7 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     // First, so a driver that would find it again (a broker's retained announcement) lets it go.
     await driver?.forget?.(device);
     await this.sys.vfs.unlink(access, devicePath(device), DEV_PATH, { recursive: true });
+    await endAppSessions(this.sys.vfs, device);
     for (const key of [...this.endpoints.keys(), ...this.published.keys(), ...this.pending.keys()]) {
       if (!key.startsWith(`${device}/`)) continue;
       this.endpoints.delete(key);

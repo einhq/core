@@ -41,6 +41,7 @@ import { UploadIndicator } from '../Upload/UploadIndicator.tsx';
 import { NearbyIndicator } from '../ShowOn/NearbyIndicator.tsx';
 import { AccountFace } from '../Settings/Accounts/AccountAvatar.tsx';
 import { usePhone } from '../../hooks/usePhone.ts';
+import { inEinApp } from '../../lib/ein-app.ts';
 import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { keyCaps, shortcutHelpOpen, shortcutText, topbarShortcuts } from '../../signals/shortcuts.ts';
 import { useNavKeys } from '../../hooks/useNavKeys.ts';
@@ -520,12 +521,18 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
                       Leave admin mode
                     </Menu.Item>
                   )}
-                  <Menu.Item
-                    leftSection={<IconLogout size={14} />}
-                    onClick={handleLogout}
-                  >
-                    Logout
-                  </Menu.Item>
+                  {
+                    /* The EiN app signs in again with its own key, so it is left by unpairing it
+                      (its App page), not by signing out. */
+                  }
+                  {!inEinApp() && (
+                    <Menu.Item
+                      leftSection={<IconLogout size={14} />}
+                      onClick={handleLogout}
+                    >
+                      Logout
+                    </Menu.Item>
+                  )}
                 </>
               )}
             </Menu.Dropdown>

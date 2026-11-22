@@ -9,6 +9,7 @@ import { shq } from '@ein/ui/lib';
 import { execCommand, notify, type PanelEntry, panelRoute, panelsOf } from '@ein/ui/signals';
 import { DeviceConfig } from '../components/Devices/DeviceConfig.tsx';
 import { DeviceEditModal } from '../components/Devices/DeviceEditModal.tsx';
+import { DeviceApp } from '../components/Devices/DeviceApp.tsx';
 import { DeviceKey } from '../components/Devices/DeviceKey.tsx';
 import { EndpointTile } from '../components/Devices/EndpointTile.tsx';
 import { FixMap } from '../components/Devices/FixMap.tsx';
@@ -261,6 +262,12 @@ function Info({ info, member, onChanged }: { info: DeviceInfo; member: boolean; 
         <Box>
           <Text fw={500} mb='xs'>Device key</Text>
           <DeviceKey device={info.name} driver={info.driver} />
+        </Box>
+      )}
+      {info.class === 'phone' && (
+        <Box>
+          <Text fw={500} mb='xs'>EiN app</Text>
+          <DeviceApp device={info.name} />
         </Box>
       )}
     </Stack>

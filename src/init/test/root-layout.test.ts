@@ -28,6 +28,7 @@ import {
   SESSIONS_PATH,
   SYSTEM_LOG_PATH,
   TAGS_ROOT,
+  UPLOAD_SPOOL_PATH,
   USERS_PATH,
   VAR_DIRS,
 } from '../../lib/paths.ts';
@@ -88,12 +89,16 @@ Deno.test({
     // someone to `admin` does not let them change what every shell sources. The accounts, the groups
     // and how the machine runs are for those signed in, `users`, and the homes are passed through but
     // listed only by them; the pipeline instances are the administrator group's alone.
-    await t.step('the system directories are 0755, those signed in only list some', async () => {
+    await t.step('the system directories are 0755, those signed in only list some, and the upload spool is closed', async () => {
       const closed = [USERS_PATH, GROUPS_PATH, LOGS_PATH, QUEUES_PATH, POOLS_PATH, PIPELINES_PATH];
       const passed = [HOMES_PATH, GROUP_HOMES_PATH];
       for (const path of ['/etc', '/var', '/usr', SESSIONS_PATH, ...VAR_DIRS, ...closed, ...passed]) {
         const { mode, gid } = await admin.execJson<{ mode: number; gid: number }>(`props ${path}`);
-        const expected = closed.includes(path) ? ['750', USERS_GID] : passed.includes(path) ? ['751', USERS_GID] : [path === PIPELINE_INSTANCES_PATH ? '750' : '755', gid];
+        const expected = closed.includes(path)
+          ? ['750', USERS_GID]
+          : passed.includes(path)
+          ? ['751', USERS_GID]
+          : [path === PIPELINE_INSTANCES_PATH ? '750' : path === UPLOAD_SPOOL_PATH ? '700' : '755', gid];
         assertEquals([mode.toString(8), gid], expected, path);
       }
     });

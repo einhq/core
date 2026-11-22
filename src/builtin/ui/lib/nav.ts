@@ -79,6 +79,8 @@ export type NavLink = {
   signedIn?: boolean;
   /** Shown to this group's members and administrators only: what only they may do (`devices`). */
   group?: string;
+  /** Shown inside the EiN app only (`withoutAppEntries`): what only the app can do. */
+  app?: boolean;
   /** A key that opens the page from anywhere outside a text field, in the top bar's form (`alt+P`). */
   shortcut?: string;
   /** In the top bar (`topbar`, `search`) it is a button that opens the page. */
@@ -109,6 +111,8 @@ type TopbarEntry = {
   signedIn?: boolean;
   /** As a sidebar entry's: this group's members and administrators only. */
   group?: string;
+  /** As a sidebar entry's: inside the EiN app only. */
+  app?: boolean;
   /** `false` leaves the button out on a phone. */
   phone?: boolean;
   /**
@@ -166,6 +170,8 @@ export type PanelEntry = {
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
+  /** As a sidebar entry's: inside the EiN app only. */
+  app?: boolean;
   /** Whose fragment gives it, which `ui-nav` fills in: the module's name, or `ui` for the shell's own. */
   source?: string;
 };
@@ -467,3 +473,19 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
     warnings,
   };
 };
+
+/**
+ * The navigation as a page outside the EiN app draws it: without the entries kept to the app
+ * (`app`), and without a dropdown whose rows were all such entries. `ui-nav` cannot tell the app
+ * from a browser, so the page leaves them out itself.
+ */
+export const withoutAppEntries = (nav: UiNav): UiNav => ({
+  ...nav,
+  sections: nav.sections.map((section) => ({ ...section, items: section.items.filter((item) => item.app !== true) })),
+  topbar: nav.topbar.filter((entry) => entry.app !== true).flatMap((entry) => {
+    if (!entry.menu) return [entry];
+    const menu = entry.menu.filter((row) => row.app !== true);
+    return menu.length > 0 ? [{ ...entry, menu }] : entry.action !== undefined ? [{ ...entry, menu: undefined }] : [];
+  }),
+  panels: nav.panels.filter((panel) => panel.app !== true),
+});

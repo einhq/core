@@ -1,7 +1,7 @@
 import { computed, type ReadonlySignal, signal } from '@preact/signals-react';
 import { fromEvent } from 'file-selector';
-import { fileUrl } from '../lib/file-url.ts';
 import { shq } from '../lib/shquote.ts';
+import { sendInPieces, type TusAnswer, type TusIo } from '../lib/tus-upload.ts';
 import {
   createUploadQueue,
   NO_UPLOADS,
@@ -16,9 +16,6 @@ import { execCommand } from './shell-client.ts';
 
 /** The counts are shown at most this often, however fast the files go. */
 const PUBLISH_MS = 250;
-
-/** The longest server answer a failure repeats. */
-const ERROR_CHARS = 200;
 
 const summary = signal<UploadCounts>(NO_UPLOADS);
 const summaryByTarget = signal<Readonly<Record<string, UploadTargetSummary>>>({});
@@ -76,32 +73,50 @@ export function readDroppedFiles(event: { type?: string } | FileSystemFileHandle
  */
 export const uploadBatchDone: ReadonlySignal<{ dirs: string[]; at: number } | null> = batchDone;
 
-/** POST `file` into `dir`, which never replaces a file; answers the path it was stored at. */
-const send = (file: File, dir: string, progress: (sent: number) => void, abort: AbortSignal): Promise<string> =>
+/** One request of an upload in pieces, by XHR, which tells how much of a body has gone. */
+const request: TusIo['request'] = (method, url, headers, body, progress, signal) =>
   new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    abort.addEventListener('abort', () => xhr.abort(), { once: true });
-    xhr.upload.onprogress = (event) => progress(event.loaded);
+    const abort = () => xhr.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    const settle = () => signal.removeEventListener('abort', abort);
+    if (progress) xhr.upload.onprogress = (event) => progress(event.loaded);
+    const answer = (status: number): TusAnswer => ({ status, header: (name) => xhr.getResponseHeader(name), text: status === 0 ? '' : xhr.responseText });
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(storedPathOf(xhr) ?? `${dir}/${file.name}`);
-      else reject(new Error(xhr.responseText.trim().slice(0, ERROR_CHARS) || `upload refused (${xhr.status})`));
+      settle();
+      resolve(answer(xhr.status));
     };
-    xhr.onerror = () => reject(new Error('network error'));
-    xhr.onabort = () => reject(new DOMException('upload cancelled', 'AbortError'));
-    xhr.open('POST', `${fileUrl(dir)}/?name=${encodeURIComponent(file.name)}`);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.send(file);
+    xhr.onerror = () => {
+      settle();
+      resolve(answer(0));
+    };
+    xhr.onabort = () => {
+      settle();
+      reject(new DOMException('upload cancelled', 'AbortError'));
+    };
+    xhr.open(method, url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    xhr.send(body ?? null);
   });
 
-/** The `path` of a `POST /file` answer, or undefined when the body is not one. */
-function storedPathOf(xhr: XMLHttpRequest): string | undefined {
-  try {
-    const answer = JSON.parse(xhr.responseText) as { path?: unknown };
-    return typeof answer.path === 'string' ? answer.path : undefined;
-  } catch {
-    return undefined;
-  }
-}
+const sleep: TusIo['sleep'] = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('upload cancelled', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', abort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', abort, { once: true });
+  });
+
+/**
+ * Send `file` into `dir` in pieces that resume across a dropped connection, never replacing a
+ * file; answers the path it was stored at.
+ */
+const send = (file: File, dir: string, progress: (sent: number) => void, abort: AbortSignal): Promise<string> => sendInPieces({ request, sleep }, file, dir, progress, abort);
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 let shownAt = 0;

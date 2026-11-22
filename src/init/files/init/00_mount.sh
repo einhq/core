@@ -31,3 +31,5 @@ truncate "$LOGS_PATH/system"
 mkdir -p "$LOGS_PATH/services"
 chmod 640 "$LOGS_PATH/system"
 chmod 750 "$LOGS_PATH/services" "$PIPELINES_PATH/instances"
+# Unfinished uploads are their senders' alone, and the server writes them as the administrator.
+chmod 700 "$UPLOAD_SPOOL_PATH"

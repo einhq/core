@@ -181,10 +181,13 @@ export const readModuleSettings = async (vfs: ModuleVFS, access: Access, etcPath
 };
 
 /**
- * A positive number of seconds from `settings`, or the option's default when it is unset or
- * unusable: a lifetime read from the system's files, never from a caller's environment.
+ * A positive number from `settings`, or the option's default when it is unset or unusable: a limit
+ * read from the system's files, never from a caller's environment.
  */
-export const secondsSetting = (settings: Record<string, string>, key: string): number => {
-  const seconds = Number(settings[key]);
-  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : Number(getConfigOption(key)!.default);
+export const positiveSetting = (settings: Record<string, string>, key: string): number => {
+  const value = Number(settings[key]);
+  return Number.isFinite(value) && value > 0 ? value : Number(getConfigOption(key)!.default);
 };
+
+/** A positive number of seconds from `settings`, as `positiveSetting` reads it: a lifetime. */
+export const secondsSetting = (settings: Record<string, string>, key: string): number => Math.round(positiveSetting(settings, key));

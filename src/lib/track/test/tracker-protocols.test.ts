@@ -96,6 +96,22 @@ Deno.test('fromTraccarJson: a list of locations is each of them', () => {
   assertEquals(points(fromTraccarJson({ location: [at(1), at(2)] })).length, 2);
 });
 
+Deno.test("readTrackerRequest: EiN's own points carry the battery, charging and activity, the newest point's as the status", () => {
+  const body = [
+    { lat: 57.5, lng: 11.9, ts: '2024-06-01T10:02:00Z', accuracy: 12, battery: 53, charging: false, activity: 'in_vehicle' },
+    { lat: 57.4, lng: 11.8, ts: '2024-06-01T10:01:00Z', battery: 55, activity: 'still' },
+  ];
+  const read = readTrackerRequest(new URL('http://ein.example/'), 'application/json', JSON.stringify(body));
+  assertEquals(points(read), [
+    { lat: 57.5, lng: 11.9, ts: '2024-06-01T10:02:00Z', accuracy: 12 },
+    { lat: 57.4, lng: 11.8, ts: '2024-06-01T10:01:00Z' },
+  ]);
+  assertEquals('status' in read && read.status, { battery: 53, charging: false, activity: 'in_vehicle', ts: '2024-06-01T10:02:00.000Z' });
+
+  const bare = readTrackerRequest(new URL('http://ein.example/'), 'application/json', '{"lat":1,"lng":2,"battery":-1,"activity":"unknown"}');
+  assertEquals(bare, { points: [{ lat: 1, lng: 2 }] });
+});
+
 Deno.test('readTrackerRequest: each protocol by what the request carries', () => {
   const url = (query = '') => new URL(`http://ein.example/tracker/x.y${query}`);
 

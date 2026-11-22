@@ -1,10 +1,11 @@
 import { join } from '@std/path';
-import { ADMIN_ACCESS } from '../../../../lib/access/constants.ts';
-import { verifyAccess } from '../../../../lib/access/verify-access.ts';
-import { type DeviceAttrs, type DeviceConfigAnswer, type DeviceCreated, type DeviceKeyAnswer, deviceName } from '../../../../lib/api/devices.ts';
+import { ADMIN_ACCESS, ADMIN_UID } from '../../../../lib/access/constants.ts';
+import { isVisitor, verifyAccess } from '../../../../lib/access/verify-access.ts';
+import { type DeviceAppAnswer, type DeviceAttrs, type DeviceConfigAnswer, type DeviceCreated, type DeviceKeyAnswer, deviceName } from '../../../../lib/api/devices.ts';
 import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../../../../lib/args/mod.ts';
+import { accountOfUid } from '../../../../lib/auth/display-account.ts';
 import { DEV_PATH, devicePath } from '../../../../lib/paths.ts';
-import { isDeviceName, newDeviceKey, readDeviceKey, removeDeviceKey } from '../../../devices/mod.ts';
+import { isDeviceName, newDeviceKey, newPairingCode, readDeviceApp, readDeviceKey, removeDeviceApp, removeDeviceKey } from '../../../devices/mod.ts';
 import { type DeviceNodeAttrs, NODE_TYPE_DEVICE } from '../../../../vfs/types/device.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -297,4 +298,76 @@ deviceKey.spec = {
   ],
   examples: ['device-key ruby-phone', 'device-key ruby-phone --new --origin https://ein.example', 'device-key old-sensor --off'],
   returns: 'DeviceKeyAnswer',
+};
+
+/**
+ * The EiN app's pairing with a phone: shown, a new one-time pairing code and its QR code (`--pair`,
+ * which needs `--origin`), or taken away (`--off`). The app acts as whoever asked for the code, so
+ * the administrator's account pairs none; a token the app holds keeps working until a new code is
+ * used. For whoever may change the phone.
+ */
+export const deviceApp = async (cmd: Command): CmdReturn => {
+  const unknown: string[] = [];
+  const flags = parseArgs(cmd.args, { boolean: ['pair', 'off'], string: ['origin'], unknown: collectUnknownFlags(unknown) });
+  if (await reportUnknownFlags(cmd, unknown)) return 1;
+  const target = parseTarget(String(flags._[0] ?? ''));
+  if (!target || target.endpoint) return await fail(cmd, 'device-app', 'usage: device-app <device> [--pair --origin <url>|--off]');
+  if (flags.pair && flags.off) return await fail(cmd, 'device-app', '--pair and --off do not go together');
+  let origin: string | undefined;
+  if (flags.origin) {
+    try {
+      origin = new URL(flags.origin).origin;
+    } catch {
+      return await fail(cmd, 'device-app', `--origin takes a URL such as https://ein.example, not '${flags.origin}'`);
+    }
+  }
+  if (flags.pair && !origin) return await fail(cmd, 'device-app', '--pair needs --origin: the address the app reaches EiN at');
+  const { device } = target;
+  try {
+    const node = await cmd.sys.vfs.get(cmd.access, devicePath(device));
+    if (node.type !== NODE_TYPE_DEVICE) throw new Error(`${device} is not a device`);
+    if (!verifyAccess(cmd.access, node.props, 'w')) throw new Error(`only whoever may change ${device} pairs the app with it`);
+    if (flags.pair && (isVisitor(cmd.access) || cmd.access.uid === ADMIN_UID)) {
+      throw new Error("the app acts as whoever pairs it, and never as the administrator: pair it signed in as the phone's person");
+    }
+    if (flags.off) await removeDeviceApp(cmd.sys.vfs, device);
+    const code = flags.pair ? await newPairingCode(cmd.sys.vfs, device, cmd.access.uid) : undefined;
+    const record = flags.off ? undefined : await readDeviceApp(cmd.sys.vfs, device);
+    const token = record?.attrs.token;
+    const pairing = record?.attrs.pairing;
+    const answer: DeviceAppAnswer = { device, paired: token !== undefined };
+    if (token) {
+      answer.user = (await accountOfUid(cmd.sys.vfs, token.by))?.username ?? String(token.by);
+      answer.pairedAt = new Date(token.pairedAt).toISOString();
+      if (token.lastUsedAt !== undefined) answer.lastUsedAt = new Date(token.lastUsedAt).toISOString();
+      if (token.lastFrom !== undefined) answer.lastFrom = token.lastFrom;
+    }
+    if (pairing && pairing.expiresAt > Date.now()) answer.pairingExpiresAt = new Date(pairing.expiresAt).toISOString();
+    if (code && origin) {
+      answer.qrText = `ein://pair?${new URLSearchParams({ server: origin, device, code: code.code })}`;
+      answer.qrSvg = qrSvg(answer.qrText);
+    }
+    if (cmd.json) await cmd.writeJSON(answer satisfies DeviceAppAnswer);
+    else if (answer.qrText) await cmd.writeLn(answer.qrText);
+    else if (answer.paired) await cmd.writeLn(`${device} is paired with the app as ${answer.user}, last used ${answer.lastUsedAt ?? 'never'}`);
+    else await cmd.writeLn(`${device} is not paired with the app`);
+    return 0;
+  } catch (error) {
+    return await fail(cmd, 'device-app', error);
+  }
+};
+
+deviceApp.spec = {
+  name: 'device-app',
+  effect: 'write' as const,
+  description:
+    "The EiN app's pairing with a phone: shown, a one-time pairing code as a QR code for the app to scan (--pair), or taken away (--off), which signs the app out at once. The app acts as whoever paired it",
+  args: [{ name: 'device', type: 'string' as const, description: "the phone's name" }],
+  flags: [
+    { name: 'pair', type: 'bool' as const, description: 'a new pairing code, which works once for 15 minutes; the app paired before keeps working until it is used' },
+    { name: 'off', type: 'bool' as const, description: 'take the pairing away: the app is signed out and its token stops working' },
+    { name: 'origin', type: 'string' as const, description: "this EiN's address as the app reaches it (https://ein.example), for the QR code" },
+  ],
+  examples: ['device-app ruby-phone', 'device-app ruby-phone --pair --origin https://ein.example', 'device-app ruby-phone --off'],
+  returns: 'DeviceAppAnswer',
 };

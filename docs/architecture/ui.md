@@ -26,7 +26,7 @@ sequenceDiagram
     S-->>C: re-render
 ```
 
-File I/O bypasses the shell and goes directly to the REST endpoints: `GET /file/<path>` to read, `PUT /file/<path>` to write a path (the code editor's save), and `POST /file/<dir>/?name=` for uploads, which never replace a file — a taken name is stored as `name (2).ext` and the answer's `path` says where.
+File I/O bypasses the shell and goes directly to the REST endpoints: `GET /file/<path>` to read, `PUT /file/<path>` to write a path (the code editor's save), and `POST /file/<dir>/?name=` for a single small file sent at once (a picture to search with), which never replaces a file — a taken name is stored as `name (2).ext` and the answer's `path` says where. The upload queue sends in pieces instead, below.
 
 ### Uploads
 
@@ -39,7 +39,11 @@ it), before the first file of each goes; a page never runs `mkdir` for an upload
 `keepFolders`, each file goes into the target plus the folders it was in below what was dropped or
 picked: a dropped folder's files carry them as `relativePath` (from the drag's directory entries),
 a folder picker's as `webkitRelativePath`; a `..` in them fails that file. Four files are sent at
-once, each one `POST /file/<dir>/?name=`.
+once, each in pieces of 8 MB to `/upload/` (`lib/tus-upload.ts`, tus 1.0), so no request outlasts a
+proxy's limit and a piece that fails is followed by a `HEAD` and sent on from where the server's
+copy ends, after a pause that grows to 20 s while nothing gets through, twelve in a row failing the
+file. A taken name is stored as `name (2).ext`, as `POST /file` stores it, and the last answer's
+`Content-Location` says where.
 
 The queue keeps counters per `addToQueue` batch, changed as each file moves (queued, being sent,
 stored, failed, and the bytes), so a progress event costs the same at five files as at five
@@ -160,7 +164,9 @@ something floating over every page, the drawer and the lightbox and under a dial
 whole app by `FloatHost` in a layer of no size of its own, so the panel places what it draws itself (`position: fixed`)
 and follows the node on screen with `useShownNode` — the picture in the lightbox, else what the page declares with
 `usePageSubject`; `device.tabs`, a tab of a device's page after its own, whose route gets the device's path
-(`/dev/<device>`) for `{path}` (archive's Trips); `devices.header`, a button in the Devices page's header
+(`/dev/<device>`) for `{path}` (archive's Trips); `app.backup`, on the EiN app's App page, where the phone's photo
+backup sends, chosen through `window.EinApp`'s `backupSet`, which the kit lends (`@ein/ui/lib`; archive's staging
+category for the phone); `devices.header`, a button in the Devices page's header
 beside its filters, which draws nothing while it has nothing to say (devices' hosts found on the network); `settings.views`, a
 settings view that sets up one thing with the settings it takes (core's Language and time, Sign-in and Module sources, the
 assistant's language model, devices' MQTT broker and restreamer, ems's media service and transcription, media's
@@ -191,7 +197,9 @@ gives and keeps the rest, a field set to `null` is taken away, a new id adds an 
 entries (or whole sections) away. Two
 modules giving one id is a warning and the first keeps it; an overlay may change anything. Entries
 marked `admin` are left out for everyone else, those marked `signedIn` for the guest (a top-bar
-dropdown takes its rows with it), and an entry missing a field, naming an unknown
+dropdown takes its rows with it), those marked `app` by the page itself everywhere but in the EiN
+app's WebView (`withoutAppEntries`, since `ui-nav` cannot tell the two apart; the app's bridge,
+`window.EinApp`, is `lib/ein-app.ts`), and an entry missing a field, naming an unknown
 section or an action of no known kind is left out with a warning (`ui-nav` prints them; the browser
 logs them). A top-bar entry is a button, or a dropdown when other entries name it as their `parent`;
 `phone: false` leaves it out below `sm`, and `place: "search"` stands it beside the search box rather

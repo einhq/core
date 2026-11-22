@@ -3,6 +3,7 @@ import { ulid } from '@std/ulid';
 import { Access, ADMIN_ACCESS, GUEST_ACCESS, GUEST_GID, GUEST_UID, isGuest, storedAccess } from '../../lib/access/mod.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
 import { guestMayBrowse, readSettings, secondsSetting } from '../../lib/config/mod.ts';
+import { type AppSession, appSessionHolds, touchAppToken } from '../../managers/devices/app-tokens.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { Node, NodePath, NodeVFS } from '../../vfs/mod.ts';
 import { isSessionNode, NODE_TYPE_SESSION, SessionAttrs } from '../../vfs/types/session.ts';
@@ -199,6 +200,11 @@ export async function getSession(
         throw new Error('received session id cookie with non-matching secret');
       }
 
+      const app = sessionNode.attrs.app;
+      if (app && !await appSessionHolds(config.vfs, app)) {
+        throw new Error('received session of an app whose token was withdrawn');
+      }
+
       const now = Date.now();
       if (now - (sessionNode.attrs.lastActivity ?? 0) >= SESSION_ACTIVITY_FLOOR_MS) {
         sessionNode = await config.vfs.update<SessionAttrs>(ADMIN_ACCESS, sessionPath, {
@@ -206,6 +212,7 @@ export async function getSession(
             lastActivity: now,
           },
         });
+        if (app) await touchAppToken(config.vfs, app, undefined, now);
       }
     } catch (err) {
       logger.warn((err as Error).message);
@@ -242,7 +249,8 @@ export async function getSession(
 
 /**
  * A new session acting as `access`, its cookie written to `responseHeaders`: for as long as a
- * session holding a share link lasts when `access` holds one, else as long as any.
+ * session holding a share link lasts when `access` holds one, else as long as any. One opened by
+ * the app's token names it (`app`) and carries its own id as its `sid`, as a shell's sign-in does.
  */
 async function createSession(
   config: SessionConfig,
@@ -250,10 +258,12 @@ async function createSession(
   responseHeaders: Headers,
   access: Access,
   ephemeral?: boolean,
+  app?: AppSession,
 ): Promise<{ sessionPath: NodePath; sessionNode: Node<SessionAttrs> }> {
   const lifetimes = await sessionLifetimes(config);
   const name = ulid();
   const sessionPath = join(config.env.SESSIONS_PATH, `session-${name}`);
+  if (app) access = { ...access, sid: basename(sessionPath) };
   const sessionNode = await config.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, dirname(sessionPath), basename(sessionPath), {
     props: {
       mode: 0o700,
@@ -266,6 +276,7 @@ async function createSession(
       lastActivity: Date.now(),
       expiresSec: access.link ? lifetimes.linkExpiresSec : lifetimes.expiresSec,
       ...(ephemeral ? { bootId: BOOT_ID } : {}),
+      ...(app ? { app } : {}),
     },
   });
 
@@ -281,6 +292,16 @@ export async function openSessionAs(config: SessionConfig, headers: Headers, acc
   const responseHeaders = new Headers();
   await createSession(config, headers, responseHeaders, access);
   return responseHeaders;
+}
+
+/**
+ * A session for the EiN app, acting as `access`, the account its token acts as: the response
+ * headers that give the app's WebView its cookie, and the session's id.
+ */
+export async function openAppSession(config: SessionConfig, headers: Headers, access: Access, app: AppSession): Promise<{ responseHeaders: Headers; sid: string }> {
+  const responseHeaders = new Headers();
+  const { sessionPath } = await createSession(config, headers, responseHeaders, access, false, app);
+  return { responseHeaders, sid: basename(sessionPath) };
 }
 
 /**

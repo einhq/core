@@ -415,6 +415,26 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Storage',
     restarts: ['tmp-sweeper'],
   },
+  {
+    key: 'CFG_UPLOAD_SPOOL_GB',
+    scope: 'system',
+    type: 'number',
+    default: '20',
+    label: 'Unfinished uploads per account (GB)',
+    description:
+      'How much an account may have on its way in pieces at once: the sizes of its uploads that have begun and not yet arrived whole. An upload that would go past it is refused before it starts.',
+    group: 'Storage',
+  },
+  {
+    key: 'CFG_UPLOAD_EXPIRES_HOURS',
+    scope: 'system',
+    type: 'number',
+    default: '24',
+    label: 'Hours an upload waits for its next piece',
+    description: 'How long an upload sent in pieces is kept after its last piece arrived. Past it the pieces are removed, and the upload starts again from its first byte.',
+    group: 'Storage',
+    restarts: ['upload-reaper'],
+  },
 
   /* Per-user */
   {

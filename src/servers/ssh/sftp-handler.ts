@@ -15,19 +15,18 @@
 import { basename, dirname, join, resolve } from '@std/path';
 import { OPEN_MODE, type SFTP, STATUS_CODE } from 'ssh2';
 import type { Access } from '../../lib/access/mod.ts';
-import { getMimeFromBuffer, MIME_SAMPLE_BYTES, refineMimeByName } from '../../lib/media/mime.ts';
+import { getMimeFromBuffer, MIME_SAMPLE_BYTES } from '../../lib/media/mime.ts';
+import { retypeMovedUpload } from '../../lib/media/moved-upload.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import type { WritesWithOptions } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
 import type { Node, NodeVFS } from '../../vfs/mod.ts';
 import { isLoggedDownload, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError, recordAccess } from '../../vfs/mod.ts';
-import { NODE_TYPE_EMBEDDING } from '../../vfs/types/embedding.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
-import { NODE_TYPE_LOG } from '../../vfs/types/log.ts';
-import { NODE_TYPE_STREAM } from '../../vfs/types/stream.ts';
 import { isStreamWriter } from '../../registries/stream/types.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
 import { freezesUpload } from '../../lib/media/frozen-uploads.ts';
+import { isClientFile } from '../client-files.ts';
 
 const logger = createLogger('sftp-handler');
 
@@ -58,14 +57,6 @@ const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
 const S_IFREG = 0o100000;
 const S_IFLNK = 0o120000;
-
-/** The node types a client sees as files; a stream is read from now on and written by its one writer. */
-const FILE_TYPES = [
-  NODE_TYPE_FILE,
-  NODE_TYPE_EMBEDDING,
-  NODE_TYPE_LOG,
-  NODE_TYPE_STREAM,
-];
 
 export type SFTPHandlerConfig = {
   vfs: NodeVFS;
@@ -330,7 +321,7 @@ export class SFTPHandler {
     }
     try {
       const node = await vfs.get(access, join(parentPath, segment.slice(0, -SHADOW_SUFFIX.length)));
-      return FILE_TYPES.includes(node.type);
+      return isClientFile(node);
     } catch (err) {
       if (err instanceof NodeNotFoundError) return false;
       throw err;
@@ -350,7 +341,7 @@ export class SFTPHandler {
     // A node read without following links is the link itself; a listing
     // reports it as one (lstat semantics, as OpenSSH does) so clients copy
     // the link instead of descending into its target.
-    const fileType = node.props.softlink ? S_IFLNK : FILE_TYPES.includes(node.type) ? S_IFREG : S_IFDIR;
+    const fileType = node.props.softlink ? S_IFLNK : isClientFile(node) ? S_IFREG : S_IFDIR;
     const unixTime = Math.floor(contentTime(node) / 1000);
 
     return {
@@ -875,7 +866,7 @@ export class SFTPHandler {
 
       // A file's children are listed through its shadow, never through the
       // file itself, which would make it a file and a directory at once.
-      if (FILE_TYPES.includes(node.type) && !isShadow) {
+      if (isClientFile(node) && !isShadow) {
         this.sendResponse(() => sftp.status(reqid, STATUS_CODE.FAILURE, 'not a directory'));
         return;
       }
@@ -1192,7 +1183,7 @@ export class SFTPHandler {
       // Without readlink the path resolves to the link's target, and unlink
       // then deletes that node when this was its only name.
       const node = await this.config.vfs.get(this.config.access, vfsPath, { readlink: true });
-      const isFile = FILE_TYPES.includes(node.type) && !node.props.softlink;
+      const isFile = isClientFile(node) && !node.props.softlink;
       if (!isFile && !node.props.softlink) {
         this.sendResponse(() => sftp.status(reqid, STATUS_CODE.FAILURE, 'is a directory'));
         return;
@@ -1267,17 +1258,7 @@ export class SFTPHandler {
         basename(newVfsPath),
       );
 
-      // A client that writes to a temporary name (`photo.cr2.filepart`) and renames it when done
-      // gets the type an upload under the final name gets: the name rules apply to that name, and
-      // so does `/etc/frozen-uploads`.
-      const mimetype = (node.attrs as { mimetype?: unknown }).mimetype;
-      if (node.type === NODE_TYPE_FILE && typeof mimetype === 'string') {
-        const named = refineMimeByName(mimetype, basename(newVfsPath));
-        if (named !== mimetype) {
-          const frozen = !node.attrs.frozen && await freezesUpload(this.config.vfs, named);
-          await this.config.vfs.update(this.config.access, newVfsPath, { attrs: { mimetype: named, ...(frozen ? { frozen } : {}) } });
-        }
-      }
+      await retypeMovedUpload(this.config.vfs, this.config.access, newVfsPath, node);
 
       this.sendResponse(() => sftp.status(reqid, STATUS_CODE.OK));
     } finally {

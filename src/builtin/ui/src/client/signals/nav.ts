@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals-react';
-import type { MapLayerEntry, NavAction, PanelEntry, UiNav } from '@ui/nav';
+import { type MapLayerEntry, type NavAction, type PanelEntry, type UiNav, withoutAppEntries } from '@ui/nav';
+import { inEinApp } from '../lib/ein-app.ts';
 import { execCommand } from './shell-client.ts';
 import { preloadIcons } from '../lib/tabler-icons.ts';
 import { lightboxRoute } from '../lib/lightbox-route.ts';
@@ -9,7 +10,8 @@ export type { MapLayerEntry, MapTiles, NavAction, NavLink, NavList, NavPlace, Pa
 
 /**
  * The sidebar and top bar, as `ui-nav` resolves them for this person: every module's
- * entries with the administrator's and their own changes laid over (src/builtin/ui/lib/nav.ts).
+ * entries with the administrator's and their own changes laid over (src/builtin/ui/lib/nav.ts),
+ * and those kept to the EiN app only inside it.
  *
  * Loaded with the auth check, before anything is drawn, so the shell never shows an empty
  * sidebar that fills in.
@@ -20,8 +22,9 @@ export async function loadNav(): Promise<void> {
   try {
     // The module manifest too, waited for with the navigation: it says which page opens which
     // node (`openRoute`), which a link drawn from the first page already needs.
-    const [nav] = await Promise.all([execCommand<UiNav>('ui-nav'), loadUiManifest()]);
-    for (const warning of nav.warnings) console.warn(`ui-nav: ${warning}`);
+    const [given] = await Promise.all([execCommand<UiNav>('ui-nav'), loadUiManifest()]);
+    for (const warning of given.warnings) console.warn(`ui-nav: ${warning}`);
+    const nav = inEinApp() ? given : withoutAppEntries(given);
     // Before the shell is drawn, so the page's own downloads (a grid's covers) cannot queue in
     // front of them: the icons (waited for), and the bundles of the module routes the top bar
     // and the sidebar open in a dialog, the drawer or full screen (not waited for). After a first

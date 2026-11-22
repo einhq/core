@@ -1,6 +1,7 @@
 import { parseByteRange } from '../../../lib/utils/mod.ts';
 import { ResourceSeekMode } from '../../../registries/types.ts';
 import type { Access } from '../../../lib/access/mod.ts';
+import type { AccessVia } from '../../../lib/api/mod.ts';
 import { type Node, type NodeEntry, NodeNotFoundError } from '../../../vfs/mod.ts';
 import { NODE_TYPE_STREAM } from '../../../vfs/types/stream.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
@@ -28,6 +29,14 @@ type GetFileOptions = {
   /** Where a read of an original is recorded as a download, with the client's address. */
   downloads?: DownloadLog;
   from?: string;
+  /** How the client reached EiN, as the download is recorded; `http` when not given. */
+  via?: AccessVia;
+};
+
+type ServeOptions = GetFileOptions & {
+  sessionPath?: string;
+  /** The node at the path itself, never the rendition of the picture its file shows (`?original`). */
+  original?: boolean;
 };
 
 const RENDITION_PATH = /^(.+)\/thumbnails\/([^/]+)$/;
@@ -92,7 +101,7 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   if (ticket !== null) return await ticketFile(config, req, url, vfsPath, ticket);
   const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
   if (!opts.site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
-  return await serveFile(config, req, url, vfsPath, access, responseHeaders, { ...opts, sessionPath });
+  return await serveFile(config, req, vfsPath, access, responseHeaders, { ...opts, sessionPath, original: url.searchParams.has('original') });
 }
 
 /**
@@ -108,7 +117,7 @@ async function ticketFile(config: HttpServerConfig, req: Request, url: URL, vfsP
   if (mode && /^(Streaming|Interactive|Background)$/.test(mode)) responseHeaders.set('transferMode.dlna.org', mode);
   const access = config.devices?.fileTicketAccess(ticket, vfsPath);
   if (!access) return new Response('the ticket has run out or is for another file', { status: 403, headers: responseHeaders });
-  return await serveFile(config, req, url, vfsPath, access, responseHeaders, {});
+  return await serveFile(config, req, vfsPath, access, responseHeaders, { original: url.searchParams.has('original') });
 }
 
 /** DLNA's flags for a file: seeks by byte range (OP=01), not converted (CI=0), streamed or read in the background. */
@@ -121,14 +130,17 @@ export const ticketPreflight = (): Response =>
     headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, HEAD', 'Access-Control-Allow-Headers': '*', 'Access-Control-Max-Age': '600' },
   });
 
-async function serveFile(
+/**
+ * Answer a GET or HEAD of the file at `vfsPath` as `access`: its bytes, or the range asked for, with
+ * the headers `setFileHeaders` allows; a stream's live bytes; 404 for a rendition nobody finished.
+ */
+export async function serveFile(
   config: HttpServerConfig,
   req: Request,
-  url: URL,
   vfsPath: string,
   access: Access,
   responseHeaders: Headers,
-  opts: GetFileOptions & { sessionPath?: string },
+  opts: ServeOptions,
 ): Promise<Response> {
   const { sessionPath } = opts;
   // Resolved once for both the `get` and the `open` below: a static asset's path runs through
@@ -136,14 +148,16 @@ async function serveFile(
   // (ein/core#437). Both calls still check read access on the node itself.
   let entry = await config.vfs.resolvePath(access, vfsPath);
   let node = await config.vfs.get<FileAttrs>(access, entry);
-  if (!url.searchParams.has('original')) {
+  if (!opts.original) {
     const shown = await shownRendition(config, access, vfsPath, node);
     if (shown) ({ entry, node } = shown);
   }
 
-  // A stream keeps no bytes: what is read of it is what its writer writes from now on.
+  // A stream keeps no bytes: what is read of it is what its writer writes from now on. Its type
+  // goes out as a file's does, so a stream a member writes cannot be a page that runs.
   if (node.type === NODE_TYPE_STREAM) {
-    return await streamBodyResponse(config, access, entry, node.attrs.mimetype, responseHeaders, req.method === 'HEAD');
+    setFileHeaders(responseHeaders, node.attrs.mimetype);
+    return await streamBodyResponse(config, access, entry, responseHeaders.get('Content-Type') ?? undefined, responseHeaders, req.method === 'HEAD');
   }
 
   // Two shapes of a rendition nobody finished writing, both answered as absent and both
@@ -221,7 +235,7 @@ async function serveFile(
   }
 
   // A read from the start is a download; the requests a player seeks with are part of the one before.
-  if (req.method === 'GET' && (!range || range.start === 0)) await opts.downloads?.file(access, sessionPath ?? '', opts.from, vfsPath, node);
+  if (req.method === 'GET' && (!range || range.start === 0)) await opts.downloads?.file(access, sessionPath ?? '', opts.from, vfsPath, node, opts.via);
 
   if (!range) {
     responseHeaders.set('Content-Length', size.toString());
