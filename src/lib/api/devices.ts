@@ -52,6 +52,11 @@ export type DeviceAttrs = {
   firmware?: string;
   serial?: string;
   mac?: string;
+  /**
+   * The EiN app's installation on the phone it is paired with (Android's `ANDROID_ID`, which stays
+   * through a reinstall), so the app signing in with a password finds its phone again.
+   */
+  install?: string;
   /** Its own web page, an http(s) URL, when its driver knows one: a Shelly's, an ESPHome node's, a printer's. */
   url?: string;
   /** Whether it answers, when its driver can tell. */

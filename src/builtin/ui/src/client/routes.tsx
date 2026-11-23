@@ -18,6 +18,7 @@ import SettingsPage from './pages/settings.tsx';
 import LanguageView from './pages/settings-language.tsx';
 import ModuleSourcesView from './pages/settings-module-sources.tsx';
 import SignInView from './pages/settings-sign-in.tsx';
+import SharePage from './pages/share.tsx';
 import SharedLinkPage from './pages/shared-link.tsx';
 import StatsPage from './pages/stats.tsx';
 import SystemPage from './pages/system.tsx';
@@ -92,6 +93,8 @@ export const routes: RouteObject[] = [{
     { path: 'profile', element: <ProfilePage />, handle: ownPage },
     { path: 'search', element: <SearchPage />, handle: fullBleed },
     { path: 'settings', element: <SettingsPage />, handle: ownPage },
+    // Where the phone's Share menu lands with files shared to EiN; it hands them to a module's route.
+    { path: 'share', element: <SharePage />, handle: ownPage },
     // A settings view (`settings.views`), drawn on the settings page.
     { path: 'settings/language', element: <LanguageView />, handle: ownPage },
     { path: 'settings/sign-in', element: <SignInView />, handle: ownPage },

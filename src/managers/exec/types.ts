@@ -51,13 +51,19 @@ export type RunAndCaptureOptions = {
    * and the write that started it this way.
    */
   attribution?: Attribution;
+  /**
+   * Called when something in the script changes something, however deep: a command started with
+   * arguments its spec says write (`callWrites`), or a redirection into a file. A script it was
+   * never called for only read, which is what lets the Web UI keep its answer for offline use.
+   */
+  onWrite?: () => void;
 };
 
 /**
  * What a `runAndCapture` hands every command its script runs, through the exec context's host data,
  * which sub-contexts inherit.
  */
-export type ScriptRun = Pick<RunAndCaptureOptions, 'attribution' | 'onProgress'>;
+export type ScriptRun = Pick<RunAndCaptureOptions, 'attribution' | 'onProgress' | 'onWrite'>;
 
 /** The `ScriptRun` a command or redirection in `ctx` belongs to; empty outside one. */
 export const scriptRunOf = (ctx: { getHostData(): unknown } | undefined): ScriptRun => (ctx?.getHostData() as ScriptRun | undefined) ?? {};

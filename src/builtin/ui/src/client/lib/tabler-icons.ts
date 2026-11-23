@@ -7,7 +7,7 @@
  * comes back is kept in localStorage, so a later page load draws them with no request at
  * all. The SVG files beside the app (`/icons/tabler/`) are what `ui-icons` reads.
  */
-import { execCommand } from '../signals/shell-client.ts';
+import { execFrameCommand } from '../signals/shell-client.ts';
 import { shq } from './shquote.ts';
 
 export type ParsedIcon = { attrs: Record<string, string>; inner: string };
@@ -65,7 +65,7 @@ const flush = async (): Promise<void> => {
   waiting.clear();
   let answer: Record<string, string | null> = {};
   try {
-    answer = await execCommand<Record<string, string | null>>(`ui-icons ${names.map(shq).join(' ')}`);
+    answer = await execFrameCommand<Record<string, string | null>>(`ui-icons ${names.map(shq).join(' ')}`);
   } catch {
     // Unreachable for now; left unknown, so a later draw asks again.
   }

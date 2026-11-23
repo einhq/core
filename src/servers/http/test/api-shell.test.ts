@@ -72,6 +72,17 @@ Deno.test({
       assertEquals(raw.exitCode, 1);
     });
 
+    await t.step('an answer says read only when nothing in the script wrote', async () => {
+      const read = (result: { rawResponse?: unknown }) => (result.rawResponse as { read?: boolean }).read === true;
+      assert(read(await shell.exec('ls /tmp && echo $(pwd)')));
+      // A command whose spec says it writes, however deep in the line, and a redirection into a file.
+      assertEquals(read(await shell.exec('ls /tmp && mkdir -p /tmp/read-mark')), false);
+      assertEquals(read(await shell.exec('echo $(mkdir -p /tmp/read-mark/sub)')), false);
+      assertEquals(read(await shell.exec('echo kept > /tmp/read-mark/out.txt')), false);
+      // Asking for a command's help runs nothing of it.
+      assert(read(await shell.exec('mkdir --help')));
+    });
+
     await t.step('stdin is what the script reads, larger than a pipe holds or left unread', async () => {
       const text = 'x'.repeat(200_000);
       assertEquals(await shell.execJson('wc -c', { stdin: text }), 200_000);

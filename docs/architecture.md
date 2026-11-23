@@ -1230,7 +1230,7 @@ It reads the **whole tree before writing anything**, and writes the **root last*
 | `embedding`  | embeddingType, capacity                                                                        | embedding registry                       |
 | `position`   | none of its own (the shape is content); a file's carries the reverse geocode and the `weather` | position registry                        |
 | `track`      | description, routingKeys; the summary is the registry's (`trackSummaries`)                     | track registry                           |
-| `device`     | label, class, driver, manufacturer, model, firmware, serial, mac, online, config               | device registry (keeps nothing)          |
+| `device`     | label, class, driver, manufacturer, model, firmware, serial, mac, install, online, config      | device registry (keeps nothing)          |
 | `control`    | label, unit, schema, requested; its states are a log's entries                                 | control registry (log registry's tables) |
 | `stream`     | label, mimetype, codec, width, height, fps, audio                                              | stream registry (keeps nothing)          |
 | `device-key` | key, createdBy, createdAt                                                                      | PgStore                                  |
@@ -1584,6 +1584,7 @@ setting that decides what the caller is allowed is read with `readSystemSettings
 | `GET /file/<path>?ticket=…`    | `get-file`                            | The one file a driver's ticket names, as the access it was made with: for a device on the network that cannot sign in                          |
 | `GET /__page/<ticket>`         | `page-sign-in`                        | A page ticket's browser signed in once, read-only as the ticket's access, and sent to its page                                                 |
 | `POST /__app/pair`             | `app`                                 | The EiN app trades a phone's one-time pairing code for its token                                                                               |
+| `POST /__app/sign-in`          | `app`                                 | The EiN app signs in with an account's password and is paired as a phone the account may change, or a new one, for its token                   |
 | `GET /__app/session`           | `app`                                 | A Web UI session for the app, its token as `Authorization: Bearer`, and sent on to `?next=`                                                    |
 | `GET /live/<id>.mp4\|.ts`      | `live`                                | A live stream a driver serves a device, to whoever has the path                                                                                |
 | `GET /file/<stream>`           | `get-file` → `stream`                 | A stream's bytes from its latest start point on, as its writer writes them, or of a stream of pictures one picture (never cached)              |
@@ -1604,17 +1605,25 @@ before its body is read, and the body is read only up to 4 MB (64 MB for a track
 answered 413 beyond (`body-limit.ts`); `POST /archive` takes at most 2 MB the same way, and
 `POST /checksums` 128 KB.
 
-**The app's token.** The EiN app signs in with a token of its own, never the account's password
+**The app's token.** The EiN app signs in with a token of its own, and keeps no password
 (`managers/devices/app-tokens.ts`, `handlers/app.ts`). `device-app <phone> --pair --origin <url>`,
 by whoever may change the phone and never the administrator's account, makes a one-time pairing
 code that works for 15 minutes and shows it as a QR code, `ein://pair?server=…&device=…&code=…`. The
 app posts the code to `POST /__app/pair` and is answered its token, `<phone>.<secret>`, which acts as
-the account that made the code. The phone's child `.app` (a `device-app` node, mode 0600 and the
+the account that made the code. Or the app posts an account's username and password once to
+`POST /__app/sign-in`, checked by `passwordSignIn` (its throttle, counted against the account), with
+its installation (`install`, Android's `ANDROID_ID`) and what the phone says of itself, and is paired
+as that account: as the phone the request names, else the phone whose `install` attribute is the
+installation, else, when it asks to (`create`) and the account is in the `devices` group, a new
+phone (`class` phone, `driver` tracker) named after its label; any of them one the account may
+change, never as the administrator. With none of these it is answered 409 with the phones the account
+may pair and whether it may make one, and asks which. Both routes mark the phone with the
+installation and take the mark off any other device, so the same app signing in again finds it. The phone's child `.app` (a `device-app` node, mode 0600 and the
 administrator's) keeps the code and the token as their SHA-256 alone. The token writes to the
 phone's endpoints as a device key does, but as that account, and `GET /__app/session` trades it for
 a session whose `app` names the token: `getSession` refuses such a session once the phone holds
-another token or none. Both endpoints go through the sign-in throttle, counted against `app:<phone>`,
-and are written to the access log `via app` (`method` `pairing` or `token`). A new pairing replaces
+another token or none. The pairing and the token go through the sign-in throttle, counted against `app:<phone>`, and all
+three are written to the access log `via app` (`method` `pairing`, `password` or `token`). A new pairing replaces
 the token once its code is used; `device-app --off` and `device-forget` remove `.app`; each removes
 the sessions the token it ended had opened, which closes their shells.
 
@@ -1701,7 +1710,9 @@ Two WebSocket modes on `/__shell`:
   its stored workspace with a fresh, closed one. Clients without `terminalId` keep the legacy
   one-socket lifetime.
 - **API** — JSON `{ id, command, stdin? }` → JSON `{ id, result }` (used by UI hooks; `stdin` is
-  text the command reads as its stdin, such as `comment add <path> --body -`), `exec.cancel [id]` —
+  text the command reads as its stdin, such as `comment add <path> --body -`; a result says
+  `read: true` when nothing in the script wrote, which the Web UI keeps to read offline, see
+  [UI: Without a connection](architecture/ui.md#without-a-connection)), `exec.cancel [id]` —
   which hangs up that running exec as Ctrl-C would, and with it every script the command started
   through `cmd.execute`, so a superseded search stops and its EMS requests close; a script gives
   the event loop a turn every 50 ms of evaluation (bash-executor), so one that does no I/O, such as

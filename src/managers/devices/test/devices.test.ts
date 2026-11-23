@@ -335,9 +335,11 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
         const wrong = await pair({ device: 'ruby-phone', code: 'A'.repeat(22) });
         await wrong.body?.cancel();
         assertEquals(wrong.status, 403);
-        const paired = await pair({ device: 'ruby-phone', code });
+        const paired = await pair({ device: 'ruby-phone', code, install: 'eeee5555' });
         const { token, user } = await paired.json() as { token: string; user: string };
         assertEquals([paired.status, user, token.startsWith('ruby-phone.')], [200, 'anna', true]);
+        // The app's installation is kept on the phone, so signing in with a password finds it again.
+        assertEquals((await admin.execJson<{ attrs: { install?: string } }>('stat /dev/ruby-phone')).attrs.install, 'eeee5555');
         const reused = await pair({ device: 'ruby-phone', code });
         await reused.body?.cancel();
         assertEquals(reused.status, 403);
@@ -431,6 +433,75 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
         assertEquals((await anna.execJson<DeviceAppAnswer>('device-app ruby-phone')).paired, false);
         const signedOut = await admin.execJson<AccessLogEntry[]>('access-log --user anna --event sign-out');
         assertEquals(signedOut.filter((entry) => entry.via === 'app').map((entry) => entry.method), ['token']);
+      },
+    );
+
+    await t.step(
+      'the EiN app signs in with a password as a phone the account may change, the one its installation was paired as, or a new one for the devices group',
+      async () => {
+        // From an address of its own, which the failures of the steps before have not slowed.
+        const from = { 'X-Forwarded-For': '192.0.2.34' };
+        const signIn = async (body: Record<string, unknown>) => {
+          const answer = await fetch(`${baseUrl}/__app/sign-in`, { method: 'POST', headers: { ...from, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          return { status: answer.status, body: answer.headers.get('content-type')?.includes('json') ? await answer.json() : await answer.text() };
+        };
+        const wrong = await signIn({ user: 'anna', password: 'wrong', install: 'aaaa1111' });
+        const administrator = await signIn({ user: 'admin', password: 'admin', install: 'aaaa1111' });
+        const malformed = await signIn({ user: 'anna', password: 'hunter2' });
+        assertEquals([wrong.status, administrator.status, malformed.status], [403, 403, 400]);
+        assertStringIncludes(administrator.body, 'never acts as the administrator');
+
+        // Nothing marks this installation yet: anna chooses among the phones she may change, or a new one.
+        const choose = await signIn({ user: 'anna', password: 'hunter2', install: 'aaaa1111', label: 'Anna Pixel' });
+        assertEquals([choose.status, choose.body.create, choose.body.label], [409, true, 'Anna Pixel']);
+        assertEquals(choose.body.phones, [{ device: 'ruby-phone', label: 'Ruby phone', paired: false }]);
+
+        const chosen = await signIn({ user: 'anna', password: 'hunter2', install: 'aaaa1111', device: 'ruby-phone' });
+        assertEquals([chosen.status, chosen.body.device, chosen.body.user, chosen.body.token.startsWith('ruby-phone.')], [200, 'ruby-phone', 'anna', true]);
+        assertEquals((await admin.execJson<{ attrs: { install?: string } }>('stat /dev/ruby-phone')).attrs.install, 'aaaa1111');
+        // Signing in again from the same installation finds the phone, and its token replaces the one before.
+        const again = await signIn({ user: 'anna', password: 'hunter2', install: 'aaaa1111' });
+        assertEquals([again.status, again.body.device], [200, 'ruby-phone']);
+        const stale = await fetch(`${baseUrl}/__app/session`, { headers: { ...from, Authorization: `Bearer ${chosen.body.token}` }, redirect: 'manual' });
+        await stale.body?.cancel();
+        const fresh = await fetch(`${baseUrl}/__app/session`, { headers: { ...from, Authorization: `Bearer ${again.body.token}` }, redirect: 'manual' });
+        await fresh.body?.cancel();
+        assertEquals([stale.status, fresh.status], [403, 303]);
+
+        // Another installation makes a new phone of its own, which takes its fixes.
+        const made = await signIn({ user: 'anna', password: 'hunter2', install: 'bbbb2222', label: 'Anna Pixel', manufacturer: 'Google', model: 'Pixel 9', create: true });
+        assertEquals([made.status, made.body.device], [200, 'anna-pixel']);
+        const phone = await admin.execJson<{ attrs: Record<string, string> }>('stat /dev/anna-pixel');
+        assertEquals([phone.attrs.label, phone.attrs.class, phone.attrs.driver, phone.attrs.model, phone.attrs.install], [
+          'Anna Pixel',
+          'phone',
+          'tracker',
+          'Pixel 9',
+          'bbbb2222',
+        ]);
+        const fix = await fetch(`${baseUrl}/file/dev/anna-pixel/position`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${made.body.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: { coords: { latitude: 57.73, longitude: 11.93 }, timestamp: new Date().toISOString() } }),
+        });
+        assertEquals([fix.status, (await fix.json()).appended], [200, 1]);
+        // The same name again is the next free one; the installation it moved to is no longer marked on the first phone.
+        const second = await signIn({ user: 'anna', password: 'hunter2', install: 'aaaa1111', label: 'Anna Pixel', create: true, device: undefined });
+        assertEquals([second.status, second.body.device], [200, 'ruby-phone']);
+        const moved = await signIn({ user: 'anna', password: 'hunter2', install: 'bbbb2222', device: 'ruby-phone' });
+        assertEquals([moved.status, (await admin.execJson<{ attrs: { install?: string } }>('stat /dev/anna-pixel')).attrs.install], [200, undefined]);
+        const renamed = await signIn({ user: 'anna', password: 'hunter2', install: 'cccc3333', label: 'Anna Pixel', create: true });
+        assertEquals(renamed.body.device, 'anna-pixel-2');
+
+        // bo may change no phone and make none: he chooses from nothing, and pairs none by name.
+        const bos = await signIn({ user: 'bo', password: 'hunter2', install: 'dddd4444', create: true });
+        assertEquals([bos.status, bos.body.phones, bos.body.create], [409, [], false]);
+        const notHis = await signIn({ user: 'bo', password: 'hunter2', install: 'dddd4444', device: 'ruby-phone' });
+        assertEquals(notHis.status, 403);
+
+        const log = await admin.execJson<AccessLogEntry[]>('access-log --user anna --event sign-in');
+        assert(log.some((entry) => entry.via === 'app' && entry.method === 'password'));
+        await anna.execString('device-forget anna-pixel && device-forget anna-pixel-2');
       },
     );
 

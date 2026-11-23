@@ -1,9 +1,23 @@
 import { signal } from '@preact/signals-react';
+import { saveAnswer, savedAnswer } from '../lib/saved-answers.ts';
 
 /**
  * Shell client connection status
  */
 export const shellClientConnected = signal(false);
+
+/**
+ * Whether EiN is out of reach: the socket closed without opening, or has not opened within
+ * `UNREACHABLE_AFTER_MS`. While it is, a command is answered at once from what this device kept
+ * (`execCommand`) instead of waiting for a connection; the socket keeps trying, and opening ends it.
+ */
+export const shellUnreachable = signal(typeof navigator !== 'undefined' && navigator.onLine === false);
+
+/**
+ * The oldest kept answer the page shows, by when it was read, and the path it was shown on: what the
+ * header says the page's age is while EiN is out of reach. Null while every answer is EiN's own.
+ */
+export const savedAnswerShown = signal<{ path: string; at: number } | null>(null);
 
 /**
  * Bumped every time the socket comes back up. Views that hold server-derived
@@ -14,8 +28,10 @@ export const shellClientEpoch = signal(0);
 
 let ws: WebSocket | null = null;
 let requestId = 0;
+/** An answer as it came: its data, whether the server marked it a read, and its size on the wire. */
+type Answer = { data: unknown; read: boolean; size: number };
 const pendingRequests = new Map<string, {
-  resolve: (value: unknown) => void;
+  resolve: (answer: Answer) => void;
   reject: (error: Error) => void;
 }>();
 // Push-event subscribers (log.follow streams, vfs.subscribe), keyed by server
@@ -23,8 +39,11 @@ const pendingRequests = new Map<string, {
 const subscriptionHandlers = new Map<string, (event: unknown) => void>();
 
 let reconnectTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+let unreachableTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 let closedByUs = false;
 const RECONNECT_DELAY_MS = 2000;
+/** How long a socket may take to open before EiN counts as out of reach. */
+const UNREACHABLE_AFTER_MS = 5000;
 /** The server closed the socket because its session was ended (the account was disabled or deleted). */
 const SESSION_ENDED_CLOSE_CODE = 4003;
 
@@ -42,13 +61,22 @@ export function initShellClient(): void {
     return; // Already initialized
   }
   closedByUs = false;
+  watchNetwork();
 
   const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
   // Host only (host:port) — never the path, so deep-link reloads connect the same.
   ws = new WebSocket(`${protocol}//${globalThis.location.host}/__shell`);
+  let opened = false;
+  unreachableTimer ??= globalThis.setTimeout(() => {
+    unreachableTimer = null;
+    shellUnreachable.value = true;
+  }, UNREACHABLE_AFTER_MS);
 
   ws.onopen = () => {
     console.log('[ShellClient] Connected');
+    opened = true;
+    stopUnreachableTimer();
+    shellUnreachable.value = false;
     shellClientConnected.value = true;
     resolveConnect?.();
     shellClientEpoch.value++;
@@ -56,13 +84,17 @@ export function initShellClient(): void {
 
   ws.onclose = (event) => {
     console.log('[ShellClient] Disconnected');
+    if (!opened) {
+      stopUnreachableTimer();
+      shellUnreachable.value = true;
+    }
     shellClientConnected.value = false;
     ws = null;
     connectPromise = null;
     resolveConnect = null;
 
     for (const [id, pending] of pendingRequests) {
-      pending.reject(new Error('connection closed'));
+      pending.reject(new ShellUnreachableError('connection closed'));
       pendingRequests.delete(id);
     }
 
@@ -107,7 +139,7 @@ export function initShellClient(): void {
         pendingRequests.delete(msg.id);
 
         if (msg.type === 'result') {
-          pending.resolve(msg.data);
+          pending.resolve({ data: msg.data, read: msg.read === true, size: event.data.length });
         } else if (msg.type === 'error') {
           pending.reject(
             new ExecError(
@@ -125,6 +157,53 @@ export function initShellClient(): void {
   };
 }
 
+const stopUnreachableTimer = (): void => {
+  if (unreachableTimer === null) return;
+  globalThis.clearTimeout(unreachableTimer);
+  unreachableTimer = null;
+};
+
+let watchingNetwork = false;
+
+/**
+ * Try the socket again as soon as the browser says the network is back, rather than at the next
+ * retry; and take its word that the network is gone.
+ */
+function watchNetwork(): void {
+  if (watchingNetwork) return;
+  watchingNetwork = true;
+  globalThis.addEventListener('online', () => reconnectNow());
+  globalThis.addEventListener('offline', () => {
+    if (!shellClientConnected.peek()) shellUnreachable.value = true;
+  });
+}
+
+/** Open the socket now if it is down and waiting to retry. */
+export function reconnectNow(): void {
+  if (ws || closedByUs) return;
+  if (reconnectTimer !== null) {
+    globalThis.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  initShellClient();
+}
+
+/** The shell's socket is not there to ask: down, closed under the request, or not opening. */
+export class ShellUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ShellUnreachableError';
+  }
+}
+
+/** EiN is out of reach and this device kept no answer to the command. */
+export class OfflineError extends Error {
+  constructor() {
+    super('offline: EiN is out of reach, and this was not saved on this device');
+    this.name = 'OfflineError';
+  }
+}
+
 /** A command that exited non-zero: its message, and the exit code, stdout so far and stderr when the server sent them. */
 export class ExecError extends Error {
   constructor(message: string, readonly exitCode?: number, readonly output?: string, readonly stderr?: string) {
@@ -134,8 +213,8 @@ export class ExecError extends Error {
 }
 
 /**
- * Resolve once the socket is OPEN, connecting if needed. Rejects if the
- * connection cannot be established within CONNECT_TIMEOUT_MS.
+ * Resolve once the socket is OPEN, connecting if needed. Rejects if the connection cannot be
+ * established within CONNECT_TIMEOUT_MS, or as soon as EiN counts as out of reach.
  */
 function ensureConnected(): Promise<void> {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -151,10 +230,19 @@ function ensureConnected(): Promise<void> {
   // Idempotent — starts the socket if it isn't already connecting.
   initShellClient();
 
-  return Promise.race([
-    connectPromise,
-    new Promise<void>((_, reject) => setTimeout(() => reject(new Error('shell client connection timeout')), CONNECT_TIMEOUT_MS)),
-  ]);
+  const connecting = connectPromise;
+  let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let stopWatching = () => {};
+  return new Promise<void>((resolve, reject) => {
+    timer = globalThis.setTimeout(() => reject(new ShellUnreachableError('shell client connection timeout')), CONNECT_TIMEOUT_MS);
+    stopWatching = shellUnreachable.subscribe((unreachable) => {
+      if (unreachable) reject(new ShellUnreachableError('EiN is out of reach'));
+    });
+    void connecting.then(resolve);
+  }).finally(() => {
+    globalThis.clearTimeout(timer);
+    stopWatching();
+  });
 }
 
 const abortError = (): Error => new DOMException('request aborted', 'AbortError');
@@ -164,13 +252,13 @@ const abortError = (): Error => new DOMException('request aborted', 'AbortError'
  * sends the message `cancel` builds from the request's id; the answer that still comes for that id
  * finds no one waiting.
  */
-function sendRequest<T>(
+function request(
   payload: Record<string, unknown>,
   abort?: { signal?: AbortSignal; cancel: (id: string) => Record<string, unknown> },
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
+): Promise<Answer> {
+  return new Promise<Answer>((resolve, reject) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      reject(new Error('shell client not connected'));
+      reject(new ShellUnreachableError('shell client not connected'));
       return;
     }
     const signal = abort?.signal;
@@ -183,14 +271,14 @@ function sendRequest<T>(
     const onAbort = () => {
       if (!pendingRequests.delete(id)) return;
       reject(abortError());
-      sendRequest(abort!.cancel(id)).catch(() => {
+      request(abort!.cancel(id)).catch(() => {
         // socket already closed — the server hangs up its commands on disconnect
       });
     };
     pendingRequests.set(id, {
-      resolve: (value) => {
+      resolve: (answer) => {
         signal?.removeEventListener('abort', onAbort);
-        resolve(value as T);
+        resolve(answer);
       },
       reject: (error) => {
         signal?.removeEventListener('abort', onAbort);
@@ -203,21 +291,56 @@ function sendRequest<T>(
   });
 }
 
+/** `request`, for its data alone. */
+const sendRequest = async <T>(payload: Record<string, unknown>): Promise<T> => (await request(payload)).data as T;
+
 /**
  * Execute a shell command and return the result
+ *
+ * An answer the server marks a read is kept on this device (`lib/saved-answers.ts`). While EiN is
+ * out of reach (`shellUnreachable`), or when the socket fails under the request, the kept answer is
+ * given instead, and `savedAnswerShown` says how old it is; a command with none, which every write
+ * is, fails with an `OfflineError`.
+ *
  * @param command The command to execute
  * @param opts.signal Aborting it hangs the command up on the server and rejects with an `AbortError`
- * @param opts.stdin What the command reads as its stdin: text it takes as `-` (`comment add <path> --body -`)
+ * @param opts.stdin What the command reads as its stdin: text it takes as `-` (`comment add <path> --body -`); such a command is never kept
  * @returns Promise resolving to the command output (parsed as JSON)
  */
 export async function execCommand<T>(command: string, opts: { signal?: AbortSignal; stdin?: string } = {}): Promise<T> {
-  await ensureConnected();
-
-  return sendRequest<T>(
-    { type: 'exec', command, ...(opts.stdin !== undefined ? { stdin: opts.stdin } : {}) },
-    { signal: opts.signal, cancel: (id) => ({ type: 'exec.cancel', params: [id] }) },
-  );
+  return await exec<T>(command, opts, true);
 }
+
+/**
+ * `execCommand` for what is no part of what a page shows, an icon or the frame's own state: a kept
+ * answer it is given is not counted in the page's age (`savedAnswerShown`).
+ */
+export async function execFrameCommand<T>(command: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
+  return await exec<T>(command, opts, false);
+}
+
+const exec = async <T>(command: string, opts: { signal?: AbortSignal; stdin?: string }, aged: boolean): Promise<T> => {
+  if (!shellUnreachable.peek()) {
+    try {
+      await ensureConnected();
+      const answer = await request(
+        { type: 'exec', command, ...(opts.stdin !== undefined ? { stdin: opts.stdin } : {}) },
+        { signal: opts.signal, cancel: (id) => ({ type: 'exec.cancel', params: [id] }) },
+      );
+      if (answer.read && opts.stdin === undefined) saveAnswer(command, answer.data, answer.size);
+      return answer.data as T;
+    } catch (error) {
+      if (!(error instanceof ShellUnreachableError)) throw error;
+    }
+  }
+  const saved = opts.stdin === undefined ? await savedAnswer(command) : undefined;
+  if (opts.signal?.aborted) throw abortError();
+  if (!saved) throw new OfflineError();
+  const path = globalThis.location.pathname;
+  const shown = savedAnswerShown.peek();
+  if (aged && (!shown || shown.path !== path || saved.at < shown.at)) savedAnswerShown.value = { path, at: saved.at };
+  return saved.data as T;
+};
 
 /**
  * Run a script as a person would in a terminal: no `JSON_OUTPUT`, stdout back as text. For

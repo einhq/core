@@ -1,6 +1,7 @@
 /**
  * The shell's entry, which `index.html` loads: the stylesheets, the runtime module bundles read
- * (`lend.ts`, before any of them can load), and the page's router over `routes.tsx`.
+ * (`lend.ts`, before any of them can load), the page's router over `routes.tsx`, and the service
+ * worker that lets it open without a connection.
  */
 import '@mantine/core/styles.css';
 import '@mantine/dropzone/styles.css';
@@ -13,6 +14,7 @@ import { crossfadePages } from './lib/page-crossfade.ts';
 import { routes } from './routes.tsx';
 import { caughtError } from './signals/caught-error.ts';
 import { modulePatcher, registerShellRouting } from './signals/module-ui.ts';
+import { registerServiceWorker, watchReconnect } from './signals/offline.ts';
 import { watchUiUpdates } from './signals/ui-update.ts';
 
 const router = createBrowserRouter(routes, {
@@ -29,6 +31,11 @@ registerShellRouting(routes, router);
 
 // A page left open across an update of EiN or of a module reloads to run what EiN now serves.
 watchUiUpdates();
+
+// The Web UI opens without a connection, and a page that showed what this device saved offers to
+// reload once EiN answers again.
+registerServiceWorker();
+watchReconnect();
 
 addEventListener('DOMContentLoaded', () => {
   createRoot(document.getElementById('app')!, {

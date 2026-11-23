@@ -211,3 +211,23 @@ export const appTrackingAllow = (): Promise<EinAppTracking> => appCall<EinAppTra
 
 /** Send the waiting positions now. */
 export const appTrackingSend = (): Promise<EinAppTracking> => appCall<EinAppTracking>('trackingSend');
+
+/** A file shared to EiN through the phone's Share menu, as `appShared` lists it. */
+type EinAppSharedFile = {
+  name: string;
+  type: string;
+  /** Its size in bytes, -1 when the app that shared it does not say. */
+  size: number;
+  /** When it was last changed, in milliseconds, when the app that shared it says. */
+  modified?: number;
+};
+
+/** The files shared to EiN through the phone's Share menu, which the app keeps until `appSharedDone`. */
+export const appShared = (): Promise<{ files: EinAppSharedFile[] }> => appCall<{ files: EinAppSharedFile[] }>('shared');
+
+/** A piece of the shared file at `index` from `offset`, in base64, and whether the file ends with it. */
+export const appSharedRead = (index: number, offset: number): Promise<{ data: string; end: boolean }> =>
+  appCall<{ data: string; end: boolean }>('sharedRead', { index, offset });
+
+/** Have the app forget the shared files. */
+export const appSharedDone = (): Promise<void> => appCall<void>('sharedDone');

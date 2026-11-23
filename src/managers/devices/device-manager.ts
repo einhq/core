@@ -16,7 +16,7 @@
  */
 
 import { basename, dirname, join } from '@std/path';
-import { ADMIN_ACCESS, ADMIN_GID, DEVICES_GROUPNAME } from '../../lib/access/constants.ts';
+import { ADMIN_ACCESS, ADMIN_GID, ADMIN_UID, DEVICES_GROUPNAME } from '../../lib/access/constants.ts';
 import type { Access } from '../../lib/access/types.ts';
 import {
   type ControlAnswer,
@@ -83,6 +83,21 @@ export class DeviceError extends Error {
 
 /** Whether `name` may be a device's: a slug, and none of core's own nodes in `/dev`. */
 export const isDeviceName = (name: string): boolean => NAME_RE.test(name) && !DEV_RESERVED_NAMES.includes(name);
+
+/**
+ * Whether `route` is a path of this server, wherever a browser sent to it lands: it keeps the
+ * origin when resolved against one, and has no backslash, which browsers read as a slash, nor a
+ * control character.
+ */
+const isOwnPath = (route: string): boolean => {
+  if (!route.startsWith('/') || /[\\\p{Cc}]/u.test(route)) return false;
+  const base = 'http://this.invalid';
+  try {
+    return new URL(route, base).origin === base;
+  } catch {
+    return false;
+  }
+};
 
 /** That `name` is a `what`'s name; with `extension`, one a stream may have. */
 const assertName = (what: string, name: string, extension = false): void => {
@@ -265,7 +280,9 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
   // ===== Pages rendered for a screen, and live streams for a device =====
 
   pageSignIn(access: Access, route: string): string {
-    if (!route.startsWith('/') || route.startsWith('//')) throw new DeviceError(`${route}: a page is a path of this server`);
+    if (!isOwnPath(route)) throw new DeviceError(`${route}: a page is a path of this server`);
+    // Whoever opens the page reads what its access reads, so it is never the administrator's.
+    if (access.uid === ADMIN_UID || access.gids.includes(ADMIN_GID)) throw new DeviceError(`${route}: a page is never shown as the administrator; show it as a member`);
     return `/__page/${this.pageTickets.issue(access, route)}`;
   }
 

@@ -2,6 +2,8 @@
  * Build the shell into `src/builtin/ui/ui/`: `deno bundle` over `src/client/index.html`, which loads
  * `main.tsx`, plus the files served beside it. `--dev` keeps the bundler watching the sources.
  *
+ * - `sw.js`, the service worker (`src/client/sw/sw.ts`), bundled on its own under a name that
+ *   stays, since a browser keeps it by its URL;
  * - `root/` (favicons, the web manifest and its icons) is copied to the top, where browsers ask
  *   for them, and `public/` (fonts, patterns) under `public/`;
  * - `nav.json`, the shell's own navigation entries (linked into /etc/ui/nav.d at boot, beside
@@ -58,6 +60,22 @@ const args = [
 console.log(`${Deno.execPath()} ${args.join(' ')}`);
 const bundler = new Deno.Command(Deno.execPath(), { args, stdout: 'inherit', stderr: 'inherit' });
 
+const workerArgs = [
+  'bundle',
+  '--config',
+  denoConfig,
+  '--platform',
+  'browser',
+  // A classic script: a module service worker is not in every browser the Web UI runs in.
+  '--format',
+  'iife',
+  '--output',
+  join(distDir, 'sw.js'),
+  ...(dev ? ['--watch'] : ['--minify']),
+  join(srcDir, 'sw', 'sw.ts'),
+];
+const workerBundler = new Deno.Command(Deno.execPath(), { args: workerArgs, stdout: 'inherit', stderr: 'inherit' });
+
 const icons = join(repoDir, 'node_modules', '@tabler', 'icons', 'icons');
 const copyIcons = async () => {
   for (const style of ['outline', 'filled']) {
@@ -67,10 +85,12 @@ const copyIcons = async () => {
 
 if (dev) {
   bundler.spawn();
+  workerBundler.spawn();
   if (await exists(icons)) await copyIcons();
   else console.warn(`no ${icons} yet; the icons are copied by the next one-shot bundle`);
 } else {
   if (!(await bundler.output()).success) throw new Error('bundle failed');
+  if (!(await workerBundler.output()).success) throw new Error('service worker bundle failed');
   if (!(await exists(icons))) throw new Error(`missing ${icons}: is @tabler/icons in deno.jsonc imports?`);
   await copyIcons();
   const missing = await writeLicences(repoDir, join(srcDir, 'public', 'fonts'), join(distDir, 'public', 'licences.txt'));

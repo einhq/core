@@ -145,7 +145,9 @@ type TopbarEntry = {
  * `{path}`), a way to begin under the home page's
  * empty News (`home.start`), a tile on the About dialog (`about.services`), a tab of a device's page
  * after its own (`device.tabs`, whose route gets the device's path, `/dev/<device>`, for `{path}`),
- * a button in the Devices page's header beside its filters (`devices.header`), something floating over every page and the lightbox, under a dialog (`shell.float`, which places
+ * a button in the Devices page's header beside its filters (`devices.header`), the route that
+ * takes files shared to EiN from another app, opened in the dialog with them (`share.receive`, the
+ * first one only, which takes them with `takeSharedFiles`), something floating over every page and the lightbox, under a dialog (`shell.float`, which places
  * what it draws itself), a settings view, which sets up one thing with the settings it takes and
  * is listed first on Settings → System and on its module's Settings tab (`settings.views`). It is
  * how a page shows a module's part without naming the module.

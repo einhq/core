@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.51
+MODULE_API_VERSION 0.15.54
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts AccountFace a95dc46998fb @signature=59ed6a161071,account=715046550be0,eager=f5689222adad,size=422f3ae77ed1
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
@@ -701,6 +701,7 @@ src/builtin/ui/src/client/signals/mod.ts NodeClipboard c799e5a01e2d mode=123ff3a
 src/builtin/ui/src/client/signals/mod.ts NodeEventFilter 35742304b4af eventTypes=70dfd8b6e7eb,nodeTypes=cfdf034e1bd8,pathPrefix=ca304d7b3dce,recursive=d247b337e7cf
 src/builtin/ui/src/client/signals/mod.ts NodeEventMessage e5ae4930edbb id=752fa5797ebe,node=b61a5d6cab48,nodeId=02e55d923e0a,nodeType=10a92ae7d518,path=3fd20668ef6e,timestamp=7c04c15af263,type=e22be5ee8605
 src/builtin/ui/src/client/signals/mod.ts NodesCurrent 9ab89226aeac entry=7bcd575a1c55,open=e86f5981ac1b,path=3fd20668ef6e,selected=e288689427f0
+src/builtin/ui/src/client/signals/mod.ts OfflineError 5346abbc7f1e
 src/builtin/ui/src/client/signals/mod.ts PageShown 70c9ded138a3
 src/builtin/ui/src/client/signals/mod.ts PageSubject 28390179b148 about=b5f22c8fba0d,node=b830128a9876,title=22df3e6ba489
 src/builtin/ui/src/client/signals/mod.ts PanelEntry 0b8b6c6b9c08 admin=e5caa4ef7900,app=89b81e632347,description=644be3c4d4da,icon=91a07d7cb04f,id=752fa5797ebe,label=af04505f402e,order=9df61d05787c,route=66a673b16b8a,signedIn=b687c9e9fe67,slot=b9888f6a27db,source=f0a45da73b3e,when=7d6290281d00
@@ -709,6 +710,7 @@ src/builtin/ui/src/client/signals/mod.ts ProgressToast b1aaaa56b54f dismiss=48f9
 src/builtin/ui/src/client/signals/mod.ts ResolvedSection fa18816c6585 id=752fa5797ebe,items=e820f855742f,label=995d88c00ff2
 src/builtin/ui/src/client/signals/mod.ts ResolvedTopbarEntry a3b903347e06
 src/builtin/ui/src/client/signals/mod.ts ShareLinkKind 9bbb3ab52f08
+src/builtin/ui/src/client/signals/mod.ts ShellUnreachableError 0969816e8640
 src/builtin/ui/src/client/signals/mod.ts ShowOnTarget e2f86dfa2ee5 keys=ed45f1cd3334,kind=f4f29121bc5f,page=16f862dae880,path=3fd20668ef6e,title=f6007128d157
 src/builtin/ui/src/client/signals/mod.ts StoredTerminalWorkspace c9c2ac4af0dd activeTabId=227ead79440b,open=84c4fcbcf07f,tabs=88b1b216382b,version=3a6e9c3f90a7
 src/builtin/ui/src/client/signals/mod.ts SurfaceKind fc7f2753e285
@@ -722,6 +724,7 @@ src/builtin/ui/src/client/signals/mod.ts addNodesTab 87af4b99e96d 0|badb793e217b
 src/builtin/ui/src/client/signals/mod.ts addTerminalTab 2b19adca8d5e 0|336e2b46aff6=336e2b46aff6,@signature=9eed3c083843
 src/builtin/ui/src/client/signals/mod.ts addToQueue 3ed2f27e74dc 0|2d40315a7ced=2d40315a7ced,1|841ee5d2ff1e=841ee5d2ff1e,2|f159caee25ba=f159caee25ba,@signature=768905cc57e5
 src/builtin/ui/src/client/signals/mod.ts albumMediaList 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts authOutOfReach 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts awaitModuleRoutes 87b04f2dde74
 src/builtin/ui/src/client/signals/mod.ts cancelUploads df01802e180a
 src/builtin/ui/src/client/signals/mod.ts castInstead 83d3ef3b5094 0|5cdb0dcc9077=5cdb0dcc9077,@signature=a66f17816f57
@@ -755,6 +758,7 @@ src/builtin/ui/src/client/signals/mod.ts drawerWidth 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts elevate eac20ab02ee3 0|336e2b46aff6=336e2b46aff6,@signature=941bcdef6825
 src/builtin/ui/src/client/signals/mod.ts endLightbox 257a04a3df95 0|c06d55bc013d=c06d55bc013d,@signature=9d17700382b0
 src/builtin/ui/src/client/signals/mod.ts execCommand 1440dc26068d
+src/builtin/ui/src/client/signals/mod.ts execFrameCommand af91dead7347
 src/builtin/ui/src/client/signals/mod.ts execScript f24d96188b4d 0|336e2b46aff6=336e2b46aff6,@signature=a958246754ac
 src/builtin/ui/src/client/signals/mod.ts focusNodesPane 32d2afe1f504 0|badb793e217b=badb793e217b,@signature=b27fc63f755f
 src/builtin/ui/src/client/signals/mod.ts followLog 9543462b4554 0|336e2b46aff6=336e2b46aff6,1|8d3da5c8a2f3=8d3da5c8a2f3,2|9215c3ad3cd9=9215c3ad3cd9,@signature=1f73e47a0bda
@@ -852,6 +856,7 @@ src/builtin/ui/src/client/signals/mod.ts pressNearby fdaf95bc3462 0|336e2b46aff6
 src/builtin/ui/src/client/signals/mod.ts prevMediaIndex 6c74116902e7 0|b3d9da3d9fc5=b3d9da3d9fc5,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=49670bb47faf
 src/builtin/ui/src/client/signals/mod.ts prevTerminalTab df01802e180a
 src/builtin/ui/src/client/signals/mod.ts readDroppedFiles 304bc5601a16 0|e4fcbe93b4b4=e4fcbe93b4b4,0|f8da8e50074f=f8da8e50074f,@signature=59a69ac92c5d
+src/builtin/ui/src/client/signals/mod.ts reconnectNow df01802e180a
 src/builtin/ui/src/client/signals/mod.ts registerShellRouting b8c1cd1add0c 0|297eb8125b4b=297eb8125b4b,1|1fd3650ff197=1fd3650ff197,@signature=0fbe28db9331
 src/builtin/ui/src/client/signals/mod.ts registerTerminalTerminator dc0940e333c4 0|336e2b46aff6=336e2b46aff6,1|c1d58a2d45e9=c1d58a2d45e9,@signature=48d9c3b2cabd
 src/builtin/ui/src/client/signals/mod.ts reloadModuleUi d371a1f4c626
@@ -863,6 +868,7 @@ src/builtin/ui/src/client/signals/mod.ts retryFailed df01802e180a
 src/builtin/ui/src/client/signals/mod.ts revealNodeInNewTab c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts routeBase a90ef74a89ee 0|336e2b46aff6=336e2b46aff6,@signature=54e821d71f57
 src/builtin/ui/src/client/signals/mod.ts runNavAction e82c8704d252 0|c6c83f775cd9=c6c83f775cd9,1|79cda95873d9=79cda95873d9,@signature=cd73bdef45df
+src/builtin/ui/src/client/signals/mod.ts savedAnswerShown 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts searchableKinds 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts seekNearby 1a2853cf5623 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=297d02407155
 src/builtin/ui/src/client/signals/mod.ts seekNearbyTo 1a2853cf5623 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=297d02407155
@@ -890,6 +896,7 @@ src/builtin/ui/src/client/signals/mod.ts sharingChanged 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shellChildRoutes aca6ce793499
 src/builtin/ui/src/client/signals/mod.ts shellClientConnected 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts shellClientEpoch 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts shellUnreachable 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts showLightboxPath c6a7aabc3791 0|336e2b46aff6=336e2b46aff6,@signature=62a0bc29f0bb
 src/builtin/ui/src/client/signals/mod.ts showOn 449f7c6ee480 0|1ca2e21d79ce=1ca2e21d79ce,1|5cdb0dcc9077=5cdb0dcc9077,@signature=39b0a39b9b66
 src/builtin/ui/src/client/signals/mod.ts showOnDevices 0a752fffac0f
@@ -907,6 +914,7 @@ src/builtin/ui/src/client/signals/mod.ts stopShowing 4f7194b398cf 0|1ca2e21d79ce
 src/builtin/ui/src/client/signals/mod.ts streamNearby 01d36e29b435
 src/builtin/ui/src/client/signals/mod.ts subscribeNodes 9b41477ea61b 0|179996693b0b=179996693b0b,1|e51efb410451=e51efb410451,@signature=f483c6feb287
 src/builtin/ui/src/client/signals/mod.ts switchTerminalTab 22de26fcf923 0|336e2b46aff6=336e2b46aff6,@signature=8bb70a4660e2
+src/builtin/ui/src/client/signals/mod.ts takeSharedFiles 3e5ecc160dc5
 src/builtin/ui/src/client/signals/mod.ts tellNearbyPage bd8e4cae2f0b 0|586baaab9bb3=586baaab9bb3,@signature=90fc85cccd88
 src/builtin/ui/src/client/signals/mod.ts terminalHeight 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts terminalMaximizedToggle df01802e180a
@@ -1147,7 +1155,7 @@ src/lib/api/mod.ts DEVICES_GROUPNAME d4c3ad057218
 src/lib/api/mod.ts DOCUMENT_VIEW_FILE aca2c503ecd5
 src/lib/api/mod.ts DatabaseTable 61fba3aa4efc bytes=23e3d4379f17,name=6d0c36381511
 src/lib/api/mod.ts DeviceAppAnswer 712394e49830 device=dc9837b78932,lastFrom=7318cab8f341,lastUsedAt=7554904d0423,paired=0eec5cc4df25,pairedAt=e70b518dc56a,pairingExpiresAt=158ecb08f57a,qrSvg=7636c8592b87,qrText=78df8c4b2d08,user=ff9b41af33f7
-src/lib/api/mod.ts DeviceAttrs d53aa33ade99 class=0132fdb7df03,config=c8f07568cc8c,driver=ce98b477b7ab,firmware=0483ab272056,label=af04505f402e,mac=7d8596abd9f3,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,online=9267f296d3cb,serial=bf03e537c2a1,url=823ee7e982b4
+src/lib/api/mod.ts DeviceAttrs 86f9f0345d9d class=0132fdb7df03,config=c8f07568cc8c,driver=ce98b477b7ab,firmware=0483ab272056,install=a021ad37095d,label=af04505f402e,mac=7d8596abd9f3,manufacturer=e1a8a7f6ba82,model=aabffaa2e880,online=9267f296d3cb,serial=bf03e537c2a1,url=823ee7e982b4
 src/lib/api/mod.ts DeviceConfigAnswer cb3315a1defc config=55464c4d43ce,device=dc9837b78932,driver=44a866087c7a,fields=fd588f790508,running=d600d52ce08c,secrets=6292069495ed
 src/lib/api/mod.ts DeviceCreated 278efdfdb507 device=dc9837b78932,path=3fd20668ef6e
 src/lib/api/mod.ts DeviceFix 32b8a1fa6f4f accuracy=5b21861c8c04,alt=a9f9640f2bc6,course=0d2ecf1c577d,lat=ab04728f0de4,lng=7ef8fe750a12,speed=7d1cef515c3c

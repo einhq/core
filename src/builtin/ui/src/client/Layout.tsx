@@ -12,6 +12,7 @@ import { watchSidebarSwipe } from './lib/sidebar-swipe.ts';
 import { DRAWER_SLIDE_MS } from './lib/drawer-slide.ts';
 import { fullscreenRouteFromSearch } from './lib/fullscreen-search.ts';
 import {
+  authOutOfReach,
   checkAuth,
   DRAWER_BESIDE_QUERY,
   drawerPath,
@@ -31,7 +32,9 @@ import {
   mobileSidebarRail,
   nodeRoutes,
   routeBase,
+  savedAnswerShown,
   shellClientConnected,
+  shellUnreachable,
   sidebarCollapsed,
   toggleMobileRailHidden,
   toggleSidebar,
@@ -46,6 +49,7 @@ import { HEADER_HEIGHT, PHONE_HEADER_HEIGHT, usePhone } from '@ein/ui/hooks';
 import { loginReturnPath, loginUrlFor } from '@ein/ui/lib';
 import { isInvitePage } from './lib/invite.ts';
 import { forgetShareLink, isShareLinkPage, linkToReopen, shareLinkUrl, withinRoute } from './lib/share-link.ts';
+import { OutOfReach } from './components/RouteProblem/RouteProblem.tsx';
 import { cssVariablesResolver, theme } from '@ein/ui/theme';
 import type { ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -119,6 +123,7 @@ function Frame({ children }: Props) {
   const withinLink = !authenticated &&
     heldLinkRoutes.value.some((link) => withinRoute(location.pathname, link.route) || (shownFullscreen !== undefined && withinRoute(shownFullscreen, link.route)));
   const connected = shellClientConnected.value;
+  const unreachable = shellUnreachable.value;
   // The side drawer steps aside on its route's own page (the chat's), which is the same
   // route at full size; it is left open, so leaving the page brings it back.
   const drawerShown = drawerPath.value !== null && !underBase(location.pathname, routeBase(drawerPath.value));
@@ -183,10 +188,11 @@ function Frame({ children }: Props) {
     initShellClient();
   }, []);
 
-  // Once the shell is connected: who is signed in, their settings, and, for whoever a page is drawn
-  // for (as `browsing` says), the renditions the pages ask for, all before any page is drawn.
+  // Once the shell is connected, or EiN is found out of reach and this device answers instead: who
+  // is signed in, their settings, and, for whoever a page is drawn for (as `browsing` says), the
+  // renditions the pages ask for, all before any page is drawn.
   useEffect(() => {
-    if (connected && !authChecked) {
+    if ((connected || unreachable) && !authChecked) {
       checkAuth()
         .then(() => {
           const drawnFor = isAuthenticated.value || guestBrowsing.value || heldLinks.value.length > 0;
@@ -194,7 +200,18 @@ function Frame({ children }: Props) {
         })
         .finally(() => setAuthChecked(true));
     }
-  }, [connected, authChecked]);
+  }, [connected, unreachable, authChecked]);
+
+  // Nobody could be told apart while EiN was out of reach: once it answers, ask again.
+  const outOfReach = authOutOfReach.value;
+  useEffect(() => {
+    if (connected && authChecked && outOfReach) setAuthChecked(false);
+  }, [connected, authChecked, outOfReach]);
+
+  // The age the header gives is the page's: a page opened while connected shows none.
+  useEffect(() => {
+    if (shellClientConnected.peek()) savedAnswerShown.value = null;
+  }, [location.pathname]);
 
   // The navigation is the reader's, loaded once the auth check says who that is. Signing in
   // and out load the page again, so one reader's entries never reach the next. The shell
@@ -213,7 +230,7 @@ function Frame({ children }: Props) {
   // The page asked for rides along as `next`, so signing in lands back on it; replacing the entry
   // keeps Back from returning to a page that only redirects again. Only the link itself leads to
   // what it opens: a visitor held to it who asks for any other page is asked to sign in for that.
-  const mustSignIn = !authenticated && !isLinkPage && !withinLink && (!guestBrowsing.value || isSignedInPage);
+  const mustSignIn = !authenticated && !outOfReach && !isLinkPage && !withinLink && (!guestBrowsing.value || isSignedInPage);
   const routesKnown = Object.keys(nodeRoutes.value).length > 0;
   useEffect(() => {
     if (!authChecked || !mustSignIn || isLoginPage) return;
@@ -256,6 +273,12 @@ function Frame({ children }: Props) {
   // stays blank too.
   const ready = authChecked && (isLoginPage ? !authenticated : isLinkPage || (!mustSignIn && navLoaded));
 
+  // The frame's own reads — who reads, their settings, the navigation — are no part of a page's age.
+  useEffect(() => {
+    if (ready) savedAnswerShown.value = null;
+  }, [ready]);
+
+  if (authChecked && outOfReach) return <OutOfReach />;
   return !ready ? null : isLoginPage || isLinkPage ? children : (
     <>
       <AppShell

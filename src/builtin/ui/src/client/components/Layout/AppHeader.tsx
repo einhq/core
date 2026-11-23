@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Box, Button, Group, Kbd, Menu, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Box, Button, Group, Kbd, Menu, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useSignals } from '@preact/signals-react/runtime';
 import {
   IconArrowsMove,
@@ -7,7 +7,6 @@ import {
   IconKeyboard,
   IconLogin2,
   IconLogout,
-  IconPlugConnectedX,
   IconShieldFilled,
   IconShieldOff,
   IconShieldUp,
@@ -26,7 +25,6 @@ import {
   type ResolvedTopbarEntry,
   routeBase,
   runNavAction,
-  shellClientConnected,
   terminalOpenToggle,
   uiNav,
   underBase,
@@ -38,6 +36,7 @@ import { HeaderSearch } from './HeaderSearch.tsx';
 import { ElevateDialog } from './ElevateDialog.tsx';
 import { EinMark } from './EinMark.tsx';
 import { UploadIndicator } from '../Upload/UploadIndicator.tsx';
+import { OfflineBadge } from './OfflineBadge.tsx';
 import { NearbyIndicator } from '../ShowOn/NearbyIndicator.tsx';
 import { AccountFace } from '../Settings/Accounts/AccountAvatar.tsx';
 import { usePhone } from '../../hooks/usePhone.ts';
@@ -361,23 +360,9 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
       <Group gap={phone ? 4 : 'xs'} wrap='nowrap'>
         {
           /* Only when the page's own connection is down, which every page's commands go through;
-            the terminal's sessions show theirs on their tabs. A phone has room for the plug alone. */
+            the terminal's sessions show theirs on their tabs. */
         }
-        {!shellClientConnected.value && (
-          phone
-            ? (
-              <Tooltip label='Disconnected — reconnecting'>
-                <ThemeIcon color='red' variant='transparent' size={36} role='status' aria-label='Disconnected'>
-                  <IconPlugConnectedX size={22} />
-                </ThemeIcon>
-              </Tooltip>
-            )
-            : (
-              <Badge size='sm' color='red' variant='dot' role='status' styles={{ root: { color: 'white' } }}>
-                Disconnected
-              </Badge>
-            )
-        )}
+        <OfflineBadge phone={phone} />
 
         {/* Upload indicator (shows when uploads in queue) */}
         <UploadIndicator />

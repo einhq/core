@@ -20,7 +20,7 @@ import {
   onCast,
   requestCast,
 } from './cast-sender.ts';
-import { execCommand } from './shell-client.ts';
+import { execCommand, execFrameCommand } from './shell-client.ts';
 import { currentUser } from './user.ts';
 
 /**
@@ -71,7 +71,7 @@ let read: { user: string | undefined; done: Promise<void> } | undefined;
 export function loadShowOnDevices(fresh = false): Promise<void> {
   const user = currentUser.value?.username;
   if (read && read.user === user && !fresh) return read.done;
-  const devices = execCommand<DeviceSummary[]>('devices --endpoint show').then(
+  const devices = execFrameCommand<DeviceSummary[]>('devices --endpoint show').then(
     (devices) => {
       showOnDevices.value = devices;
     },
@@ -81,7 +81,7 @@ export function loadShowOnDevices(fresh = false): Promise<void> {
   );
   const setting = (key: string, into: typeof showOnNearby) =>
     'remote' in HTMLMediaElement.prototype
-      ? execCommand<ConfigEntry>(`config get ${key}`).then(
+      ? execFrameCommand<ConfigEntry>(`config get ${key}`).then(
         (entry) => {
           into.value = Boolean(entry.value?.trim());
         },

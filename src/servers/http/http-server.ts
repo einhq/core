@@ -6,7 +6,7 @@ import { handleDav } from './dav/handler.ts';
 import { isDavPath } from './dav/paths.ts';
 import { DavSignIns } from './dav/sign-in.ts';
 import { DownloadLog } from './download-log.ts';
-import { handleAppPair, handleAppSession, handleAppUnpair } from './handlers/app.ts';
+import { handleAppPair, handleAppSession, handleAppSignIn, handleAppUnpair } from './handlers/app.ts';
 import { handleDevWrite } from './handlers/dev-write.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
@@ -67,6 +67,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handlePageSignIn(config, req, url);
       } else if (url.pathname === '/__app/pair' && req.method === 'POST') {
         return await handleAppPair(config, req, clientAddress(req.headers, info.remoteAddr));
+      } else if (url.pathname === '/__app/sign-in' && req.method === 'POST') {
+        return await handleAppSignIn(config, req, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname === '/__app/session' && req.method === 'GET') {
         return await handleAppSession(config, req, url, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname === '/__app/unpair' && req.method === 'POST') {

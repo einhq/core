@@ -181,17 +181,22 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
    * runs without `JSON_OUTPUT` and its stdout comes back as the text a terminal would show:
    * the chat drawer's approval card is for a person, not a parser. `stdin` is what the script
    * reads as its stdin: text a command takes as `-`, which no command string has to carry.
+   *
+   * A result says `read: true` when nothing in the script wrote (`onWrite`): the Web UI keeps
+   * such an answer, and only such, to show while EiN is out of reach.
    */
   private async handleExec(id: string, command: string, json = true, stdin?: string): Promise<void> {
     const controller = new AbortController();
     this.execs.set(id, controller);
     let captured;
+    let wrote = false;
     try {
       captured = await this.shell!.runAndCapture(command, undefined, {
         maxOutputBytes: API_SHELL_MAX_CAPTURE_BYTES,
         timeoutMs: API_SHELL_EXEC_TIMEOUT_MS,
         signal: controller.signal,
         stdin,
+        onWrite: () => wrote = true,
         ...(json ? {} : { env: { JSON_OUTPUT: null } }),
       });
     } finally {
@@ -213,7 +218,7 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
         }
       }
 
-      this.sendResponse({ type: 'result', id, data: resultData });
+      this.sendResponse({ type: 'result', id, data: resultData, ...(wrote ? {} : { read: true }) });
     } else {
       this.sendResponse({
         type: 'error',
@@ -610,6 +615,8 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
     output?: string;
     stderr?: string;
     data?: unknown;
+    /** For an exec that succeeded: nothing in it wrote, so its answer may be kept. */
+    read?: boolean;
     message?: string;
     subscriptionId?: string;
     event?: NodeEvent | { entries: LogEntry[] };

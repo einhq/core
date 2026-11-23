@@ -8,14 +8,14 @@
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { join } from '@std/path';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
-import { isAdmin, storedAccess, verifyAccess } from '../../../lib/access/verify-access.ts';
+import { storedAccess, verifyAccess } from '../../../lib/access/verify-access.ts';
 import { SESSIONS_PATH } from '../../../lib/paths.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import type { SessionAttrs } from '../../../vfs/types/session.ts';
 import { PAGE_TICKET_TTL_MS, PageTickets } from '../page-tickets.ts';
 import type { LiveFormat } from '../types.ts';
 
-const ACCESS = { uid: 1001, gid: 1001, gids: [1001, 100], sid: 'a-shell' };
+const ACCESS = { uid: 2001, gid: 2001, gids: [2001, 100], sid: 'a-shell' };
 
 Deno.test('a page ticket opens once, within its time', () => {
   const tickets = new PageTickets();
@@ -38,10 +38,27 @@ Deno.test({ name: 'a page signed in and streamed over HTTP', sanitizeResources: 
     await t.step('a page is a path of this server', () => {
       assertThrows(() => devices.pageSignIn(ACCESS, 'https://elsewhere.test/'), Error, 'a path of this server');
       assertThrows(() => devices.pageSignIn(ACCESS, '//elsewhere.test/'), Error, 'a path of this server');
+      assertThrows(() => devices.pageSignIn(ACCESS, '/\\elsewhere.test/'), Error, 'a path of this server');
+      assertThrows(() => devices.pageSignIn(ACCESS, '/\t/elsewhere.test/'), Error, 'a path of this server');
+      assertThrows(() => devices.pageSignIn(ACCESS, '/dashboard-wall/Kitchen\r\nSet-Cookie: x=1'), Error, 'a path of this server');
+    });
+
+    await t.step('a page is never shown as the administrator, nor as a member of its group', () => {
+      assertThrows(() => devices.pageSignIn(ADMIN_ACCESS, '/dashboard-wall/Kitchen'), Error, 'never shown as the administrator');
+      assertThrows(() => devices.pageSignIn({ ...ACCESS, gids: [...ACCESS.gids, ADMIN_ACCESS.gid] }, '/dashboard-wall/Kitchen'), Error, 'never shown as the administrator');
+    });
+
+    await t.step("a link that holds the administrator's uid or group reads only what anyone reads", () => {
+      const asAdmin = { uid: ADMIN_ACCESS.uid, gid: ADMIN_ACCESS.gid, gids: [ADMIN_ACCESS.gid], link: { id: 'page', route: '/dashboard-wall/Kitchen' } };
+      const inGroup = { ...ACCESS, gids: [...ACCESS.gids, ADMIN_ACCESS.gid], link: { id: 'page' } };
+      assertEquals(verifyAccess(asAdmin, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o600 }, 'r'), false);
+      assertEquals(verifyAccess(inGroup, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o640 }, 'r'), false);
+      assertEquals(verifyAccess(inGroup, { uid: ACCESS.uid, gid: ACCESS.gid, mode: 0o600 }, 'r'), false);
+      assertEquals(verifyAccess(asAdmin, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o644 }, 'r'), true);
     });
 
     await t.step('the ticket signs a browser in once, read-only as its access, and sends it to the page', async () => {
-      const path = devices.pageSignIn(ADMIN_ACCESS, '/dashboard-wall/Kitchen?x=1');
+      const path = devices.pageSignIn(ACCESS, '/dashboard-wall/Kitchen?x=1');
       assert(path.startsWith('/__page/'));
       const res = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
       await res.body?.cancel();
@@ -53,14 +70,14 @@ Deno.test({ name: 'a page signed in and streamed over HTTP', sanitizeResources: 
       const session = await vfs.get<SessionAttrs>(ADMIN_ACCESS, join(SESSIONS_PATH, `session-${name}`));
       assertEquals(session.attrs.secret, secret);
       const access = storedAccess(session.attrs.access);
-      assertEquals(access.uid, ADMIN_ACCESS.uid);
+      assertEquals([access.uid, access.gids], [ACCESS.uid, ACCESS.gids]);
       assertEquals(access.link?.id, 'page');
       // The link names its page, which the Web UI keeps the browser on.
       assertEquals(access.link?.route, '/dashboard-wall/Kitchen?x=1');
-      // The administrator's uid, but never the administrator: it reads and does not write.
-      assertEquals(isAdmin(access), false);
-      assertEquals(verifyAccess(access, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o600 }, 'r'), true);
-      assertEquals(verifyAccess(access, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o600 }, 'w'), false);
+      // It reads what its member reads, and does not write.
+      assertEquals(verifyAccess(access, { uid: ACCESS.uid, gid: ACCESS.gid, mode: 0o600 }, 'r'), true);
+      assertEquals(verifyAccess(access, { uid: ACCESS.uid, gid: ACCESS.gid, mode: 0o600 }, 'w'), false);
+      assertEquals(verifyAccess(access, { uid: ADMIN_ACCESS.uid, gid: 0, mode: 0o600 }, 'r'), false);
 
       const again = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
       await again.body?.cancel();

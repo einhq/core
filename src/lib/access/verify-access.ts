@@ -1,5 +1,5 @@
 import { checkMode, MaskACL, MaskGroup, MaskOther, MaskOwner, Ownership } from '../mode/mod.ts';
-import { ACCESS_PINNED_ATTR, ADMIN_UID, GUEST_ACCESS, GUEST_UID, isLinkUid } from './constants.ts';
+import { ACCESS_PINNED_ATTR, ADMIN_GID, ADMIN_UID, GUEST_ACCESS, GUEST_UID, isLinkUid } from './constants.ts';
 import { Access, AccessLevel, HeldLink } from './types.ts';
 import type { NodeOwnership } from '../api/ids.ts';
 
@@ -53,8 +53,13 @@ export const storedAccess = (value: unknown): Access => {
   };
 };
 
-/** Whether `access` acts through a share link that has not expired at `now`. */
-export const linkLive = (access: Access, now = Date.now()): boolean => access.link !== undefined && (access.link.expiresAt === undefined || access.link.expiresAt > now);
+/**
+ * Whether `access` acts through a share link whose grants count at `now`: one that has not expired,
+ * and that holds neither the administrator's uid nor its group, since a link never acts as the
+ * administrator.
+ */
+export const linkLive = (access: Access, now = Date.now()): boolean =>
+  access.link !== undefined && (access.link.expiresAt === undefined || access.link.expiresAt > now) && access.uid !== ADMIN_UID && !access.gids.includes(ADMIN_GID);
 
 /** Whether `access` is the guest: whoever reaches the server without signing in or opening a share link. */
 export const isGuest = (access: Access): boolean => access.uid === GUEST_UID && access.link === undefined;
@@ -83,7 +88,8 @@ export const seesRunsOf = (viewer: Access, owner: Access): boolean => {
  * whoever reaches the server without signing in, so a grant to it, its own home included, would be
  * a grant to anyone, and a share link is whoever has the link. What a link grants — its own
  * entries, and the owner's, group's and entries' of the account it shows things as — stops once
- * it has expired; the other bits, which are the system's, it keeps.
+ * it has expired, or when it holds the administrator's uid or group (`linkLive`); the other bits,
+ * which are the system's, it keeps.
  */
 export const verifyAccess = (
   access: Access,

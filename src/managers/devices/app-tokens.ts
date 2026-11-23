@@ -1,8 +1,9 @@
 /**
  * The EiN app's pairing with a phone: a person shows a QR code on the phone's device page, which
- * holds a one-time pairing code, and the app trades the code for a token of its own. The token acts
- * as whoever asked for the code, never as the administrator: it posts to the phone's own endpoints
- * and opens Web UI sessions for the app, so the account's password never reaches the app.
+ * holds a one-time pairing code, and the app trades the code for a token of its own; or the app
+ * signs in once with the account's password and is given the token at once (`pairAppAs`). The
+ * token acts as whoever asked for the code or signed in, never as the administrator: it posts to
+ * the phone's own endpoints and opens Web UI sessions for the app, which keeps no password.
  *
  * Kept as the phone's child `.app`, mode 0600 and the administrator's. Codes and tokens are kept as
  * their SHA-256 alone: neither is shown again once given. The token is `<device>.<secret>`, so a
@@ -18,12 +19,12 @@ import { ADMIN_ACCESS, ADMIN_UID } from '../../lib/access/constants.ts';
 import type { Access } from '../../lib/access/types.ts';
 import { accessOfUid } from '../../lib/auth/member-gids.ts';
 import type { UserId } from '../../lib/mode/mod.ts';
-import { DEVICE_APP_NAME, devicePath, SESSIONS_PATH } from '../../lib/paths.ts';
+import { DEV_PATH, DEVICE_APP_NAME, devicePath, SESSIONS_PATH } from '../../lib/paths.ts';
 import { isToken, newToken, sameToken } from '../../lib/token/mod.ts';
 import { NodeNotFoundError } from '../../vfs/errors.ts';
 import type { Node } from '../../vfs/node.ts';
 import type { ModuleVFS } from '../../vfs/node-vfs.ts';
-import { type DeviceAppAttrs, isDeviceAppNode, NODE_TYPE_DEVICE_APP } from '../../vfs/types/device.ts';
+import { type DeviceAppAttrs, type DeviceNodeAttrs, isDeviceAppNode, NODE_TYPE_DEVICE, NODE_TYPE_DEVICE_APP } from '../../vfs/types/device.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../vfs/types/session.ts';
 
 /** How long a pairing code works: long enough to install the app and scan it. */
@@ -82,15 +83,50 @@ export const pairApp = async (vfs: ModuleVFS, device: string, code: string, now 
     const record = await readDeviceApp(vfs, device);
     const wanted = record?.attrs.pairing;
     if (!wanted || wanted.expiresAt <= now || !sameToken(wanted.hash, await sha256(code))) return undefined;
-    const token = `${device}.${newToken()}`;
-    const id = ulid();
-    await vfs.update<DeviceAppAttrs>(ADMIN_ACCESS, appPath(device), {
-      attrs: { pairing: null, token: { id, hash: await sha256(token), by: wanted.by, pairedAt: now } },
-    });
-    await endAppSessions(vfs, device, id);
-    return { token, by: wanted.by };
+    return { token: await giveToken(vfs, device, wanted.by, now), by: wanted.by };
   } finally {
     trading.delete(device);
+  }
+};
+
+/**
+ * Pair the phone with the app as `by`, who signed in with a password and may change the phone: a
+ * code waiting for it goes, and a token the phone had before is replaced. Undefined while another
+ * pairing of the phone is being made.
+ */
+export const pairAppAs = async (vfs: ModuleVFS, device: string, by: UserId, now = Date.now()): Promise<string | undefined> => {
+  if (trading.has(device)) return undefined;
+  trading.add(device);
+  try {
+    return await giveToken(vfs, device, by, now);
+  } finally {
+    trading.delete(device);
+  }
+};
+
+/** A new token for the phone, acting as `by`, in place of its code and token; the sessions the old token opened end. */
+const giveToken = async (vfs: ModuleVFS, device: string, by: UserId, now: number): Promise<string> => {
+  const token = `${device}.${newToken()}`;
+  const id = ulid();
+  const held = { id, hash: await sha256(token), by, pairedAt: now };
+  if (await readDeviceApp(vfs, device)) await vfs.update<DeviceAppAttrs>(ADMIN_ACCESS, appPath(device), { attrs: { pairing: null, token: held } });
+  else {await vfs.create<DeviceAppAttrs>(ADMIN_ACCESS, NODE_TYPE_DEVICE_APP, devicePath(device), DEVICE_APP_NAME, {
+      props: { mode: 0o600, tier: 'db' },
+      attrs: { token: held },
+    });}
+  await endAppSessions(vfs, device, id);
+  return token;
+};
+
+/**
+ * Mark the phone as the one the app installation `install` is paired with (its `install` attribute),
+ * and no other device as it, so a sign-in from the same installation finds it again.
+ */
+export const markAppInstall = async (vfs: ModuleVFS, device: string, install: string): Promise<void> => {
+  for (const { name, node } of await vfs.children<DeviceNodeAttrs>(ADMIN_ACCESS, DEV_PATH)) {
+    if (node.type !== NODE_TYPE_DEVICE) continue;
+    if (name === device && node.attrs.install !== install) await vfs.update<DeviceNodeAttrs>(ADMIN_ACCESS, devicePath(name), { attrs: { install } });
+    else if (name !== device && node.attrs.install === install) await vfs.update<DeviceNodeAttrs>(ADMIN_ACCESS, devicePath(name), { attrs: { install: null } });
   }
 };
 

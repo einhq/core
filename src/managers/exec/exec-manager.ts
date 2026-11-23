@@ -13,7 +13,7 @@ import { callWrites } from './effect.ts';
 import { COMMAND_NAMES } from './commands/mod.ts';
 import { ExecutionManager, ExecutionManagerConfig, SignalOpts } from './execution-manager.ts';
 import { SIGKILL_EXIT_CODE, Signal, signalExitCode } from './signal.ts';
-import { CmdFunction, CmdOpts, CmdSpec, CmdState } from './types.ts';
+import { CmdFunction, CmdOpts, CmdSpec, CmdState, scriptRunOf } from './types.ts';
 
 const EXECUTABLE_NODE_TYPES: NodeType[] = [
   NODE_TYPE_COMMAND,
@@ -168,11 +168,17 @@ export class ExecManager implements ExecutionManager {
       return { id, done: finish(0) };
     }
 
+    // A run that watches for writes (`ScriptRun.onWrite`) hears of each call its spec says writes.
+    const { onWrite } = scriptRunOf(opts.ctx);
+    const visitor = !cmd.spec.guest && isVisitor(opts.access);
+    const writes = (visitor || onWrite) && (await callWrites(cmd.spec, opts.args)).length > 0;
+    if (writes) onWrite?.();
+
     // Someone who has not signed in — the guest, or whoever holds a share link — changes nothing.
     // The VFS refuses them every write, but a command may check who asks and then write as the
     // administrator, or check only the groups, so a call its spec says writes is refused here
     // (ein/core#1202). What a visitor must run to sign in or open a link says `guest`.
-    if (!cmd.spec.guest && isVisitor(opts.access) && (await callWrites(cmd.spec, opts.args)).length > 0) {
+    if (visitor && writes) {
       await command.writeError(`${name}: sign in first\n`);
       return { id, done: finish(126) };
     }

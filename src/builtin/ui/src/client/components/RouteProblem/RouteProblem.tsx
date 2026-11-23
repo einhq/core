@@ -8,6 +8,7 @@ import { HAT_PATCH } from '../../lib/hat.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { ModuleLoadError } from '../../lib/module-load-error.ts';
 import { caughtError } from '../../signals/caught-error.ts';
+import { reconnectNow, shellUnreachable } from '../../signals/shell-client.ts';
 import { MARK_COLORS } from '../Layout/EinMark.tsx';
 
 /** The fallen hat's colours when something went wrong. */
@@ -176,6 +177,13 @@ export function RouteError() {
   useSignals();
   const error = useRouteError();
   if (isRouteErrorResponse(error) && error.status === 404) return <NotFound />;
+  if (error instanceof ModuleLoadError && shellUnreachable.value) {
+    return (
+      <RouteProblem title='This page is not on this device' reload>
+        EiN is out of reach, and this page was not opened here while it was. It loads once the connection is back.
+      </RouteProblem>
+    );
+  }
   if (error instanceof ModuleLoadError) {
     return (
       <RouteProblem title='This page did not load' error reload>
@@ -190,5 +198,35 @@ export function RouteError() {
     <RouteProblem title='Something broke on this page' error reload detail={detail} trace={trace}>
       The rest of EiN still works. Reloading may help; if it keeps happening, what went wrong is below.
     </RouteProblem>
+  );
+}
+
+/** How long Try again shows it is trying: about as long as a socket takes to fail. */
+const TRYING_MS = 2000;
+
+/**
+ * In place of the whole Web UI while EiN is out of reach and this device kept nothing to show, not
+ * even who reads here: outside the frame, like the sign-in page. The shell keeps trying, and the
+ * page is drawn by itself once EiN answers.
+ */
+export function OutOfReach() {
+  const [trying, setTrying] = useState(false);
+  const tryAgain = () => {
+    setTrying(true);
+    reconnectNow();
+    globalThis.setTimeout(() => setTrying(false), TRYING_MS);
+  };
+  return (
+    <Stack className='mrx-route-problem' data-page align='center' justify='center' gap='md' ta='center'>
+      <MissingTile error={false} />
+      <Stack gap={6} align='center'>
+        <Title order={2}>EiN is out of reach</Title>
+        <Text c='dimmed' maw={460}>
+          There is no connection to EiN, and nothing from it is saved on this device yet. Pages opened here while connected can be read without one. This page opens EiN by
+          itself once it answers.
+        </Text>
+      </Stack>
+      <Button mt='xs' leftSection={<IconRefresh size={16} />} loading={trying} onClick={tryAgain}>Try again</Button>
+    </Stack>
   );
 }

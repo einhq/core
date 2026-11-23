@@ -194,6 +194,9 @@ export type DetachedJobStatus = {
  */
 const ACTIVITY_FLOOR_MS = 30_000;
 
+/** Where output goes to be thrown away: a redirection there changes nothing. */
+const NULL_DEVICE = '/dev/null';
+
 /** A glob result as the pattern spelled it: `shown` is '' (relative start), '/', or a path. */
 const joinShown = (shown: string, name: string): string => shown === '' ? name : shown.endsWith('/') ? `${shown}${name}` : `${shown}/${name}`;
 
@@ -1108,16 +1111,16 @@ export class Shell implements TtyIf {
       release = await this.visitorTurn(script);
       if (release) opts = { ...opts, timeoutMs: Math.min(opts.timeoutMs ?? Infinity, VISITOR_RUN_TIMEOUT_MS) };
     }
-    if (opts.env || opts.attribution || opts.onProgress || opts.stdin !== undefined) {
-      // A subshell of the caller's context, so the variables, the attribution, the progress
-      // callback and the stdin reach the script and nothing else. What the caller's own run set
-      // is kept.
+    if (opts.env || opts.attribution || opts.onProgress || opts.onWrite || opts.stdin !== undefined) {
+      // A subshell of the caller's context, so the variables, the attribution, the callbacks and
+      // the stdin reach the script and nothing else. What the caller's own run set is kept.
       ctx = ctx.subContext();
       if (opts.env) ctx.setLocalEnv(opts.env);
-      if (opts.attribution || opts.onProgress) {
+      if (opts.attribution || opts.onProgress || opts.onWrite) {
         const run: ScriptRun = { ...scriptRunOf(ctx) };
         if (opts.attribution) run.attribution = opts.attribution;
         if (opts.onProgress) run.onProgress = opts.onProgress;
+        if (opts.onWrite) run.onWrite = opts.onWrite;
         ctx.setHostData(run);
       }
     }
@@ -2678,6 +2681,7 @@ export class Shell implements TtyIf {
       await this.assertNotRefusedGuest();
       const abspath = resolve(ctx.getCwd(), path);
       const access = this.accessIn(ctx);
+      if (abspath !== NULL_DEVICE) scriptRunOf(ctx).onWrite?.();
 
       await this.config.vfs.ensure<FileAttrs>(access, NODE_TYPE_FILE, dirname(abspath), basename(abspath), {
         attrs: {
@@ -2858,6 +2862,7 @@ export class Shell implements TtyIf {
     const handle = await this.config.vfs.open(this.accessIn(ctx), abspath, {
       mode: mode as 'r' | 'r+' | 'w+' | 'a+',
     });
+    if (mode !== 'r' && abspath !== NULL_DEVICE) scriptRunOf(ctx).onWrite?.();
 
     this.fdMap.set(fd, { handle, id: abspath, jobs: jobScope.getStore() });
 

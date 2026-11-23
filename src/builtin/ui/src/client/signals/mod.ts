@@ -18,3 +18,4 @@ export { dismissToast, notify, notifyProgress, type ProgressToast, type Toast } 
 export { loadStars, setStarred, starredPaths } from './stars.ts';
 export { openShortcutHelp } from './shortcuts.ts';
 export * from './show-on.ts';
+export { takeSharedFiles } from './shared-files.ts';

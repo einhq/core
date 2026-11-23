@@ -166,7 +166,8 @@ and follows the node on screen with `useShownNode` — the picture in the lightb
 `usePageSubject`; `device.tabs`, a tab of a device's page after its own, whose route gets the device's path
 (`/dev/<device>`) for `{path}` (archive's Trips); `app.backup`, on the EiN app's App page, where the phone's photo
 backup sends, chosen through `window.EinApp`'s `backupSet`, which the kit lends (`@ein/ui/lib`; archive's staging
-category for the phone); `devices.header`, a button in the Devices page's header
+category for the phone); `share.receive`, the route opened in the dialog with files another app shared to EiN, the first
+panel only (archive's Import media; see Shared files below); `devices.header`, a button in the Devices page's header
 beside its filters, which draws nothing while it has nothing to say (devices' hosts found on the network); `settings.views`, a
 settings view that sets up one thing with the settings it takes (core's Language and time, Sign-in and Module sources, the
 assistant's language model, devices' MQTT broker and restreamer, ems's media service and transcription, media's
@@ -448,6 +449,50 @@ pages under what it opens (`withinRoute` against `heldLinkRoutes`) and nowhere e
 the home page too, asks them to sign in for it, as it asks any visitor, there is no sidebar, the header has the mark and
 the name and no search box, and the lightbox shows no details — only the pictures, with Download in
 its ⋮ menu as for anyone. Signing in from a link becomes the account.
+
+## Without a connection
+
+The Web UI opens and can be read while EiN is out of reach (ein/core#1522), for whoever last read
+on the device; it changes nothing then, and queues nothing.
+
+- **The answers.** The API shell marks an exec's result `read: true` when nothing in the script
+  wrote: no command started with arguments its spec says write (`callWrites`, reported through
+  `ScriptRun.onWrite`, however deep), and no redirection into a file. `execCommand` keeps every
+  such answer without stdin in IndexedDB by its command line, with when it was read
+  (`lib/saved-answers.ts`), up to 32 MB, the oldest going first.
+- **Out of reach.** `shellUnreachable` is set when the socket closes without opening, or has not
+  opened after 5 s; opening clears it. While it is set `execCommand` answers at once from what was
+  kept, and fails with `OfflineError` for a command with nothing kept, which every write is; a
+  request whose socket fails under it does the same. `savedAnswerShown` holds the oldest kept
+  answer the page showed and its path, which the header's `OfflineBadge` gives as the page's age
+  (**Offline · saved 3 h ago**). The frame's own reads do not count: those before it is drawn,
+  and icons and the show-on lookups, which go through `execFrameCommand`. A move between pages
+  while connected clears it, and the socket opening again offers a reload of a page that showed
+  one (`watchReconnect`).
+- **Who it is kept for.** `checkAuth` runs as soon as the socket opens or EiN is found out of
+  reach, and its answer, a kept one out of reach, says whom the page reads for. `keepFor` keeps
+  answers only for someone signed in, an elevated sign-in apart (`readerOf`), and empties
+  everything kept, the answers and the service worker's files, when the store was kept for anyone
+  else. Signing out empties it too. Out of reach with nothing kept, there is no one to draw the
+  page for, and Layout draws `OutOfReach` in place of the sign-in page, until the socket opens.
+- **The service worker** (`sw/sw.ts`, bundled alone as `/sw.js`; registered only in a secure
+  context, HTTPS or `localhost`) answers by `sw/rules.ts`: a page with the network first and the
+  kept document when there is no answer, a proxy's 502–504, or none in 4 s; the shell's and the
+  modules' bundles from the cache (their names change with their content), with those the newest
+  document and manifest no longer name dropped; the other files of the Web UI from the cache,
+  refreshed behind; the modules' manifest with the network first; and `/file/` bytes with the
+  network first, keeping pictures, text, JSON and PDF of up to 4 MB in `ein-files`, 150 MB at most,
+  the oldest going first. It skips byte ranges, so video and sound are never kept. On install it
+  keeps the document, what it and its stylesheets load, and every module's bundle.
+- **Shared files.** The web manifest's `share_target` puts EiN in the Share menu of a phone that
+  installed it, and posts the shared pictures, videos and recordings to `/share`. The service worker
+  keeps them in `ein-shared` and sends the browser on to the `/share` page (`pages/share.tsx`),
+  which reads them into the page (`signals/shared-files.ts`), signed in first, and opens the first
+  `share.receive` panel's route in the dialog over Home; that route takes them with
+  `takeSharedFiles` (archive's Import media, its Inbox chosen). The EiN app for Android is in the
+  Share menu by an intent filter of its own: it keeps the shared files and opens `/share`, where
+  `shared-files.ts` lists them through `window.EinApp` (`shared`), reads each in base64 pieces
+  (`sharedRead`) and has the app forget them (`sharedDone`), in place of the service worker's cache.
 
 ## Toasts and favourites
 

@@ -215,7 +215,7 @@ const scopeSql = (scope: SqlScope & { notWithinBy?: AttrRef }, params: ParamList
 /**
  * Whether the node row `row` grants `reader` read, as `verifyAccess` decides it: owner, group and
  * other bits, then the access list. What a share link grants — its own entries, and the owner,
- * group and entries of the account it shows things as — stops once it has expired, leaving the
+ * group and entries of the account it shows things as — counts only while `linkLive`, leaving the
  * other bits.
  *
  * The access list is asked with one jsonpath test rather than a subquery over its elements: a

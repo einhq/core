@@ -117,7 +117,7 @@ export const reachAny = (formulas: ReachFormula[]): ReachFormula => normalizeRea
 /**
  * Whether `access` is one of `grantee`, judged now; administrators are left to the caller. What
  * an access acting through a share link is granted — as the link, or as the account it shows
- * things as — counts only while the link is live.
+ * things as — counts only while the link is live (`linkLive`).
  */
 const admits = (grantee: Grantee, access: Access, live: boolean): boolean => {
   if (grantee === ANYONE) return true;

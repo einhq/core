@@ -123,6 +123,8 @@ export interface ModuleDevices {
    * A path for a browser that cannot sign in, the media service's rendering a page for a screen:
    * opened once within a minute, `/__page/<ticket>` signs it in as `access`, read-only as a share
    * link's visitor reads, and sends it to `route` (a path of this server, `/dashboard-wall/Kitchen`).
+   * Never as the administrator, nor as a member of its group: whoever opens the path reads what
+   * `access` reads, so it goes only to the media service the system's settings name.
    */
   pageSignIn(access: Access, route: string): string;
   /**

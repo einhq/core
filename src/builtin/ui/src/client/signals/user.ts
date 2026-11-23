@@ -1,5 +1,6 @@
 import { computed, signal } from '@preact/signals-react';
-import { execCommand } from './shell-client.ts';
+import { execCommand, OfflineError } from './shell-client.ts';
+import { forgetReader, keepFor, readerOf } from './offline.ts';
 import { openRoute } from './module-ui.ts';
 import { resetTerminalWorkspace } from './terminal.ts';
 import { shq } from '../lib/shquote.ts';
@@ -45,9 +46,17 @@ export async function openShareLink(token: string): Promise<ShareLinkOpened> {
 }
 
 /**
- * Check current auth status by calling whoami
+ * Whether the auth check could not be answered: EiN is out of reach and this device kept nothing of
+ * it, so there is no one to draw the page for.
+ */
+export const authOutOfReach = signal(false);
+
+/**
+ * Check current auth status by calling whoami, and keep what the page reads for whoever it is
+ * (`keepFor`). Out of reach, the answer this device kept says who last read here.
  */
 export async function checkAuth(): Promise<void> {
+  authOutOfReach.value = false;
   try {
     const result = await execCommand<Whoami>('user-whoami');
 
@@ -58,10 +67,12 @@ export async function checkAuth(): Promise<void> {
     }
     guestBrowsing.value = result.guestBrowsing === true;
     heldLinks.value = result.links ?? [];
-  } catch {
+    void keepFor(readerOf(result));
+  } catch (error) {
     currentUser.value = null;
     guestBrowsing.value = false;
     heldLinks.value = [];
+    authOutOfReach.value = error instanceof OfflineError;
   }
 }
 
@@ -81,7 +92,8 @@ export async function login(username: string, password: string): Promise<void> {
  * `login`.
  *
  * The server ends this session's terminals; the tabs stored for this browser
- * tab go too, so they are not reopened as fresh shells under the old titles.
+ * tab go too, so they are not reopened as fresh shells under the old titles. What this device kept
+ * to read without a connection goes as well.
  */
 export async function logout(): Promise<void> {
   try {
@@ -91,6 +103,7 @@ export async function logout(): Promise<void> {
   }
   currentUser.value = null;
   resetTerminalWorkspace();
+  await forgetReader();
 }
 
 /**
