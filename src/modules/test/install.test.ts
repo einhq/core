@@ -116,6 +116,17 @@ Deno.test('unpackArchive', async (t) => {
       assertEquals((await vfs.get(ADMIN_ACCESS, `${dest}/bin/tiles`)).props.mode & 0o777, 0o755);
     });
 
+    await t.step('a file is 0755 with an execute bit and 0644 without, whatever else the archive says', async () => {
+      const { dest } = await unpack({
+        'bin/open': { text: '#!bash\n', mode: 0o777 },
+        'bin/user': { text: '#!bash\n', mode: 0o4700 },
+        'lib/shared.ts': { text: '', mode: 0o666 },
+        'lib/private.ts': { text: '', mode: 0o600 },
+      });
+      const mode = async (path: string) => (await vfs.get(ADMIN_ACCESS, `${dest}/${path}`)).props.mode & 0o7777;
+      assertEquals([await mode('bin/open'), await mode('bin/user'), await mode('lib/shared.ts'), await mode('lib/private.ts')], [0o755, 0o755, 0o644, 0o644]);
+    });
+
     await t.step('a path outside the module is refused', async () => {
       const files: Files = { 'mod.json': '{}', '../escape.txt': 'out' };
       for (let i = 0; i < 40; i++) files[`tiles/${i}.png`] = `tile ${i}`;

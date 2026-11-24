@@ -152,8 +152,9 @@ type Unpacked = { files: number; skipped: string[] };
 
 /**
  * Unpack a gzipped tar of a repository into `dest`, which must exist: the entries under its one top
- * directory, which a forge names after the repository. Files are written with their modes, so a
- * command stays executable, and directories with 0755; symlinks and anything else are left out,
+ * directory, which a forge names after the repository. A file with an execute bit in the archive is
+ * written 0755, so a command stays executable, and every other file 0644, whatever else its mode
+ * says; directories are 0755. Symlinks and anything else are left out,
  * and said. A path that would leave `dest` is refused. The archive is written as it is read, with
  * `vfs.writeTree`; `unpacked` is told the number of files in place after each.
  */
@@ -198,7 +199,7 @@ async function* entriesOf(archive: ReadableStream<Uint8Array>, skipped: string[]
     if (type === '5') {
       yield { type: 'directory', path: relative, mode: 0o755 };
     } else if (type === '0' || type === '7') {
-      yield { type: 'file', path: relative, mode: entry.header.mode & 0o777 || 0o644, bytes: await bytesOf(entry) };
+      yield { type: 'file', path: relative, mode: entry.header.mode & 0o111 ? 0o755 : 0o644, bytes: await bytesOf(entry) };
     } else {
       await entry.readable?.cancel();
       skipped.push(`${relative}: ${type === '2' ? 'a symlink' : `an entry of type '${type}'`}, not installed`);

@@ -32,7 +32,7 @@ export function TerminalInstance({ tabId, isActive, initialCommand }: Props) {
   useSignals();
 
   // Mantine 9's useResizeObserver hands back a callback ref, but xterm needs the
-  // element itself (term.open, viewport lookup) and useXtermMedia wants a RefObject,
+  // element itself (term.open, the offsetParent check) and useXtermMedia wants a RefObject,
   // so keep our own ref and feed the observer alongside it.
   const [observerRef, rect] = useResizeObserver<HTMLDivElement>();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -153,11 +153,6 @@ export function TerminalInstance({ tabId, isActive, initialCommand }: Props) {
     term.open(ref.current);
     ref.current.setAttribute('data-open', '1');
 
-    const viewport = ref.current.querySelector('.xterm-viewport') as HTMLElement;
-    if (viewport) {
-      viewport.style.backgroundColor = 'transparent';
-    }
-
     requestAnimationFrame(() => {
       fitAddon.fit();
       ws.sendResize(term.cols, term.rows);
@@ -165,33 +160,48 @@ export function TerminalInstance({ tabId, isActive, initialCommand }: Props) {
     });
   }, [ref, term, fitAddon, ws]);
 
-  // The app's scrollbar (`bindScrollbar`) over the scrollback, in place of the browser's, which
-  // `theme.css` hides. It goes inside xterm's element, in the gutter xterm keeps for a scrollbar,
-  // so a wheel over it reaches xterm as one over the text does.
+  // The app's scrollbar (`bindScrollbar`) over the scrollback, in place of xterm's, which
+  // `theme.css` hides. It goes inside xterm's scrollable element, in the gutter xterm keeps for its
+  // bar, so a wheel over it reaches xterm as one over the text does. xterm scrolls by lines, not
+  // as an element does, so the bar sees the buffer through a view of it in the track's pixels.
   useEffect(() => {
-    const element = term.element;
-    const viewport = element?.querySelector<HTMLElement>('.xterm-viewport');
-    const scrollArea = element?.querySelector<HTMLElement>('.xterm-scroll-area');
-    if (!element || !viewport || !scrollArea) return;
+    const scrollable = term.element?.querySelector<HTMLElement>('.xterm-scrollable-element');
+    if (!scrollable) return;
     const track = document.createElement('div');
     track.className = 'mrx-scrollbar terminal-scrollbar';
     track.setAttribute('aria-hidden', 'true');
     const thumb = document.createElement('div');
     thumb.className = 'mrx-scrollbar-thumb';
     track.append(thumb);
-    element.append(track);
+    scrollable.append(track);
+    const line = () => track.clientHeight / term.rows;
+    const scrollback = {
+      get scrollTop() {
+        return term.buffer.active.viewportY * line();
+      },
+      get scrollHeight() {
+        return term.buffer.active.length * line();
+      },
+      get clientHeight() {
+        return track.clientHeight;
+      },
+      scrollTo: ({ top = 0 }: ScrollToOptions) => term.scrollToLine(Math.round(top / line())),
+    };
+    const events = new EventTarget();
+    const scrolled = term.onScroll(() => events.dispatchEvent(new Event('scroll')));
     const unbind = bindScrollbar(track, thumb, {
-      element: viewport,
-      events: viewport,
-      // The scroll's length is the scroll area's height, which xterm sets as the scrollback grows.
+      element: scrollback,
+      events,
+      // The scrollback's length changes as it scrolls, as the terminal resizes, and between the
+      // normal buffer and the alternate one, which has none.
       watch: (changed) => {
-        const observer = new ResizeObserver(changed);
-        observer.observe(scrollArea);
-        return () => observer.disconnect();
+        const listeners = [term.onScroll(changed), term.onResize(changed), term.buffer.onBufferChange(changed)];
+        return () => listeners.forEach((listener) => listener.dispose());
       },
     });
     return () => {
       unbind();
+      scrolled.dispose();
       track.remove();
     };
   }, [term]);

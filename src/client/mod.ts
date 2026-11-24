@@ -272,3 +272,7 @@ export { familiesOf, PROCESSING_ATTR, processingAt, type ProcessingRoot, process
 
 // The command catalogue: every command on the caller's PATH with its spec.
 export { type CatalogueEntry, commandCatalogue, forgetCommandCatalogues } from '../lib/commands/catalogue.ts';
+
+// Where a module may connect at an address a person gives: the public internet, and off it what the
+// gate's `local` allows, checked again at each connection; and an answer read only up to a limit.
+export { AddressGate, type AddressGateOptions, followRedirects, type GateFetch, inNetworks, isPublicAddress, readAtMost } from '../lib/net/address-gate.ts';

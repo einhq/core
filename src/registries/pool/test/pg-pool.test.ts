@@ -126,6 +126,10 @@ pgTest('PgPoolRegistry re-adding a waiting job with nothing new writes nothing',
     const lower = await registry.add('readd', { kind: 'a', priority: 1, dedupKey: 'k' });
     assertEquals(lower.priority, 5);
     assertEquals(await version(String(job.id)), written);
+    // Params that differ, but not in the `replaceParamsOn` member, are no news either.
+    const untouched = await registry.add('readd', { kind: 'a', priority: 5, dedupKey: 'k', replaceParamsOn: 'path', params: { cause: 'touch' } });
+    assertEquals(untouched.params, null);
+    assertEquals(await version(String(job.id)), written);
 
     // A higher priority is news, and is written.
     const raised = await registry.add('readd', { kind: 'a', priority: 9, dedupKey: 'k' });

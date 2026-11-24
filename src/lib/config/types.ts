@@ -23,6 +23,9 @@ export type ConfigScope = 'system' | 'user';
  * where it is set (see `isSecretKey`).
  *
  * `locale` is a BCP 47 language tag such as `en-SE`, which `Intl` formats with.
+ *
+ * `position` is a place on a map and how close to look at it, `lat, lng, zoom` such as
+ * `51.5074, -0.1278, 11` (`parseMapPosition`).
  */
 export type ConfigType =
   | 'string'
@@ -33,7 +36,8 @@ export type ConfigType =
   | 'user'
   | 'group'
   | 'secret'
-  | 'locale';
+  | 'locale'
+  | 'position';
 
 export type ConfigOption = {
   /** The environment variable itself — `CFG_LANGUAGE`. */

@@ -48,6 +48,24 @@ const RENDITION_PATH = /^(.+)\/thumbnails\/([^/]+)$/;
  */
 const FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'";
 
+/**
+ * What a page of the site, the shell among them, may load: scripts from EiN itself and Google's Cast
+ * sender (cast-sender.ts loads it from www.gstatic.com), so injected markup runs nothing, and only
+ * EiN's own pages may frame it. Pictures may come from anywhere, since a map's tiles come from
+ * whatever server its layer names; styles may be inline, as Mantine writes them.
+ */
+const PAGE_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' https://www.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  'img-src * data: blob:',
+  "media-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 /** Types a browser opens as a page of its own: HTML, and XML, which may be XHTML. SVG is a picture and keeps its type. */
 const isPageType = (type: string): boolean => type === 'text/html' || type === 'text/xml' || type === 'application/xml' || (type.endsWith('+xml') && type !== 'image/svg+xml');
 
@@ -187,8 +205,12 @@ export async function serveFile(
   }
 
   // The site's own pages, the shell's document among them, are EiN's and go out as they are typed.
-  if (opts.site) responseHeaders.set('Content-Type', node.attrs.mimetype || 'application/octet-stream');
-  else setFileHeaders(responseHeaders, node.attrs.mimetype);
+  if (opts.site) {
+    responseHeaders.set('Content-Type', node.attrs.mimetype || 'application/octet-stream');
+    if (isPageType((node.attrs.mimetype ?? '').split(';')[0].trim().toLowerCase())) responseHeaders.set('Content-Security-Policy', PAGE_POLICY);
+  } else {
+    setFileHeaders(responseHeaders, node.attrs.mimetype);
+  }
 
   const etag = node.attrs.sha256 ? `"${node.attrs.sha256}"` : undefined;
 

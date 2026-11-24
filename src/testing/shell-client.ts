@@ -27,6 +27,9 @@ export type ExecOptions = {
   stdin?: string;
 };
 
+/** Deno's `WebSocket`, which takes the handshake's headers; the DOM's declaration hides the option. */
+const WebSocketWithHeaders = WebSocket as unknown as new (url: string, options: { headers: HeadersInit }) => WebSocket;
+
 export class ShellClient {
   private ws: WebSocket;
   private requestId = 0;
@@ -48,11 +51,11 @@ export class ShellClient {
   }
 
   /**
-   * Connect to the API shell endpoint
+   * Connect to the API shell endpoint, presenting `cookie` when given.
    */
-  static async connect(baseUrl: string): Promise<ShellClient> {
+  static async connect(baseUrl: string, cookie?: string): Promise<ShellClient> {
     const wsUrl = baseUrl.replace('http', 'ws') + '/__shell';
-    const ws = new WebSocket(wsUrl);
+    const ws = cookie === undefined ? new WebSocket(wsUrl) : new WebSocketWithHeaders(wsUrl, { headers: { cookie } });
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {

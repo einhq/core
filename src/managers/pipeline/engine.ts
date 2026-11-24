@@ -216,6 +216,11 @@ export class PipelineEngine {
   private readonly triggerOwner: string;
   /** Trigger jobs being turned into instances right now. */
   private creating = new Set<Promise<void>>();
+  /**
+   * Announcements at a new path that found their subject's trigger job already claimed, at the
+   * old one, by dedup key: each is enqueued again once that job ends (`enqueueAfterClaimed`).
+   */
+  private afterClaimed = new Map<string, () => Promise<void>>();
   /** Claimed triggers being created; briefly overlaps their new instance lock. */
   private creatingByPipeline = new Map<string, number>();
   /** The background recovery pass, so stop() can wait for it to unwind. */
@@ -1146,7 +1151,7 @@ export class PipelineEngine {
       // drop but a reason to run again, and that verdict is reached after the
       // guards below, so a fact the trigger would have declined cannot force a
       // rerun (`admitTrigger`).
-      if (!rerunsOnCoalesce(def) && await this.isSelfInflictedTrigger(def.name, nodeId, timestamp)) {
+      if (!rerunsOnCoalesce(def) && await this.isSelfInflictedTrigger(def.name, nodeId, event.subject, timestamp)) {
         logger.debug('skipping trigger (self-inflicted or in-flight)', { pipeline: def.name, path: event.subject });
         continue;
       }
@@ -1223,7 +1228,7 @@ export class PipelineEngine {
       // events that re-match; those are the bulk of what arrives here during a
       // crawl, and none of them should cost a filter evaluation. Not under
       // `coalesce: rerun`, for the reason given in `handleDomainTrigger`.
-      if (!rerunsOnCoalesce(def) && await this.isSelfInflictedTrigger(def.name, event.nodeId, event.timestamp)) {
+      if (!rerunsOnCoalesce(def) && await this.isSelfInflictedTrigger(def.name, event.nodeId, event.path, event.timestamp)) {
         logger.debug('skipping trigger (self-inflicted or in-flight)', { pipeline: def.name, path: event.path });
         continue;
       }
@@ -1293,8 +1298,8 @@ export class PipelineEngine {
    * that starts an upload — left none, and then it is the subject's latest record, the write
    * that gave the node its current state. Undefined when the trail has nothing for the node.
    *
-   * It matters which event is first: the trigger pool keeps the first announcement's params, so
-   * an upload's run would otherwise carry no cause whenever the truncation came before the content.
+   * It matters which event is first: the trigger pool keeps the first announcement's params at
+   * one path, so an upload's run would otherwise carry no cause whenever the truncation came before the content.
    */
   private triggerWriteReader(event: VfsTriggerEvent): () => Promise<AuditedWrite | undefined> {
     let read: Promise<AuditedWrite | undefined> | undefined;
@@ -1333,7 +1338,7 @@ export class PipelineEngine {
     priority?: number,
     triggerWrite?: AuditedWrite,
   ): Promise<void> {
-    if (rerunsOnCoalesce(def) && await this.foldIntoLiveInstance(def.name, nodeId, { triggerEvent, triggerWrite, vars, priority, at: Date.now() })) {
+    if (rerunsOnCoalesce(def) && await this.foldIntoLiveInstance(def.name, nodeId, triggerPath, { triggerEvent, triggerWrite, vars, priority, at: Date.now() })) {
       logger.debug('trigger folded into a live instance (coalesce: rerun)', { pipeline: def.name, path: triggerPath });
       return;
     }
@@ -1341,13 +1346,18 @@ export class PipelineEngine {
     await this.enqueueInstance(def.name, triggerPath, nodeId, triggerEvent, vars, priority, triggerWrite);
   }
 
-  /** Record `rerun` on the subject's live instance. False when there is none to fold into. */
-  private async foldIntoLiveInstance(pipelineName: string, nodeId: NodeId, rerun: PendingRerun): Promise<boolean> {
+  /**
+   * Record `rerun` on the subject's live instance. False when there is none to fold into, or
+   * when the instance is for the subject at another path: it has moved, the live run cannot
+   * reach it, and the trigger's own run replaces that one (`removePriorInstance`).
+   */
+  private async foldIntoLiveInstance(pipelineName: string, nodeId: NodeId, triggerPath: string, rerun: PendingRerun): Promise<boolean> {
     const instancePath = join(this.pipelinesPath, 'instances', pipelineName, nodeId);
 
     const liveNow = async (): Promise<boolean> => {
       try {
-        return isLiveInstance((await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath)).attrs.status);
+        const { attrs } = await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, instancePath);
+        return isLiveInstance(attrs.status) && attrs.triggerPath === triggerPath;
       } catch {
         return false;
       }
@@ -1423,11 +1433,17 @@ export class PipelineEngine {
     priority?: number,
     triggerWrite?: AuditedWrite,
   ): Promise<void> {
+    const dedupKey = `${pipelineName}/${nodeId}`;
+    let job: PoolJob;
     try {
-      await this.vfs.poolAdd(ADMIN_ACCESS, this.triggerPoolPath, {
+      job = await this.vfs.poolAdd(ADMIN_ACCESS, this.triggerPoolPath, {
         kind: pipelineName,
-        dedupKey: `${pipelineName}/${nodeId}`,
+        dedupKey,
         params: { pipelineName, triggerPath, nodeId, triggerEvent, triggerWrite, vars, priority } satisfies TriggerJobParams,
+        // A subject renamed before its job is claimed — an upload to a temporary name, renamed when
+        // done — is announced again at its new path. The job takes the newer announcement then, or
+        // it would run at the old path and be cancelled for want of its node (ein/core#1508).
+        replaceParamsOn: 'triggerPath',
         // The lane alone orders trigger jobs, so the normal lane's are all at 0. A re-add keeps
         // the higher priority, so a normal announcement lifts a bulk job waiting for the subject,
         // and `runTriggerJob` reads the run's lane off the job, not off the first announcement.
@@ -1442,6 +1458,26 @@ export class PipelineEngine {
       logger.error('failed to enqueue trigger job', { pipeline: pipelineName, path: triggerPath, error: err });
       throw err;
     }
+
+    // A job already claimed is being made into a run at the path it was claimed with, and a
+    // re-add changes nothing about it. When that path is not this one, the subject was renamed
+    // while its run was being made — an upload renamed the moment it finished, on an engine with
+    // nothing queued — and that run is cancelled for want of its node, so this announcement goes
+    // in again once the job has ended. The job may end between the add and the note, before its
+    // end looked for one, so the note is checked against the job once it is written.
+    if (job.state !== 'claimed' || (job.params as TriggerJobParams | null)?.triggerPath === triggerPath) return;
+    this.afterClaimed.set(dedupKey, () => this.enqueueInstance(pipelineName, triggerPath, nodeId, triggerEvent, vars, priority, triggerWrite));
+    const jobs = await this.vfs.poolJobs(ADMIN_ACCESS, this.triggerPoolPath, { dedupKey });
+    if (!jobs.some((j) => j.id === job.id && j.state === 'claimed')) await this.enqueueAfterClaimed(dedupKey);
+  }
+
+  /** Enqueue the announcement that waited for the claimed trigger job under `dedupKey`, if any. */
+  private async enqueueAfterClaimed(dedupKey: string | undefined): Promise<void> {
+    const later = dedupKey === undefined ? undefined : this.afterClaimed.get(dedupKey);
+    if (!later) return;
+    this.afterClaimed.delete(dedupKey!);
+    logger.info('re-announcing a subject renamed while its run was made', { job: dedupKey });
+    await later();
   }
 
   /**
@@ -1789,6 +1825,14 @@ export class PipelineEngine {
   }
 
   private async runTriggerJob(job: PoolJob): Promise<void> {
+    try {
+      await this.createFromTriggerJob(job);
+    } finally {
+      await this.enqueueAfterClaimed(job.dedupKey);
+    }
+  }
+
+  private async createFromTriggerJob(job: PoolJob): Promise<void> {
     const jobId = job.id;
     const params = job.params as TriggerJobParams | null;
     if (!params?.pipelineName || !params.triggerPath) {
@@ -1816,7 +1860,7 @@ export class PipelineEngine {
         params.vars,
         params.priority,
         params.triggerWrite,
-        // The params are the first announcement's; the job's priority is its lane's offset,
+        // The params are the first announcement's at the subject's latest path; the job's priority is its lane's offset,
         // lifted to the normal lane's when a normal announcement of the subject came after.
         job.priority < 0 ? params.triggerEvent?.lane : undefined,
       );
@@ -1844,11 +1888,16 @@ export class PipelineEngine {
    * is not suppressed — it starts a fresh instance (replacing the prior one, via
    * one-per-node).
    *
+   * A trigger at another path than the instance's is the subject moved out from under a run
+   * that is live or was cancelled for it, and is never self-inflicted: that run cannot read the
+   * node where it is now.
+   *
    * One direct get, because the instance is named after its trigger node.
    */
   private async isSelfInflictedTrigger(
     pipelineName: string,
     nodeId: NodeId,
+    path: string,
     eventTs: number,
   ): Promise<boolean> {
     const instancePath = join(this.pipelinesPath, 'instances', pipelineName, nodeId);
@@ -1860,7 +1909,9 @@ export class PipelineEngine {
       return false;
     }
 
-    if (isLiveInstance(attrs.status)) return true;
+    const moved = attrs.triggerPath !== path;
+    if (isLiveInstance(attrs.status)) return !moved;
+    if (moved && attrs.status === 'cancelled') return false;
 
     const windowEnd = (attrs.completedAt ?? Date.now()) + SELF_TRIGGER_GRACE_MS;
 
@@ -1878,8 +1929,9 @@ export class PipelineEngine {
 
   /**
    * Delete the prior instance for a (pipeline, trigger node) so at most one
-   * exists per node. Only touches a terminal instance — a still-running one is
-   * handled by the trigger dedup, so we never yank it out here.
+   * exists per node. A live one is left alone — the trigger dedup covers it —
+   * unless its subject has moved: then it can no longer reach its node, and is
+   * advanced first, which cancels it, so the run at the new path replaces it.
    *
    * @returns true if the name is free to create. A running prior instance and a
    * failed unlink both return false: the caller must not create over a subtree
@@ -1890,15 +1942,26 @@ export class PipelineEngine {
     instanceId: string,
   ): Promise<boolean> {
     const path = join(pipelineInstancesPath, instanceId);
-
-    try {
-      const node = await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, path);
-      if (isLiveInstance(node.attrs.status)) {
-        logger.warn('prior instance still live, not replacing it', { path, status: node.attrs.status });
-        return false;
+    const read = async () => {
+      try {
+        return (await this.vfs.get<PipelineInstanceAttrs>(ADMIN_ACCESS, path)).attrs;
+      } catch {
+        return undefined;
       }
-    } catch {
-      return true; // no prior instance
+    };
+
+    let prior = await read();
+    if (!prior) return true;
+
+    if (isLiveInstance(prior.status) && !await this.subjectIsIntact(prior)) {
+      await this.advanceDAG(path);
+      prior = await read();
+      if (!prior) return true;
+    }
+
+    if (isLiveInstance(prior.status)) {
+      logger.warn('prior instance still live, not replacing it', { path, status: prior.status });
+      return false;
     }
 
     try {

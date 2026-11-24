@@ -16,8 +16,9 @@
 # GitHub publishes it as ghcr.io/einhq/core (.github/workflows/image.yml). src/build.json, when the
 # build finds one, is what system-info reports the image runs.
 #
-# Run:
-#   podman run --rm \
+# Run, under rootless podman as yourself (root in a rootless container is the user running podman),
+# with no capabilities:
+#   podman run --rm --user 0 --cap-drop all --security-opt no-new-privileges \
 #              -p 8080:8080 \
 #              -p 2222:2222 \
 #              -e POSTGRES_URL=postgres://ein:ein@host.containers.internal:5432/ein \
@@ -27,6 +28,10 @@
 #              ein
 #
 # No GPU is passed to this container: the card is EMS's.
+#
+# It runs as ein, uid 65532, or as the user the deployment gives it (compose's user:), the owner of
+# its data folder, and needs no capability: its ports are above 1024 and the files it writes are its
+# own.
 #
 # Debian is pinned to the same tag as EiN's other images (ein/db, ein/ems), so the layer is shared;
 # the three bump it together. Deno is its makers' binary, from their image that holds nothing else.
@@ -44,7 +49,7 @@ FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:bin-2.9.6 AS build-deno
 # their 2x files, and the diagrams' fonts. It is the same on every platform, so it is cut once, on
 # the builder's.
 FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-20261027-slim AS guide
-ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/98a92b82f2b1f28abbe72356c256df57ea19dc9f.tar.gz
+ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/6884d3fbae809ef4d6ae747f127d13c149e97f50.tar.gz
 ADD ${DOCS_URL} /site.tar.gz
 WORKDIR /site
 RUN tar -xzf /site.tar.gz --strip-components=1 \
@@ -74,7 +79,8 @@ FROM docker.io/library/debian:trixie-20261027-slim
 # tini is PID 1: it passes the stop signal on to Deno and reaps the processes Deno starts.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tini \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 65532 --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin ein
 
 COPY --from=deno /deno /usr/local/bin/deno
 ADD https://raw.githubusercontent.com/denoland/deno/v2.9.6/LICENSE.md /usr/share/doc/deno/LICENSE.md
@@ -99,7 +105,12 @@ COPY LICENSE LICENSE
 # from this stat. A bin that reached the checkout as 644 would then run for admin only.
 RUN chmod +x src/builtin/core/bin/* && mkdir -p modules modules-installed
 
-RUN deno cache src/main.ts
+# Deno adds the packages a module imports that core's lock lacks to deno.lock, replacing the file,
+# which takes a folder its user can write: the lock is in /var/lib/ein, which any user can, as Deno's
+# cache and modules-installed are.
+RUN deno cache src/main.ts \
+ && mkdir -m 777 /var/lib/ein && mv deno.lock /var/lib/ein/ && ln -s /var/lib/ein/deno.lock deno.lock \
+ && chmod -R a+rwX /deno-dir modules-installed
 COPY --from=ui /app/src/builtin/ui/ui src/builtin/ui/ui
 
 ENV POSTGRES_URL=postgres://ein:ein@postgres:5432/ein
@@ -109,5 +120,6 @@ ENV FILE_ROOT_PATH=/files
 EXPOSE 8080
 EXPOSE 2222
 
+USER ein
 ENTRYPOINT ["tini", "--"]
 CMD ["deno", "run", "-A", "src/main.ts"]

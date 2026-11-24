@@ -19,6 +19,13 @@ export type SessionAttrs = NodeAttrs & {
   bootId?: string;
 
   /**
+   * `BOOT_ID` of the process whose page stream the session shows (`/__page/<ticket>`): a cookie-backed
+   * session that ends with its stream, and every stream ends with the process that served it, so
+   * another process refuses the session and `session-reap` collects it.
+   */
+  endsWithBoot?: string;
+
+  /**
    * The EiN app's token the session was opened with (`/__app/session`): the phone it is paired with
    * and the token's id. The session ends when the phone no longer holds that token.
    */

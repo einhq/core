@@ -172,6 +172,9 @@ export class MemoryPoolRegistry implements PoolRegistryIf {
         live.priority = Math.max(live.priority, priority);
         live.effPriority = Math.max(live.effPriority, priority);
         live.availableAt = new Date(Math.min(live.availableAt.getTime(), availableAt.getTime()));
+        if (input.replaceParamsOn && live.state === 'ready' && paramsDiffer(live.params, input.params ?? null, input.replaceParamsOn)) {
+          live.params = input.params ?? null;
+        }
         this.notify(id);
         return { ...live };
       }
@@ -712,4 +715,10 @@ function selectorMatches(job: PoolJob, sel: PoolJobSelector): boolean {
 
 function samePolicy(a: PoolPolicy, b: PoolPolicy): boolean {
   return (Object.keys(a) as (keyof PoolPolicy)[]).every((key) => a[key] === b[key]);
+}
+
+/** True when two jobs' params differ in `member`, compared as JSON, as PostgreSQL's jsonb does. */
+function paramsDiffer(a: unknown, b: unknown, member: string): boolean {
+  const at = (params: unknown) => JSON.stringify(params !== null && typeof params === 'object' ? (params as Record<string, unknown>)[member] ?? null : null);
+  return at(a) !== at(b);
 }

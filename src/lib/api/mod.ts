@@ -31,6 +31,7 @@ export * from './feeds.ts';
 export * from './completion.ts';
 export * from './trash.ts';
 export * from './position.ts';
+export * from './map.ts';
 export * from './node.ts';
 export * from './relation.ts';
 export * from './models.ts';

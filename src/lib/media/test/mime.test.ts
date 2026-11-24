@@ -8,6 +8,7 @@ import {
   isRawMimetype,
   isUntypedMimetype,
   MIME_DEFAULT_TYPE,
+  MIME_SAMPLE_BYTES,
   RAW_IMAGE_EXTENSIONS,
   RAW_IMAGE_MIMETYPES,
   refineMimeByName,
@@ -76,6 +77,26 @@ Deno.test('mime detection', async (t) => {
     const bytes = new Uint8Array(256);
     bytes.set(enc.encode('FUJIFILMCCD-RAW 0201FF116501X-Pr'));
     assertEquals(await getMimeFromBuffer(bytes), MIME_DEFAULT_TYPE);
+  });
+
+  await t.step('a text guess whose sample is neither UTF-8 nor single-byte text is bytes', async () => {
+    // Random heads without a NUL, as one in seven is; a seeded generator keeps the run repeatable
+    let seed = 1523;
+    const random = () => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return seed & 0xff;
+    };
+    for (let run = 0; run < 200; run++) {
+      const bytes = Uint8Array.from({ length: MIME_SAMPLE_BYTES }, () => random() || 1);
+      assertEquals(await getMimeFromBuffer(bytes, 'big.bin'), MIME_DEFAULT_TYPE);
+    }
+  });
+
+  await t.step('Latin-1 text with tabs and terminal colours stays text', async () => {
+    const bytes = Uint8Array.from('\x1b[1mRubrik\x1b[0m\r\n\tv\xe4rde\tf\xf6rklaring\r\n\x0c', (c) => c.charCodeAt(0));
+    assertEquals(await getMimeFromBuffer(bytes), 'text/plain');
   });
 
   await t.step('UTF-16 text with a byte-order mark stays text despite its NULs', async () => {

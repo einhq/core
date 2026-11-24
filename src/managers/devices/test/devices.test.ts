@@ -10,7 +10,7 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { encodeHex } from '@std/encoding';
 import { ADMIN_ACCESS } from '../../../lib/access/constants.ts';
 import type { AccessLogEntry } from '../../../lib/api/audit.ts';
-import type { DeviceAppAnswer, DeviceCreated, DeviceHistory, DeviceInfo, DeviceKeyAnswer, DeviceSummary } from '../../../lib/api/devices.ts';
+import type { DeviceAppAnswer, DeviceConfigAnswer, DeviceCreated, DeviceHistory, DeviceInfo, DeviceKeyAnswer, DeviceSummary } from '../../../lib/api/devices.ts';
 import { type ShellClient, SystemTestHarness, testCommands } from '../../../testing/mod.ts';
 import type { DriverWrite } from '../types.ts';
 
@@ -504,6 +504,42 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
         await anna.execString('device-forget anna-pixel && device-forget anna-pixel-2');
       },
     );
+
+    await t.step("the user and password an address carries go to the driver's user and secret password, not its config", async () => {
+      const stop = devices.registerDriver('web', {
+        description: 'a web API for the test',
+        config: [
+          { name: 'url', label: 'Address', type: 'url', required: true },
+          { name: 'user', label: 'User', type: 'string' },
+          { name: 'password', label: 'Password', type: 'string', secret: true },
+        ],
+      });
+      const plain = devices.registerDriver('plain', { description: 'keeps no password', config: [{ name: 'url', label: 'Address', type: 'url' }] });
+      try {
+        await anna.execString("device-create Meter --driver web --config 'url=http://cam%20user:S3cret%3Apw@192.0.2.40/{date}/r.json'");
+        assertEquals(await anna.execJson<DeviceConfigAnswer>('device-config meter').then((answer) => [answer.config, answer.secrets]), [
+          { url: 'http://192.0.2.40/{date}/r.json', user: 'cam user' },
+          ['password'],
+        ]);
+        assertEquals(await devices.secret(ADMIN_ACCESS, 'meter'), { password: 'S3cret:pw' });
+
+        await anna.execString("device-config meter 'url=https://other:n3w@192.0.2.41/r.json'");
+        assertEquals((await anna.execJson<DeviceConfigAnswer>('device-config meter')).config, { url: 'https://192.0.2.41/r.json', user: 'other' });
+        assertEquals(await devices.secret(ADMIN_ACCESS, 'meter'), { password: 'n3w' });
+
+        const refused = await anna.exec("device-config meter 'url=http://a:pw1@192.0.2.40/' password=pw2");
+        assertEquals(refused.success, false);
+        assertStringIncludes(refused.error ?? '', 'differs');
+        assert(!refused.error?.includes('pw1'), 'the password is not said');
+        await testCommands(anna).shouldFailWith("device-config meter 'url=http://192.0.2.40/?next=http://a:pw@192.0.2.41/'", 'inside it');
+        await testCommands(anna).shouldFailWith("device-create Other --driver plain --config 'url=http://a:pw@192.0.2.40/'", 'keeps no password');
+        assertEquals((await admin.exec('stat /dev/other')).success, false);
+      } finally {
+        await anna.execString('device-forget meter');
+        stop();
+        plain();
+      }
+    });
 
     await t.step('a member forgets a device, and nobody else does', async () => {
       await testCommands(bo).shouldFailWith('device-forget lamp', 'devices');

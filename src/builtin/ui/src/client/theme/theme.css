@@ -1848,11 +1848,14 @@ html.mrx-railed .mrx-page-scrollbar {
  * right, where xterm already keeps a scrollbar's gutter free of text, and the scrollbar, set against
  * the padding's outer edge, stays at the pane's. */
 .terminal-container .xterm {
+  --terminal-inset: 8px;
   box-sizing: border-box;
   height: 100%;
-  padding: 8px 0 8px 8px;
+  padding: var(--terminal-inset) 0 var(--terminal-inset) var(--terminal-inset);
 }
 
+/* xterm's own ground, behind its scrollable element, which scrolls nothing natively: no colour and no
+ * browser bar. */
 .terminal-container .xterm-viewport {
   background-color: transparent !important;
   scrollbar-width: none;
@@ -1863,17 +1866,28 @@ html.mrx-railed .mrx-page-scrollbar {
   height: 0;
 }
 
+/* What xterm scrolls the scrollback in, down to the padding's foot so a wheel anywhere over the text
+ * scrolls it, on the pane's ground. Its own bar gives way to the app's (`TerminalInstance`). */
+.terminal-container .xterm-scrollable-element {
+  height: 100%;
+  background-color: transparent !important;
+}
+
+.terminal-container .xterm-scrollable-element > .scrollbar {
+  display: none;
+}
+
 .terminal-container .xterm-screen {
   height: 100%;
 }
 
-/* The scrollback's bar (`TerminalInstance`), the app's kind: down xterm's right edge, over its own
- * layers, the highest of which is at 10. */
+/* The scrollback's bar (`TerminalInstance`), the app's kind: down xterm's right edge, out over the
+ * padding to the pane's top and foot, and over xterm's layers, the highest of which is at 10. */
 .terminal-scrollbar {
   position: absolute;
-  top: 0;
+  top: calc(-1 * var(--terminal-inset));
   right: 0;
-  bottom: 0;
+  bottom: calc(-1 * var(--terminal-inset));
   z-index: 11;
   cursor: default;
 }

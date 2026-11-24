@@ -1,3 +1,4 @@
+import { isVisitor } from '../../../lib/access/mod.ts';
 import { createLogger } from '../../../managers/logger/mod.ts';
 import { clientAddress } from '../client-address.ts';
 import { getSession } from '../session.ts';
@@ -21,16 +22,22 @@ export async function handleGetShell(config: ShellHttpServerConfig, req: Request
   const from = clientAddress(req.headers, remoteAddr);
 
   const mode = url.searchParams.get('mode');
+  const terminalId = url.searchParams.get('terminalId') ?? undefined;
+  if (mode === 'interactive' && terminalId !== undefined && !TERMINAL_ID_PATTERN.test(terminalId)) {
+    return new Response('Invalid terminal id', { status: 400 });
+  }
+
+  // Asked first without writing anything, so a refused visitor costs no session.
+  const visitor = isVisitor((await getSession(config, req.headers, { create: false, refresh: false })).access) ? from ?? '' : undefined;
+  if (visitor !== undefined && !config.sockets.admitsVisitor(visitor)) {
+    logger.warn('refused a visitor socket over the limit', { from });
+    return new Response('too many connections', { status: 429, headers: { 'Retry-After': '60' } });
+  }
+
+  const { sessionPath } = await getSession(config, req.headers, { socket: true });
+  const { socket, response } = config.sockets.upgrade(req, visitor);
 
   if (mode === 'interactive') {
-    const terminalId = url.searchParams.get('terminalId') ?? undefined;
-    if (terminalId !== undefined && !TERMINAL_ID_PATTERN.test(terminalId)) {
-      return new Response('Invalid terminal id', { status: 400 });
-    }
-
-    const { sessionPath } = await getSession(config, req.headers, { ephemeral: true });
-    const { socket, response } = config.sockets.upgrade(req);
-
     // Handle shell WebSocket. Setup runs async for the session lifetime; a
     // failure (e.g. the client disconnects mid-init, tearing down the tty
     // buffers) must not become an uncaught rejection that crashes the server.
@@ -59,9 +66,6 @@ export async function handleGetShell(config: ShellHttpServerConfig, req: Request
 
     return response;
   }
-
-  const { sessionPath } = await getSession(config, req.headers, { ephemeral: true });
-  const { socket, response } = config.sockets.upgrade(req);
 
   // Handle API shell WebSocket (see note above about not crashing on setup failure).
   handleApiShellWebSocket({

@@ -10,6 +10,7 @@ import { TablerIcon } from '../Icon/TablerIcon.tsx';
 import { RoutePanel } from '../Surface/SurfaceRouter.tsx';
 import { emptyLabel, GroupSelect, PermissionsInput, sameMode, UserSelect } from './AccountInputs.tsx';
 import { LocaleSelect } from './LocaleSelect.tsx';
+import { PositionInput } from './PositionInput.tsx';
 
 type SettingsFormProps = {
   entries: ConfigEntry[];
@@ -432,7 +433,7 @@ export function SettingSource({ entry }: { entry: ConfigEntry }) {
   return <Badge size='xs' variant='light' color={sourceColor(entry.source)}>{sourceLabel(entry)}</Badge>;
 }
 
-/** The control a setting's type gets, editing the draft's value: a switch, a select, an account picker, a locale by name. */
+/** The control a setting's type gets, editing the draft's value: a switch, a select, an account picker, a locale by name, a map. */
 export function SettingInput({ entry, draft }: { entry: ConfigEntry; draft: SettingDraft }) {
   const { controlId: id, labelId, value, setValue, busy } = draft;
   switch (entry.type) {
@@ -487,6 +488,8 @@ export function SettingInput({ entry, draft }: { entry: ConfigEntry; draft: Sett
       return <PermissionsInput id={id} labelledBy={labelId} value={value} disabled={busy} onChange={setValue} />;
     case 'locale':
       return <LocaleSelect id={id} value={value} disabled={busy} emptyMeans={entry.emptyMeans} onChange={setValue} />;
+    case 'position':
+      return <PositionInput id={id} value={value} disabled={busy} emptyMeans={entry.emptyMeans} onChange={setValue} />;
     default:
       return (
         <TextInput

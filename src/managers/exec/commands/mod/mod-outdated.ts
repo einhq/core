@@ -14,7 +14,7 @@ import { join } from '@std/path';
 import { greaterThan, tryParse } from '@std/semver';
 import type { ModuleInstall, ModuleOutdated, OutdatedModule } from '../../../../lib/api/mod.ts';
 import { MOD_PATH } from '../../../../lib/paths.ts';
-import { fetchFile, fetchRefs, findRelease, parseRepository, releases, resolveRef, type Tokens } from '../../../../modules/forge.ts';
+import { fetchFile, fetchRefs, findRelease, type InsecureHosts, parseRepository, refusedHttp, releases, resolveRef, type Tokens } from '../../../../modules/forge.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
 import { checkCoreApi, type ModuleManifest, readManifests } from '../../../../modules/mod.ts';
 import { mayUseModule } from '../../../../modules/audience.ts';
@@ -39,9 +39,16 @@ const readManifest = async (cmd: Command, repository: NonNullable<ReturnType<typ
 };
 
 /** What updating one installed module would take, and whether it moves it on. Throws when its repository does not answer. */
-const check = async (cmd: Command, name: string, version: string | null, record: ModuleInstall, tokens: Tokens, prereleases: boolean): Promise<OutdatedModule> => {
-  const repository = parseRepository(record.repository);
-  if (!repository) throw new Error(`not a repository's address: ${record.repository}`);
+const check = async (
+  cmd: Command,
+  name: string,
+  version: string | null,
+  record: ModuleInstall,
+  { insecure, tokens }: { insecure: InsecureHosts; tokens: Tokens },
+  prereleases: boolean,
+): Promise<OutdatedModule> => {
+  const repository = parseRepository(record.repository, insecure);
+  if (!repository) throw new Error(refusedHttp(record.repository, insecure) ?? `not a repository's address: ${record.repository}`);
   const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS));
   const release = isRelease(record.ref);
   const target = release ? record.repository : `${record.repository}@${record.ref}`;
@@ -92,7 +99,7 @@ const line = (module: OutdatedModule): string => {
 export const modOutdated = async (cmd: Command): CmdReturn => {
   const names = cmd.args.filter((arg) => !arg.startsWith('-'));
   const modulesPath = cmd.env.MOD_PATH || MOD_PATH;
-  const { tokens, prereleases } = await moduleSources(cmd);
+  const { insecure, tokens, prereleases } = await moduleSources(cmd);
 
   const candidates: { name: string; version: string | null; record: ModuleInstall }[] = [];
   for (const [name, manifest] of await readManifests(cmd.sys.vfs, cmd.access, modulesPath)) {
@@ -107,7 +114,7 @@ export const modOutdated = async (cmd: Command): CmdReturn => {
   const failed: ModuleOutdated['failed'] = [];
   const checked = await Promise.all(candidates.map(async ({ name, version, record }) => {
     try {
-      return await check(cmd, name, version, record, tokens, prereleases);
+      return await check(cmd, name, version, record, { insecure, tokens }, prereleases);
     } catch (error) {
       failed.push({ name, reason: error instanceof Error ? error.message : String(error) });
       return undefined;

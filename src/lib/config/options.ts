@@ -36,6 +36,18 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Language',
   },
 
+  /* Maps */
+  {
+    key: 'CFG_MAP_CENTER',
+    scope: 'system',
+    type: 'position',
+    default: '51.5074, -0.1278, 11',
+    label: 'Where maps open',
+    description:
+      'The place a map opens on when it has nothing of its own to show, such as the Map page without a place in its address, and how close it looks: a latitude, a longitude and a zoom from 2 (the world) to 18 (a house). Each person may choose their own.',
+    group: 'Maps',
+  },
+
   /* Sessions */
   {
     key: 'CFG_SESSION_MAX_AGE_SEC',
@@ -368,8 +380,19 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: '',
     label: 'Tokens for module sources',
     description:
-      'Access tokens for module sources that are not public, as host=token separated by spaces, such as forge.example:3000=… github.com=…. Each token is sent to its own host only.',
+      'Access tokens for module sources that are not public, as host=token separated by spaces, such as forge.example:3000=… github.com=…. Each token is sent to its own host only, over https; one for a host in Hosts reached over plain http is given as http://host=….',
     group: 'Modules',
+  },
+  {
+    key: 'CFG_MODULE_SOURCES_INSECURE',
+    scope: 'system',
+    type: 'string',
+    default: '',
+    label: 'Hosts reached over plain http',
+    description:
+      "Hosts whose module sources and repositories may be addressed with http:// rather than https://, as host or host:port separated by spaces, such as forge.lan:3000. Anyone on the network between EiN and such a host can read its token and change the modules' code on the way, so name one only on a network you trust. This machine (localhost, 127.0.0.1) needs no entry.",
+    group: 'Modules',
+    emptyMeans: 'every source over https, but on this machine',
   },
 
   /* The supervisor — the services beside EiN, installed and updated from Settings → Modules. */
@@ -457,6 +480,17 @@ export const CORE_OPTIONS: ConfigOption[] = [
     description:
       'How dates and times are written for you, as a locale: sv-SE writes 2026-11-09 13:26 and 9 nov. 2026, en-SE 2026-11-09, 13:26 and 9 Nov 2026, en-GB 09/11/2026, 13:26, en-US 11/9/2026, 1:26 PM. Empty follows the system setting.',
     group: 'Language',
+  },
+  {
+    key: 'CFG_USER_MAP_CENTER',
+    scope: 'user',
+    type: 'position',
+    default: '',
+    emptyMeans: 'where the system opens maps',
+    label: 'Where maps open',
+    description:
+      'The place a map opens on for you when it has nothing of its own to show, and how close it looks: a latitude, a longitude and a zoom from 2 (the world) to 18 (a house). Empty follows the system setting.',
+    group: 'Maps',
   },
   {
     key: 'HISTSIZE',

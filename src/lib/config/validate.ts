@@ -1,3 +1,4 @@
+import { parseMapPosition } from '../api/map.ts';
 import type { ConfigOption } from './types.ts';
 
 /**
@@ -48,6 +49,10 @@ export const validateConfigValue = (option: ConfigOption, value: string): string
         // Not a language tag at all.
       }
       return `${option.key}: expected a locale such as en-SE or sv-SE, got '${value}'`;
+    }
+    case 'position': {
+      if (parseMapPosition(value)) return undefined;
+      return `${option.key}: expected a latitude, a longitude and a zoom such as 51.5074, -0.1278, 11, got '${value}'`;
     }
     case 'string':
     case 'secret':

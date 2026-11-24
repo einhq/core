@@ -26,7 +26,7 @@ import {
   NodeVersionConflictError,
 } from '../../../vfs/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../vfs/types/session.ts';
-import { removeEphemeralSession } from '../session.ts';
+import { releaseSession } from '../session.ts';
 import { BaseWebSocketHandler, errorMessage, isExpectedWebSocketTeardownError, isWebSocketClosed } from './base-handler.ts';
 import type {
   ShellWebSocketHandlerConfig,
@@ -64,6 +64,7 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
   /** Running `exec`s by request id, for `exec.cancel`. */
   private execs: Map<string, AbortController> = new Map();
   private sessionWatch?: EventSubscription;
+  private readonly openedAt = Date.now();
 
   constructor(
     config: ShellWebSocketHandlerConfig,
@@ -686,9 +687,9 @@ class ApiShellWebSocketHandler extends BaseWebSocketHandler {
       }
     }
 
-    // No-op for a cookie-backed session; drops one this process invented for a
-    // client that could never have received the cookie.
-    await removeEphemeralSession(this.config, this.config.sessionPath);
+    // Keeps a signed-in session; drops one this process invented for a client
+    // that could never have received the cookie, and the guest's once no shell holds it.
+    await releaseSession(this.config, this.config.sessionPath, this.openedAt);
   }
 }
 

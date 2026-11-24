@@ -9,14 +9,15 @@ import { isDeviceName, newDeviceKey, newPairingCode, readDeviceApp, readDeviceKe
 import { type DeviceNodeAttrs, NODE_TYPE_DEVICE } from '../../../../vfs/types/device.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
-import { assertDevicesMember, fail, parseTarget, qrSvg } from './lib.ts';
+import { assertDevicesMember, fail, parseTarget, qrSvg, takeAddressLogins } from './lib.ts';
 
 /**
  * A device made by a person rather than found by a driver: a phone or a GPS logger (`--driver
  * tracker`), something that posts its readings to a webhook (`--driver webhook`), something a
  * driver reaches at an address it is given (`--config`). What the driver declares secret of its
- * config, a password, goes to the device's `.secret` rather than its attrs; so a driver whose
- * service is not running takes no config. For members of the `devices` group.
+ * config, a password, goes to the device's `.secret` rather than its attrs, as does the password an
+ * address carries (`takeAddressLogins`); so a driver whose service is not running takes no config.
+ * For members of the `devices` group.
  */
 export const deviceCreate = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -45,6 +46,7 @@ export const deviceCreate = async (cmd: Command): CmdReturn => {
       if (flags.driver && !driver) throw new Error(`the driver ${flags.driver} is not running, so which of its config is secret is not known: start its module first`);
       (secretFields.has(pair.slice(0, at)) ? secret : config)[pair.slice(0, at)] = pair.slice(at + 1);
     }
+    takeAddressLogins(flags.driver ?? 'a device without a driver', driver?.config ?? [], new Set(Object.keys(config)), config, secret);
     for (const field of driver?.config ?? []) {
       if (field.required && !(field.name in config) && !(field.name in secret)) throw new Error(`${flags.driver} needs --config ${field.name}=… (${field.label})`);
     }
@@ -93,9 +95,9 @@ deviceCreate.spec = {
 /**
  * What a person gave a device's driver, shown to whoever reads the device (a secret field by its name
  * alone), or changed with `name=value` by a member of the `devices` group (an empty value takes a
- * field away): the driver's secret fields to the device's `.secret`, the rest to its attrs, then the
- * driver's `setup` again so it takes the change. Changed only while its driver runs, which says which
- * fields are secret.
+ * field away): the driver's secret fields to the device's `.secret`, and the password an address
+ * carries with them (`takeAddressLogins`), the rest to its attrs, then the driver's `setup` again so
+ * it takes the change. Changed only while its driver runs, which says which fields are secret.
  */
 export const deviceConfig = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -117,6 +119,7 @@ export const deviceConfig = async (cmd: Command): CmdReturn => {
     const fields = driver?.config ?? [];
     const config = { ...node.attrs.config };
     const secret = await manager.secret(ADMIN_ACCESS, device);
+    const before = { ...secret };
     if (pairs.length > 0) {
       if (!driver) throw new Error(`the driver ${name} is not running, so which of its config is secret is not known: start its module first`);
       const secretFields = new Set(fields.filter((field) => field.secret).map((field) => field.name));
@@ -130,11 +133,12 @@ export const deviceConfig = async (cmd: Command): CmdReturn => {
         if (pair.length === at + 1) delete into[field];
         else into[field] = pair.slice(at + 1);
       }
+      takeAddressLogins(name, fields, new Set(pairs.map((pair) => pair.slice(0, pair.indexOf('=')))), config, secret);
       for (const field of fields) {
         if (field.required && !(field.name in config) && !(field.name in secret)) throw new Error(`${name} needs ${field.name} (${field.label})`);
       }
       await cmd.sys.vfs.update(ADMIN_ACCESS, devicePath(device), { attrs: { config } });
-      if (pairs.some((pair) => secretFields.has(pair.slice(0, pair.indexOf('='))))) await manager.setSecret(device, secret);
+      if (JSON.stringify(secret) !== JSON.stringify(before)) await manager.setSecret(device, secret);
       await driver.setup?.(device);
     }
     const answer: DeviceConfigAnswer = { device, driver: name, running: driver !== undefined, fields, config, secrets: Object.keys(secret).sort() };

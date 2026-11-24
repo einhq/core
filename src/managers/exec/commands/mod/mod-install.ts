@@ -512,7 +512,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     }
   }
 
-  const { sources, problems, tokens, prereleases } = await moduleSources(cmd);
+  const { sources, problems, insecure, tokens, prereleases } = await moduleSources(cmd);
   for (const problem of problems) await cmd.writeError(`mod install: CFG_MODULE_SOURCES: ${problem}\n`);
 
   const run: Run = {
@@ -540,7 +540,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
   };
 
   for (const value of targets) {
-    const target = parseInstallTarget(value);
+    const target = parseInstallTarget(value, insecure);
     if ('error' in target) {
       await fail(target.error);
       continue;

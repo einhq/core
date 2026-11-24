@@ -3,7 +3,8 @@
  * album's slideshow) by the media service, which opens it in a browser of its own that has no
  * account to sign in with. `GET /__page/<ticket>` opens a session for that browser with the access
  * the ticket was made with, read-only, as a share link's visitor reads, and sends it to the page.
- * A ticket opens one session, once, within `PAGE_TICKET_TTL_MS` of being made. Kept in memory.
+ * A ticket opens one session, once, within `PAGE_TICKET_TTL_MS` of being made, and the session is
+ * held until the page's stream ends it (`end`). Kept in memory.
  */
 
 import type { Access } from '../../lib/access/types.ts';
@@ -18,6 +19,8 @@ type Held = PageTicket & { expiresAt: number };
 
 export class PageTickets {
   readonly #tickets = new Map<string, Held>();
+  /** The tickets taken, with the session each opened once it has: until the page ends. */
+  readonly #taken = new Map<string, string | undefined>();
 
   /** A new ticket that signs a browser in as `access`, read-only, and opens `route`. */
   issue(access: Access, route: string, now = Date.now()): string {
@@ -32,7 +35,24 @@ export class PageTickets {
     this.#sweep(now);
     const held = this.#tickets.get(ticket);
     this.#tickets.delete(ticket);
-    return held && { access: held.access, route: held.route };
+    if (!held) return undefined;
+    this.#taken.set(ticket, undefined);
+    return { access: held.access, route: held.route };
+  }
+
+  /** Hold `session`, the session the taken `ticket` opened, for `end`: false when its page ended first. */
+  opened(ticket: string, session: string): boolean {
+    if (!this.#taken.has(ticket)) return false;
+    this.#taken.set(ticket, session);
+    return true;
+  }
+
+  /** The page of `ticket` ended: the ticket no longer opens, and the session it opened, if any, for the caller to remove. */
+  end(ticket: string): string | undefined {
+    this.#tickets.delete(ticket);
+    const session = this.#taken.get(ticket);
+    this.#taken.delete(ticket);
+    return session;
   }
 
   #sweep(now: number): void {

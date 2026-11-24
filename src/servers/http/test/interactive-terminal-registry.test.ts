@@ -1,8 +1,11 @@
 import { assert, assertEquals, assertMatch, assertNotEquals } from '@std/assert';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import HeadlessXterm from '@xterm/headless';
-import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
+import { basename } from '@std/path';
+import { ADMIN_ACCESS, GUEST_ACCESS } from '../../../lib/access/mod.ts';
+import { SESSIONS_PATH } from '../../../lib/paths.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
+import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../vfs/types/session.ts';
 import { NODE_TYPE_TTY } from '../../../vfs/types/tty.ts';
 import {
   type InteractiveTerminalPeer,
@@ -237,12 +240,16 @@ Deno.test({
           await typing.write('logout --session\r');
           await waitFor(() => exited(typingPeer), 'the terminal that ran logout did not end');
           assertEquals(typingPeer.closeCode, 1000);
-          await waitFor(
-            () => ttyNames(instance.vfs, loggedOut.sessionPath).then((names) => names.length === 0),
-            'a logged-out terminal kept its tty',
-          );
+          // Signed out, the session is the guest's, which no shell holds now: it is dropped with its
+          // ttys, and the browser's next socket writes it again.
+          await waitFor(async () => !await instance.vfs.exists(ADMIN_ACCESS, loggedOut.sessionPath), 'the logged-out session was kept');
           assert(!exited(otherPeer));
           assertEquals((await ttyNames(instance.vfs, other.sessionPath)).length, 1);
+
+          await instance.vfs.create<SessionAttrs>(ADMIN_ACCESS, NODE_TYPE_SESSION, SESSIONS_PATH, basename(loggedOut.sessionPath), {
+            props: { mode: 0o700 },
+            attrs: { secret: 'next', access: GUEST_ACCESS, env: {}, createdAt: Date.now(), lastActivity: Date.now() },
+          });
 
           const nextPeer = new ProbePeer();
           const next = await registry.attach(loggedOut.sessionPath, 'tab-sibling', nextPeer, { resumable: true });

@@ -90,6 +90,12 @@ export interface PoolJobInput {
    * restart all land on the same job instead of appending a duplicate.
    */
   dedupKey?: string;
+  /**
+   * A member of `params` the job's work depends on: re-adding a live job not yet claimed, with
+   * this member different, replaces the job's params with the re-add's. A re-add that leaves it as
+   * it is keeps the first add's params and writes nothing.
+   */
+  replaceParamsOn?: string;
   /** Mutex class: at most one claimed job per (pool, exclusive) at a time. */
   exclusive?: string;
   maxAttempts?: number;

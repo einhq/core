@@ -25,7 +25,7 @@ In a pool the scheduling inputs live on the job, so one node covers every worklo
 - **Leases**: a claim takes `leaseUntil`. The worker renews it while it works; the sweep reclaims it if the worker dies, whenever that happens.
 - **Bounded aging**: `effPriority` starts at `priority` and the sweep promotes it one bucket at a time up to `agingMax`. Keeping `agingMax` **below the gap between priority lanes** means aging reorders _within_ a lane but can never promote across one — anti-starvation without losing strict lane ordering.
 - **Exclusivity**: `exclusive` is a mutex class. At most one claimed job per `(pool, exclusive)`, enforced by a unique partial index rather than a read-then-write check.
-- **Idempotent enqueue**: `dedupKey` is unique among non-terminal jobs. Re-adding upserts, so a retry, a re-advance or a restart all land on the same job instead of appending a duplicate nobody reaps.
+- **Idempotent enqueue**: `dedupKey` is unique among non-terminal jobs. Re-adding upserts, so a retry, a re-advance or a restart all land on the same job instead of appending a duplicate nobody reaps. A re-add keeps the first add's params, unless it names a member in `replaceParamsOn` and that member differs on a job not yet claimed: then the job takes the re-add's params (the trigger pool's `triggerPath`, so a subject renamed while its job waits is run at its new path).
 - **Non-destructive reads**: `cat /var/pools/x` shows a snapshot. Claiming is explicit and takes a lease — unlike a queue, looking is not consuming.
 
 ## States

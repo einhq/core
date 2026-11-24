@@ -7,7 +7,7 @@ import { InteractiveShell } from '../../../managers/shell/interactive-shell.ts';
 import type { ResourceHandleIf } from '../../../registries/types.ts';
 import type { EventSubscription, NodeEvent } from '../../../vfs/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../vfs/types/session.ts';
-import { removeEphemeralSession } from '../session.ts';
+import { releaseSession } from '../session.ts';
 import { errorMessage } from './base-handler.ts';
 import type { ShellWebSocketHandlerConfig } from './types.ts';
 
@@ -250,6 +250,7 @@ class RetainedInteractiveTerminal {
   private closed = false;
   private closePromise?: Promise<void>;
   private pwd = '/';
+  private readonly openedAt = Date.now();
 
   private constructor(
     private config: ShellWebSocketHandlerConfig,
@@ -417,7 +418,7 @@ class RetainedInteractiveTerminal {
     await this.outputChain.catch(() => {});
     this.serializer.dispose();
     this.terminal.dispose();
-    await removeEphemeralSession(this.config, this.config.sessionPath);
+    await releaseSession(this.config, this.config.sessionPath, this.openedAt);
     this.onEnd();
   }
 

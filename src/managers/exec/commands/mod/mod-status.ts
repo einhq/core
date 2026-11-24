@@ -1,9 +1,11 @@
 /**
  * mod status — the module install running now, or else the last one since EiN started: what it
  * was asked, who asked, how far it has got and its last lines; with `--follow`, what it says until
- * it ends.
+ * it ends. Anyone but the administrator is told only how it stands and the modules it put in place,
+ * and follows it without its lines.
  */
 
+import { isAdmin } from '../../../../lib/access/mod.ts';
 import type { ModuleInstallStatus } from '../../../../lib/api/mod.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { installerOf, type InstallJob } from '../../../../modules/installer.ts';
@@ -13,21 +15,22 @@ import type { CmdReturn } from '../../types.ts';
 /**
  * Say what `job` says, from its first line kept, until it ends, and answer 0 when it installed
  * all it was asked. Interrupted, or once the caller is gone, it stops following and the install
- * goes on. In JSON mode only its errors are said.
+ * goes on. In JSON mode only its errors are said; to anyone but the administrator, nothing.
  */
 export const followInstall = async (cmd: Command, job: InstallJob): Promise<number> => {
+  const admin = isAdmin(cmd.access);
   let from = 0;
   try {
     while (true) {
       const { lines, next } = job.linesFrom(from);
       from = next;
-      for (const line of lines) {
+      for (const line of admin ? lines : []) {
         if (line.error) await cmd.writeError(`${line.text}\n`);
         else if (!cmd.json) await cmd.write(`${line.text}\n`);
       }
       if (job.state !== 'running') return job.state === 'done' ? 0 : 1;
       if (cmd.interruptSignal.aborted) {
-        await cmd.writeError(`mod install ${job.args.join(' ')} goes on; mod status says how far it has got\n`);
+        await cmd.writeError(`${admin ? `mod install ${job.args.join(' ')}` : 'The module install'} goes on; mod status says how far it has got\n`);
         return 130;
       }
       await job.next(cmd.interruptSignal);
@@ -46,14 +49,16 @@ const elapsed = (ms: number): string => {
 export const modStatus = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, { boolean: ['follow'], alias: { f: 'follow' } });
   const job = installerOf(cmd.sys).job;
+  const admin = isAdmin(cmd.access);
+  const told = (job: InstallJob) => admin ? job.toJSON() : job.outline();
 
   if (flags.follow && job) {
     const code = await followInstall(cmd, job);
-    if (cmd.json) await cmd.writeJSON({ install: job.toJSON() } satisfies ModuleInstallStatus);
+    if (cmd.json) await cmd.writeJSON({ install: told(job) } satisfies ModuleInstallStatus);
     return code;
   }
   if (cmd.json) {
-    await cmd.writeJSON({ install: job?.toJSON() ?? null } satisfies ModuleInstallStatus);
+    await cmd.writeJSON({ install: job ? told(job) : null } satisfies ModuleInstallStatus);
     return 0;
   }
   if (!job) {
@@ -61,16 +66,23 @@ export const modStatus = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
-  const status = job.toJSON();
-  const asked = `mod install ${job.args.join(' ')}`;
+  const status = told(job);
+  const asked = admin ? `mod install ${job.args.join(' ')}` : 'A module install';
+  const by = admin ? `, for ${job.by}` : '';
   if (job.state === 'running') {
-    await cmd.write(`${asked}: running for ${elapsed(Date.now() - job.startedAt.getTime())}, for ${job.by}\n`);
+    await cmd.write(`${asked}: running for ${elapsed(Date.now() - job.startedAt.getTime())}${by}\n`);
     if (job.unpacking) await cmd.write(`  ${job.unpacking.files} files of ${job.unpacking.module} unpacked\n`);
   } else {
     const took = elapsed(job.finishedAt!.getTime() - job.startedAt.getTime());
-    await cmd.write(`${asked}: ${job.state === 'done' ? 'done' : 'failed'} at ${status.finishedAt}, after ${took}, for ${job.by}\n`);
+    await cmd.write(`${asked}: ${job.state === 'done' ? 'done' : 'failed'} at ${status.finishedAt}, after ${took}${by}\n`);
   }
-  for (const line of status.lines) await cmd.write(`  ${line.text}\n`);
+  if (admin) {
+    for (const line of status.lines) await cmd.write(`  ${line.text}\n`);
+  } else {
+    for (const module of status.installed ?? []) {
+      await cmd.write(`  ${module.updated ? 'Updated' : 'Installed'} ${[module.name, module.version].filter(Boolean).join(' ')}\n`);
+    }
+  }
   return 0;
 };
 

@@ -142,7 +142,7 @@ export default function ModuleSourcesView() {
                 <SettingSource entry={tokens} />
               </Group>
             }
-            description='An access token for each source that is not public, as host=token, separated by spaces: forge.example:3000=… github.com=…. Each is sent to its own host alone. What is typed here replaces every token set before.'
+            description='An access token for each source that is not public, as host=token, separated by spaces: forge.example:3000=… github.com=…. Each is sent to its own host alone, over https. What is typed here replaces every token set before.'
             placeholder={tokensSet ? 'Set — type new ones to replace them' : 'None'}
             autoComplete='new-password'
             value={draft.tokens}

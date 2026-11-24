@@ -71,20 +71,20 @@ type InstallProgressProps = {
 };
 
 /**
- * The install running, for everyone on the Modules tab: what it was asked, who started it, and how
- * many files of the module it is unpacking are in place, or else its last line; once it ends, what it
- * installed, with a link to each, or why it failed.
+ * The install running, for everyone on the Modules tab: how many files of the module it is unpacking
+ * are in place, and for the administrator what it was asked, who started it and its last line; once
+ * it ends, what it installed, with a link to each, and for the administrator why it failed.
  */
 export function InstallProgress({ install, onOpenModule, onDismiss }: InstallProgressProps) {
-  const asked = `mod install ${install.args.join(' ')}`;
+  const asked = install.args.length ? `: mod install ${install.args.join(' ')}` : '';
   const last = install.lines.at(-1)?.text.trim();
 
   if (install.state === 'running') {
     return (
-      <Alert color='blue' variant='light' icon={<Loader size={16} />} title={`Installing: ${asked}`}>
+      <Alert color='blue' variant='light' icon={<Loader size={16} />} title={`Installing${asked}`}>
         <Stack gap={2}>
           <Text size='sm'>
-            Started by {install.by} at {formatTime(install.startedAt)}. It goes on when this page is closed.
+            Started{install.by && ` by ${install.by}`} at {formatTime(install.startedAt)}. It goes on when this page is closed.
           </Text>
           {install.unpacking && <Text size='sm'>{formatCount(install.unpacking.files)} files of {install.unpacking.module} unpacked</Text>}
           {!install.unpacking && last && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{last}</Text>}
@@ -93,14 +93,14 @@ export function InstallProgress({ install, onOpenModule, onDismiss }: InstallPro
     );
   }
 
-  const installed = install.result?.installed ?? [];
+  const installed = install.installed ?? [];
   const failed = install.result?.failed ?? [];
   return (
     <Alert
       color={install.state === 'done' ? 'teal' : 'red'}
       variant='light'
       icon={install.state === 'done' ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
-      title={install.state === 'done' ? `Done: ${asked}` : `Failed: ${asked}`}
+      title={install.state === 'done' ? `Done${asked}` : `Failed${asked}`}
       withCloseButton
       closeButtonLabel='Dismiss'
       onClose={onDismiss}

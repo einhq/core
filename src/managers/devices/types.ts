@@ -128,6 +128,12 @@ export interface ModuleDevices {
    */
   pageSignIn(access: Access, route: string): string;
   /**
+   * The page signed in at `path`, which `pageSignIn` gave, has ended: its ticket no longer opens,
+   * and the session it opened is removed, which closes the sockets the page's browser holds. A
+   * stream of the page calls it when it ends; a page session also ends with this process.
+   */
+  endPageSignIn(path: string): Promise<void>;
+  /**
    * Serve a live stream to a device on the network, which cannot sign in: `<path>.mp4` and
    * `<path>.ts` answer whoever has the path, its id long and random, with what `open` gives one
    * reader, until `end` or until `open` answers that the stream has ended.

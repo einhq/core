@@ -8,7 +8,7 @@ import { BlobReader, TextWriter, ZipReader } from '@zip-js/zip-js';
 import { ADMIN_ACCESS, GUEST_GID, GUEST_UID } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../vfs/types/directory.ts';
-import { ARCHIVE_MAX_ENTRIES, ARCHIVE_TICKET_TTL_MS, ArchiveTicketStore } from '../archive-tickets.ts';
+import { ARCHIVE_MAX_ENTRIES, ARCHIVE_TICKET_TTL_MS, ARCHIVE_TICKETS_PER_OWNER, ARCHIVE_VISITOR_ENTRIES, ArchiveTicketStore } from '../archive-tickets.ts';
 
 const harness = new SystemTestHarness({ ssh: false });
 
@@ -195,7 +195,7 @@ Deno.test('archive tickets expire and are swept', () => {
   const start = 1_000_000;
   const entries = [{ path: '/tmp/one.txt', name: 'one.txt', modified: start }];
 
-  const { token } = store.issue(entries, 'x.zip', start);
+  const { token } = store.issue(entries, 'x.zip', { key: 'session a', visitor: false }, start)!;
 
   assertEquals(store.get(token, start + ARCHIVE_TICKET_TTL_MS - 1)?.entries, entries);
   assertEquals(store.get(token, start + ARCHIVE_TICKET_TTL_MS), undefined);
@@ -203,4 +203,32 @@ Deno.test('archive tickets expire and are swept', () => {
   // ...and it is gone rather than merely hidden: a ticket that outlived its window must not
   // come back for a caller whose clock reads earlier.
   assertEquals(store.get(token, start), undefined);
+});
+
+Deno.test('an owner keeps ten tickets waiting, and its oldest gives way to an eleventh', () => {
+  const store = new ArchiveTicketStore();
+  const start = 1_000_000;
+  const entries = [{ path: '/tmp/one.txt', name: 'one.txt', modified: start }];
+  const owner = { key: 'session a', visitor: false };
+
+  const tokens = Array.from({ length: ARCHIVE_TICKETS_PER_OWNER + 1 }, (_, i) => store.issue(entries, 'x.zip', owner, start + i)!.token);
+  const other = store.issue(entries, 'x.zip', { key: 'session b', visitor: false }, start)!.token;
+
+  assertEquals(store.get(tokens[0], start + 20), undefined);
+  for (const token of [...tokens.slice(1), other]) assertEquals(store.get(token, start + 20)?.entries, entries);
+});
+
+Deno.test("visitors' tickets hold so many entries in all, and someone signed in is never refused", () => {
+  const store = new ArchiveTicketStore();
+  const start = 1_000_000;
+  const entries = Array.from({ length: 5000 }, (_, i) => ({ path: `/tmp/${i}.txt`, name: `${i}.txt`, modified: start }));
+
+  for (let i = 0; i < ARCHIVE_VISITOR_ENTRIES / entries.length; i++) {
+    assertEquals(store.issue(entries, 'x.zip', { key: `address 192.0.2.${i}`, visitor: true }, start) !== undefined, true);
+  }
+  assertEquals(store.issue(entries, 'x.zip', { key: 'address 192.0.2.99', visitor: true }, start), undefined);
+  assertEquals(store.issue(entries, 'x.zip', { key: 'session a', visitor: false }, start) !== undefined, true);
+
+  // Room again once they expire.
+  assertEquals(store.issue(entries, 'x.zip', { key: 'address 192.0.2.99', visitor: true }, start + ARCHIVE_TICKET_TTL_MS) !== undefined, true);
 });

@@ -13,11 +13,15 @@ const pageAt = (entry: string) => {
 
 const here = (router: ReturnType<typeof createMemoryRouter>) => `${router.state.location.pathname}${router.state.location.search}`;
 
-/** Until the router has come back from a step through history. */
+/**
+ * Until the router has come back from a step through history. Its first subscriber is handed the
+ * state it already has, from inside `subscribe`; that is not the step.
+ */
 const settled = (router: ReturnType<typeof createMemoryRouter>) =>
   new Promise<void>((resolve) => {
+    const from = router.state;
     const stop = router.subscribe((state) => {
-      if (state.navigation.state !== 'idle') return;
+      if (state === from || state.navigation.state !== 'idle') return;
       stop();
       resolve();
     });

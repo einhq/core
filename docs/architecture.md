@@ -1689,7 +1689,9 @@ them under a random token for `ARCHIVE_TICKET_TTL_MS` (5 minutes,
 [archive-tickets.ts](../src/servers/http/archive-tickets.ts)); `get-archive` resolves the same list
 again as the session presenting the token — so the token names a list rather than granting access —
 then streams the files through zip.js with `level: 0` and `zip64`. Nothing is written to disk and
-there is no `Content-Length`.
+there is no `Content-Length`. A session keeps ten tickets waiting at once, a visitor ten per client
+address, and the oldest gives way to the next; visitors' tickets hold 50 000 entries in all, past
+which a visitor's selection is answered 503 until some expire. Someone signed in is never refused.
 
 Two WebSocket modes on `/__shell`:
 
@@ -1797,10 +1799,15 @@ why these are core builtins: `@ein/client` does not give module commands raw mod
 
 ### The session cookie
 
-`get-default` is the only response that mints a session and issues the cookie — once per navigation
-rather than once per asset. _Navigation_ is the literal test, not just shorthand: `get-default` is
-also the SPA fallback, answering any unresolvable path with `index.html`, so a stale bookmark, a
-missing asset or a scanner would each mint a node nothing will ever present again. It reads
+`get-default` is the only response that issues a new cookie — once per navigation rather than once
+per asset — and it writes nothing: the cookie names the guest's session, whose node the browser's
+first `/__shell` socket writes, with the cookie's name and secret, since that is where the shell's
+tty and a `login --session` go. A client that never opens a socket costs no node, and a script
+navigating in a loop none either. A cookie whose node is missing is taken up as such a session again
+when its name and secret are the shape this server makes (a ULID, 32 hex digits), so a guest whose
+session was collected keeps its cookie. _Navigation_ is the literal test, not just shorthand:
+`get-default` is also the SPA fallback, answering any unresolvable path with `index.html`, so a stale
+bookmark, a missing asset or a scanner would each get a cookie it will never present again. It reads
 `Sec-Fetch-Mode: navigate`, falling back to an `Accept` that prefers `text/html` — the arm that runs
 over plain HTTP on the LAN, since browsers attach `Sec-Fetch-*` only to potentially trustworthy
 origins.
@@ -1821,7 +1828,7 @@ guest's anyway.
 
 The cookie is written with `Path=/` explicitly: without it a browser derives the path from the
 request URI, so an entry on a nested route (`/system/pipelines/<p>/<id>`) scoped the cookie to that
-subtree, the shell WebSocket at `/__shell` was outside it, and `get-shell` minted a `BOOT_ID`-
+subtree, the shell WebSocket at `/__shell` was outside it, and `get-shell` made a `BOOT_ID`-
 stamped session instead — `login --session` then wrote the authentication into a node that died
 with the socket. The document also re-issues the cookie for a session it already knows, so
 `Max-Age` bounds idleness rather than counting from when the session was first minted. `Max-Age` is
@@ -1876,7 +1883,7 @@ process boundary such as tmux.
 
 Most sessions under `/var/sessions` are no more durable — an SSH channel's, or a WebSocket client's
 that never received the cookie, because `Deno.upgradeWebSocket` returns a 101 whose headers cannot
-carry `Set-Cookie`. All three are stamped with `BOOT_ID`
+carry `Set-Cookie`. Both are stamped with `BOOT_ID`
 ([src/lib/boot-id/](../src/lib/boot-id/)), a ULID minted once per process, so a sweep can tell a
 stranded node from a live one — something no timestamp can answer, since a shell is dead the moment
 its process is, however recently it was used.
@@ -1887,6 +1894,17 @@ stamped with another `BOOT_ID`, sessions likewise stamped, cookie-backed session
 from before the stamp existed). **A session holding a live tty is never removed**, whatever its
 clock says: an open terminal can go a day without an HTTP request, and expiry alone would collect
 the session out from under it.
+
+The guest's session — never signed in, or signed out — holds nothing but its shells. A socket that
+closes drops it once no shell of the process holds it (`releaseSession`, which also drops a
+`BOOT_ID`-stamped one), and `session-reap` collects one that no live tty holds ten minutes after its
+last request; the browser's next socket writes it again from the cookie.
+
+Visitors — the guest and a share link's — hold at most `VISITOR_SOCKETS_PER_ADDRESS` (32) open
+`/__shell` sockets from one client address and 512 in all (`ws/open-sockets.ts`); past that the
+handshake is answered 429 before anything is written. Someone signed in is not counted. The address
+is the one `who` shows, so a proxy in front of EiN that is not trusted (`TRUSTED_PROXIES`) puts every
+visitor behind one address.
 
 ---
 

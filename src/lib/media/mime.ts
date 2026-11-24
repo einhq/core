@@ -71,6 +71,15 @@ function isTransportStream(bytes: Uint8Array): boolean {
   });
 }
 
+// Control bytes single-byte text holds: tab, line feed, vertical tab, form feed, carriage return
+// and the escape that opens a terminal colour
+const TEXT_CONTROL_BYTES = new Set([0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1b]);
+
+/** Whether the sample reads as text in a single-byte encoding: it holds no control byte but whitespace and escape. Random bytes hold some 50 in 512. */
+function isSingleByteText(sample: Uint8Array): boolean {
+  return sample.every((byte) => (byte >= 0x20 && byte !== 0x7f) || TEXT_CONTROL_BYTES.has(byte));
+}
+
 /**
  * The mimetype the head of a file sniffs as. Given the file's `name`, a name that decides over a
  * weak sniff — a camera RAW's, a `.json` or an `.xmp` sidecar's, an office document's — does
@@ -97,9 +106,11 @@ async function sniffMime(bytes: Uint8Array): Promise<string> {
   }
 
   // mime-bytes guesses `text/plain` (at half confidence) from the first MIME_SIGNATURE_BYTES
-  // alone; a sample that holds a NUL further on is bytes. A Fujifilm RAF opens with an ASCII
-  // header. Text mime-bytes knows by its byte-order mark (UTF-16) is a signature, not a guess.
-  if (mimetype === 'text/plain' && mimeResult && mimeResult.confidence < 1 && bytes.subarray(0, MIME_SAMPLE_BYTES).includes(0)) {
+  // alone, and a head of random bytes passes its test often enough. The guess that is not UTF-8
+  // (the heuristic above) stands only when the sample reads as single-byte text, Latin-1 say. A
+  // Fujifilm RAF opens with an ASCII header. Text mime-bytes knows by its byte-order mark
+  // (UTF-16) is a signature, not a guess.
+  if (mimetype === 'text/plain' && mimeResult && mimeResult.confidence < 1 && !isSingleByteText(bytes.subarray(0, MIME_SAMPLE_BYTES))) {
     return MIME_DEFAULT_TYPE;
   }
 

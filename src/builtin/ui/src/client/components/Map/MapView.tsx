@@ -11,9 +11,19 @@ import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 
 import './leaflet.css';
 import { MapContext } from './context.ts';
 import { mapLayers } from '../../signals/nav.ts';
+import { mapHome } from '../../signals/config.ts';
 import type { GeoBounds, PositionPoint } from './types.ts';
 
-export const DEFAULT_CENTER: PositionPoint = { lat: 57.7, lng: 11.97 };
+/** Where a map opens when it is given no center: `mapHome`'s point, read each time it is used. */
+export const DEFAULT_CENTER: PositionPoint = {
+  get lat() {
+    return mapHome.value.lat;
+  },
+  get lng() {
+    return mapHome.value.lng;
+  },
+};
+/** How close a map given a center but no zoom looks. One given neither opens at `mapHome`'s zoom. */
 export const DEFAULT_ZOOM = 12;
 
 export type MapViewProps = {
@@ -71,7 +81,7 @@ export function MapView({ center, zoom, bounds, onClick, onMoveEnd, baseLayer, o
 
     const m = L.map(el, {
       center: center ?? DEFAULT_CENTER,
-      zoom: zoom ?? DEFAULT_ZOOM,
+      zoom: zoom ?? (center ? DEFAULT_ZOOM : mapHome.value.zoom),
       // Wheel and pinch zoom; buttons would only cover the map.
       zoomControl: false,
     });

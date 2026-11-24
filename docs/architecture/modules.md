@@ -62,8 +62,10 @@ for that module rather than removing its last working version from a partial vie
 
 Services follow the same ownership rule. A registration is a softlink under
 `/etc/services/available` into the module's `services/` directory — or, for a single-script
-service, into an `/etc/service-scripts/<name>` wrapper whose `start.sh` links there. After
-registering the current set, setup stops, disables and removes every owned registration whose name
+service, into an `/etc/service-scripts/<name>` wrapper whose `start.sh` links there. Setup
+enables a service only when it creates its registration; one already registered keeps the
+`/etc/services/enabled` link it has, so an administrator's `service disable` holds across boots.
+After registering the current set, setup stops, disables and removes every owned registration whose name
 the module no longer ships, so a dropped or renamed service does not stay enabled and fail to start
 on every boot. A registration added by an operator with `service add` points elsewhere and is left
 alone.
@@ -298,7 +300,9 @@ client's timeout or a closed browser tab ends the following, never the install. 
 the same arguments join it and others are refused. The install keeps its last lines, how many files
 of the module it is unpacking are in place, and its answer; `mod status` reads them, and the
 Modules tab of the settings page asks it every few seconds, so every session sees the install
-whoever started it. It lives in the process: a restart ends it, and leaves the staging tree for
+whoever started it. Only the administrator is told its arguments, who started it, its lines and
+why it failed (`InstallJob.toJSON`); anyone else gets its `outline`, how it stands and the modules
+it put in place by name and version, since the arguments may name a private repository. It lives in the process: a restart ends it, and leaves the staging tree for
 the next install to clear.
 
 **At boot.** A deployment that wants modules without anyone installing them names them in
@@ -323,8 +327,11 @@ version and `coreApi`, and names a source that does not answer; the Modules tab 
 same with Install and Update. A module is behind when that is another commit and, from a release,
 a higher version, so one installed from its branch past the newest release is not offered the
 release as an update. `CFG_MODULE_SOURCES_KEY` holds tokens for
-private sources as `host=token`, and a token is sent to its own host only, so an address on a
-command line cannot carry one elsewhere.
+private sources as `host=token`, and a token is sent to its own origin only, over https, so an
+address on a command line cannot carry one elsewhere. Every source and repository address is https:
+an `http://` one is refused ([forge.ts](../../src/modules/forge.ts)) unless its host is loopback or
+named in `CFG_MODULE_SOURCES_INSECURE`, whose tokens are given as `http://host=token`. Unpacking
+keeps only whether a file is executable: `0755` with any execute bit in the archive, `0644` else.
 
 **Before anything is replaced** a module must pass what `mod setup` would refuse it for: `coreApi`
 against this core, its exports and its pages. It must be no deployment's: a name the deployment

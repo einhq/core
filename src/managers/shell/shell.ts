@@ -304,6 +304,9 @@ type ShellFdEntry = { handle: ResourceHandleIf; id: string; jobs?: readonly Shel
  */
 const liveShells = new Set<Shell>();
 
+/** Whether a shell of this process still holds the session at `sessionPath` (`liveShells`). */
+export const sessionHeldByShell = (sessionPath: NodePath): boolean => [...liveShells].some((shell) => shell.sessionPath === sessionPath);
+
 /** An open shell, as `who` reports it. */
 type OpenShellInfo = {
   name: string;
@@ -460,6 +463,11 @@ export class Shell implements TtyIf {
   /** True once close() has torn down the fds — nothing may read or write after this. */
   get isClosed(): boolean {
     return this.closed;
+  }
+
+  /** The session this shell belongs to. */
+  get sessionPath(): NodePath {
+    return this.config.sessionPath;
   }
 
   /** True once `exit` has ended the shell; whoever runs it closes it then. */

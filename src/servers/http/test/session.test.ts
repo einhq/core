@@ -4,13 +4,14 @@
  */
 
 import { PIPELINES_PATH, SESSIONS_PATH } from '../../../lib/paths.ts';
-import { assertEquals } from '@std/assert';
+import { assertEquals, assertRejects } from '@std/assert';
 import { ADMIN_ACCESS, GUEST_GID, GUEST_UID, LINK_UID_BASE } from '../../../lib/access/mod.ts';
-import { SystemTestHarness } from '../../../testing/mod.ts';
+import { ShellClient, SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../vfs/types/directory.ts';
 import { type FileAttrs, NODE_TYPE_FILE } from '../../../vfs/types/file.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../vfs/types/session.ts';
 import { SESSION_ACTIVITY_FLOOR_MS } from '../session.ts';
+import { VISITOR_SOCKETS_PER_ADDRESS } from '../ws/open-sockets.ts';
 
 const harness = new SystemTestHarness({ ssh: false });
 
@@ -94,7 +95,7 @@ Deno.test({
       assertEquals(res.headers.get('set-cookie'), null);
     });
 
-    await t.step('a navigation to the SPA document issues a cookie', async () => {
+    await t.step('a navigation to the SPA document issues a cookie and writes nothing', async () => {
       // The document has to exist: a 404 is thrown before the response is built,
       // so responseHeaders (and the cookie) never reach the client.
       await vfs.create(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, '/', 'default');
@@ -116,7 +117,82 @@ Deno.test({
 
       const setCookie = res.headers.get('set-cookie') ?? '';
       assertEquals(setCookie.includes('ein-test='), true, 'document did not issue a session cookie');
-      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before + 1);
+      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before);
+    });
+
+    await t.step("the guest's session is written by its first socket and dropped with its last", async () => {
+      const res = await fetch(`${baseUrl}/`, { headers: NAVIGATION });
+      await res.arrayBuffer();
+      const guestCookie = (res.headers.get('set-cookie') ?? '').split(';')[0];
+      const guestPath = `${SESSIONS_PATH}/session-${guestCookie.split('=')[1].split('.')[0]}`;
+
+      // Navigating again keeps the cookie of the session not written yet.
+      const again = await fetch(`${baseUrl}/timeline`, { headers: { ...NAVIGATION, cookie: guestCookie } });
+      await again.arrayBuffer();
+      assertEquals((again.headers.get('set-cookie') ?? '').startsWith(`${guestCookie};`), true, again.headers.get('set-cookie') ?? '');
+      assertEquals(await vfs.exists(ADMIN_ACCESS, guestPath), false);
+
+      const first = await ShellClient.connect(baseUrl, guestCookie);
+      const second = await ShellClient.connect(baseUrl, guestCookie);
+      // The guest's shell answers once open; the guest has no account to name.
+      await first.exec('user-whoami');
+      await second.exec('user-whoami');
+      assertEquals((await vfs.get<SessionAttrs>(ADMIN_ACCESS, guestPath)).attrs.access.uid, GUEST_UID);
+
+      first.close();
+      await first.closed;
+      await new Promise((r) => setTimeout(r, 200));
+      assertEquals(await vfs.exists(ADMIN_ACCESS, guestPath), true, 'dropped while a socket of it was open');
+
+      second.close();
+      await second.closed;
+      for (let i = 0; i < 40 && await vfs.exists(ADMIN_ACCESS, guestPath); i++) await new Promise((r) => setTimeout(r, 50));
+      assertEquals(await vfs.exists(ADMIN_ACCESS, guestPath), false);
+
+      // The browser still holds the cookie: its next socket writes the session again, and a
+      // sign-in there keeps it past the socket.
+      const third = await ShellClient.connect(baseUrl, guestCookie);
+      assertEquals((await third.exec('login --session admin admin')).success, true);
+      third.close();
+      await third.closed;
+      await new Promise((r) => setTimeout(r, 200));
+      assertEquals((await vfs.get<SessionAttrs>(ADMIN_ACCESS, guestPath)).attrs.access.uid === GUEST_UID, false);
+    });
+
+    await t.step('visitors hold so many sockets from one address, and someone signed in is not counted', async () => {
+      const visitors: ShellClient[] = [];
+      try {
+        for (let i = 0; i < VISITOR_SOCKETS_PER_ADDRESS; i++) visitors.push(await ShellClient.connect(baseUrl));
+        await assertRejects(() => ShellClient.connect(baseUrl));
+        const refused = await fetch(`${baseUrl}/__shell`, {
+          headers: { upgrade: 'websocket', connection: 'upgrade', 'sec-websocket-version': '13', 'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==' },
+        });
+        await refused.arrayBuffer();
+        assertEquals(refused.status, 429);
+
+        const member = await ShellClient.connect(baseUrl, cookie);
+        assertEquals((await member.exec('true')).success, true);
+        member.close();
+        await member.closed;
+      } finally {
+        for (const visitor of visitors) visitor.close();
+        await Promise.all(visitors.map((visitor) => visitor.closed));
+      }
+      // Room again once they closed.
+      const after = await ShellClient.connect(baseUrl);
+      after.close();
+      await after.closed;
+    });
+
+    await t.step('a cookie this server could not have made names no session to write', async () => {
+      const before = (await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length;
+      const client = await ShellClient.connect(baseUrl, 'ein-test=chosen.byclient');
+      await client.exec('user-whoami');
+      assertEquals(await vfs.exists(ADMIN_ACCESS, `${SESSIONS_PATH}/session-chosen`), false);
+      client.close();
+      await client.closed;
+      for (let i = 0; i < 40 && (await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length > before; i++) await new Promise((r) => setTimeout(r, 50));
+      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before);
     });
 
     await t.step('the cookie is scoped to the whole site, not to the URL that minted it', async () => {
@@ -162,8 +238,15 @@ Deno.test({
         const setCookie = fresh.headers.get('set-cookie') ?? '';
         assertEquals(setCookie.includes('Max-Age=3600'), true, setCookie);
         const name = setCookie.match(/ein-test=([^.]+)\./)![1];
-        const session = await vfs.get<SessionAttrs>(ADMIN_ACCESS, `${SESSIONS_PATH}/session-${name}`);
-        assertEquals(session.attrs.expiresSec, 600);
+        const socket = await ShellClient.connect(baseUrl, setCookie.split(';')[0]);
+        try {
+          await socket.exec('user-whoami');
+          const session = await vfs.get<SessionAttrs>(ADMIN_ACCESS, `${SESSIONS_PATH}/session-${name}`);
+          assertEquals(session.attrs.expiresSec, 600);
+        } finally {
+          socket.close();
+          await socket.closed;
+        }
       } finally {
         await admin.exec('config unset CFG_SESSION_MAX_AGE_SEC && config unset CFG_SESSION_EXPIRES_SEC');
         admin.close();
@@ -213,7 +296,7 @@ Deno.test({
       assertEquals(await res.text(), '<html></html>');
 
       assertEquals((res.headers.get('set-cookie') ?? '').includes('ein-test='), true);
-      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before + 1);
+      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before);
     });
 
     await t.step('the SPA fallback mints nothing for a non-navigation', async () => {
@@ -250,7 +333,7 @@ Deno.test({
       await res.arrayBuffer();
 
       assertEquals((res.headers.get('set-cookie') ?? '').includes('ein-test='), true);
-      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before + 1);
+      assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before);
     });
 
     await t.step('HEAD serves the SPA document headers without a body', async () => {
@@ -293,12 +376,12 @@ Deno.test({
       assertEquals(await countSessions(), before);
     });
 
-    await t.step('a cookie-backed session survives the socket that used it', async () => {
-      const { sessionPath: keepPath } = await harness.createHttpSession();
+    await t.step('a signed-in session survives the socket that used it', async () => {
+      const { cookie: keepCookie, sessionPath: keepPath } = await harness.createHttpSession();
 
-      // Same shape as above, but the session already existed and is cookie-backed,
+      // Same shape as above, but the session already existed and is signed in,
       // so it carries no boot stamp and must not be collected.
-      const client = await harness.createShellClient();
+      const client = await ShellClient.connect(baseUrl, keepCookie);
       assertEquals((await client.exec('pwd')).success, true);
       client.close();
 

@@ -3,7 +3,7 @@
  * (bare IPs, localhost, anything without its own directory) fall back to <root>/default.
  */
 
-import { assertEquals } from '@std/assert';
+import { assertEquals, assertStringIncludes } from '@std/assert';
 import { ADMIN_ACCESS } from '../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../testing/mod.ts';
 import { NODE_TYPE_DIRECTORY } from '../../../vfs/types/directory.ts';
@@ -97,7 +97,23 @@ Deno.test({
       assertEquals(res.status, 200);
       assertEquals(res.body, 'example site');
       assertEquals(/content-type: text\/html/i.test(res.head), true, res.head);
-      assertEquals(/content-security-policy/i.test(res.head), false, res.head);
+    });
+
+    await t.step("the site's page loads scripts from EiN alone and only EiN frames it, but is not sandboxed like a file", async () => {
+      const policy = /^content-security-policy: (.*)$/im.exec((await get('example.com', '/some/spa/route')).head)?.[1] ?? '';
+      assertStringIncludes(policy, "script-src 'self' https://www.gstatic.com");
+      assertStringIncludes(policy, "frame-ancestors 'self'");
+      assertStringIncludes(policy, "object-src 'none'");
+      assertEquals(policy.includes('sandbox'), false, policy);
+    });
+
+    await t.step('every answer is never sniffed, sends no path to another site and is framed only by EiN', async () => {
+      for (const path of ['/', '/icons/missing.svg']) {
+        const { head } = await get('example.com', path);
+        assertStringIncludes(head.toLowerCase(), 'x-content-type-options: nosniff', path);
+        assertStringIncludes(head.toLowerCase(), 'referrer-policy: strict-origin-when-cross-origin', path);
+        assertStringIncludes(head.toLowerCase(), 'x-frame-options: sameorigin', path);
+      }
     });
 
     await t.step('unknown host (bare IP) falls back to the default site', async () => {

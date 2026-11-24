@@ -3,10 +3,15 @@ const MIN_THUMB = 32;
 /** How long the thumb stays after the scroll stops, where it only shows while scrolling. */
 const SCROLLING_LINGER_MS = 800;
 
+/** What scrolls, in the pixels of the track it is shown in: an element, or a view shaped like one. */
+type Scroller = Pick<HTMLElement, 'scrollTop' | 'scrollHeight' | 'clientHeight'> & {
+  scrollTo(options: ScrollToOptions): void;
+};
+
 /** What a scrollbar is a view of. */
 type ScrollSource = {
-  /** What scrolls: the document's scrolling element for the page, or a box. */
-  element: HTMLElement;
+  /** What scrolls: the document's scrolling element for the page, a box, or the terminal's scrollback. */
+  element: Scroller;
   /** Where its scroll events fire: the window for the page, the box itself otherwise. */
   events: EventTarget;
   /** Calls `changed` whenever the scroll's length may have changed, until the returned stop. */

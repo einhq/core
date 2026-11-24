@@ -1,7 +1,8 @@
 /**
  * The module installs EiN runs, one at a time, in an admin shell of the installer's: an install goes
  * on to its end whatever becomes of the session that asked for it, and anyone may follow it or ask
- * how far it has got (`mod status`). The shell runs `mod install` with `MOD_INSTALL_JOB` naming
+ * how far it has got (`mod status`), though only the administrator is told what it was asked and
+ * what it says. The shell runs `mod install` with `MOD_INSTALL_JOB` naming
  * the install, which is how that command knows it is the one doing the work.
  */
 
@@ -106,15 +107,26 @@ export class InstallJob {
 
   toJSON(): ModuleInstallJob {
     return {
-      id: this.id,
+      ...this.outline(),
       args: this.args,
       by: this.by,
+      lines: this.lines.slice(-STATUS_LINES),
+      ...(this.result ? { result: this.result } : {}),
+    };
+  }
+
+  /** The install as anyone but the administrator is told it: how it stands and the modules it put in place. */
+  outline(): ModuleInstallJob {
+    return {
+      id: this.id,
+      args: [],
+      by: '',
       startedAt: this.startedAt.toISOString(),
       ...(this.finishedAt ? { finishedAt: this.finishedAt.toISOString() } : {}),
       state: this.state,
       ...(this.unpacking ? { unpacking: { ...this.unpacking } } : {}),
-      lines: this.lines.slice(-STATUS_LINES),
-      ...(this.result ? { result: this.result } : {}),
+      lines: [],
+      ...(this.result ? { installed: this.result.installed.map(({ name, version, updated }) => ({ name, version, updated })) } : {}),
     };
   }
 }

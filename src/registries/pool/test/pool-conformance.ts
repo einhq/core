@@ -101,6 +101,25 @@ export function poolConformanceTests(name: string, setup: () => Promise<PoolSetu
         assertNotEquals(fourth.id, first.id);
       });
 
+      await t.step("replaceParamsOn takes a waiting job's params when that member changed", async () => {
+        await registry.touch('moved', {});
+        const add = (path: string, cause: string) => registry.add('moved', { kind: 'a', dedupKey: 'subject', replaceParamsOn: 'path', params: { path, cause } });
+
+        const first = await add('/a.part', 'upload');
+        // Same path: the first add's params stay, whatever else the re-add carries.
+        assertEquals((await add('/a.part', 'touch')).params, { path: '/a.part', cause: 'upload' });
+
+        const moved = await add('/a', 'rename');
+        assertEquals(moved.id, first.id);
+        assertEquals(moved.params, { path: '/a', cause: 'rename' });
+        assertEquals((await registry.counts('moved')).total, 1);
+
+        // A claimed job's params are what its worker already read, and stay.
+        const claimed = await registry.claim('moved', { owner: 'w' });
+        assertEquals(claimed?.id, first.id);
+        assertEquals((await add('/b', 'rename')).params, { path: '/a', cause: 'rename' });
+      });
+
       await t.step('claim takes the highest priority, then the oldest', async () => {
         await registry.touch('order', {});
         const low = await registry.add('order', { kind: 'a', priority: 1 });

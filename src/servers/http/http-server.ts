@@ -31,6 +31,30 @@ const logger = createLogger('http-server');
 /** Methods that change nothing, which a page of another origin may send with the cookie. */
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/**
+ * Headers every answer carries: its type is taken as sent, never sniffed; another site learns no more
+ * than EiN's origin from a link or a picture, never a path or a ticket in its query; and only EiN's
+ * own pages may frame it.
+ */
+const SECURITY_HEADERS: [string, string][] = [
+  ['X-Content-Type-Options', 'nosniff'],
+  ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+  ['X-Frame-Options', 'SAMEORIGIN'],
+];
+
+/** `response` with `SECURITY_HEADERS`, copied first when its headers may not change; a socket's upgrade as it is. */
+function withSecurityHeaders(response: Response): Response {
+  if (response.status === 101) return response;
+  try {
+    for (const [name, value] of SECURITY_HEADERS) response.headers.set(name, value);
+    return response;
+  } catch {
+    const copy = new Response(response.body, response);
+    for (const [name, value] of SECURITY_HEADERS) copy.headers.set(name, value);
+    return copy;
+  }
+}
+
 export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   // Per server rather than module-level: a token means nothing outside the process holding
   // the files, and the test harness starts several instances in one.
@@ -43,7 +67,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
   // Before `Deno.serve` adds its own listener, so each socket's close frame is this one.
   config.signal.addEventListener('abort', () => sockets.closeAll(1001, 'server stopping'), { once: true });
 
-  const handler = async (req: Request, info: Deno.ServeHandlerInfo): Promise<Response> => {
+  const route = async (req: Request, info: Deno.ServeHandlerInfo): Promise<Response> => {
     try {
       const url = new URL(req.url);
 
@@ -91,7 +115,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
       } else if (isDavPath(url.pathname)) {
         return await handleDav({ ...config, signIns: davSignIns, downloads }, req, url, info.remoteAddr);
       } else if (url.pathname === '/archive' && req.method === 'POST') {
-        return await handlePostArchive(config, req, archiveTickets);
+        return await handlePostArchive(config, req, archiveTickets, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname === '/checksums' && req.method === 'POST') {
         return await handlePostChecksums(config, req, clientAddress(req.headers, info.remoteAddr));
       } else if (url.pathname.startsWith('/archive/') && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -121,6 +145,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
       return new Response('Internal Server Error', { status: 500 });
     }
   };
+  const handler = async (req: Request, info: Deno.ServeHandlerInfo): Promise<Response> => withSecurityHeaders(await route(req, info));
 
   const server = await Deno.serve({
     port: config.port,

@@ -124,6 +124,10 @@ type Endpoint = { path: string; type: EndpointType; attrs: EndpointAttrs; readAt
 
 /** How long an endpoint's attrs are taken as read: a changed `minInterval` counts from then on. */
 const ENDPOINT_TTL_MS = 60_000;
+
+/** Where a page ticket signs a browser in: `/__page/<ticket>`. */
+const PAGE_PREFIX = '/__page/';
+
 type Pending = { timer: ReturnType<typeof setTimeout>; value: DeviceValue; at: Date; retained?: boolean; access: Access };
 
 export class DeviceManager implements DeviceSink, ModuleDevices {
@@ -283,12 +287,35 @@ export class DeviceManager implements DeviceSink, ModuleDevices {
     if (!isOwnPath(route)) throw new DeviceError(`${route}: a page is a path of this server`);
     // Whoever opens the page reads what its access reads, so it is never the administrator's.
     if (access.uid === ADMIN_UID || access.gids.includes(ADMIN_GID)) throw new DeviceError(`${route}: a page is never shown as the administrator; show it as a member`);
-    return `/__page/${this.pageTickets.issue(access, route)}`;
+    return `${PAGE_PREFIX}${this.pageTickets.issue(access, route)}`;
   }
 
   /** What a page ticket opens, once; undefined when it has run out or was taken. */
   takePageTicket(ticket: string): PageTicket | undefined {
     return this.pageTickets.take(ticket);
+  }
+
+  /**
+   * The taken page ticket `ticket` signed a browser in with the session at `session`, which its page's
+   * end removes; false, and the session removed now, when the page ended first.
+   */
+  async pageOpened(ticket: string, session: string): Promise<boolean> {
+    if (this.pageTickets.opened(ticket, session)) return true;
+    await this.removeSession(session);
+    return false;
+  }
+
+  async endPageSignIn(path: string): Promise<void> {
+    if (!path.startsWith(PAGE_PREFIX)) return;
+    const session = this.pageTickets.end(path.slice(PAGE_PREFIX.length));
+    if (session) await this.removeSession(session);
+  }
+
+  /** The session at `path` removed, which closes the sockets that use it; one already gone is left. */
+  private async removeSession(path: string): Promise<void> {
+    await this.sys.vfs.unlink(ADMIN_ACCESS, path, dirname(path), { recursive: true, readlink: true }).catch((error) => {
+      if (!(error instanceof NodeNotFoundError)) throw error;
+    });
   }
 
   serveLive(open: LiveOpen): LiveServed {

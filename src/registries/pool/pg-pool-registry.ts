@@ -286,10 +286,13 @@ export class PgPoolRegistry implements PoolRegistryIf {
 
     // The partial unique index is the arbiter, so re-adding a live dedup key
     // updates that job instead of appending a duplicate nobody will reap — and
-    // only when the re-add raises its priority or brings it forward. Otherwise
-    // nothing is written and the job is read back as it is: a crawl re-announces
-    // waiting work over and over, and an update that changed nothing was still a
-    // row version, WAL and a commit each time (ein/core#510).
+    // only when the re-add raises its priority, brings it forward, or changes the
+    // `replaceParamsOn` member of a job not yet claimed. Otherwise nothing is
+    // written and the job is read back as it is: a crawl re-announces waiting
+    // work over and over, and an update that changed nothing was still a row
+    // version, WAL and a commit each time (ein/core#510).
+    const replaceParams = `($11::text IS NOT NULL AND ${this.jobsTable}.state = 'ready'
+      AND ${this.jobsTable}.params -> $11::text IS DISTINCT FROM EXCLUDED.params -> $11::text)`;
     const upsert = () =>
       this.pool.query<JobRow>(
         `
@@ -302,10 +305,12 @@ export class PgPoolRegistry implements PoolRegistryIf {
           ON CONFLICT (pool_id, dedup_key) WHERE dedup_key IS NOT NULL AND state IN ('ready','claimed')
           DO UPDATE SET priority = GREATEST(${this.jobsTable}.priority, EXCLUDED.priority),
                         eff_priority = GREATEST(${this.jobsTable}.eff_priority, EXCLUDED.priority),
-                        available_at = LEAST(${this.jobsTable}.available_at, EXCLUDED.available_at)
+                        available_at = LEAST(${this.jobsTable}.available_at, EXCLUDED.available_at),
+                        params = CASE WHEN ${replaceParams} THEN EXCLUDED.params ELSE ${this.jobsTable}.params END
           WHERE ${this.jobsTable}.priority < EXCLUDED.priority
              OR ${this.jobsTable}.eff_priority < EXCLUDED.priority
              OR ${this.jobsTable}.available_at > EXCLUDED.available_at
+             OR ${replaceParams}
           RETURNING *
         )
         SELECT * FROM upsert
@@ -325,6 +330,7 @@ export class PgPoolRegistry implements PoolRegistryIf {
           input.maxAttempts ?? null,
           input.delayMs ?? 0,
           Math.max(0, Math.floor(input.attempts ?? 0)),
+          input.replaceParamsOn ?? null,
         ],
       );
 

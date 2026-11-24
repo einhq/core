@@ -8,8 +8,11 @@
  * commit a short id names come from the forge's API. A host is GitHub when it is `github.com`, and a Forgejo or a Gitea
  * otherwise.
  *
- * A token is sent only to the host it was given for (`CFG_MODULE_SOURCES_KEY`, `host=token`), so
- * an address typed on a command line cannot take a token anywhere else.
+ * A module's code is fetched over https only: plain http, which a machine on the way could read and
+ * change, is refused but for this machine (`localhost`, `127.0.0.1`, `::1`) and the hosts
+ * `CFG_MODULE_SOURCES_INSECURE` names. A token is sent only to the origin it was given for
+ * (`CFG_MODULE_SOURCES_KEY`, `host=token` for https), so an address typed on a command line cannot
+ * take a token anywhere else, nor to its own host over http.
  */
 
 import { compare, format, type SemVer, tryParse, tryParseRange } from '@std/semver';
@@ -23,7 +26,7 @@ type ForgeKind = 'github' | 'gitea';
 /** An organisation, or a user, whose `module-*` repositories are published modules. */
 export type ModuleSource = {
   kind: ForgeKind;
-  /** `https://github.com`, `http://forge.example:3000`. */
+  /** `https://github.com`, `https://forge.example:3000`. */
   origin: string;
   owner: string;
   /** `<origin>/<owner>`, as the setting names it. */
@@ -44,8 +47,26 @@ export type ListedRepository = Repository & {
   branch: string;
 };
 
-/** The token for each host, as `host[:port]`. */
+/** The token for each origin, as `https://host[:port]`. */
 export type Tokens = ReadonlyMap<string, string>;
+
+/** The hosts, as `host[:port]`, whose sources and repositories may be reached over plain http. */
+export type InsecureHosts = ReadonlySet<string>;
+
+const NO_INSECURE_HOSTS: InsecureHosts = new Set();
+
+const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/;
+
+/** Whether `url` may be fetched from: over https, or over http from this machine or a host named insecure. */
+const reachable = (url: URL, insecure: InsecureHosts): boolean =>
+  url.protocol === 'https:' || (url.protocol === 'http:' && (LOOPBACK.test(url.hostname) || insecure.has(url.host)));
+
+/** What is wrong with `value` when it is an http address that is not `reachable`, else nothing. */
+export const refusedHttp = (value: string, insecure: InsecureHosts): string | undefined => {
+  const url = URL.parse(value);
+  if (url?.protocol !== 'http:' || reachable(url, insecure)) return undefined;
+  return `plain http, which anyone on the way can read and change, with the module's code and its token: use https, or name ${url.host} in CFG_MODULE_SOURCES_INSECURE: ${value}`;
+};
 
 /** A forge that does not answer as asked: the address, and what it said. */
 export class ForgeError extends Error {
@@ -57,15 +78,10 @@ export class ForgeError extends Error {
 
 const kindOf = (host: string): ForgeKind => host === 'github.com' || host === 'www.github.com' ? 'github' : 'gitea';
 
-/** `https://host/owner` as a source, or nothing when it is not one. */
-export const parseSource = (value: string): ModuleSource | undefined => {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return undefined;
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+/** `https://host/owner` as a source, or nothing when it is not one, or is over http that `insecure` does not allow. */
+export const parseSource = (value: string, insecure: InsecureHosts = NO_INSECURE_HOSTS): ModuleSource | undefined => {
+  const url = URL.parse(value);
+  if (!url || !reachable(url, insecure)) return undefined;
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length !== 1 || url.search || url.hash || url.username) return undefined;
   const origin = url.origin;
@@ -76,26 +92,41 @@ export const parseSource = (value: string): ModuleSource | undefined => {
  * `CFG_MODULE_SOURCES`, in order: addresses separated by spaces or commas. An entry that is no
  * organisation's address is a problem rather than a source.
  */
-export const parseSources = (value: string): { sources: ModuleSource[]; problems: string[] } => {
+export const parseSources = (value: string, insecure: InsecureHosts = NO_INSECURE_HOSTS): { sources: ModuleSource[]; problems: string[] } => {
   const sources: ModuleSource[] = [];
   const problems: string[] = [];
   for (const entry of value.split(/[\s,]+/).filter(Boolean)) {
-    const source = parseSource(entry.replace(/\/+$/, ''));
+    const address = entry.replace(/\/+$/, '');
+    const source = parseSource(address, insecure);
     if (source) sources.push(source);
-    else problems.push(`not an organisation's address (https://host/owner): ${entry}`);
+    else problems.push(refusedHttp(address, insecure) ?? `not an organisation's address (https://host/owner): ${entry}`);
   }
   return { sources, problems };
 };
 
-/** `CFG_MODULE_SOURCES_KEY`: `host=token`, separated by spaces or commas. */
+/** `host[:port]` as an origin's host, as `URL` writes it: in lower case, without the scheme's own port. */
+const hostOf = (scheme: 'http' | 'https', host: string): string | undefined => /^[^\s/@?#\\]+$/.test(host) ? URL.parse(`${scheme}://${host}`)?.host || undefined : undefined;
+
+/**
+ * `CFG_MODULE_SOURCES_KEY`: `host[:port]=token` for a host over https, or `http://host[:port]=token`
+ * for one `CFG_MODULE_SOURCES_INSECURE` names, separated by spaces or commas; kept by origin.
+ */
 export const parseTokens = (value: string): Tokens => {
   const tokens = new Map<string, string>();
   for (const entry of value.split(/[\s,]+/).filter(Boolean)) {
     const at = entry.indexOf('=');
-    if (at > 0 && at < entry.length - 1) tokens.set(entry.slice(0, at).toLowerCase(), entry.slice(at + 1));
+    if (at <= 0 || at === entry.length - 1) continue;
+    const key = entry.slice(0, at);
+    const http = /^http:\/\//i.test(key);
+    const host = hostOf(http ? 'http' : 'https', key.replace(/^https?:\/\//i, ''));
+    if (host) tokens.set(`${http ? 'http' : 'https'}://${host}`, entry.slice(at + 1));
   }
   return tokens;
 };
+
+/** `CFG_MODULE_SOURCES_INSECURE`: `host[:port]`, separated by spaces or commas. */
+export const parseInsecureHosts = (value: string): InsecureHosts =>
+  new Set(value.split(/[\s,]+/).filter(Boolean).map((entry) => hostOf('http', entry)).filter((host) => host !== undefined));
 
 /** The repository `name` of a source. */
 export const repositoryOf = (source: ModuleSource, name: string): Repository => ({
@@ -108,19 +139,14 @@ export const repositoryOf = (source: ModuleSource, name: string): Repository => 
  * A repository's address, as a browser or `git clone` over HTTPS shows it: `https://host/owner/name`,
  * with or without `.git`; `git@github.com:owner/name.git` is taken as GitHub's HTTPS address.
  */
-export const parseRepository = (value: string): Repository | undefined => {
+export const parseRepository = (value: string, insecure: InsecureHosts = NO_INSECURE_HOSTS): Repository | undefined => {
   const scp = /^git@([^:/]+):([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(value);
   const address = scp ? `https://${scp[1]}/${scp[2]}/${scp[3]}` : value;
-  let url: URL;
-  try {
-    url = new URL(address);
-  } catch {
-    return undefined;
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
+  const url = URL.parse(address);
+  if (!url || !reachable(url, insecure)) return undefined;
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length !== 2 || url.search || url.hash || url.username) return undefined;
-  const source = parseSource(`${url.origin}/${parts[0]}`);
+  const source = parseSource(`${url.origin}/${parts[0]}`, insecure);
   return source && repositoryOf(source, parts[1].replace(/\.git$/, ''));
 };
 
@@ -136,7 +162,7 @@ export const MODULE_NAME = /^[a-z][a-z0-9-]*$/;
  * `https://host/owner/module-x[@ref]` or `x[@ref]`. The ref follows the last `@` after the path's
  * last `/`, so a user name in the address is not taken for one.
  */
-export const parseInstallTarget = (value: string): InstallTarget | { error: string } => {
+export const parseInstallTarget = (value: string, insecure: InsecureHosts = NO_INSECURE_HOSTS): InstallTarget | { error: string } => {
   const isAddress = value.includes('://') || value.startsWith('git@');
   const slash = value.lastIndexOf('/');
   const at = value.lastIndexOf('@');
@@ -145,15 +171,16 @@ export const parseInstallTarget = (value: string): InstallTarget | { error: stri
   if (!isAddress) {
     return MODULE_NAME.test(body) ? { kind: 'name', name: body, ref } : { error: `not a module's name or a repository's address: ${value}` };
   }
-  const repository = parseRepository(body);
-  return repository ? { kind: 'repository', repository, ref } : { error: `not a repository's address (https://host/owner/name): ${body}` };
+  const repository = parseRepository(body, insecure);
+  if (repository) return { kind: 'repository', repository, ref };
+  return { error: refusedHttp(body, insecure) ?? `not a repository's address (https://host/owner/name): ${body}` };
 };
 
 /** The module a repository is expected to hold, by its name: `module-archive` holds `archive`. */
 export const moduleNameOf = (repository: Repository): string =>
   repository.name.startsWith(MODULE_REPOSITORY_PREFIX) ? repository.name.slice(MODULE_REPOSITORY_PREFIX.length) : repository.name;
 
-const tokenFor = (source: ModuleSource, tokens: Tokens): string | undefined => tokens.get(new URL(source.origin).host.toLowerCase());
+const tokenFor = (source: ModuleSource, tokens: Tokens): string | undefined => tokens.get(source.origin);
 
 /** What a request to the forge carries: its token, in the form that kind of request takes there. */
 const authorization = (source: ModuleSource, tokens: Tokens, to: 'git' | 'api'): Record<string, string> => {

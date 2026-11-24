@@ -9,7 +9,7 @@
 
 import { SESSIONS_PATH } from '../../../../lib/paths.ts';
 import { assert, assertEquals } from '@std/assert';
-import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, GUEST_ACCESS } from '../../../../lib/access/mod.ts';
 import { BOOT_ID } from '../../../../lib/boot-id/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../../vfs/types/session.ts';
 import { NODE_TYPE_TTY, type TtyAttrs } from '../../../../vfs/types/tty.ts';
@@ -23,6 +23,7 @@ const testCtx = createTestContext();
 
 const SESSIONS = SESSIONS_PATH;
 const HOUR = 3_600_000;
+const MINUTE = 60_000;
 
 type ReapResult = { sessions: number; ttys: number; scanned: number; capped: boolean; dryRun: boolean };
 
@@ -75,6 +76,9 @@ Deno.test({
     const deadBoot = await makeSession(vfs, 'session-dead-boot', { bootId: 'OTHERBOOT' });
     // Bound to this process — an SSH channel or WS shell that is still open.
     const liveBoot = await makeSession(vfs, 'session-live-boot', { bootId: BOOT_ID });
+    // A page's, whose stream ended with a process that is gone, and one this process streams.
+    const deadPage = await makeSession(vfs, 'session-dead-page', { expiresSec: 12 * 3600, endsWithBoot: 'OTHERBOOT' });
+    const livePage = await makeSession(vfs, 'session-live-page', { expiresSec: 12 * 3600, endsWithBoot: BOOT_ID });
     // Cookie-backed, past its expiry.
     const expired = await makeSession(vfs, 'session-expired', { expiresSec: 60, lastActivity: now - HOUR });
     // Cookie-backed, still inside it.
@@ -84,6 +88,11 @@ Deno.test({
     // Neither stamp nor expiry.
     const legacyOld = await makeSession(vfs, 'session-legacy-old', { lastActivity: now - 25 * HOUR });
     const legacyNew = await makeSession(vfs, 'session-legacy-new', { lastActivity: now });
+    // The guest's, inside its cookie's expiry: kept minutes after its last request, unless a shell holds it.
+    const guestIdle = await makeSession(vfs, 'session-guest-idle', { access: GUEST_ACCESS, expiresSec: 12 * 3600, lastActivity: now - 11 * MINUTE });
+    const guestRecent = await makeSession(vfs, 'session-guest-recent', { access: GUEST_ACCESS, expiresSec: 12 * 3600, lastActivity: now - MINUTE });
+    const guestHeld = await makeSession(vfs, 'session-guest-held', { access: GUEST_ACCESS, expiresSec: 12 * 3600, lastActivity: now - HOUR });
+    await makeTty(vfs, guestHeld, 'tty-live', BOOT_ID);
 
     // Expired, but an open shell is attached — plus a stranded tty beside it.
     const pinned = await makeSession(vfs, 'session-pinned', { expiresSec: 60, lastActivity: now - HOUR });
@@ -114,13 +123,18 @@ Deno.test({
       }
 
       assertEquals(await exists(deadBoot), false, 'session from a previous boot survived');
+      assertEquals(await exists(deadPage), false, 'page session from a previous boot survived');
       assertEquals(await exists(expired), false, 'session past expiresSec survived');
       assertEquals(await exists(flagged), false, 'session marked expired survived');
       assertEquals(await exists(legacyOld), false, 'unstamped session older than --stale survived');
+      assertEquals(await exists(guestIdle), false, "the guest's session idle for minutes survived");
 
       assertEquals(await exists(liveBoot), true, 'session from this boot was reaped');
+      assertEquals(await exists(livePage), true, 'page session of this boot was reaped');
       assertEquals(await exists(fresh), true, 'session inside its expiry was reaped');
       assertEquals(await exists(legacyNew), true, 'recent unstamped session was reaped');
+      assertEquals(await exists(guestRecent), true, "the guest's recent session was reaped");
+      assertEquals(await exists(guestHeld), true, "the guest's session held by a shell was reaped");
     });
 
     await t.step('a live tty pins its session past expiry', async () => {

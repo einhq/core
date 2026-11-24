@@ -136,6 +136,9 @@ container-build: ## Build the EiN container image
 # The built shell (src/builtin/ui/ui, gitignored) is mounted from the checkout over the image's
 # copy, as the modules are at /modules-dev: a UI-only deploy replaces it without a rebuild.
 #
+# The image's user is ein, which rootless podman maps to one of your subordinate ids: --user 0 runs
+# it as you, who own the mounted folders, and with no capabilities.
+#
 # The comment lives here rather than inside the recipe because a `#` line between backslash
 # continuations is handed to the SHELL, not read by make, and comments out the rest of the
 # command.
@@ -143,6 +146,7 @@ container-run: ## Run the EiN container (ENV_FILE: its settings; MODULES_PATH: i
 	@mkdir -p $(FILE_ROOT_PATH) $(VOLATILE_FILE_ROOT_PATH) $(MODULE_INSTALL_PATH)
 	podman run --replace -d \
 		--name $(CONTAINER_NAME) \
+		--user 0 --cap-drop all --security-opt no-new-privileges \
 		--restart $(CONTAINER_RESTART) \
 		--stop-timeout $(CONTAINER_STOP_TIMEOUT) \
 		--memory $(CONTAINER_MEMORY) --memory-swap $(CONTAINER_MEMORY_SWAP) \
@@ -202,14 +206,16 @@ test-pg: ## Run tests incl. the PostgreSQL tier (needs PostgreSQL at POSTGRES_UR
 # Only every module's `*.e2e.test.ts`: the rest is the fast tier, which `make test` already runs,
 # and inside this image it would run against the real services ENV_FILE points at.
 #
-# The tier's file root lands under TEST_FILE_ROOT_PATH, mounted at /files-test. EMS reaches a
-# test's files through ems-files, where ENV_FILE's CFG_EMS_FILES_ADDRESS says.
+# The tier's file root lands under TEST_FILE_ROOT_PATH, mounted at /files-test, which --user 0 writes
+# as you, as in container-run. EMS reaches a test's files through ems-files, where ENV_FILE's
+# CFG_EMS_FILES_ADDRESS says.
 TEST_FILE_ROOT_PATH ?= ./files-test
 E2E_TESTS = $(sort $(shell find modules -path '*/test/*' -name '*.e2e.test.ts'))
 
 container-test: ## Run the modules' E2E tier inside the EiN image (needs make container-build; ENV_FILE: the services it reaches)
 	@mkdir -p $(TEST_FILE_ROOT_PATH)
 	podman run --rm \
+		--user 0 --cap-drop all --security-opt no-new-privileges \
 		--memory $(CONTAINER_MEMORY) \
 		--network=host \
 		-e EIN_TEST_CONTAINER=1 \

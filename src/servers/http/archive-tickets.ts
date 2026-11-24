@@ -27,6 +27,18 @@ export const ARCHIVE_TICKET_TTL_MS = 5 * 60 * 1000;
 /** Refused above this, so one POST cannot park an unbounded list in memory. */
 export const ARCHIVE_MAX_ENTRIES = 5000;
 
+/**
+ * Tickets one owner keeps waiting at once — a session, or a visitor's address, since a visitor gets
+ * a new session for nothing. Past it the owner's oldest gives way: its download has started by now.
+ */
+export const ARCHIVE_TICKETS_PER_OWNER = 10;
+
+/**
+ * Entries visitors' tickets may hold together. Past it a visitor's selection is refused until some
+ * expire; someone signed in is never refused, so visitors cannot hold up the household's downloads.
+ */
+export const ARCHIVE_VISITOR_ENTRIES = 50_000;
+
 export type ArchiveEntry = {
   /** The VFS path to read at download time. */
   path: NodePath;
@@ -43,16 +55,36 @@ export type ArchiveTicket = {
   expiresAt: number;
 };
 
-export class ArchiveTicketStore {
-  readonly #tickets = new Map<string, ArchiveTicket>();
+/** Who parked a ticket: the key its owner's tickets are counted by, and whether a visitor did. */
+type ArchiveOwner = { key: string; visitor: boolean };
 
-  /** Park a selection and return the token naming it. */
-  issue(entries: ArchiveEntry[], filename: string, now = Date.now()): { token: string; ticket: ArchiveTicket } {
+type Parked = ArchiveTicket & { owner: ArchiveOwner };
+
+export class ArchiveTicketStore {
+  /** In the order they were issued, so an owner's oldest comes first. */
+  readonly #tickets = new Map<string, Parked>();
+
+  /**
+   * Park a selection and return the token naming it, or undefined when visitors' tickets hold
+   * `ARCHIVE_VISITOR_ENTRIES` already and `owner` is a visitor.
+   */
+  issue(entries: ArchiveEntry[], filename: string, owner: ArchiveOwner, now = Date.now()): { token: string; ticket: ArchiveTicket } | undefined {
     this.#sweep(now);
+
+    const owned = [...this.#tickets].filter(([, parked]) => parked.owner.key === owner.key);
+    for (const [token] of owned.slice(0, Math.max(0, owned.length - ARCHIVE_TICKETS_PER_OWNER + 1))) {
+      this.#tickets.delete(token);
+    }
+
+    if (owner.visitor) {
+      let held = 0;
+      for (const parked of this.#tickets.values()) if (parked.owner.visitor) held += parked.entries.length;
+      if (held + entries.length > ARCHIVE_VISITOR_ENTRIES) return undefined;
+    }
 
     const token = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
     const ticket: ArchiveTicket = { entries, filename, expiresAt: now + ARCHIVE_TICKET_TTL_MS };
-    this.#tickets.set(token, ticket);
+    this.#tickets.set(token, { ...ticket, owner });
 
     return { token, ticket };
   }
@@ -66,7 +98,10 @@ export class ArchiveTicketStore {
    */
   get(token: string, now = Date.now()): ArchiveTicket | undefined {
     this.#sweep(now);
-    return this.#tickets.get(token);
+    const parked = this.#tickets.get(token);
+    if (!parked) return undefined;
+    const { owner: _, ...ticket } = parked;
+    return ticket;
   }
 
   /**

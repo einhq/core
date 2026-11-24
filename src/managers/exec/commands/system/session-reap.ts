@@ -10,7 +10,11 @@
  * with its process. Sessions get the same stamp when they are reachable only
  * through this process (an SSH channel, a WebSocket that could not hand its
  * client a cookie); a cookie-backed HTTP session deliberately has none, because
- * it is supposed to survive a restart, and is aged out on `expiresSec` instead.
+ * it is supposed to survive a restart, and is aged out on `expiresSec` instead,
+ * except a page's (`endsWithBoot`), which ends with the stream it shows.
+ *
+ * The guest's session, never signed in or signed out again, is collected
+ * minutes after its last request once no tty holds it: it holds nothing else.
  *
  * A session holding a live tty is never removed whatever its clock says — a
  * browser can sit on an interactive shell for a day without making a single
@@ -20,7 +24,7 @@
 
 import { join } from '@std/path';
 import { parseArgs } from '../../../../lib/args/mod.ts';
-import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
+import { ADMIN_ACCESS, isGuest, storedAccess } from '../../../../lib/access/mod.ts';
 import { BOOT_ID } from '../../../../lib/boot-id/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../../vfs/types/session.ts';
 import { NODE_TYPE_TTY, type TtyAttrs } from '../../../../vfs/types/tty.ts';
@@ -34,6 +38,12 @@ import type { CmdReturn } from '../../types.ts';
  * ago, so age is the only safe discriminator, and the default is generous.
  */
 const DEFAULT_STALE_MS = 24 * 3_600_000;
+
+/**
+ * How long the guest's session without a live tty is kept after its last request: long enough
+ * that a socket being opened for it has its tty by then.
+ */
+const GUEST_IDLE_MS = 10 * 60_000;
 
 /** Deletions per run, so a first pass over a large /var/sessions cannot monopolise the database. */
 const DEFAULT_MAX = 1000;
@@ -190,7 +200,17 @@ function isStale(attrs: SessionAttrs, now: number, staleMs: number): boolean {
     return attrs.bootId !== BOOT_ID;
   }
 
+  // A page's, whose stream ended with the process that served it.
+  if (attrs.endsWithBoot && attrs.endsWithBoot !== BOOT_ID) {
+    return true;
+  }
+
   const seen = attrs.lastActivity || attrs.createdAt || 0;
+
+  // The guest's session holds nothing but its shells, and its browser writes it again when a socket next opens.
+  if (isGuest(storedAccess(attrs.access))) {
+    return now - seen > GUEST_IDLE_MS;
+  }
 
   if (attrs.expiresSec) {
     return now - seen > attrs.expiresSec * 1000;

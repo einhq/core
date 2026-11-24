@@ -2,13 +2,14 @@
  * What `mod install` and `mod search` make of an address, a setting and a forge's answers.
  */
 
-import { assertEquals, assertRejects } from '@std/assert';
+import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert';
 import {
   fetchCommit,
   fetchRefs,
   ForgeError,
   listModuleRepositories,
   moduleNameOf,
+  parseInsecureHosts,
   parseInstallTarget,
   parseRefAdvertisement,
   parseRepository,
@@ -33,25 +34,52 @@ const advertisement = (lines: string[]): Uint8Array<ArrayBuffer> => new TextEnco
 
 Deno.test('a source is an organisation on GitHub, or on another host a Forgejo or Gitea', () => {
   assertEquals(parseSource('https://github.com/einhq'), { kind: 'github', origin: 'https://github.com', owner: 'einhq', url: 'https://github.com/einhq' });
-  assertEquals(parseSource('http://forge.example:3000/acme')?.kind, 'gitea');
+  assertEquals(parseSource('https://forge.example:3000/acme')?.kind, 'gitea');
   assertEquals(parseSource('https://github.com/einhq/module-archive'), undefined);
   assertEquals(parseSource('ssh://git@forge.example/acme'), undefined);
 
-  const { sources, problems } = parseSources('https://github.com/einhq/,  http://forge.example:3000/acme  nonsense');
-  assertEquals(sources.map((source) => source.url), ['https://github.com/einhq', 'http://forge.example:3000/acme']);
+  const { sources, problems } = parseSources('https://github.com/einhq/,  https://forge.example:3000/acme  nonsense');
+  assertEquals(sources.map((source) => source.url), ['https://github.com/einhq', 'https://forge.example:3000/acme']);
   assertEquals(problems.length, 1);
   assertEquals(parseSources('').sources, []);
 });
 
-Deno.test('a token is kept for its host, with the port', () => {
-  const tokens = parseTokens('Forge.Example:3000=abc github.com=xyz broken =nope');
-  assertEquals([...tokens], [['forge.example:3000', 'abc'], ['github.com', 'xyz']]);
+Deno.test('plain http is a source only on this machine, or on a host named insecure', () => {
+  assertEquals(parseSource('http://forge.example:3000/acme'), undefined);
+  assertEquals(parseSource('http://localhost:3000/acme')?.url, 'http://localhost:3000/acme');
+  assertEquals(parseSource('http://127.0.0.1:3000/acme')?.url, 'http://127.0.0.1:3000/acme');
+  assertEquals(parseSource('http://[::1]:3000/acme')?.url, 'http://[::1]:3000/acme');
+
+  const insecure = parseInsecureHosts('Forge.Example:3000, plain.example:80 nonsense/path');
+  assertEquals([...insecure], ['forge.example:3000', 'plain.example']);
+  assertEquals(parseSource('http://forge.example:3000/acme', insecure)?.url, 'http://forge.example:3000/acme');
+  assertEquals(parseSource('http://forge.example/acme', insecure), undefined);
+  assertEquals(parseSource('http://plain.example/acme', insecure)?.url, 'http://plain.example/acme');
+
+  const { sources, problems } = parseSources('http://forge.example:3000/acme https://github.com/einhq');
+  assertEquals(sources.map((source) => source.url), ['https://github.com/einhq']);
+  assertStringIncludes(problems[0], 'CFG_MODULE_SOURCES_INSECURE');
+
+  assertEquals(parseRepository('http://forge.example:3000/acme/module-x'), undefined);
+  assertEquals(parseRepository('http://forge.example:3000/acme/module-x', insecure)?.repository, 'http://forge.example:3000/acme/module-x');
+  const refused = parseInstallTarget('http://forge.example:3000/acme/module-x@main');
+  assertStringIncludes('error' in refused ? refused.error : '', 'plain http');
+});
+
+Deno.test('a token is kept for its origin: https unless it says http, with the port', () => {
+  const tokens = parseTokens('Forge.Example:3000=abc github.com=xyz https://code.example:443=def http://Forge.Example:3000=plain broken =nope a/b=c');
+  assertEquals([...tokens], [
+    ['https://forge.example:3000', 'abc'],
+    ['https://github.com', 'xyz'],
+    ['https://code.example', 'def'],
+    ['http://forge.example:3000', 'plain'],
+  ]);
 });
 
 Deno.test('a repository is named by its address, with or without .git, or as GitHub over ssh', () => {
   assertEquals(parseRepository('https://github.com/einhq/module-archive.git')?.repository, 'https://github.com/einhq/module-archive');
   assertEquals(parseRepository('git@github.com:einhq/module-ems.git')?.repository, 'https://github.com/einhq/module-ems');
-  assertEquals(parseRepository('http://forge.example:3000/acme/module-x/')?.repository, 'http://forge.example:3000/acme/module-x');
+  assertEquals(parseRepository('https://forge.example:3000/acme/module-x/')?.repository, 'https://forge.example:3000/acme/module-x');
   assertEquals(parseRepository('https://github.com/einhq'), undefined);
   assertEquals(moduleNameOf(parseRepository('https://github.com/einhq/module-archive')!), 'archive');
 });
@@ -154,11 +182,14 @@ Deno.test({
   try {
     const host = `127.0.0.1:${server.addr.port}`;
     const acme = parseSource(`http://${host}/acme`)!;
-    const tokens = parseTokens(`${host}=secret elsewhere.example=other`);
+    const tokens = parseTokens(`http://${host}=secret elsewhere.example=other`);
 
     assertEquals((await fetchRefs(repositoryOf(acme, 'module-x'), tokens)).head, A);
     assertEquals(seen.at(-1)?.authorization, 'token secret');
     await fetchRefs(repositoryOf(acme, 'module-x'), parseTokens('elsewhere.example=other'));
+    assertEquals(seen.at(-1)?.authorization, null);
+    // A token given for the host goes to it over https only.
+    await fetchRefs(repositoryOf(acme, 'module-x'), parseTokens(`${host}=secret`));
     assertEquals(seen.at(-1)?.authorization, null);
 
     // A commit's id cut short is asked of the API, and one no commit begins is none.

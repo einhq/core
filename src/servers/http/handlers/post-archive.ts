@@ -1,4 +1,5 @@
 import { basename } from '@std/path';
+import { isVisitor } from '../../../lib/access/mod.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
 import { NodeAccessDeniedError, NodeNotFoundError } from '../../../vfs/mod.ts';
 import { ARCHIVE_MAX_ENTRIES, ArchiveEntry, ArchiveTicketStore, uniqueEntryName } from '../archive-tickets.ts';
@@ -12,14 +13,15 @@ const ARCHIVE_BODY_LIMIT = 2 * 1024 * 1024;
 /**
  * POST /archive — park a list of paths and answer with the URL that downloads them as one zip.
  *
- * Body: `{ paths: string[], name?: string }`, at most 2 MB. Response: `{ url, filename, count, expiresAt }`.
+ * Body: `{ paths: string[], name?: string }`, at most 2 MB. Response: `{ url, filename, count, expiresAt }`;
+ * 503 when visitors' selections waiting fill what they may hold (`ARCHIVE_VISITOR_ENTRIES`).
  *
  * The paths are resolved here rather than at download time so a selection containing
  * something unreadable fails as a 403/404 the UI can show. A zip is streamed, so by the time
  * `get-archive` runs there is no status code left to fail with.
  */
-export async function handlePostArchive(config: HttpServerConfig, req: Request, tickets: ArchiveTicketStore): Promise<Response> {
-  const { responseHeaders, access } = await getSession(config, req.headers, { create: false });
+export async function handlePostArchive(config: HttpServerConfig, req: Request, tickets: ArchiveTicketStore, from: string | undefined): Promise<Response> {
+  const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: false });
   if (await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
 
   let body: unknown;
@@ -77,7 +79,13 @@ export async function handlePostArchive(config: HttpServerConfig, req: Request, 
     });
   }
 
-  const { token, ticket } = tickets.issue(entries, archiveFilename(request.name));
+  const visitor = isVisitor(access);
+  const issued = tickets.issue(entries, archiveFilename(request.name), { key: visitor ? `address ${from ?? ''}` : `session ${sessionPath}`, visitor });
+  if (!issued) {
+    responseHeaders.set('Retry-After', '300');
+    return new Response('too many downloads are waiting; try again in a few minutes', { status: 503, headers: responseHeaders });
+  }
+  const { token, ticket } = issued;
 
   return new Response(
     JSON.stringify({ url: `/archive/${token}`, filename: ticket.filename, count: entries.length, expiresAt: ticket.expiresAt }),

@@ -685,8 +685,9 @@ right corner, beside an open drawer and under it where it covers the page, and g
 selection bar is up. A timeline's rail ends above it (`--mrx-scrubber-bottom`).
 **The page's scrollbar is the shell's** (`PageScrollbar`, from the layout, drawn by `bindScrollbar` in
 [components/Layout/scrollbar.ts](../../src/builtin/ui/src/client/components/Layout/scrollbar.ts),
-which also draws a dialog's and the terminal's, inside xterm's element in the gutter xterm keeps
-for a bar). The page scrolls on
+which also draws a dialog's and the terminal's, inside xterm's scrollable element in the gutter
+xterm keeps for its own bar, which it replaces; the terminal's is a view of xterm's buffer, which
+scrolls by lines rather than as an element does). The page scrolls on
 `<html>` and the browser draws no bar for it, since one that comes and goes — with the page's
 length, a dialog's scroll lock, a time rail — changes the width of the page and of the top bar.
 The shell's bar is a thumb over the page's right edge, from the app header down and beside an open

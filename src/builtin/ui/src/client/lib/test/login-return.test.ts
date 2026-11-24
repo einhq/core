@@ -19,3 +19,18 @@ Deno.test('login return: a next that leaves the site or loops back to login goes
     assertEquals(returnFrom(`/login?next=${encodeURIComponent(next)}`), '/', next);
   }
 });
+
+Deno.test('login return: a next the browser would read as another site goes to the dashboard', () => {
+  // The URL parser drops tabs and newlines and reads `\` as `/`; dot segments can leave `//` behind.
+  for (const next of ['/\t/evil.example', '/\n/evil.example', '/\r\\evil.example', '/\t\\evil.example', '/.//evil.example', '/a/..//evil.example', '/%2e//evil.example']) {
+    const path = returnFrom(`/login?next=${encodeURIComponent(next)}`);
+    assertEquals(path, '/', JSON.stringify(next));
+    assertEquals(new URL(path, 'https://ein.test').host, 'ein.test');
+  }
+});
+
+Deno.test('login return: a path is returned as the browser resolves it', () => {
+  assertEquals(returnFrom(`/login?next=${encodeURIComponent('/albums/./Sommar')}`), '/albums/Sommar');
+  assertEquals(returnFrom(`/login?next=${encodeURIComponent('/a\\b')}`), '/a/b');
+  assertEquals(returnFrom(`/login?next=${encodeURIComponent('/\tlogin')}`), '/');
+});

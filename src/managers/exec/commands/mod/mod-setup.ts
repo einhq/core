@@ -232,8 +232,11 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
     }
   }
 
-  // 3. Register services
+  // 3. Register services. One registered for the first time is enabled; one already registered keeps
+  // the enabled flag it has, so a service an administrator disabled stays disabled at the next boot.
   const servicesPath = join(modulePath, 'services');
+  const registeredServicesPath = join(cmd.env.SERVICES_PATH || SERVICES_PATH, 'available');
+  const wrapperRoot = join(cmd.env.ETC_PATH, 'service-scripts');
   const currentServiceNames = new Set<string>();
   if (await cmd.sys.vfs.exists(cmd.access, servicesPath)) {
     const children = await cmd.sys.vfs.children(cmd.access, servicesPath);
@@ -242,42 +245,26 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
       const servicePath = join(servicesPath, child.name);
       const serviceName = child.name;
       currentServiceNames.add(serviceName);
+      const known = await cmd.sys.vfs.exists(cmd.access, join(registeredServicesPath, serviceName), { follow: false });
 
       // `service add` takes a directory with a start.sh; a single script is wrapped in one.
-      if (child.node.type === NODE_TYPE_DIRECTORY) {
-        const res = await cmd.execute(
-          `service add ${serviceName} ${servicePath}`,
-        );
+      let add = `service add ${serviceName} ${servicePath}`;
+      if (child.node.type !== NODE_TYPE_DIRECTORY) {
+        const wrapperDir = join(wrapperRoot, serviceName);
+        add = `mkdir -p ${wrapperDir} && ln -sf ${servicePath} ${wrapperDir}/start.sh && service add ${serviceName} ${wrapperDir}`;
+      }
+      const res = await cmd.execute(add);
+      if (res.code !== 0) {
+        await fail(`service add ${serviceName}: ${res.stderr}`);
+        continue;
+      }
+      if (known) continue;
 
-        if (res.code !== 0) {
-          await fail(`service add ${serviceName}: ${res.stderr}`);
-        } else {
-          const enabled = await cmd.execute(`service enable ${serviceName}`);
-          if (enabled.code !== 0) {
-            await fail(`service enable ${serviceName}: ${enabled.stderr}`);
-          } else if (!cmd.json) {
-            await cmd.write(`  Enabled service '${serviceName}'\n`);
-          }
-        }
-      } else {
-        const wrapperDir = join(
-          cmd.env.ETC_PATH,
-          'service-scripts',
-          serviceName,
-        );
-        const res = await cmd.execute(
-          `mkdir -p ${wrapperDir} && ln -sf ${servicePath} ${wrapperDir}/start.sh && service add ${serviceName} ${wrapperDir}`,
-        );
-        if (res.code !== 0) {
-          await fail(`service add ${serviceName}: ${res.stderr}`);
-        } else {
-          const enabled = await cmd.execute(`service enable ${serviceName}`);
-          if (enabled.code !== 0) {
-            await fail(`service enable ${serviceName}: ${enabled.stderr}`);
-          } else if (!cmd.json) {
-            await cmd.write(`  Added and enabled service '${serviceName}'\n`);
-          }
-        }
+      const enabled = await cmd.execute(`service enable ${serviceName}`);
+      if (enabled.code !== 0) {
+        await fail(`service enable ${serviceName}: ${enabled.stderr}`);
+      } else if (!cmd.json) {
+        await cmd.write(`  Added and enabled service '${serviceName}'\n`);
       }
     }
   }
@@ -287,8 +274,6 @@ export const setupOne = async (cmd: Command, name: string): Promise<number> => {
   // the module does not ship any more is retired, or every boot would try to start it. Only
   // services owned by this module are retired; one an operator registered with `service add` is
   // not ours to touch.
-  const registeredServicesPath = join(cmd.env.SERVICES_PATH || SERVICES_PATH, 'available');
-  const wrapperRoot = join(cmd.env.ETC_PATH, 'service-scripts');
   if (await cmd.sys.vfs.exists(cmd.access, registeredServicesPath)) {
     const registered = await cmd.sys.vfs.children(cmd.access, registeredServicesPath, { readlink: true });
     for (const service of registered) {

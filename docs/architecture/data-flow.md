@@ -286,6 +286,16 @@ backlog now lives in the layer that can order it, instead of in the one that can
 creating an instance is a handful of node writes, and doing that inline made
 _announcing_ work as expensive as _scheduling_ it.
 
+**A subject renamed before its run follows its new name.** An upload to a temporary name,
+renamed when done (FolderSync's `<name>.tacitpart`, an SFTP client's `<name>.filepart`), is
+announced at both paths under one dedup key. The re-add carries `replaceParamsOn: 'triggerPath'`,
+so a job still waiting takes the newer announcement's params; a re-add at the same path writes
+nothing, as before. When the run for the temporary path already exists, `createInstance` finds
+it live with its subject gone from its path, advances it (which cancels it) and replaces it with
+the run at the new path (`removePriorInstance`). A trigger job already claimed when the rename lands, being made into a run at the old path, is
+not changed by a re-add: the engine notes the announcement and enqueues it again once that job
+has ended (`enqueueAfterClaimed`), which on an engine with nothing queued is the usual case.
+
 `CFG_PIPELINE_ENTRY_ADMISSION_PERCENT` optionally reserves a percentage of these claims for
 definitions declaring `options.entryPoint`. It uses fractional credit rather than a burst, so
 60 produces three reserved probes in each five-claim window while entry work exists. A reserved
@@ -776,7 +786,9 @@ trigger for `(pipeline, triggerPath)` is skipped if the node's single instance i
 instance is marked completed; the grace covers async emission and clock skew). An
 independent change _after_ the window (the user edits the file later) is past the window
 and starts a fresh run (replacing the prior instance, via one-per-node). This is
-`isSelfInflictedTrigger` in the engine — it replaces the old "skip while running" dedup and
+`isSelfInflictedTrigger` in the engine. A trigger at another path than the instance's is
+never self-inflicted while the instance is live or after it was cancelled: the subject moved
+away from that run, which cannot reach it. This check replaces the old "skip while running" dedup and
 means pipelines no longer need a per-pipeline marker node to avoid re-triggering
 themselves. (Pipelines may still use a `skipIf` marker for a _different_ purpose — declining
 expensive re-work on a legitimate external re-trigger — but that is an author policy choice,
@@ -790,7 +802,9 @@ instance, the next 999 land while it runs, and dropping them leaves the album st
 moment the run ends. A definition that sets `coalesce: rerun` skips the self-inflicted check
 (and its grace window) and, once a trigger has passed the guards, `admitTrigger` either
 enqueues it or — when the subject's instance is live — writes it onto that instance as
-`rerun` (`PendingRerun`: the event, vars and priority) and stops. When the instance goes
+`rerun` (`PendingRerun`: the event, vars and priority) and stops — unless the instance is for
+the subject at another path, which it can no longer reach; then the trigger is enqueued and
+its run replaces that one. When the instance goes
 terminal, `rerunIfRequested` re-announces the subject from that record, so every arrival
 during a run is one further run. Both sides re-read after writing so the race between a fold
 and a completion cannot lose the trigger; at worst both enqueue and the pool's dedup makes it

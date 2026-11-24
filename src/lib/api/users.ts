@@ -295,12 +295,16 @@ export type ModuleInstallResult = {
  */
 export type ModuleInstallStatus = { install: ModuleInstallJob | null };
 
-/** One `mod install`, as EiN runs it apart from the session that asked for it. */
+/**
+ * One `mod install`, as EiN runs it apart from the session that asked for it. Anyone but the
+ * administrator is told only how it stands and which modules it put in place: not what it was
+ * asked, who asked, what it said, where the modules came from or why it failed.
+ */
 export type ModuleInstallJob = {
   id: string;
-  /** What it was asked: `mod install`'s arguments. */
+  /** What it was asked: `mod install`'s arguments; empty for anyone but the administrator. */
   args: string[];
-  /** Who asked, by account name. */
+  /** Who asked, by account name; empty for anyone but the administrator. */
   by: string;
   /** When it started, and when it finished, as ISO times. */
   startedAt: string;
@@ -308,10 +312,12 @@ export type ModuleInstallJob = {
   state: 'running' | 'done' | 'failed';
   /** The module it is unpacking now, and how many of its files are in place. */
   unpacking?: { module: string; files: number };
-  /** The last lines it said, its errors among them, in order. */
+  /** The last lines it said, its errors among them, in order; none for anyone but the administrator. */
   lines: { text: string; error?: boolean }[];
-  /** What it came to, once it has finished. */
+  /** What it came to, once it has finished; the administrator's only. */
   result?: ModuleInstallResult;
+  /** The modules it put in place, once it has finished. */
+  installed?: Pick<InstalledModule, 'name' | 'version' | 'updated'>[];
 };
 
 /** One module `mod install` put in place. */

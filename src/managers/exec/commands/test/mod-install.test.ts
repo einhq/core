@@ -193,7 +193,7 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals(refused.success, false);
       assertStringIncludes(refused.error ?? '', 'CFG_MODULE_SOURCES_KEY');
 
-      await client.execString(`config set CFG_MODULE_SOURCES_KEY '${forge.host}=let-me-in'`);
+      await client.execString(`config set CFG_MODULE_SOURCES_KEY 'http://${forge.host}=let-me-in'`);
       const allowed = await install('secret');
       assert(allowed.success, allowed.error);
       assertEquals(await run('$MOD_PATH/secret/bin/secret'), 'secret');
@@ -318,6 +318,8 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
 
     await t.step('an install goes on without the session that asked for it, one at a time, and mod status says how it stands', async () => {
       await forge.publish('acme', 'module-slow', moduleFiles('slow', '1.0.0', 'slow'));
+      await client.exec('user-create mona && user-passwd mona --new-password secret1');
+      const member = await testCtx.server.createShellClient({ username: 'mona', password: 'secret1' });
       // Left by an install EiN stopped in the middle of: the next one clears it away.
       await client.execString('mkdir $MOD_INSTALL_PATH/.staging-left');
       const archive = Promise.withResolvers<void>();
@@ -331,6 +333,15 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       } while (status.install?.args.join(' ') !== 'slow' || status.install.state !== 'running');
       asker.close();
       await asked;
+      // A member is told that it runs, not what it was asked, who asked or what it says.
+      const seen = await member.execJson<ModuleInstallStatus>('mod status');
+      assertEquals([seen.install?.id, seen.install?.state, seen.install?.args, seen.install?.by, seen.install?.lines], [
+        status.install.id,
+        'running',
+        [],
+        '',
+        [],
+      ]);
 
       const other = await install('greet');
       assertEquals(other.success, false);
@@ -346,7 +357,14 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assertEquals(await run('$MOD_PATH/slow/bin/slow'), 'slow');
       assertEquals(await hidden('$MOD_INSTALL_PATH'), []);
       assertStringIncludes(await run('mod status'), 'mod install slow: done');
-      await client.execString('mod-remove --force slow');
+      const outline = (await member.execJson<ModuleInstallStatus>('mod status')).install;
+      assertEquals([outline?.result, outline?.installed], [undefined, [{ name: 'slow', version: '1.0.0', updated: false }]]);
+      const told = (await member.execString('JSON_OUTPUT=0 mod status')).trim();
+      assertStringIncludes(told, 'A module install: done');
+      assertStringIncludes(told, 'Installed slow 1.0.0');
+      assertEquals(told.includes('acme') || told.includes('admin'), false);
+      member.close();
+      await client.execString('mod-remove --force slow && user-delete mona');
     });
 
     await t.step("an update of a module's pages alone leaves its services running, and one of its commands does not", async () => {
