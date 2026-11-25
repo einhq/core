@@ -21,7 +21,7 @@ import { createLogger } from '../../managers/logger/mod.ts';
 import type { WritesWithOptions } from '../../registries/types.ts';
 import { type ResourceMode, ResourceSeekMode } from '../../registries/types.ts';
 import type { Node, NodeVFS } from '../../vfs/mod.ts';
-import { isLoggedDownload, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError, recordAccess } from '../../vfs/mod.ts';
+import { isLoggedDownload, MODE_BITS, NodeAccessDeniedError, NodeFrozenError, NodeNotFoundError, recordAccess } from '../../vfs/mod.ts';
 import { contentTime, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
 import { isStreamWriter } from '../../registries/stream/types.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
@@ -1346,8 +1346,9 @@ export class SFTPHandler {
 
     const updates: Record<string, unknown> = {};
 
+    // A client's setuid and setgid bits are dropped, as EiN has neither; the file type bits too.
     if (attrs.mode !== undefined) {
-      updates.mode = (attrs.mode as number) & 0o7777;
+      updates.mode = (attrs.mode as number) & MODE_BITS;
     }
     if (attrs.uid !== undefined) {
       updates.uid = attrs.uid;

@@ -2,13 +2,14 @@ import { Alert, Box, Container, Text } from '@mantine/core';
 import type { EventEntry, NewsEntry, OnThisDayEntry } from '@ein/api';
 import { EntityDetailHeader, TablerIcon } from '@ein/ui/components';
 import { useCommand, useLocalDay } from '@ein/ui/hooks';
+import { AdminNotice } from '../components/Notice/AdminNotice.tsx';
 import { HomeEvents } from '../components/Home/HomeEvents.tsx';
 import { HomeNews } from '../components/Home/HomeNews.tsx';
 import { HomeOnThisDay } from '../components/Home/HomeOnThisDay.tsx';
 
 /**
- * The page at `/`, edge to edge: the header band every listing page has, then this day in
- * earlier years, and under it news in the wider column with events beside it.
+ * The page at `/`, edge to edge: the header band every listing page has, the administrator's note
+ * when there is one, then this day in earlier years, and under it news in the wider column with events beside it.
  *
  * Core names no module here. Each section is one core command gathering what the modules'
  * providers answer (`onthisday`, `news`, `events`; see `@ein/api`'s feeds), and each entry is
@@ -36,6 +37,7 @@ export default function HomePage() {
       />
 
       <Container px='md' py='md'>
+        <AdminNotice className='mrx-home-notice' />
         {errors.map(([section, error]) =>
           error && (
             <Alert key={section} mb='md' color='red' variant='light' icon={<TablerIcon name='alert-triangle' size={16} />}>

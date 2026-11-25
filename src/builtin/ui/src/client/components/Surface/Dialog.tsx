@@ -1,6 +1,6 @@
 import { Box, Modal, type ModalProps, useMantineTheme } from '@mantine/core';
 import { useSignals } from '@preact/signals-react/runtime';
-import { type CSSProperties, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { usePhone } from '../../hooks/usePhone.ts';
 import { SurfaceContext } from '../../hooks/useSurface.ts';
 import { navigatePage, onPageChange, pageLocation, pageNavigating } from '../../signals/module-ui.ts';
@@ -191,6 +191,13 @@ export function useBackCloses(active: boolean, onClose: () => void) {
  * On a phone it fills the screen, unless `floating`, and its buttons and fields are larger to
  * touch, with 16 px text in a field, which a phone's browser otherwise zooms in on, and Back
  * closes it (`useBackCloses`).
+ *
+ * Escape closes it and goes no further. Mantine closes a modal from a listener on the window, before
+ * the key reaches anything, and the page under the dialog then hears the key after the dialog has
+ * already told it it was closed: the lightbox closed too. So the dialog takes the key itself, from
+ * its own content, and stops it there, below the document where the page's hotkeys listen. A key
+ * from outside its content (a dropdown portalled out of it, a dialog it opened) is left to that, and
+ * one a field keeps for itself (`data-mantine-stop-propagation`, a combobox whose list is open) too.
  */
 export function Dialog(
   {
@@ -228,12 +235,24 @@ export function Dialog(
   if (props.opened && !fullscreenUp && !openBeforeFullscreen) setOpenBeforeFullscreen(true);
   if (!props.opened && openBeforeFullscreen) setOpenBeforeFullscreen(false);
   const underFullscreen = fullscreenUp && openBeforeFullscreen && surface?.kind !== 'fullscreen';
+  const closeOnEscape = !underFullscreen && (props.closeOnEscape ?? true);
   return (
     <Modal
       centered
       {...props}
       zIndex={underFullscreen ? UNDER_FULLSCREEN_Z : props.zIndex}
-      closeOnEscape={!underFullscreen && (props.closeOnEscape ?? true)}
+      closeOnEscape={false}
+      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        props.onKeyDown?.(event);
+        const target = event.target as Element;
+        if (
+          !closeOnEscape || event.defaultPrevented || event.key !== 'Escape' || event.nativeEvent.isComposing ||
+          !event.currentTarget.contains(target) || target.getAttribute?.('data-mantine-stop-propagation') === 'true'
+        ) return;
+        event.stopPropagation();
+        event.preventDefault();
+        props.onClose();
+      }}
       size={size === 'screen' ? '100%' : typeof size === 'string' && size in SIZES ? SIZES[size as keyof typeof SIZES] : size}
       xOffset={size === 'screen' ? 'var(--mantine-spacing-xl)' : props.xOffset}
       yOffset={size === 'screen' ? 'var(--mantine-spacing-xl)' : props.yOffset}

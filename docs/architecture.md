@@ -884,9 +884,9 @@ lifts a bulk trigger job still waiting into the normal lane, and the run is in t
 trigger job is in when it is claimed, not in the first announcement's. `pipeline heal` keeps a
 run's lane; `pipeline rerun` and `pipeline start`, a person's asks, run in the normal lane.
 
-Core never decides a lane. The archive's bridge does, per fact, from the staging category the
-fact's subject is in (a category's `lane` setting; `staging category <c> --lane bulk`), and
-`media-scan` stamps its facts the same way ([modules.md](architecture/modules.md#staging)).
+Core never decides a lane. The archive's bridge does, per fact, from the folders above the fact's
+subject (a folder whose `lane` attr is `bulk`), and `media-scan` stamps its facts the same way
+([modules.md](architecture/modules.md#staging)).
 
 ---
 
@@ -1100,7 +1100,20 @@ created, and any flag it does not know.
 **Changing an owner.** As on Linux, only an administrator gives a node to another user, and anyone
 else may put it only in a group they are in (`assertOwnershipAllowed`, in `LocalNodeVFS.update` and `updateMany` and
 for the props of every create); write access is still needed as before. Without it a user could
-make what they wrote read as someone else's, or file it in a group they are not in. The default
+make what they wrote read as someone else's, or file it in a group they are not in.
+
+**Changing a mode.** Write on a node is enough to change its group's and everyone's bits and its
+access list, which is how **Can edit** shares a node further. Its owner's bits and the sticky bit
+are its owner's or an administrator's to change (`assertModeAllowed`, beside `assertOwnershipAllowed`):
+someone else could otherwise take the owner's write away and lock them out, or take the sticky bit
+off a folder to remove what others keep in it. EiN has no setuid or setgid bit: the VFS clears both
+from every mode it creates or updates with (`withoutSetid`), a host file's included, and `chmod`
+refuses a mode that names them. The access walk (`applySubtree`) gives a node below the root
+that someone else owns the mode asked for with its own owner's bits and sticky bit, so an editor's
+`chmod -r` or `share-set` reaches the group's and everyone's bits of a subtree of other people's
+nodes; the root, which the caller named, is refused instead.
+
+The default
 sharing — what anything created as shared starts with — is an owner, a group and a mode
 (`CFG_DEFAULT_SHARE_OWNER`/`GROUP`/`MODE`) resolved by `resolveDefaultOwnership`, and a setting no
 file holds takes the default `options.ts` declares, so an unset group is `users`, as `config get`
@@ -1132,7 +1145,9 @@ a redirection or a file test finds no file there, a glob matches nothing, and th
 `vfs.*` and `log.*` messages answer `sign in first`; only the shell's own bashrc runs as before.
 `GET /file`, `POST /archive` and `GET /archive` answer it 401 (`refusesGuest`), and `POST /checksums`
 does even where visitors may browse,
-while `get-default` still serves it the site's own pages (`site`). The Web UI sends it to sign in
+while `get-default` still serves it the site's own pages (`site`), and `GET /file` the modules'
+pages under `/var/cache/ui` (`ui-build`'s bundles and manifest), which a page open to anyone loads.
+The Web UI sends it to sign in
 (`user-whoami` tells it `guestBrowsing`; see [UI](architecture/ui.md#signing-in-and-the-guest)),
 and the assistant's language model serves neither it nor a link's visitor (`mayUseModel`).
 
@@ -1263,7 +1278,9 @@ device says of itself into its `battery`, `charging` and `activity` logs), `webh
 `/dev/<hostname>`, in the administrators' group, whose readings `metrics-sampler` writes through
 `host.ts`) or a module's, registered by the module's service with
 `cmd.sys.devices.registerDriver` (`@ein/client`'s `Driver`). The VFS hands what is written to a
-device to `DeviceManager.input`, its driver's `input`, and what is written to a control to
+device to `DeviceManager.input`, its driver's `input`, whose answer (`DriverAnswer`) the writer is
+given, `reply` included, what the driver says back to a device that talks with it this way (a
+browser display posts what it plays and is answered what to play next), and what is written to a control to
 `DeviceManager.command`, which checks it against the control's `schema`, records it as the
 control's `requested` (the audit's record of who switched what) and awaits the driver's `write`;
 the writer hears the driver's answer from its close. A control's states are the device's reports,
@@ -1839,6 +1856,18 @@ holding a share link — a screen showing a dashboard, which is rarely reloaded 
 `CFG_LINK_SESSION_EXPIRES_SEC` (30 days) for both: `share-link open --session` stamps it as the
 session's `expiresSec`, and its cookie's `Max-Age` is that, or what is left of the link's own time,
 whichever is shorter.
+
+Over HTTPS the cookie is named `__Host-<COOKIE_NAME>`, and only that name is read: the browser keeps
+a `__Host-` cookie only from this very host over HTTPS, with `Path=/` and no `Domain`, so a sibling
+subdomain cannot toss one in. Over plain HTTP anything on the host or the network can set the plain
+name, so a sign-in does not trust the cookie it finds. `login --session`, `logout --session` and
+`user-elevate [--off] --session` give the session a new secret (`renewSessionSecret`), under the same
+name, and answer with a one-time `handover` token; the page posts it to `POST /__session`
+(`{ "handover": "<token>" }`, within a minute, once), which writes the cookie of the new secret.
+Whoever planted the old cookie in the browser holds a secret that matches nothing from then on, and
+the token reached only the socket that signed in. Secrets and tokens are compared in constant time
+(`sameToken`). A `login --session` typed in a terminal changes the secret too, and its page, which
+takes up no token, is sent to the login page at its next check.
 
 The shell is a single-page app, so moving between its pages loads no document. It asks
 `GET /__session` instead (`signals/session-check.ts`), at most once a minute while someone is signed in:

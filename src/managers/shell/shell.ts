@@ -86,7 +86,7 @@ import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
 import { NODE_TYPE_NULL } from '../../vfs/types/null.ts';
 import { NODE_TYPE_SOFTLINK } from '../../vfs/types/softlink.ts';
 import { FileAttrs, NODE_TYPE_FILE } from '../../vfs/types/file.ts';
-import { isSessionNode, SessionAttrs } from '../../vfs/types/session.ts';
+import { isSessionNode, renewSessionSecret, SessionAttrs } from '../../vfs/types/session.ts';
 import { NODE_TYPE_TTY, TtyAttrs } from '../../vfs/types/tty.ts';
 import { isUserNode, loginRefusal, UserAttrs } from '../../vfs/types/user.ts';
 import { lookupCommandPath } from './command-lookup.ts';
@@ -1248,13 +1248,14 @@ export class Shell implements TtyIf {
   /**
    * Sign this shell in as the account `typed` names, by username or e-mail address, with its
    * password (`passwordSignIn`), from the fixed layout and `launchEnv` rather than this shell's
-   * environment, which whoever is at the shell can change; `session` also makes the sign-in the session's.
+   * environment, which whoever is at the shell can change; `session` also makes the sign-in the session's,
+   * under a new secret, and returns the token that hands it to the browser (`renewSessionSecret`).
    */
   async login(
     typed: string,
     password: string,
     session?: boolean,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     let account;
     try {
       account = await passwordSignIn(this.config.vfs, typed, password, { env: this.launchEnv, from: this.from });
@@ -1291,11 +1292,13 @@ export class Shell implements TtyIf {
         ADMIN_ACCESS,
         this.config.sessionPath,
       );
+      const renewed = renewSessionSecret();
       await this.config.vfs.update<SessionAttrs>(
         ADMIN_ACCESS,
         this.config.sessionPath,
         {
           attrs: {
+            ...renewed,
             lastActivity: Date.now(),
             access: this.access,
             env: {
@@ -1309,6 +1312,7 @@ export class Shell implements TtyIf {
           },
         },
       );
+      return renewed.handover!.token;
     }
   }
 
@@ -1358,9 +1362,10 @@ export class Shell implements TtyIf {
    * session's too, with every shell of the session, so the pages and terminals it opens from then
    * on are elevated as well. The account must still be allowed to sign in and be in the `sudo`
    * group now — not as it was when it signed in — and `password` must be its own, tried no faster
-   * than `signInThrottle` lets a sign-in be.
+   * than `signInThrottle` lets a sign-in be. With `session` it returns the token that hands the
+   * session's new secret to the browser, as `login` does.
    */
-  async elevate(password: string, session?: boolean): Promise<void> {
+  async elevate(password: string, session?: boolean): Promise<string | undefined> {
     const access = this.access!;
     if (isVisitor(access)) throw new Error('sign in first');
     if (isAdmin(access) && access.elevated !== true) throw new Error('already an administrator');
@@ -1379,38 +1384,44 @@ export class Shell implements TtyIf {
       await this.recordAccess({ event: 'elevate-failed', reason: error instanceof Error ? error.message : String(error) });
       throw error;
     }
-    await this.setElevated(true, session);
+    const handover = await this.setElevated(true, session);
     await this.recordAccess({ event: 'elevate' });
     logger.info('sign-in elevated', { tty: this.name, uid: access.uid, session: session === true });
+    return handover;
   }
 
   /** Make this shell's sign-in, and with `session` its session's and every shell of it, no longer an administrator's. */
-  async unelevate(session?: boolean): Promise<void> {
-    await this.setElevated(false, session);
+  async unelevate(session?: boolean): Promise<string | undefined> {
+    return await this.setElevated(false, session);
   }
 
   /**
    * Set or clear `elevated` on this shell's access and, with `session`, on its session's and every
    * other shell of the session acting as the same account. The session must be signed in as that
-   * account: elevating it is no way to sign it in.
+   * account: elevating it is no way to sign it in. With `session` the session gets a new secret, whose
+   * handover token it returns.
    */
-  private async setElevated(on: boolean, session?: boolean): Promise<void> {
+  private async setElevated(on: boolean, session?: boolean): Promise<string | undefined> {
     const { uid } = this.access!;
     const shells = new Set<Shell>([this]);
+    let handover: string | undefined;
     if (session) {
       const sessionNode = await this.config.vfs.get<SessionAttrs>(ADMIN_ACCESS, this.config.sessionPath);
       if (!isSessionNode(sessionNode) || sessionNode.attrs.access?.uid !== uid) {
         throw new Error('the session is not signed in as this account');
       }
       const { elevated: _, ...access } = sessionNode.attrs.access;
+      const renewed = renewSessionSecret();
+      handover = renewed.handover!.token;
       await this.config.vfs.update<SessionAttrs>(ADMIN_ACCESS, this.config.sessionPath, {
-        attrs: { lastActivity: Date.now(), access: on ? { ...access, elevated: true } : access },
+        attrs: { ...renewed, lastActivity: Date.now(), access: on ? { ...access, elevated: true } : access },
       });
       for (const shell of liveShells) {
         if (shell.config.sessionPath === this.config.sessionPath && shell.access?.uid === uid) shells.add(shell);
       }
     }
     for (const shell of shells) await shell.markElevated(on);
+    return handover;
   }
 
   /**
@@ -1424,7 +1435,11 @@ export class Shell implements TtyIf {
     await this.persist();
   }
 
-  async logout(session?: boolean): Promise<void> {
+  /**
+   * Sign this shell out, back to the guest, and with `session` its session too, under a new secret
+   * whose handover token it returns, as `login` does.
+   */
+  async logout(session?: boolean): Promise<string | undefined> {
     // Recorded as whoever is signing out, before the access is the guest's.
     if (this.access && !isVisitor(this.access)) await this.recordAccess({ event: 'sign-out' });
 
@@ -1449,11 +1464,13 @@ export class Shell implements TtyIf {
         ADMIN_ACCESS,
         this.config.sessionPath,
       );
+      const renewed = renewSessionSecret();
       await this.config.vfs.update<SessionAttrs>(
         ADMIN_ACCESS,
         this.config.sessionPath,
         {
           attrs: {
+            ...renewed,
             lastActivity: Date.now(),
             access: this.access,
             env: {
@@ -1467,6 +1484,7 @@ export class Shell implements TtyIf {
           },
         },
       );
+      return renewed.handover!.token;
     }
   }
 

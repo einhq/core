@@ -11,7 +11,7 @@ import { handleDevWrite } from './handlers/dev-write.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
 import { handleGetFile, ticketPreflight } from './handlers/get-file.ts';
-import { handleGetSession } from './handlers/get-session.ts';
+import { handleGetSession, handlePostSession } from './handlers/get-session.ts';
 import { handleGetShell } from './handlers/get-shell.ts';
 import { handleLive } from './handlers/live.ts';
 import { handlePageSignIn } from './handlers/page-sign-in.ts';
@@ -87,6 +87,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetShell({ ...config, interactiveTerminals, sockets }, req, url, info.remoteAddr);
       } else if (url.pathname === '/__session' && req.method === 'GET') {
         return await handleGetSession(config, req);
+      } else if (url.pathname === '/__session' && req.method === 'POST') {
+        return await handlePostSession(config, req);
       } else if (url.pathname.startsWith('/__page/') && req.method === 'GET') {
         return await handlePageSignIn(config, req, url);
       } else if (url.pathname === '/__app/pair' && req.method === 'POST') {

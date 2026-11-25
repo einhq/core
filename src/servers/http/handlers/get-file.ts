@@ -5,6 +5,7 @@ import type { AccessVia } from '../../../lib/api/mod.ts';
 import { type Node, type NodeEntry, NodeNotFoundError } from '../../../vfs/mod.ts';
 import { NODE_TYPE_STREAM } from '../../../vfs/types/stream.ts';
 import { FileAttrs } from '../../../vfs/types/file.ts';
+import { UI_CACHE_PATH } from '../../../builtin/ui/lib/ui-cache.ts';
 import type { DownloadLog } from '../download-log.ts';
 import { getSession, refusesGuest } from '../session.ts';
 import { HttpServerConfig } from '../types.ts';
@@ -23,7 +24,9 @@ type GetFileOptions = {
   createSession?: boolean;
   /**
    * The site's own pages, which `get-default` serves: the sign-in page among them, so the guest
-   * reads them whether or not visitors may browse.
+   * reads them whether or not visitors may browse. The modules' pages, `ui-build`'s bundles and
+   * manifest under `/var/cache/ui`, are the site's too: a page open to anyone, such as a browser
+   * display's, is one of them.
    */
   site?: boolean;
   /** Where a read of an original is recorded as a download, with the client's address. */
@@ -51,12 +54,13 @@ const FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; media-sr
 /**
  * What a page of the site, the shell among them, may load: scripts from EiN itself and Google's Cast
  * sender (cast-sender.ts loads it from www.gstatic.com), so injected markup runs nothing, and only
- * EiN's own pages may frame it. Pictures may come from anywhere, since a map's tiles come from
+ * EiN's own pages may frame it. `'wasm-unsafe-eval'` lets a module's page compile WebAssembly (Doom
+ * does) without letting any script `eval` text. Pictures may come from anywhere, since a map's tiles come from
  * whatever server its layer names; styles may be inline, as Mantine writes them.
  */
 const PAGE_POLICY = [
   "default-src 'self'",
-  "script-src 'self' https://www.gstatic.com",
+  "script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com",
   "style-src 'self' 'unsafe-inline'",
   'img-src * data: blob:',
   "media-src 'self' blob:",
@@ -118,7 +122,8 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   const ticket = url.searchParams.get('ticket');
   if (ticket !== null) return await ticketFile(config, req, url, vfsPath, ticket);
   const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
-  if (!opts.site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
+  const site = opts.site || vfsPath.startsWith(`${UI_CACHE_PATH}/`);
+  if (!site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
   return await serveFile(config, req, vfsPath, access, responseHeaders, { ...opts, sessionPath, original: url.searchParams.has('original') });
 }
 

@@ -5,4 +5,5 @@ export * from './PageBar.tsx';
 export { HatField, type HatPattern } from './HatField.tsx';
 export { HatGround } from './HatGround.tsx';
 export * from './HeaderStats.tsx';
+export { HeaderTrail } from './HeaderTrail.tsx';
 export type { PageAction, PageActions } from './HeaderActions.tsx';

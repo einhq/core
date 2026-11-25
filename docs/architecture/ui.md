@@ -26,6 +26,10 @@ sequenceDiagram
     S-->>C: re-render
 ```
 
+A sign-in, a sign-out and an elevation (`signals/user.ts`) then post the answer's `handover` token
+to `POST /__session`, which writes the cookie of the session's new secret (see
+[The session cookie](../architecture.md#the-session-cookie)), before the page loads again.
+
 File I/O bypasses the shell and goes directly to the REST endpoints: `GET /file/<path>` to read, `PUT /file/<path>` to write a path (the code editor's save), and `POST /file/<dir>/?name=` for a single small file sent at once (a picture to search with), which never replaces a file — a taken name is stored as `name (2).ext` and the answer's `path` says where. The upload queue sends in pieces instead, below.
 
 ### Uploads
@@ -141,7 +145,8 @@ resolves the layers for the reader and the shell loads its answer before it draw
     { "id": "archive.create-album", "parent": "ui.create", "title": "Album", "icon": "photo", "color": "blue", "action": { "dialog": "/albums/new" } }
   ],
   "panels": [{ "id": "archive.duplicates", "slot": "nodes.tools", "label": "Duplicates", "icon": "copy", "route": "/duplicates?path={path}" }],
-  "layers": [{ "id": "ui.map", "label": "Map", "order": 10, "tiles": [{ "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "options": { "maxZoom": 19 } }] }],
+  "styles": [{ "id": "ui.map", "label": "Map", "order": 10, "tiles": [{ "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "options": { "maxZoom": 19 } }] }],
+  "layers": [{ "id": "archive.tracks", "label": "Tracks", "icon": "route", "route": "/map-layers/archive/tracks", "on": true }],
   "hide": ["archive.albums"]
 }
 ```
@@ -184,14 +189,33 @@ page's own loader and error would not fit, as in a list of entries, `loading` an
 what stands in for the route while it loads and if it fails. A panel's route must not share its
 first segment with the pages it links to, or the link opens inside the panel.
 
-A **map layer** is a base layer every map offers in its picker: a stack of tile sets drawn bottom
-first, each a URL template with Leaflet's `TileLayerOptions` (`minZoom`, `maxNativeZoom`, `maxZoom`,
-`attribution`). The shell's own are the street map, the dark canvas and the satellite imagery
-(`ui.map`, `ui.dark-map`, `ui.satellite`); a module adds one the same way, its tiles served from its
-own folder as `/file/usr/modules/<module>/…`, and an overlay can hide a layer or add a tile server of
-its own. The first layer in order is what a map shows when nothing names another. `MapView` builds
-its layers from them when it is drawn (`mapLayers()` in `signals/nav.ts`) and knows them by id, which
-is what a page's `baseLayer` and the map page's `base` parameter hold.
+Every map is the kit's `MapView`: one **map style** under everything and the **map layers** turned
+on over it. A style is a stack of tile sets drawn bottom first, each a URL template with Leaflet's
+`TileLayerOptions` (`minZoom`, `maxNativeZoom`, `maxZoom`, `attribution`). The shell's own are the
+street map, the dark canvas and the satellite imagery (`ui.map`, `ui.dark-map`, `ui.satellite`); a
+module adds one the same way, its tiles served from its own folder as `/file/usr/modules/<module>/…`
+(seacharts' charts), and an overlay can hide one or add a tile server of its own. A map that names no
+style shows the reader's `CFG_USER_MAP_STYLE`, else the first in order (`defaultMapStyle()`).
+
+A layer is what a map draws over its style: tile sets laid over it (`tiles`, the shell's sea marks),
+or a module's route drawn inside the map (`route`, `/map-layers/<module>/<name>`), which `MapView`
+draws with `RoutePanel` while the layer is on, so it reaches the Leaflet map through the kit's
+context and draws with `MapMarkers`, `MapTracks` and the rest. Its settings are its route's query,
+described for a form by `params` in the dashboard cards' JSON Schema. The kit's hooks let a layer
+tell its map what it knows: `useMapViewport` (what the map shows, after each move), `useMapBusy` (the
+map's loading mark), `useMapExtent` (the box it draws in, which a map told to `fit` moves to),
+`useMapLayerNote` (a line under its switch, such as why it draws nothing) and `MapControl` (a button
+among the map's own, or something in its top-left corner). `on` marks a layer a map that names none
+starts with; the archive's media, locations and tracks, and the sea marks, are on, Västtrafik's
+vehicles are not.
+
+A page decides what its map shows and which controls it draws (`controls`: the style picker, the
+layer picker, a button that enlarges the map over the page with both pickers): the Map page offers
+everything and keeps the reader's pick as `CFG_USER_MAP_STYLE` and `CFG_USER_MAP_LAYERS`
+(`keepMapChoice`), as well as in its address; the lightbox's map is the picture's spot with the
+enlarging button; a dashboard's Map card takes its style, layers, their settings, its place and its
+buttons as the card's settings. A page lends its own layers more than a query can carry through a
+context of its own: the Map page gives the media layer the grid a pile opens in, which Back closes.
 
 An entry is known by its id (`<module>.<name>`): a later layer naming an id changes the fields it
 gives and keeps the rest, a field set to `null` is taken away, a new id adds an entry, `hide` takes
@@ -237,7 +261,7 @@ rail's tooltips. The finder shows both beside their rows, and the `?` overlay li
 app's own keys, the pages' under Go to
 ([signals/shortcuts.ts](../../src/builtin/ui/src/client/signals/shortcuts.ts)).
 
-What a module gives the UI is navigation entries and routes, nothing else (besides the map layers
+What a module gives the UI is navigation entries and routes, nothing else (besides the map styles
 above, which are data), and an entry's action
 says where to open a route — the same route can be shown all four ways:
 
@@ -330,7 +354,14 @@ holds the two and does not scroll, and the body has the page's kind of scrollbar
 (`bindScrollbar`, below) from the header's foot to the bar's top, its length following the bar's
 height. A floating dialog has a hairline edge against the dimmed page, a ring a few steps lighter
 than anything in it; a full-screen one is the page and has none. Every close button stands in the
-same place, in the middle of a header's height at its top right, a hero band's too.
+same place, in the middle of a header's height at its top right, a hero band's too. Escape closes
+the dialog and goes no further: the dialog takes the key from its own content (`closeOnEscape` is
+Mantine's off) and stops it there, since Mantine's own listener, on the window, closes it before the
+page under it hears the same key, and the lightbox would then close too. A key from outside its
+content, a dropdown portalled out of it or a dialog it opened, is left to that. A menu's or a
+popover's dropdown, which Mantine closes on Escape and lets the key go on from, keeps it the same
+way: the theme gives every dropdown `keepEscape` as its `onKeyDown`
+([theme/theme.ts](../../src/builtin/ui/src/client/theme/theme.ts)).
 
 The full-screen surface lives in the page's URL rather than only in memory: `?fullscreen=<route>`
 ([lib/fullscreen-search.ts](../../src/builtin/ui/src/client/lib/fullscreen-search.ts)), so opening it
@@ -404,7 +435,8 @@ there, the selected tab alone keeping its label, and share one line; a `theme.cs
 
 `Layout.tsx` asks `user-whoami` who reads before it draws anything (`checkAuth`). Someone signed in
 gets the app. Anyone else is the guest, sent to `/login` with the page they asked for as `next` —
-unless the administrator opens the archive to the guest with `CFG_GUEST_BROWSING`, which
+except on a page that lands a link (a share link's, an invitation's) or whose route's `handle` says
+`open: true` (a browser display's), drawn outside the frame for anyone — unless the administrator opens the archive to the guest with `CFG_GUEST_BROWSING`, which
 `user-whoami` tells every caller as `guestBrowsing` (read from `/etc` alone, never from the caller's
 environment). Then the guest browses what is shared with everyone:
 
@@ -417,6 +449,11 @@ environment). Then the guest browses what is shared with everyone:
 - the access ids the pages decide by (`useAccessIds`) are the guest's own, and `canAccess` never
   lets the guest write, so what write access offers stays hidden; so do the hearts, since
   favourites live in the reader's home.
+
+The administrator's note, the first paragraph of `/etc/ui/notice.md`, is `ui-notice`'s answer; it
+is part of signing in (`guest` in its spec), so the guest runs it while visitors must sign in too, and
+reads the file with its own access. `AdminNotice` draws it under the login form and under Home's
+header, with the `Markdown` component's links.
 
 The login form offers **Browse without signing in** while the archive is open. Signing in and
 signing out load the page again (`location.replace`), so nothing read for one reader — the
@@ -858,7 +895,8 @@ root that is not on a control or anything draggable, once the pointer has moved 
 band (`.mrx-lasso`, fixed and moved by a transform, so a frame renders nothing), Shift held at the
 start adds, Alt takes away, otherwise it replaces, Escape puts back what was selected, and the click
 that ends it is swallowed. Within 48 px of the window's edges (the top one under the page's headers)
-the page scrolls at up to 1,200 px/s, and the band grows with it. The page decides what the band takes,
+the page scrolls at up to 1,200 px/s, and the band grows with it; given a `scroller`, a pane the
+page's list scrolls in, its edges scroll it instead, and the band's coordinates follow its scroll. The page decides what the band takes,
 once a frame, from geometry it already holds and never from each tile's layout: `sectionHit` takes a
 closed section whose header the band touches or half of whose strip it covers (the stream's
 `sectionsIn(top, bottom)` places them by its arithmetic), and `tileIndex` indexes a grid's boxes
@@ -892,7 +930,8 @@ add, so the stream has its full height from the first frame, the sections near t
 (`useVerticalWindow`) are found by binary search, and only the open sections are measured and kept
 mounted wherever the window is. When a section above the one across the reading line (the page's
 headers, `useHeaderHeight`) opens, closes, grows or leaves the list, a layout effect scrolls the
-window by exactly the difference before the frame is painted; the stream's root sets
+window by exactly the difference before the frame is painted — or the `scroller` it is given, a pane
+of its own whose top is then the reading line; the stream's root sets
 `overflow-anchor: none`, so the browser does not compensate a second time. `scrollToKey` brings a
 section to the reading line once the change that asked for it is laid out. A closed section's
 outline, an image the page gives (`skeleton`), is repeated under the sections, so a fling, which

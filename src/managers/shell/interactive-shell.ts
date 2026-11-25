@@ -130,14 +130,16 @@ export class InteractiveShell extends Shell {
     username: string,
     password: string,
     session?: boolean,
-  ): Promise<void> {
-    await super.login(username, password, session);
+  ): Promise<string | undefined> {
+    const handover = await super.login(username, password, session);
     await this.loadHistory();
+    return handover;
   }
 
-  override async logout(session?: boolean): Promise<void> {
-    await super.logout(session);
+  override async logout(session?: boolean): Promise<string | undefined> {
+    const handover = await super.logout(session);
     await this.loadHistory();
+    return handover;
   }
 
   /** An interactive shell has a prompt to print a finished job's line before. */

@@ -52,10 +52,12 @@ import {
   assertHardLinkable,
   assertIdentityCreatable,
   assertIdentityUnchanged,
+  assertModeAllowed,
   assertOwnerAttrsUnchanged,
   assertOwnershipAllowed,
   assertSoftlinkWritable,
   assertStickyAllows,
+  withoutSetid,
 } from './assert-access.ts';
 import { NODE_TYPE_DIRECTORY } from './types/directory.ts';
 import { EPHEMERAL_NODE_TYPES } from './types/ephemeral.ts';
@@ -2776,9 +2778,10 @@ export class LocalNodeVFS implements NodeVFS {
         gid,
         ...(!scratch && parent.props.acl?.length ? { acl: parent.props.acl } : {}),
         ...(access.creator !== undefined && isAdmin(access) ? { birthtime: { uid: access.creator, timestamp: Date.now() } } : {}),
-        ...(spec.props || {}),
+        ...(withoutSetid(spec.props) || {}),
       };
       assertOwnershipAllowed(access, path, { uid: access.uid, gid }, spec.props);
+      assertModeAllowed(access, path, { uid: access.uid, mode: props.mode }, spec.props);
       assertIdentityCreatable(access, path, spec.type);
       assertAdminAttrsUnchanged(access, { id: path, attrs: {} }, spec.attrs);
       this.declareWrite(mut, spec.type);
@@ -2976,10 +2979,11 @@ export class LocalNodeVFS implements NodeVFS {
       // Lock the node being updated
       return await this.withTransaction([entry.id], async (mut) => {
         const previousNode = await this.store.getNode<T>(entry.id, mut.tx);
-        this.assertUpdatable(access, previousNode, opts?.props, opts?.attrs);
+        const props = withoutSetid(opts?.props);
+        this.assertUpdatable(access, previousNode, props, opts?.attrs);
         this.declareWrite(mut, previousNode.type);
 
-        const updatedNode = await this.store.updateNode!<T>(access.uid, entry.id, opts?.props, opts?.attrs, mut.tx);
+        const updatedNode = await this.store.updateNode!<T>(access.uid, entry.id, props, opts?.attrs, mut.tx);
 
         this.updated(access, mut, entry, previousNode, updatedNode, opts?.attrs);
 
@@ -3197,6 +3201,7 @@ export class LocalNodeVFS implements NodeVFS {
     }
 
     const previous = await this.readNodes<T>([...entries.keys()], mut.tx);
+    const props = withoutSetid(opts.props);
 
     const accepted: NodeId[] = [];
     for (const [id, entry] of entries) {
@@ -3206,7 +3211,7 @@ export class LocalNodeVFS implements NodeVFS {
           throw new NodeNotFoundError(entry.absPath || entry.vfsAbsPath);
         }
 
-        this.assertUpdatable(access, node, opts.props, opts.attrs);
+        this.assertUpdatable(access, node, props, opts.attrs);
         opts.guard?.(node);
         this.declareWrite(mut, node.type);
         accepted.push(id);
@@ -3215,7 +3220,7 @@ export class LocalNodeVFS implements NodeVFS {
       }
     }
 
-    const written = await this.updateNodesIn<T>(mut, access.uid, accepted, opts.props, opts.attrs, refused);
+    const written = await this.updateNodesIn<T>(mut, access.uid, accepted, props, opts.attrs, refused);
     for (const id of accepted) {
       if (!written.has(id) && !refused.has(id)) {
         const entry = entries.get(id)!;
@@ -3353,9 +3358,10 @@ export class LocalNodeVFS implements NodeVFS {
       try {
         const node = previous.get(entry.id);
         if (!node) throw new NodeNotFoundError(entry.absPath || entry.vfsAbsPath);
-        this.assertUpdatable(access, node, change.props, change.attrs);
+        const props = withoutSetid(change.props);
+        this.assertUpdatable(access, node, props, change.attrs);
         this.declareWrite(mut, node.type);
-        accepted.push({ id: entry.id, props: change.props, attrs: change.attrs });
+        accepted.push({ id: entry.id, props, attrs: change.attrs });
       } catch (error) {
         refused.set(entry.id, error);
       }
@@ -3405,6 +3411,7 @@ export class LocalNodeVFS implements NodeVFS {
     assertOwnerAttrsUnchanged(access, node, attrs);
     assertAdminAttrsUnchanged(access, node, attrs);
     assertOwnershipAllowed(access, node.id, node.props, props);
+    assertModeAllowed(access, node.id, node.props, props);
 
     // Storage tier is set once at creation and immutable thereafter: the
     // bytes physically live on their tier, so changing it strands them.

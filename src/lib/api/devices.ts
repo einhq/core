@@ -322,8 +322,12 @@ export type DriverConfigField = {
   required?: boolean;
 };
 
-/** What a driver answers raw input with (`PUT /file/dev/<device>`): how much it took, and a word for the writer. */
-export type DriverAnswer = { taken?: number; message?: string };
+/**
+ * What a driver answers raw input with (`PUT /file/dev/<device>`): how much it took, a word for the
+ * writer, and `reply`, what it says back to a device that talks with it over these writes (a browser
+ * display is told what to play next).
+ */
+export type DriverAnswer = { taken?: number; message?: string; reply?: unknown };
 
 /** What a write to a control answers (`POST /file/dev/<device>/<endpoint>`): the value it took, and the driver's word on it. */
 export type ControlAnswer = { value: DeviceValue; message?: string };

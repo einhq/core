@@ -4,7 +4,7 @@ import { forgetReader, keepFor, readerOf } from './offline.ts';
 import { openRoute } from './module-ui.ts';
 import { resetTerminalWorkspace } from './terminal.ts';
 import { shq } from '../lib/shquote.ts';
-import type { HeldShareLink, ShareLinkOpened, Whoami } from '@ein/api';
+import type { HeldShareLink, SessionHandover, ShareLinkOpened, SignedIn, SignedOut, UserElevated, Whoami } from '@ein/api';
 
 /**
  * Current authenticated user as `user-whoami` answers (null if not logged in)
@@ -77,6 +77,21 @@ export async function checkAuth(): Promise<void> {
 }
 
 /**
+ * Take up the cookie of the session's new secret, which a sign-in, an elevation and a sign-out each
+ * give it, so a cookie someone planted in this browser before is left behind (`POST /__session`).
+ * Until then the browser's cookie names the session under its old secret, which signs in nothing.
+ */
+async function takeHandover({ handover }: SessionHandover): Promise<void> {
+  if (!handover) return;
+  await fetch('/__session', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ handover }),
+    cache: 'no-store',
+  });
+}
+
+/**
  * Sign this session in. The caller then loads the page again: everything read so far — the
  * navigation, the settings, what the pages hold — was read as the guest.
  *
@@ -84,7 +99,7 @@ export async function checkAuth(): Promise<void> {
  * holding the same share link shares a uid.
  */
 export async function login(username: string, password: string): Promise<void> {
-  await execCommand(`login --session ${shq(username)} -`, { stdin: password });
+  await takeHandover(await execCommand<SignedIn>(`login --session ${shq(username)} -`, { stdin: password }));
 }
 
 /**
@@ -97,7 +112,7 @@ export async function login(username: string, password: string): Promise<void> {
  */
 export async function logout(): Promise<void> {
   try {
-    await execCommand('logout --session');
+    await takeHandover(await execCommand<SignedOut>('logout --session'));
   } catch {
     // Ignore errors
   }
@@ -112,12 +127,12 @@ export async function logout(): Promise<void> {
  * settings and the access ids were read without it.
  */
 export async function elevate(password: string): Promise<void> {
-  await execCommand('user-elevate --session --password=-', { stdin: password });
+  await takeHandover(await execCommand<UserElevated & SessionHandover>('user-elevate --session --password=-', { stdin: password }));
 }
 
 /** Make this session's sign-in no longer an administrator's; the caller loads the page again, as after `elevate`. */
 export async function leaveElevation(): Promise<void> {
-  await execCommand('user-elevate --off --session');
+  await takeHandover(await execCommand<UserElevated & SessionHandover>('user-elevate --off --session'));
 }
 
 export async function updateUser(username: string, name: string, description: string): Promise<void> {

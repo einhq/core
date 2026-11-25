@@ -98,6 +98,7 @@ import { rev } from './utils/rev.ts';
 import { sed } from './utils/sed.ts';
 import { awk } from './utils/awk.ts';
 import { fold } from './utils/fold.ts';
+import { base64 } from './utils/base64.ts';
 import { seq } from './utils/seq.ts';
 import { sleep } from './utils/sleep.ts';
 import { sort } from './utils/sort.ts';
@@ -211,6 +212,7 @@ import { nohup } from './job/nohup.ts';
 import { uiBuild } from '../../../builtin/ui/commands/ui-build.ts';
 import { uiIcons } from '../../../builtin/ui/commands/ui-icons.ts';
 import { uiNav } from '../../../builtin/ui/commands/ui-nav.ts';
+import { uiNotice } from '../../../builtin/ui/commands/ui-notice.ts';
 
 export const COMMAND_NAMES: CmdFunction[] = [
   env,
@@ -300,6 +302,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   rmdir,
   sed,
   fold,
+  base64,
   seq,
   sleep,
   sort,
@@ -465,10 +468,11 @@ export const COMMAND_NAMES: CmdFunction[] = [
   detach,
   nohup,
 
-  // The Web UI: its navigation, its icons and the modules' pages
+  // The Web UI: its navigation, its icons, the administrator's notice and the modules' pages
   uiBuild,
   uiIcons,
   uiNav,
+  uiNotice,
 
   // Auto-complete
   completion,

@@ -20,7 +20,7 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
 
   try {
     await t.step('with nothing configured the navigation is empty', async () => {
-      assertEquals(await client.execJson<UiNav>('ui-nav'), { sections: [], topbar: [], panels: [], layers: [], warnings: [] });
+      assertEquals(await client.execJson<UiNav>('ui-nav'), { sections: [], topbar: [], panels: [], styles: [], layers: [], warnings: [] });
     });
 
     await t.step('fragments, then the administrator, then the user', async () => {

@@ -44,8 +44,7 @@ export function PositionInput({ id, value, onChange, disabled, emptyMeans }: Pos
         <MapView
           center={{ lat: camera.lat, lng: camera.lng }}
           zoom={camera.zoom}
-          layerSwitcher={false}
-          details={false}
+          controls={{}}
           onClick={disabled ? undefined : (point) => onChange(formatMapPosition({ ...point, zoom: camera.zoom }))}
           style={{ height: '100%' }}
         >

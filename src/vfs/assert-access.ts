@@ -63,6 +63,43 @@ export const assertOwnershipAllowed = (
   }
 };
 
+/** The bits a mode may carry: read, write and execute for each class, and the sticky bit. */
+export const MODE_BITS = MODE_STICKY | 0o777;
+
+/** The setuid and setgid bits, which EiN does not have. */
+const MODE_SETID = 0o6000;
+
+/** The bits of a mode only the node's owner or an administrator changes: the owner's own, and the sticky bit. */
+export const MODE_OWNER_BITS = MODE_STICKY | 0o700;
+
+/**
+ * Assert that `access` may give a node the mode in `props`. `current` is the node's owner and mode
+ * (for a new node, its creator).
+ *
+ * Write is enough to change the group's and everyone else's bits, which is what lets **Can edit**
+ * share a node further. The owner's bits and the sticky bit stay the owner's: someone else could
+ * otherwise take the owner's write away, locking them out of their own node, or take the sticky bit
+ * off a folder to remove what others keep in it.
+ */
+export const assertModeAllowed = (
+  access: Access,
+  node: string,
+  current: { uid: UserId; mode: number },
+  props?: { mode?: number },
+) => {
+  if (props?.mode === undefined || isAdmin(access) || access.uid === current.uid) return;
+  if ((props.mode & MODE_OWNER_BITS) !== (current.mode & MODE_OWNER_BITS)) {
+    throw new NodeAccessDeniedError(node, "change the owner's bits");
+  }
+};
+
+/**
+ * `props` with the setuid and setgid bits taken off its mode. EiN has neither, so they are never
+ * stored, whether a caller names them or a host file's mode carries them in.
+ */
+export const withoutSetid = <P extends { mode?: number }>(props: P | undefined): P | undefined =>
+  props?.mode !== undefined && props.mode & MODE_SETID ? { ...props, mode: props.mode & ~MODE_SETID } : props;
+
 /**
  * Assert that a write by `access` may go through the softlink at `path`, which `owner` owns: an
  * administrator's follows only an administrator's links and its own. A link anyone else laid —

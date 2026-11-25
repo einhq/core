@@ -95,8 +95,10 @@ export interface Command {
    * or with `terminalStdin` the terminal's input; without a terminal (no `tty`) that is refused.
    */
   executeInline(script: string, opts?: { terminalStdin?: boolean }): Promise<number>;
-  login(username: string, password: string, session?: boolean): Promise<void>;
-  logout(session?: boolean): Promise<void>;
+  /** Sign this shell in and, with `session`, its session, returning the token that hands the session's new secret to the browser. */
+  login(username: string, password: string, session?: boolean): Promise<string | undefined>;
+  /** Sign this shell out and, with `session`, its session, returning its handover token as `login` does. */
+  logout(session?: boolean): Promise<string | undefined>;
   /**
    * Act as a share link from now on, in this shell and with `session` in its session, which then
    * lasts `expiresSec` after its last activity.
@@ -105,9 +107,9 @@ export interface Command {
   /** Add an event to the access log as this shell's: its account, session, client address and origin. */
   recordAccess(input: TtyAccessInput): Promise<void>;
   /** Make this shell's sign-in an administrator's, and with `session` its session's (`user-elevate`). */
-  elevate(password: string, session?: boolean): Promise<void>;
+  elevate(password: string, session?: boolean): Promise<string | undefined>;
   /** Make this shell's sign-in, and with `session` its session's, no longer an administrator's. */
-  unelevate(session?: boolean): Promise<void>;
+  unelevate(session?: boolean): Promise<string | undefined>;
 
   /**
    * Raw mode passes every input byte through unchanged, for editors and the like. Cooked mode,

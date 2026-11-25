@@ -52,8 +52,10 @@ export const getModeString = (mode: Mode, options?: ModeStringOptions) => {
 };
 
 export const chmodToMode = (chown: string, baseMode: Mode = 0): Mode => {
-  // --- Numeric mode (e.g. 755, 0644)
+  // --- Numeric mode (e.g. 755, 0644, 1777). A leading digit may give the sticky bit only: EiN has
+  // no setuid or setgid.
   if (/^[0-7]{3,4}$/.test(chown)) {
+    if (/^[2-7][0-7]{3}$/.test(chown)) throw new Error(`invalid mode: "${chown}" (EiN has no setuid or setgid bit)`);
     return Number.parseInt(chown, 8);
   }
 

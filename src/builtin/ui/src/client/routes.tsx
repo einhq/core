@@ -85,7 +85,7 @@ export const routes: RouteObject[] = [{
     },
     // Opened in the dialog from the account menu; it draws its own header there.
     { path: 'about', element: <AboutPage />, handle: { title: 'About EiN', hero: AboutHero, ground: 'base', signedIn: true, dialogSize: ABOUT_WIDTH } },
-    // The EiN app's own page; only the app's sidebar links it (`ui.app`).
+    // The EiN app's own page; only the app's account menu links it (`ui.app`).
     { path: 'app', element: <AppPage />, handle: ownPage },
     { path: 'devices', element: <DevicesPage />, handle: fullBleed },
     { path: 'devices/new', element: <NewDevicePage />, handle: newDeviceHandle },

@@ -371,11 +371,11 @@ export class Cmd implements Command {
     return this._opts.tty.run(script, ctx);
   }
 
-  async login(username: string, password: string, session?: boolean): Promise<void> {
+  async login(username: string, password: string, session?: boolean): Promise<string | undefined> {
     return this._opts.tty.login(username, password, session);
   }
 
-  async logout(session?: boolean): Promise<void> {
+  async logout(session?: boolean): Promise<string | undefined> {
     return this._opts.tty.logout(session);
   }
 
@@ -387,11 +387,11 @@ export class Cmd implements Command {
     return this._opts.tty.recordAccess(input);
   }
 
-  async elevate(password: string, session?: boolean): Promise<void> {
+  async elevate(password: string, session?: boolean): Promise<string | undefined> {
     return this._opts.tty.elevate(password, session);
   }
 
-  async unelevate(session?: boolean): Promise<void> {
+  async unelevate(session?: boolean): Promise<string | undefined> {
     return this._opts.tty.unelevate(session);
   }
 

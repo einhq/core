@@ -120,6 +120,11 @@ export const UI_NAV_D_PATH = `${UI_ETC_PATH}/nav.d`;
 /** The administrator's changes to the navigation, laid over every module's. */
 export const UI_NAV_PATH = `${UI_ETC_PATH}/nav.json`;
 /**
+ * The administrator's note to whoever opens EiN, in Markdown: its first paragraph is shown under the
+ * sign-in form and under Home's header (`ui-notice`).
+ */
+export const UI_NOTICE_PATH = `${UI_ETC_PATH}/notice.md`;
+/**
  * Changes to the navigation, relative to a home: a user's `~/.ui/nav.json`, laid over the
  * administrator's and their groups', and a group's `/groups/<group>/.ui/nav.json`, laid over the
  * administrator's for the group's members, under each member's own.

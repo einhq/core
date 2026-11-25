@@ -109,8 +109,12 @@ Deno.test({
       const browser = await open({ login: false });
       const as = testCommands(browser);
       await as.shouldSucceed('login --session anna secret');
-      await as.shouldSucceed('user-elevate --session --password=secret');
-      assertEquals((await annaSessions()).filter((entry) => entry.node.attrs.access.elevated === true).length, 1);
+      const before = new Map((await annaSessions()).map((entry) => [entry.name, entry.node.attrs.secret]));
+      const { handover } = await browser.execJson<{ handover?: string }>('user-elevate --session --password=secret');
+      const [elevated] = (await annaSessions()).filter((entry) => entry.node.attrs.access.elevated === true);
+      // Under a new secret, which the page takes up with the token.
+      assertEquals(elevated.node.attrs.secret === before.get(elevated.name), false);
+      assertEquals(elevated.node.attrs.handover?.token, handover);
 
       await as.shouldSucceed('user-elevate --session --off');
       assertEquals((await annaSessions()).filter((entry) => entry.node.attrs.access.elevated === true).length, 0);

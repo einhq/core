@@ -73,7 +73,7 @@ const stopCountdown = (): void => {
 /** Raise the toast, or start its count again. */
 const startCountdown = (): void => {
   const deadline = Date.now() + RELOAD_AFTER_MS;
-  const message = (seconds: number) => `EiN has been updated. This page reloads in ${seconds} s.`;
+  const message = (seconds: number) => `EiN has been updated. This page reloads in ${seconds}\u00a0s.`;
   if (countdown) {
     countdown.deadline = deadline;
     countdown.toast.update({ message: message(secondsLeft(deadline)), progress: 1 });

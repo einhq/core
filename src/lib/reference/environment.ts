@@ -137,7 +137,7 @@ export const CORE_ENVIRONMENT: EnvVarDoc[] = [
   { key: 'TTY_NAME', kind: 'session', description: 'The terminal this shell is attached to, when it has one.' },
   { key: 'TERM', kind: 'session', description: 'The terminal type an interactive shell reports to programs.' },
   { key: 'HOSTNAME', kind: 'session', description: 'The host name shown in the prompt.' },
-  { key: 'COOKIE_NAME', kind: 'session', description: 'The browser cookie that carries a web session.' },
+  { key: 'COOKIE_NAME', kind: 'session', description: 'The browser cookie that carries a web session; over HTTPS the cookie is `__Host-` followed by this name.' },
 
   // System: what boot exports for scripts besides the layout.
   { key: 'ADMIN_USERNAME', kind: 'system', description: 'The built-in administrator account.' },

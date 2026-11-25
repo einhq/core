@@ -3174,6 +3174,22 @@ html.mrx-floating .mrx-scrubber {
   }
 }
 
+/* The administrator's note (`ui-notice`): a line or two of small dimmed text, its paragraph's own margins
+ * taken off, on the sign-in page under the form and on Home under the header. */
+.mrx-admin-notice {
+  font-size: var(--mantine-font-size-sm);
+  color: var(--mantine-color-dimmed);
+}
+
+.mrx-admin-notice p {
+  margin: 0;
+  font-size: inherit;
+}
+
+.mrx-home-notice {
+  margin-bottom: var(--mantine-spacing-md);
+}
+
 /* Home's On this day: the entries in one line, swiped or scrolled sideways without a scrollbar. */
 .mrx-home-onthisday {
   display: flex;

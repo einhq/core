@@ -13,7 +13,7 @@ import { notify } from '../signals/notify.ts';
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
 /**
- * The EiN app's own page (`/app`, the sidebar's `ui.app`, which only the app shows): the EiN and the
+ * The EiN app's own page (`/app`, the account menu's `ui.app`, which only the app shows): the EiN and the
  * phone it is paired with, the account it signs in as, its version, and unpairing it, which the app
  * does with its own token and then shows its pairing screen; below, the phone's photo backup
  * (`AppBackup`) and its position reports (`AppTracking`). A browser that opens the address is told the page is the app's.

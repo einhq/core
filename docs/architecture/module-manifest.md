@@ -347,17 +347,17 @@ in the dialog; `share-link` itself makes one for any node its caller may change.
 
 Some of what a module brings is found by where it is, not by a field:
 
-| Folder                    | What `mod setup` does with it                                                                         |
-| ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `bin/`                    | added to every shell's `PATH`; each file is a command (a shell script or `#!ts` TypeScript)           |
-| `services/<name>/`        | registered as a service: `start.sh` and `config.json` (`description`, `restartPolicy`, …)             |
-| `pipelines/*.yaml`        | registered as pipeline definitions                                                                    |
-| `ui/nav.json`             | linked as `/etc/ui/nav.d/<module>.json`: its sidebar and top-bar entries, panels and map layers       |
-| `etc/config`              | linked as `/etc/config.d/<module>`: the module's own choice of settings, sourced before `/etc/config` |
-| `etc/<x>.d/`              | linked as `/etc/<x>.d/<module>`: what it gives whichever module reads `/etc/<x>.d/*` (`assistant.d`)  |
-| `etc/` (the rest)         | copied into `/etc` when not already there, never overwritten                                          |
-| `lib/`, `types/`, `test/` | ordinary source, reached through `imports` and `exports`                                              |
-| `deno.jsonc`              | generated from `mod.json` by `deno task sync:modules`; never edited                                   |
+| Folder                    | What `mod setup` does with it                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `bin/`                    | added to every shell's `PATH`; each file is a command (a shell script or `#!ts` TypeScript)             |
+| `services/<name>/`        | registered as a service: `start.sh` and `config.json` (`description`, `restartPolicy`, …)               |
+| `pipelines/*.yaml`        | registered as pipeline definitions                                                                      |
+| `ui/nav.json`             | linked as `/etc/ui/nav.d/<module>.json`: its sidebar and top-bar entries, panels, map styles and layers |
+| `etc/config`              | linked as `/etc/config.d/<module>`: the module's own choice of settings, sourced before `/etc/config`   |
+| `etc/<x>.d/`              | linked as `/etc/<x>.d/<module>`: what it gives whichever module reads `/etc/<x>.d/*` (`assistant.d`)    |
+| `etc/` (the rest)         | copied into `/etc` when not already there, never overwritten                                            |
+| `lib/`, `types/`, `test/` | ordinary source, reached through `imports` and `exports`                                                |
+| `deno.jsonc`              | generated from `mod.json` by `deno task sync:modules`; never edited                                     |
 
 A module's own figures on the system dashboard need no field either: the module samples them in a
 service of its own into a metrics log, reads them back with a command, and draws them in a

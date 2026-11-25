@@ -1,54 +1,7 @@
 import type { CmdReturn, Command } from '@ein/client';
-import { collectUnknownFlags, isAdmin, isVisitor, NodeNotFoundError, parseArgs, reportUnknownFlags } from '@ein/client';
-import { GROUP_HOMES_PATH, groupHomePath, HOME_UI_NAV_D, HOME_UI_NAV_FILE, UI_NAV_D_PATH, UI_NAV_PATH } from '@ein/paths';
-import { toText } from '@std/streams/to-text';
-import { groupEntriesFor, groupGid } from '../../../lib/auth/member-gids.ts';
-import { type NamedLayer, type NavLayer, resolveNav, type UiNav } from '@ui/nav';
-
-/** The groups the layers' entries are kept to (`group`) that the caller is a member of. */
-const groupsNamed = async (cmd: Command, layers: NamedLayer[]): Promise<string[]> => {
-  const named = new Set<string>();
-  for (const { layer } of layers) {
-    for (const list of Object.values(layer ?? {})) {
-      if (!Array.isArray(list)) continue;
-      for (const entry of list as unknown[]) {
-        const group = entry && typeof entry === 'object' ? (entry as { group?: unknown }).group : undefined;
-        if (typeof group === 'string') named.add(group);
-      }
-    }
-  }
-  const members = await Promise.all([...named].map(async (name) => {
-    const gid = await groupGid(cmd.sys.vfs, name);
-    return gid !== undefined && cmd.access.gids.includes(gid) ? name : undefined;
-  }));
-  return members.filter((name): name is string => name !== undefined);
-};
-
-/** A file's JSON, `undefined` when it is not there, a warning when it is not JSON. */
-const readLayer = async (cmd: Command, path: string, warnings: string[]): Promise<NavLayer | undefined> => {
-  try {
-    const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
-    try {
-      return JSON.parse(await toText(handle.readable)) as NavLayer;
-    } finally {
-      await handle.close();
-    }
-  } catch (error) {
-    if (error instanceof NodeNotFoundError) return undefined;
-    warnings.push(`${path}: ${error instanceof Error ? error.message : String(error)}`);
-    return undefined;
-  }
-};
-
-/** The names of a directory's children, none when it is not there. */
-const childNames = async (cmd: Command, path: string): Promise<string[]> => {
-  try {
-    return (await cmd.sys.vfs.children(cmd.access, path)).map((child) => child.name).sort();
-  } catch (error) {
-    if (error instanceof NodeNotFoundError) return [];
-    throw error;
-  }
-};
+import { collectUnknownFlags, parseArgs, reportUnknownFlags } from '@ein/client';
+import type { UiNav } from '@ui/nav';
+import { readUiNav } from '../lib/read-nav.ts';
 
 export const uiNav = async (cmd: Command): CmdReturn => {
   const unknown: string[] = [];
@@ -61,33 +14,7 @@ export const uiNav = async (cmd: Command): CmdReturn => {
     return 0;
   }
 
-  const warnings: string[] = [];
-  const groups = await groupEntriesFor(cmd.sys.vfs, cmd.access, GROUP_HOMES_PATH);
-  // An administrator is given every module, so the fragments in every group's home.
-  const fragmentGroups = isAdmin(cmd.access) ? await childNames(cmd, GROUP_HOMES_PATH) : groups;
-
-  // Everyone's modules, then those kept to the caller's groups; one in several of them once.
-  const fragments: NamedLayer[] = [];
-  for (const dir of [UI_NAV_D_PATH, ...fragmentGroups.map((group) => `${groupHomePath(group)}/${HOME_UI_NAV_D}`)]) {
-    for (const name of (await childNames(cmd, dir)).filter((n) => n.endsWith('.json'))) {
-      const source = name.slice(0, -'.json'.length);
-      if (fragments.some((fragment) => fragment.source === source)) continue;
-      const layer = await readLayer(cmd, `${dir}/${name}`, warnings);
-      if (layer) fragments.push({ source, layer });
-    }
-  }
-
-  const overlays: NamedLayer[] = [];
-  const home = cmd.env.HOME;
-  const groupOverlays = groups.map((name) => `${groupHomePath(name)}/${HOME_UI_NAV_FILE}`);
-  for (const path of [UI_NAV_PATH, ...groupOverlays, ...(home ? [`${home}/${HOME_UI_NAV_FILE}`] : [])]) {
-    const layer = await readLayer(cmd, path, warnings);
-    if (layer) overlays.push({ source: path, layer });
-  }
-
-  const memberOf = await groupsNamed(cmd, [...fragments, ...overlays]);
-  const nav = resolveNav(fragments, overlays, { admin: isAdmin(cmd.access), guest: isVisitor(cmd.access), groups: memberOf });
-  const answer: UiNav = { ...nav, warnings: [...warnings, ...nav.warnings] };
+  const answer = await readUiNav(cmd);
 
   if (cmd.json) {
     await cmd.writeJSON(answer satisfies UiNav);
@@ -106,8 +33,10 @@ export const uiNav = async (cmd: Command): CmdReturn => {
   }
   if (answer.panels.length > 0) await cmd.writeLn('panels');
   for (const panel of answer.panels) await cmd.writeLn(`  ${panel.slot.padEnd(16)} ${panel.label.padEnd(16)} ${panel.route.padEnd(24)} ${panel.id}`);
+  if (answer.styles.length > 0) await cmd.writeLn('map styles');
+  for (const style of answer.styles) await cmd.writeLn(`  ${style.label.padEnd(16)} ${style.id}`);
   if (answer.layers.length > 0) await cmd.writeLn('map layers');
-  for (const layer of answer.layers) await cmd.writeLn(`  ${layer.label.padEnd(16)} ${layer.id}`);
+  for (const layer of answer.layers) await cmd.writeLn(`  ${layer.label.padEnd(16)} ${(layer.route ?? 'tiles').padEnd(24)} ${layer.id}`);
   for (const warning of answer.warnings) await cmd.writeError(`ui-nav: ${warning}\n`);
   return 0;
 };
@@ -116,7 +45,7 @@ uiNav.spec = {
   name: 'ui-nav',
   effect: 'read' as const,
   description:
-    "The Web UI's sidebar, top bar, panels and map layers for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
+    "The Web UI's sidebar, top bar, panels, map styles and map layers for the caller, from every module's entries and the administrator's, the caller's groups' and the user's changes",
   args: [],
   flags: [],
 };

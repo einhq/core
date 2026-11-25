@@ -1,6 +1,6 @@
 /**
  * The Web UI's navigation — the sidebar and the top bar — as configuration, with the panels a
- * page draws and the base layers a map offers.
+ * page draws and the styles and layers a map offers.
  *
  * Every module may ship a fragment, `ui/nav.json`, which `mod setup` links into
  * `/etc/ui/nav.d/<module>.json`, or a module kept to groups into each group's home as
@@ -165,10 +165,11 @@ export type PanelEntry = {
   /**
    * Which nodes it is shown for: `has` names a node type the node must have a child of
    * (`{ "has": "track" }`, a device's tab only on a device with a track endpoint), and `live`
-   * keeps it to a device with a stream that can be watched live now (`{ "has": "stream", "live": true }`).
-   * `device.tabs` checks it; the other slots ignore it.
+   * keeps it to a device with a stream that can be watched live now (`{ "has": "stream", "live": true }`),
+   * and `driver` to a device of that driver (`{ "driver": "browser" }`). `device.tabs` checks it; the
+   * other slots ignore it.
    */
-  when?: { has?: string; live?: boolean };
+  when?: { has?: string; live?: boolean; driver?: string };
   order?: number;
   admin?: boolean;
   signedIn?: boolean;
@@ -179,12 +180,12 @@ export type PanelEntry = {
 };
 
 /**
- * One base layer a map offers, in its layer picker: a stack of tile sets drawn bottom first (a base
- * and its labels; a chart over the map it does not cover). A tile set's options are Leaflet's
- * `TileLayerOptions` (`attribution`, `minZoom`, `maxNativeZoom`, `maxZoom`, …). The first layer
- * in order is what a map shows when nothing names another.
+ * One style a map offers, in its style picker: a stack of tile sets drawn bottom first (a base and
+ * its labels; a chart over the map it does not cover). A tile set's options are Leaflet's
+ * `TileLayerOptions` (`attribution`, `minZoom`, `maxNativeZoom`, `maxZoom`, …). The first style in
+ * order is what a map shows when neither it nor the person names another.
  */
-export type MapLayerEntry = {
+export type MapStyleEntry = {
   id: string;
   label: string;
   tiles: MapTiles[];
@@ -193,11 +194,37 @@ export type MapLayerEntry = {
   signedIn?: boolean;
 };
 
+/** One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. */
+export type MapTiles = { url: string; options?: Record<string, unknown> };
+
 /**
- * One tile set: a URL template (`{z}`, `{x}`, `{y}`, `{s}`) and Leaflet's options for it. `detail`
- * marks one a small map leaves out, such as sea marks over the map, with its attribution.
+ * A layer's settings, in the JSON Schema the dashboard's cards take theirs in (`type: object`, and
+ * each setting's `type`, `title`, `description`, `default`, `x-choices`, …): what its route's query
+ * carries.
  */
-export type MapTiles = { url: string; options?: Record<string, unknown>; detail?: boolean };
+export type MapLayerParams = { type: 'object'; properties: Record<string, Record<string, unknown>> };
+
+/**
+ * One layer a map may draw over its style, in its layer picker: tile sets laid over the style
+ * (`tiles`, such as sea marks), or a module's route drawn inside the map (`route`), which draws
+ * with the kit's map parts and is given its settings as its query. `on` turns it on in a map that
+ * names no layers of its own, such as the Map page before its reader has chosen.
+ */
+export type MapLayerEntry = {
+  id: string;
+  label: string;
+  /** A Tabler icon name, beside its switch in the layer picker. */
+  icon?: string;
+  /** A line under its switch saying what it shows. */
+  description?: string;
+  tiles?: MapTiles[];
+  route?: string;
+  on?: boolean;
+  params?: MapLayerParams;
+  order?: number;
+  admin?: boolean;
+  signedIn?: boolean;
+};
 
 /** An entry as a layer gives it: any of its fields, `null` for one an overlay takes away. */
 type Layered<T> = { [K in keyof T]?: T[K] | null };
@@ -208,6 +235,7 @@ export type NavLayer = {
   sidebar?: Layered<NavLink>[];
   topbar?: Layered<TopbarEntry>[];
   panels?: Layered<PanelEntry>[];
+  styles?: Layered<MapStyleEntry>[];
   layers?: Layered<MapLayerEntry>[];
   /** Ids to leave out, of any kind. */
   hide?: string[];
@@ -227,7 +255,9 @@ export type UiNav = {
   topbar: ResolvedTopbarEntry[];
   /** Every slot's panels, in order; a page takes those of its own slot. */
   panels: PanelEntry[];
-  /** The maps' base layers, in order. */
+  /** The maps' styles, in order. */
+  styles: MapStyleEntry[];
+  /** What maps may draw over their style, in order. */
   layers: MapLayerEntry[];
   /** What was left out and why: a missing field, an unknown section, an unreadable file. */
   warnings: string[];
@@ -236,7 +266,7 @@ export type UiNav = {
 /** Where a layer came from, for warnings: a module name or a file path. */
 export type NamedLayer = { source: string; layer: NavLayer };
 
-const KINDS = ['sections', 'sidebar', 'topbar', 'panels', 'layers'] as const;
+const KINDS = ['sections', 'sidebar', 'topbar', 'panels', 'styles', 'layers'] as const;
 type Kind = typeof KINDS[number];
 type Entry = { id: string; order?: number; admin?: boolean; signedIn?: boolean; group?: string } & Record<string, unknown>;
 
@@ -248,20 +278,32 @@ const REQUIRED: Record<Kind, string[]> = {
   sidebar: ['section', 'label', 'icon', 'to'],
   topbar: ['title', 'icon'],
   panels: ['slot', 'label', 'route'],
+  styles: ['label'],
   layers: ['label'],
 };
 
 const isWhen = (value: unknown): value is PanelEntry['when'] =>
   typeof value === 'object' && value !== null && !Array.isArray(value) &&
-  Object.entries(value).every(([key, field]) => key === 'has' ? typeof field === 'string' && field !== '' : key === 'live' && typeof field === 'boolean');
+  Object.entries(value).every(([key, field]) => key === 'has' || key === 'driver' ? typeof field === 'string' && field !== '' : key === 'live' && typeof field === 'boolean');
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isTiles = (value: unknown): value is MapTiles[] =>
   Array.isArray(value) && value.length > 0 &&
-  value.every((tiles) =>
-    tiles && typeof tiles === 'object' && typeof tiles.url === 'string' && tiles.url !== '' &&
-    (tiles.options === undefined || (typeof tiles.options === 'object' && tiles.options !== null && !Array.isArray(tiles.options))) &&
-    (tiles.detail === undefined || typeof tiles.detail === 'boolean')
-  );
+  value.every((tiles) => isRecord(tiles) && typeof tiles.url === 'string' && tiles.url !== '' && (tiles.options === undefined || isRecord(tiles.options)));
+
+/** Why a layer is not one a map can draw, or undefined when it is. */
+const layerProblem = (entry: Entry): string | undefined => {
+  if ((entry.tiles === undefined) === (entry.route === undefined)) return 'a layer has tiles or a route, one of them';
+  if (entry.tiles !== undefined && !isTiles(entry.tiles)) return 'tiles is not a list of { url, options }';
+  if (entry.route !== undefined && (typeof entry.route !== 'string' || !entry.route.startsWith('/') || entry.route.includes('?'))) {
+    return 'route is a path, without a query';
+  }
+  if (entry.params !== undefined && !(isRecord(entry.params) && entry.params.type === 'object' && isRecord(entry.params.properties))) {
+    return 'params is a JSON Schema of an object';
+  }
+  return undefined;
+};
 
 /** The route an action opens, as the page or over it; none for one that runs a command. */
 const routeOf = (action: NavAction): string | undefined =>
@@ -366,12 +408,17 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
         warnings.push(`${entry.id}: action is none of navigate, dialog, drawer, fullscreen or run`);
         return false;
       }
-      if (kind === 'layers' && !isTiles(entry.tiles)) {
-        warnings.push(`${entry.id}: tiles is not a list of { url, options, detail }`);
+      if (kind === 'styles' && !isTiles(entry.tiles)) {
+        warnings.push(`${entry.id}: tiles is not a list of { url, options }`);
+        return false;
+      }
+      const problem = kind === 'layers' ? layerProblem(entry) : undefined;
+      if (problem) {
+        warnings.push(`${entry.id}: ${problem}`);
         return false;
       }
       if (kind === 'panels' && entry.when !== undefined && !isWhen(entry.when)) {
-        warnings.push(`${entry.id}: when is not { has: <node type>, live: <true or false> }`);
+        warnings.push(`${entry.id}: when is not { has: <node type>, live: <true or false>, driver: <driver> }`);
         return false;
       }
       if (
@@ -471,6 +518,7 @@ export const resolveNav = (fragments: NamedLayer[], overlays: NamedLayer[], read
       const { source: _given, ...rest } = panel;
       return source !== undefined && fragmentSources.has(source) ? { ...rest, source } : rest;
     }),
+    styles: byOrder(visible('styles') as unknown as MapStyleEntry[]),
     layers: byOrder(visible('layers') as unknown as MapLayerEntry[]),
     warnings,
   };

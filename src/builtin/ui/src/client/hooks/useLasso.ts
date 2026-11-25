@@ -15,9 +15,14 @@ export type LassoOptions = {
   canStart?: (target: Element) => boolean;
   /** Px at the top of the window under the page's headers, which the scrolling edge sits below. */
   topInset?: number;
+  /**
+   * The element the page scrolls in, a pane of its own, whose edges then scroll it and whose
+   * scroll the band's coordinates follow; the window when none.
+   */
+  scroller?: HTMLElement | null;
   /** The lasso has started, with what keys said: the page keeps what was selected then. */
   onStart: (mode: LassoMode) => void;
-  /** The band as it is now, in page coordinates (scrolled with the page), at most once a frame. */
+  /** The band as it is now, in page coordinates (scrolled with the page, or the `scroller`), at most once a frame. */
   onBand: (band: LassoRect, mode: LassoMode) => void;
   /** The pointer came up: the band stands. */
   onEnd?: () => void;
@@ -31,7 +36,7 @@ export type LassoOptions = {
  * page, without a render. Shift held at the start adds to the selection, Alt takes from it,
  * otherwise it replaces it; the page is called with the band once a frame and decides what it
  * takes. Near the window's top (under `topInset`) or bottom edge the page scrolls, faster nearer
- * the edge, and the band grows with it. The click that ends a lasso is swallowed, so a tile it
+ * the edge, and the band grows with it; in a `scroller`, near its edges, it does. The click that ends a lasso is swallowed, so a tile it
  * ends on does not open.
  */
 export function useLasso(options: LassoOptions): { active: boolean } {
@@ -52,7 +57,15 @@ export function useLasso(options: LassoOptions): { active: boolean } {
       cleanup?.();
 
       const mode = lassoMode(down);
-      const start = { x: down.clientX + globalThis.scrollX, y: down.clientY + globalThis.scrollY };
+      const scroller = optionsRef.current.scroller ?? null;
+      const scrolling = scroller ?? globalThis;
+      /** How far the page (or the scroller) is scrolled: what turns the window's coordinates into the page's. */
+      const scrolled = () => scroller ? { x: scroller.scrollLeft, y: scroller.scrollTop } : { x: globalThis.scrollX, y: globalThis.scrollY };
+      const inPage = (point: { x: number; y: number }) => {
+        const by = scrolled();
+        return { x: point.x + by.x, y: point.y + by.y };
+      };
+      const start = inPage({ x: down.clientX, y: down.clientY });
       let pointer = { x: down.clientX, y: down.clientY };
       let band: HTMLDivElement | null = null;
       let frame = 0;
@@ -61,12 +74,14 @@ export function useLasso(options: LassoOptions): { active: boolean } {
       const draw = (now: number) => {
         frame = 0;
         const { topInset = 0 } = optionsRef.current;
-        const speed = edgeSpeed(pointer.y, topInset, globalThis.innerHeight);
-        if (speed !== 0 && last > 0) globalThis.scrollBy({ top: speed * Math.min(0.05, (now - last) / 1000), behavior: 'instant' });
+        const edges = scroller?.getBoundingClientRect() ?? { top: topInset, bottom: globalThis.innerHeight };
+        const speed = edgeSpeed(pointer.y, edges.top, edges.bottom);
+        if (speed !== 0 && last > 0) scrolling.scrollBy({ top: speed * Math.min(0.05, (now - last) / 1000), behavior: 'instant' });
         last = now;
-        const rect = bandRect(start, { x: pointer.x + globalThis.scrollX, y: pointer.y + globalThis.scrollY });
+        const rect = bandRect(start, inPage(pointer));
         if (band) {
-          band.style.transform = `translate(${rect.left - globalThis.scrollX}px, ${rect.top - globalThis.scrollY}px)`;
+          const by = scrolled();
+          band.style.transform = `translate(${rect.left - by.x}px, ${rect.top - by.y}px)`;
           band.style.width = `${rect.right - rect.left}px`;
           band.style.height = `${rect.bottom - rect.top}px`;
         }
@@ -102,7 +117,7 @@ export function useLasso(options: LassoOptions): { active: boolean } {
         if (!drawn) return;
         if (cancelled) optionsRef.current.onCancel?.();
         else {
-          optionsRef.current.onBand(bandRect(start, { x: pointer.x + globalThis.scrollX, y: pointer.y + globalThis.scrollY }), mode);
+          optionsRef.current.onBand(bandRect(start, inPage(pointer)), mode);
           optionsRef.current.onEnd?.();
           // The click the browser makes of this press and release is the lasso's, not a tile's.
           const swallow = (click: MouseEvent) => {
@@ -129,7 +144,7 @@ export function useLasso(options: LassoOptions): { active: boolean } {
       globalThis.addEventListener('pointerup', onUp);
       globalThis.addEventListener('pointercancel', onUp);
       globalThis.addEventListener('keydown', onKey, { capture: true });
-      globalThis.addEventListener('scroll', onScroll, { passive: true });
+      scrolling.addEventListener('scroll', onScroll, { passive: true });
       cleanup = () => {
         cleanup = null;
         if (frame !== 0) cancelAnimationFrame(frame);
@@ -137,7 +152,7 @@ export function useLasso(options: LassoOptions): { active: boolean } {
         globalThis.removeEventListener('pointerup', onUp);
         globalThis.removeEventListener('pointercancel', onUp);
         globalThis.removeEventListener('keydown', onKey, { capture: true });
-        globalThis.removeEventListener('scroll', onScroll);
+        scrolling.removeEventListener('scroll', onScroll);
         if (band) {
           band.remove();
           band = null;

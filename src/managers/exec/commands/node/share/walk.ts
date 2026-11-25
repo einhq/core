@@ -1,8 +1,8 @@
 import { basename, dirname, join } from '@std/path';
-import { isPinned } from '../../../../../lib/access/mod.ts';
+import { isAdmin, isPinned } from '../../../../../lib/access/mod.ts';
 import type { Access } from '../../../../../lib/access/mod.ts';
 import type { ModeACL } from '../../../../../lib/mode/mod.ts';
-import { assertAccess } from '../../../../../vfs/mod.ts';
+import { assertAccess, MODE_OWNER_BITS } from '../../../../../vfs/mod.ts';
 import type { Node, NodeAttrsUpdate, NodeEntry, NodeId, NodePath, NodePropsUpdate, NodeResolveOptions, NodeVFS } from '../../../../../vfs/mod.ts';
 
 /** What one node in the subtree could not be given. */
@@ -70,14 +70,19 @@ const LIST_MIN_ROOTS = 4;
  */
 const LIST_RATIO = 16;
 
-/** What one node is written with: the change's props, and its own list and mode edited when the change edits them. */
-const propsFor = (change: SubtreeChange, own: { acl?: readonly ModeACL[]; mode?: number }): NodePropsUpdate | undefined => {
-  if (!change.acl && !change.mode) return change.props;
-  return {
+/**
+ * What one node is written with: the change's props, and its own list and mode edited when the change
+ * edits them. With `keepOwnerBits` the node keeps its owner's bits and sticky bit whatever mode the
+ * change gives, as those are its owner's to change.
+ */
+const propsFor = (change: SubtreeChange, own: { acl?: readonly ModeACL[]; mode?: number }, keepOwnerBits: boolean): NodePropsUpdate | undefined => {
+  const props = !change.acl && !change.mode ? change.props : {
     ...change.props,
     ...(change.acl ? { acl: change.acl(own.acl ?? []) } : {}),
     ...(change.mode && own.mode !== undefined ? { mode: change.mode(own.mode) } : {}),
   };
+  if (!keepOwnerBits || props?.mode === undefined || own.mode === undefined) return props;
+  return { ...props, mode: (own.mode & MODE_OWNER_BITS) | (props.mode & ~MODE_OWNER_BITS) };
 };
 
 /**
@@ -168,7 +173,7 @@ export const applySubtrees = async (
   // lose their way through a directory the change has already closed. Each node
   // is counted to the root whose walk reached it first.
   // `count` is how many children a directory holds, those the caller may not read included.
-  type Target = { root: number; entry: NodeEntry; path: NodePath; acl?: ModeACL[]; mode?: number; count?: number };
+  type Target = { root: number; entry: NodeEntry; path: NodePath; acl?: ModeACL[]; mode?: number; uid?: number; count?: number };
   const targets: Target[] = [];
 
   if (opts.recursive) {
@@ -228,6 +233,7 @@ export const applySubtrees = async (
             path: join(dir.path, child.name),
             acl: child.node.props.acl,
             mode: child.node.props.mode,
+            uid: child.node.props.uid,
             count: child.childCount,
           };
           targets.push(target);
@@ -264,10 +270,16 @@ export const applySubtrees = async (
 
   // Nodes whose props come out the same are written together, so a subtree sharing one list and
   // mode — the usual case — is one batched write, as a change that edits neither always is.
-  const batchesOf = <T>(items: T[], own: (item: T) => { acl?: readonly ModeACL[]; mode?: number }) => {
+  //
+  // A node below a root that someone else owns keeps its owner's bits and sticky bit, so a change
+  // by someone who may write the subtree reaches the group's and everyone else's bits of all of it,
+  // as **Can edit** sharing an album of everyone's pictures does. A root is written as asked and
+  // refused if that changes its owner's bits: it is the node the caller named.
+  const batchesOf = <T>(items: T[], own: (item: T) => { acl?: readonly ModeACL[]; mode?: number; uid?: number }, descendants: boolean) => {
     const batches = new Map<string, { props?: NodePropsUpdate; items: T[] }>();
     for (const item of items) {
-      const props = propsFor(change, own(item));
+      const node = own(item);
+      const props = propsFor(change, node, descendants && !isAdmin(writer) && node.uid !== writer.uid);
       const key = JSON.stringify([props?.acl ?? null, props?.mode ?? null]);
       const batch = batches.get(key) ?? { props, items: [] };
       batch.items.push(item);
@@ -276,7 +288,7 @@ export const applySubtrees = async (
     return [...batches.values()];
   };
 
-  for (const batch of batchesOf(targets.filter((target) => written.has(target.root)), (target) => target)) {
+  for (const batch of batchesOf(targets.filter((target) => written.has(target.root)), (target) => target, true)) {
     const settled = await vfs.updateMany(writer, batch.items.map((target) => target.entry), { props: batch.props, guard, signal });
 
     settled.forEach((outcome, i) => {
@@ -294,7 +306,7 @@ export const applySubtrees = async (
   // — and `share-info` reads it — is never ahead of its subtree, and a walk cut
   // short leaves it as it was, ready to be run again.
   if (!signal?.aborted) {
-    for (const batch of batchesOf(writable, (root) => root.node.props)) {
+    for (const batch of batchesOf(writable, (root) => root.node.props, false)) {
       const settled = await vfs.updateMany(writer, batch.items.map((root) => root.entry), { props: batch.props, attrs: change.rootAttrs, guard });
       settled.forEach((outcome, i) => {
         const { index } = batch.items[i];

@@ -291,13 +291,14 @@ Deno.test('ui-nav: panels put a module route in a shell page, by slot and order'
   assertEquals(nav.warnings, ['archive.half: no route']);
 });
 
-Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one that is not { has, live } is left out', () => {
+Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one that is not { has, live, driver } is left out', () => {
   const archive: NamedLayer = {
     source: 'archive',
     layer: {
       panels: [
         { id: 'archive.trips', slot: 'device.tabs', label: 'Trips', route: '/trips?device={path}', when: { has: 'track' } },
         { id: 'archive.watch', slot: 'device.tabs', label: 'Watch', route: '/watch?device={path}', when: { has: 'stream', live: true } },
+        { id: 'archive.screen', slot: 'device.tabs', label: 'Screen', route: '/screen?device={path}', when: { driver: 'browser' } },
         { id: 'archive.odd', slot: 'device.tabs', label: 'Odd', route: '/odd', when: { kind: 'track' } as never },
         { id: 'archive.list', slot: 'device.tabs', label: 'List', route: '/list', when: 'track' as never },
         { id: 'archive.maybe', slot: 'device.tabs', label: 'Maybe', route: '/maybe', when: { has: 'stream', live: 'yes' } as never },
@@ -307,8 +308,9 @@ Deno.test('ui-nav: a panel keeps its when, an overlay may take it away, and one 
   assertEquals(resolveNav([archive], [], user).panels.map((panel) => [panel.id, panel.when]), [
     ['archive.trips', { has: 'track' }],
     ['archive.watch', { has: 'stream', live: true }],
+    ['archive.screen', { driver: 'browser' }],
   ]);
-  const refused = (id: string) => `${id}: when is not { has: <node type>, live: <true or false> }`;
+  const refused = (id: string) => `${id}: when is not { has: <node type>, live: <true or false>, driver: <driver> }`;
   assertEquals(resolveNav([archive], [], user).warnings, [refused('archive.odd'), refused('archive.list'), refused('archive.maybe')]);
   const everywhere = resolveNav([archive], [{ source: '/etc/ui/nav.json', layer: { panels: [{ id: 'archive.trips', when: null }] } }], user);
   assertEquals(everywhere.panels.find((panel) => panel.id === 'archive.trips')?.when, undefined);
@@ -332,11 +334,11 @@ Deno.test('ui-nav: a panel says whose fragment gives it, never an overlay, and k
   ]);
 });
 
-Deno.test('ui-nav: map layers come in order, and one without tiles is left out', () => {
+Deno.test('ui-nav: map styles come in order, and one without tiles is left out', () => {
   const shell: NamedLayer = {
     source: 'ui',
     layer: {
-      layers: [
+      styles: [
         { id: 'ui.map', label: 'Map', order: 10, tiles: [{ url: 'https://tiles.example/{z}/{x}/{y}.png', options: { maxZoom: 19 } }] },
         { id: 'ui.satellite', label: 'Satellite', order: 30, tiles: [{ url: 'https://imagery.example/{z}/{y}/{x}' }] },
       ],
@@ -345,7 +347,7 @@ Deno.test('ui-nav: map layers come in order, and one without tiles is left out',
   const charts: NamedLayer = {
     source: 'charts',
     layer: {
-      layers: [
+      styles: [
         { id: 'charts.sea', label: 'Sea charts', order: 20, tiles: [{ url: '/file/usr/modules/charts/{z}/{x}/{y}.png', options: { minZoom: 8 } }] },
         { id: 'charts.empty', label: 'Nothing', tiles: [] },
         { id: 'charts.odd', label: 'Odd', tiles: [{ url: 'x', options: [] as never }] },
@@ -353,8 +355,42 @@ Deno.test('ui-nav: map layers come in order, and one without tiles is left out',
     },
   };
   const nav = resolveNav([shell, charts], [{ source: '/etc/ui/nav.json', layer: { hide: ['ui.satellite'] } }], user);
-  assertEquals(nav.layers.map((layer) => layer.id), ['ui.map', 'charts.sea']);
-  assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options, detail }', 'charts.odd: tiles is not a list of { url, options, detail }']);
+  assertEquals(nav.styles.map((style) => style.id), ['ui.map', 'charts.sea']);
+  assertEquals(nav.warnings, ['charts.empty: tiles is not a list of { url, options }', 'charts.odd: tiles is not a list of { url, options }']);
+});
+
+Deno.test('ui-nav: a map layer is tiles or a route, its settings a schema, and an overlay may turn it on', () => {
+  const shell: NamedLayer = {
+    source: 'ui',
+    layer: { layers: [{ id: 'ui.marks', label: 'Marks', order: 10, tiles: [{ url: 'https://marks.example/{z}/{x}/{y}.png' }] }] },
+  };
+  const buses: NamedLayer = {
+    source: 'buses',
+    layer: {
+      layers: [
+        {
+          id: 'buses.vehicles',
+          label: 'Buses',
+          icon: 'bus',
+          route: '/map-layers/buses/vehicles',
+          params: { type: 'object', properties: { lines: { type: 'array', items: { type: 'string' } } } },
+        },
+        { id: 'buses.both', label: 'Both', route: '/x', tiles: [{ url: 'https://x.example/{z}/{x}/{y}.png' }] },
+        { id: 'buses.neither', label: 'Neither' },
+        { id: 'buses.query', label: 'Query', route: '/map-layers/buses/x?y=1' },
+        { id: 'buses.params', label: 'Params', route: '/map-layers/buses/p', params: { type: 'array' } as never },
+      ],
+    },
+  };
+  const nav = resolveNav([shell, buses], [{ source: '/home/anna/.ui/nav.json', layer: { layers: [{ id: 'buses.vehicles', on: true }] } }], user);
+  assertEquals(nav.layers.map((layer) => [layer.id, layer.on]), [['ui.marks', undefined], ['buses.vehicles', true]]);
+  assertEquals(nav.layers[1].params?.properties.lines, { type: 'array', items: { type: 'string' } });
+  assertEquals(nav.warnings, [
+    'buses.both: a layer has tiles or a route, one of them',
+    'buses.neither: a layer has tiles or a route, one of them',
+    'buses.query: route is a path, without a query',
+    'buses.params: params is a JSON Schema of an object',
+  ]);
 });
 
 Deno.test('ui-nav: entries kept to the EiN app are given to everyone, and a page outside the app leaves them out', () => {

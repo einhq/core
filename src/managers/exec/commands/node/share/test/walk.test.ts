@@ -5,10 +5,11 @@
  * directory reads nothing of its siblings.
  */
 
-import { assertEquals } from '@std/assert';
+import { assertEquals, assertRejects } from '@std/assert';
 import type { Access } from '../../../../../../lib/access/mod.ts';
 import { ADMIN_ACCESS } from '../../../../../../lib/access/mod.ts';
 import { createTestVfs } from '../../../../../../testing/test-vfs.ts';
+import { NodeAccessDeniedError } from '../../../../../../vfs/mod.ts';
 import { applySubtree, applySubtrees } from '../walk.ts';
 
 const OWNER: Access = { uid: 5000, gid: 4000, gids: [4000] };
@@ -72,6 +73,27 @@ Deno.test('recursive access walk', async (t) => {
       assertEquals(result.failed, 1);
       assertEquals(result.failures.map((failure) => failure.path), ['/mine']);
       assertEquals(await mode('/mine/closed/inside'), 0o777);
+    });
+
+    await t.step("a node below the root someone else owns keeps its owner's bits and sticky bit", async () => {
+      const EDITOR: Access = { uid: 5001, gid: 5001, gids: [5001] };
+      const edit = [{ uid: EDITOR.uid, mode: 0o7 }];
+      await vfs.create(ADMIN_ACCESS, 'directory', '/', 'lent', { props: { mode: 0o700, uid: OWNER.uid, gid: OWNER.gid, acl: edit } });
+      await vfs.create(ADMIN_ACCESS, 'file', '/lent', 'theirs.jpg', { props: { mode: 0o600, uid: OWNER.uid, gid: OWNER.gid, acl: edit } });
+      await vfs.create(ADMIN_ACCESS, 'directory', '/lent', 'drop', { props: { mode: 0o1700, uid: OWNER.uid, gid: OWNER.gid, acl: edit } });
+      await vfs.create(EDITOR, 'file', '/lent', 'mine.jpg', { props: { mode: 0o600 } });
+
+      // The root is what the editor named, and its owner's bits are not theirs to change.
+      await assertRejects(() => applySubtree(vfs, EDITOR, '/lent', { props: { mode: 0o555 } }, { recursive: true }), NodeAccessDeniedError);
+      assertEquals(await mode('/lent'), 0o700);
+      // Below it, the group's and everyone's bits reach everything.
+      assertEquals(await mode('/lent/theirs.jpg'), 0o655);
+      assertEquals((await vfs.get(ADMIN_ACCESS, '/lent/drop')).props.mode, 0o1755);
+      assertEquals(await mode('/lent/mine.jpg'), 0o555);
+
+      const asOwnerHas = await applySubtree(vfs, EDITOR, '/lent', { props: { mode: 0o744 } }, { recursive: true });
+      assertEquals(asOwnerHas.failed, 0);
+      assertEquals(await mode('/lent'), 0o744);
     });
 
     await t.step('many roots are one walk: each counted to its own root, and one that fails fails alone', async () => {

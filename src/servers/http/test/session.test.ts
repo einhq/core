@@ -454,6 +454,77 @@ Deno.test({
       assertEquals((await vfs.children(ADMIN_ACCESS, SESSIONS_PATH)).length, before + 2);
     });
 
+    await t.step('signing in and signing out give the session a new secret, which only its own page takes up', async () => {
+      // The cookie a guest's page got, as someone who planted it in a browser before its sign-in holds it.
+      const res = await fetch(`${baseUrl}/`, { headers: NAVIGATION });
+      await res.arrayBuffer();
+      const planted = (res.headers.get('set-cookie') ?? '').split(';')[0];
+      const sessionOf = (cookieHeader: string) => `${SESSIONS_PATH}/session-${cookieHeader.split('=')[1].split('.')[0]}`;
+      const signsIn = async (cookieHeader: string) => {
+        const answer = await fetch(`${baseUrl}/__session`, { headers: { cookie: cookieHeader } });
+        await answer.arrayBuffer();
+        return answer.status === 204;
+      };
+      const take = async (cookieHeader: string, handover: string) => {
+        const answer = await fetch(`${baseUrl}/__session`, {
+          method: 'POST',
+          headers: { cookie: cookieHeader, 'content-type': 'application/json' },
+          body: JSON.stringify({ handover }),
+        });
+        await answer.arrayBuffer();
+        return { status: answer.status, cookie: (answer.headers.get('set-cookie') ?? '').split(';')[0] };
+      };
+
+      const page = await ShellClient.connect(baseUrl, planted);
+      try {
+        const { handover } = await page.execJson<{ handover?: string }>('login --session admin admin');
+        assertEquals(typeof handover, 'string');
+        assertEquals((await page.exec('cat /tmp/admin-only.txt')).success, true);
+        assertEquals(await signsIn(planted), false, 'the planted cookie signs in nothing');
+        const intruder = await ShellClient.connect(baseUrl, planted);
+        // The administrator's file of an earlier step.
+        assertEquals((await intruder.exec('cat /tmp/admin-only.txt')).success, false);
+        intruder.close();
+        await intruder.closed;
+
+        assertEquals((await take(planted, 'A'.repeat(22))).status, 403);
+        const taken = await take(planted, handover!);
+        assertEquals(taken.status, 204);
+        assertEquals(sessionOf(taken.cookie), sessionOf(planted));
+        assertEquals(taken.cookie === planted, false);
+        assertEquals(await signsIn(taken.cookie), true);
+        assertEquals((await take(planted, handover!)).status, 403, 'a handover is taken once');
+
+        // Signing out changes it again: whoever copied the signed-in cookie holds a guest's no longer.
+        const out = await page.execJson<{ handover?: string }>('logout --session');
+        const after = await take(taken.cookie, out.handover!);
+        assertEquals(after.status, 204);
+        assertEquals((await vfs.get<SessionAttrs>(ADMIN_ACCESS, sessionOf(planted))).attrs.secret, after.cookie.split('.')[1]);
+        const stale = await ShellClient.connect(baseUrl, taken.cookie);
+        assertEquals((await stale.exec('cat /tmp/admin-only.txt')).success, false);
+        stale.close();
+        await stale.closed;
+      } finally {
+        page.close();
+        await page.closed;
+      }
+    });
+
+    await t.step('over HTTPS the cookie is the __Host- one, and the plain name is not read', async () => {
+      const https = { 'x-forwarded-proto': 'https' };
+      const res = await fetch(`${baseUrl}/`, { headers: { ...NAVIGATION, ...https } });
+      await res.arrayBuffer();
+      assertEquals((res.headers.get('set-cookie') ?? '').startsWith('__Host-ein-test='), true, res.headers.get('set-cookie') ?? '');
+
+      const ask = async (headers: Record<string, string>) => {
+        const answer = await fetch(`${baseUrl}/__session`, { headers });
+        await answer.arrayBuffer();
+        return answer.status;
+      };
+      assertEquals(await ask({ cookie, ...https }), 401);
+      assertEquals(await ask({ cookie: `__Host-${cookie}`, ...https }), 204);
+    });
+
     await t.step('malformed cookie falls back to guest access', async () => {
       const res = await fetch(`${baseUrl}/file/tmp/probe.txt`, {
         headers: { cookie: 'ein-test=not-a-valid-value' },

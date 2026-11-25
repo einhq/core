@@ -35,12 +35,14 @@ const failed = (error: unknown) => notify({ message: error instanceof Error ? er
 
 /**
  * The modules' tabs for this device: a panel whose `when.has` names an endpoint type shows only on a
- * device with such an endpoint, and one with `when.live` only on a device with a stream watched live now.
+ * device with such an endpoint, one with `when.live` only on a device with a stream watched live now,
+ * and one with `when.driver` only on a device of that driver.
  */
 const deviceTabs = (info: DeviceInfo): PanelEntry[] =>
   panelsOf('device.tabs').filter(({ when }) =>
-    (!when?.has && !when?.live) ||
-    info.endpointList.some((endpoint) => (!when.has || endpoint.type === when.has) && (!when.live || endpoint.live === true))
+    (!when?.driver || info.driver === when.driver) &&
+    ((!when?.has && !when?.live) ||
+      info.endpointList.some((endpoint) => (!when.has || endpoint.type === when.has) && (!when.live || endpoint.live === true)))
   );
 
 function Overview({ info, onChanged, onHistory }: { info: DeviceInfo; onChanged: () => void; onHistory: (endpoint: string) => void }) {

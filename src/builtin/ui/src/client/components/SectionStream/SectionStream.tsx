@@ -6,8 +6,8 @@ import { holdOffset, sectionAt, sectionHeight, sectionsInBand, sectionTop, strea
 /** What a page can ask of a stream. */
 export type SectionStreamHandle = {
   /**
-   * Bring the section `key` to `offset` px below the top of the window (the page's headers),
-   * once what the page has just changed is laid out.
+   * Bring the section `key` to `offset` px below the top of the window (by default the reading
+   * line), once what the page has just changed is laid out.
    */
   scrollToKey: (key: string, opts?: { offset?: number }) => void;
   /**
@@ -29,10 +29,12 @@ export type SectionStreamProps<T> = {
   /** Draws one section. A closed one is given a box exactly `closedHeight` tall, and clipped to it. */
   children: (item: T, index: number, open: boolean) => ReactNode;
   /**
-   * Where the page's headers end, in px from the top of the window: the section across this line
-   * is the one held in place while sections above it change.
+   * Where the page's headers end, in px from the top of the window, or in a `scroller` its top:
+   * the section across this line is the one held in place while sections above it change.
    */
   readingLine: number;
+  /** The element the stream scrolls in, a pane of its own; the window when none. */
+  scroller?: HTMLElement | null;
   /**
    * A closed section's outline as a CSS image, repeated down the stream under the sections, so a
    * fling — which mounts nothing until it slows — crosses section shapes rather than a blank page.
@@ -54,11 +56,11 @@ type Snapshot = { layout: StreamLayout; keys: string[] };
  * frame, and only the open sections are measured. Those stay mounted wherever the window is.
  *
  * The reader is held in place: when a section above the one across the reading line opens,
- * closes, grows or leaves the list, the window is scrolled by exactly the difference before the
- * frame is painted, so what is being read does not move. The browser's own scroll anchoring is
+ * closes, grows or leaves the list, the window (or the `scroller` the stream is in) is scrolled by
+ * exactly the difference before the frame is painted, so what is being read does not move. The browser's own scroll anchoring is
  * off for the stream, which would otherwise compensate a second time.
  */
-export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap = 0, children, readingLine, skeleton, onReadingLine, ref }: SectionStreamProps<T>) {
+export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap = 0, children, readingLine, scroller, skeleton, onReadingLine, ref }: SectionStreamProps<T>) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [measured, setMeasured] = useState<ReadonlyMap<string, number>>(() => new Map());
 
@@ -95,6 +97,8 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
   const previous = useRef<Snapshot | null>(null);
   const readingLineRef = useRef(readingLine);
   readingLineRef.current = readingLine;
+  const scrollerRef = useRef(scroller);
+  scrollerRef.current = scroller;
 
   const current = useRef({ layout, keys, openKeys });
   current.current = { layout, keys, openKeys };
@@ -120,13 +124,14 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
     previous.current = { layout, keys };
     if (!root) return;
     const rootTop = root.getBoundingClientRect().top;
+    const scrolling = scrollerRef.current ?? globalThis;
 
     const request = pending.current;
     if (request) {
       pending.current = null;
       const index = keys.indexOf(request.key);
       if (index >= 0) {
-        globalThis.scrollTo({ top: rootTop + globalThis.scrollY + sectionTop(layout, index) - request.offset, behavior: 'instant' });
+        scrolling.scrollBy({ top: rootTop + sectionTop(layout, index) - request.offset, behavior: 'instant' });
         return;
       }
     }
@@ -138,7 +143,7 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
     const after = keys.indexOf(before.keys[held]);
     if (after < 0) return;
     const delta = holdOffset(before.layout, held, layout, after);
-    if (delta !== 0) globalThis.scrollBy({ top: delta, behavior: 'instant' });
+    if (delta !== 0) scrolling.scrollBy({ top: delta, behavior: 'instant' });
   }, [layout, keys, scrollRequests]);
 
   // The section across the reading line, said once per frame at most as the window scrolls, and

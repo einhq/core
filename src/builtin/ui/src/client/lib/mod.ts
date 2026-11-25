@@ -71,3 +71,5 @@ export {
   type EinAppInfo,
   inEinApp,
 } from './ein-app.ts';
+// A `position` setting's value, `lat, lng, zoom`, read and written, for a module's page that takes one.
+export { formatMapPosition, type MapPosition, parseMapPosition } from '@ein/api';

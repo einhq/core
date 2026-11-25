@@ -7,8 +7,22 @@
  * (@font-face, keyframes, reduced-motion, and the non-Mantine terminal pane).
  */
 import { createTheme, type CSSVariablesResolver, defaultLoaders } from '@mantine/core';
+import type { KeyboardEvent } from 'react';
 import { HatRunLoader } from '../components/Layout/HatRunLoader.tsx';
 import { dark, marine, motion, semantic } from './tokens.ts';
+
+/**
+ * Escape from inside a popover's or a menu's dropdown goes no further. Mantine closes the dropdown
+ * on the key and lets it go on, so the page under it heard it after the dropdown had closed: Escape
+ * on a menu over the lightbox closed the lightbox too. Stopped here, at the dropdown, it never
+ * reaches the document, where the page's hotkeys listen. A key from outside the dropdown's own
+ * elements, a dropdown or a dialog portalled out of it, is left to that, which keeps it itself.
+ */
+function keepEscape(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== 'Escape' || event.nativeEvent.isComposing || !event.currentTarget.contains(event.target as Node)) return;
+  event.stopPropagation();
+  event.preventDefault();
+}
 
 export const theme = createTheme({
   primaryColor: 'marine',
@@ -93,6 +107,9 @@ export const theme = createTheme({
       defaultProps: { shadow: 'md', transitionProps: { transition: 'pop', duration: 140 } },
       styles: { dropdown: { backgroundColor: 'var(--mrx-surface-overlay)', border: 'none' } },
     },
+    /** A dropdown closes on Escape and keeps the key (`keepEscape`). A menu's is its own component. */
+    PopoverDropdown: { defaultProps: { onKeyDown: keepEscape } },
+    MenuDropdown: { defaultProps: { onKeyDown: keepEscape } },
     Tooltip: {
       defaultProps: { transitionProps: { transition: 'fade', duration: 120 } },
       styles: { tooltip: { backgroundColor: 'var(--mrx-surface-overlay)', color: 'var(--mrx-text-primary)' } },

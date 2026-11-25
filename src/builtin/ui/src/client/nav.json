@@ -49,16 +49,6 @@
       "order": 20
     },
     {
-      "id": "ui.app",
-      "signedIn": true,
-      "app": true,
-      "section": "system",
-      "label": "App",
-      "icon": "device-mobile",
-      "to": "/app",
-      "order": 25
-    },
-    {
       "id": "ui.settings",
       "signedIn": true,
       "section": "system",
@@ -151,9 +141,21 @@
         "navigate": "/trash"
       },
       "order": 910
+    },
+    {
+      "id": "ui.app",
+      "parent": "ui.account",
+      "signedIn": true,
+      "app": true,
+      "title": "App",
+      "icon": "device-mobile",
+      "action": {
+        "navigate": "/app"
+      },
+      "order": 920
     }
   ],
-  "layers": [
+  "styles": [
     {
       "id": "ui.map",
       "label": "Map",
@@ -163,15 +165,6 @@
           "url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           "options": {
             "attribution": "© OpenStreetMap contributors",
-            "maxZoom": 19
-          }
-        },
-        {
-          "url": "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
-          "detail": true,
-          "options": {
-            "attribution": "© OpenSeaMap contributors",
-            "maxNativeZoom": 18,
             "maxZoom": 19
           }
         }
@@ -208,6 +201,26 @@
           "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
           "options": {
             "attribution": "Tiles © Esri",
+            "maxZoom": 19
+          }
+        }
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "id": "ui.seamarks",
+      "label": "Sea marks",
+      "icon": "anchor",
+      "description": "Buoys, beacons and lights from OpenSeaMap.",
+      "order": 90,
+      "on": true,
+      "tiles": [
+        {
+          "url": "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
+          "options": {
+            "attribution": "© OpenSeaMap contributors",
+            "maxNativeZoom": 18,
             "maxZoom": 19
           }
         }

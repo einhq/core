@@ -1,12 +1,25 @@
 import { signal } from '@preact/signals-react';
-import { type MapLayerEntry, type NavAction, type PanelEntry, type UiNav, withoutAppEntries } from '@ui/nav';
+import { type MapLayerEntry, type MapStyleEntry, type NavAction, type PanelEntry, type UiNav, withoutAppEntries } from '@ui/nav';
 import { inEinApp } from '../lib/ein-app.ts';
 import { execCommand } from './shell-client.ts';
 import { preloadIcons } from '../lib/tabler-icons.ts';
 import { lightboxRoute } from '../lib/lightbox-route.ts';
 import { loadUiManifest, prefetchRoute, reloadUiManifest } from './module-ui.ts';
 import { openDialog, openFullscreen, toggleDrawer } from './surface.ts';
-export type { MapLayerEntry, MapTiles, NavAction, NavLink, NavList, NavPlace, PanelEntry, ResolvedSection, ResolvedTopbarEntry, UiNav } from '@ui/nav';
+export type {
+  MapLayerEntry,
+  MapLayerParams,
+  MapStyleEntry,
+  MapTiles,
+  NavAction,
+  NavLink,
+  NavList,
+  NavPlace,
+  PanelEntry,
+  ResolvedSection,
+  ResolvedTopbarEntry,
+  UiNav,
+} from '@ui/nav';
 
 /**
  * The sidebar and top bar, as `ui-nav` resolves them for this person: every module's
@@ -16,7 +29,7 @@ export type { MapLayerEntry, MapTiles, NavAction, NavLink, NavList, NavPlace, Pa
  * Loaded with the auth check, before anything is drawn, so the shell never shows an empty
  * sidebar that fills in.
  */
-export const uiNav = signal<UiNav>({ sections: [], topbar: [], panels: [], layers: [], warnings: [] });
+export const uiNav = signal<UiNav>({ sections: [], topbar: [], panels: [], styles: [], layers: [], warnings: [] });
 
 export async function loadNav(): Promise<void> {
   try {
@@ -65,7 +78,10 @@ const navActions = (nav: UiNav): NavAction[] => [
 /** The panels a page shows at `slot` (`nodes.tools`, `system.tabs`, `stats.sections`, `search.explore`, …), in order. */
 export const panelsOf = (slot: string): PanelEntry[] => uiNav.value.panels.filter((panel) => panel.slot === slot);
 
-/** The base layers a map offers, in order; the first is what a map shows when nothing names another. */
+/** The styles a map offers, in order; the first is what a map shows when neither it nor its reader names another. */
+export const mapStyles = (): MapStyleEntry[] => uiNav.value.styles;
+
+/** The layers a map may draw over its style, in order. */
 export const mapLayers = (): MapLayerEntry[] => uiNav.value.layers;
 
 /** A panel's route, `{path}` filled with the node path the slot is about. */

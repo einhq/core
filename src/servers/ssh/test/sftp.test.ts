@@ -391,6 +391,10 @@ Deno.test({
 
         const stats = await sftp.stat('/home/admin/fchmod.txt');
         assertEquals((stats.mode ?? 0) & 0o7777, 0o640);
+
+        // EiN has no setuid or setgid bit: a client's are dropped, the sticky bit kept.
+        await sftp.chmod('/home/admin/fchmod.txt', 0o7755);
+        assertEquals(((await sftp.stat('/home/admin/fchmod.txt')).mode ?? 0) & 0o7777, 0o1755);
       });
 
       await t.step('removes a file together with what belongs to it, but not what a link there names', async () => {

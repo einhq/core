@@ -124,6 +124,31 @@ Deno.test('VFS access enforcement', async (t) => {
       assertEquals([given.props.uid, given.props.gid], [OTHER.uid, OTHER.gid]);
     });
 
+    await t.step("someone who may write a node changes its group's and everyone's bits, not its owner's", async () => {
+      await mkfile(vfs, OWNER, '/area', 'lent.txt', 'x', 0o600);
+      await vfs.update(OWNER, '/area/lent.txt', { props: { acl: [{ uid: OTHER.uid, mode: 0o6 }] } });
+
+      // Write shares it further.
+      const shared = await vfs.update(OTHER, '/area/lent.txt', { props: { mode: 0o664 } });
+      assertEquals(shared.props.mode, 0o664);
+
+      // The owner's bits and the sticky bit are the owner's: taking the owner's write away would lock them out.
+      await assertRejects(() => vfs.update(OTHER, '/area/lent.txt', { props: { mode: 0o064 } }), NodeAccessDeniedError);
+      await assertRejects(() => vfs.update(OTHER, '/area/lent.txt', { props: { mode: 0o764 } }), NodeAccessDeniedError);
+      await assertRejects(() => vfs.update(OTHER, '/area/lent.txt', { props: { mode: 0o1664 } }), NodeAccessDeniedError);
+      assertEquals((await vfs.get(OWNER, '/area/lent.txt')).props.mode, 0o664);
+
+      assertEquals((await vfs.update(OWNER, '/area/lent.txt', { props: { mode: 0o1700 } })).props.mode, 0o1700);
+      assertEquals((await vfs.update(ADMIN_ACCESS, '/area/lent.txt', { props: { mode: 0o600 } })).props.mode, 0o600);
+
+      // EiN has no setuid or setgid bit: they are never stored, for anyone.
+      assertEquals((await vfs.update(OWNER, '/area/lent.txt', { props: { mode: 0o4755 } })).props.mode, 0o755);
+      assertEquals((await vfs.update(ADMIN_ACCESS, '/area/lent.txt', { props: { mode: 0o3755 } })).props.mode, 0o1755);
+      assertEquals((await vfs.updateMany(OWNER, ['/area/lent.txt'], { props: { mode: 0o2700 } }))[0].status, 'fulfilled');
+      assertEquals((await vfs.get(OWNER, '/area/lent.txt')).props.mode, 0o700);
+      assertEquals((await vfs.create(OWNER, 'file', '/area', 'setuid.txt', { props: { mode: 0o104755 } })).props.mode, 0o100755);
+    });
+
     await t.step('only the owner or the administrator marks a directory unlisted', async () => {
       const shared = await vfs.create(OWNER, 'directory', '/area', 'shared', { props: { mode: 0o775 } });
       assertEquals(shared.props.uid, OWNER.uid);

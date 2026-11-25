@@ -1,3 +1,4 @@
+import type { SignedIn } from '../../../lib/api/users.ts';
 import { parseArgs } from '../../../lib/args/mod.ts';
 import { accountByLoginName } from '../../../lib/auth/email.ts';
 import type { Command } from '../command.ts';
@@ -18,8 +19,9 @@ export const login = async (cmd: Command): CmdReturn => {
 
   const password = given ?? await cmd.prompt('Password: ', 'secret', 'give - after the username and the password on stdin');
 
+  let handover: string | undefined;
   try {
-    await cmd.login(username, password, flags.session);
+    handover = await cmd.login(username, password, flags.session);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await cmd.writeError(`login: ${message}\n`);
@@ -29,7 +31,7 @@ export const login = async (cmd: Command): CmdReturn => {
   if (cmd.json) {
     // The account's own name, also when it was named by its e-mail address.
     const account = await accountByLoginName(cmd.sys.vfs, username);
-    await cmd.writeJSON({ success: true, username: account?.username ?? username });
+    await cmd.writeJSON({ success: true, username: account?.username ?? username, ...(handover ? { handover } : {}) } satisfies SignedIn);
   }
 
   return 0;
@@ -57,7 +59,7 @@ login.spec = {
     {
       name: 'session',
       type: 'bool' as const,
-      description: 'login session not just shell',
+      description: 'sign in the session, every page and terminal of it, not just this shell; it gets a new secret, whose handover token the JSON answer carries',
     },
   ],
 };

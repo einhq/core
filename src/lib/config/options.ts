@@ -493,6 +493,27 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Maps',
   },
   {
+    key: 'CFG_USER_MAP_STYLE',
+    scope: 'user',
+    type: 'string',
+    default: '',
+    emptyMeans: 'the first map style',
+    label: 'Map style',
+    description: 'The style every map shows you when it names none of its own, by its id (ui.map, ui.satellite). The Map page sets it when you pick a style there.',
+    group: 'Maps',
+  },
+  {
+    key: 'CFG_USER_MAP_LAYERS',
+    scope: 'user',
+    type: 'string',
+    default: '',
+    emptyMeans: 'the layers that start on',
+    label: 'Map layers',
+    description:
+      "What the Map page draws for you when its address names nothing, by the layers' ids separated by commas (archive.media, archive.tracks), or none. The Map page sets it when you turn a layer on or off there.",
+    group: 'Maps',
+  },
+  {
     key: 'HISTSIZE',
     scope: 'user',
     type: 'number',

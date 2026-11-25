@@ -100,14 +100,15 @@ function Frame({ children }: Props) {
 
   const matches = useMatches();
   const isLoginPage = location.pathname === '/login';
-  // Where a share link or a sign-in link lands: open to anyone, drawn outside the frame like the
-  // sign-in page.
-  const isLinkPage = isShareLinkPage(location.pathname) || isInvitePage(location.pathname);
   // A page says what it is on its route, the shell's (routes.tsx) or a module's, in its `handle`:
   // `fullBleed: true`, drawn edge to edge — any other page gets the `md` gutter (`.mrx-page`) —
-  // and `signedIn: true`, a page of the reader's own or one that only writes, which the guest is
-  // sent to sign in for.
-  const handles = matches.map((match) => (match.handle ?? {}) as { fullBleed?: boolean; signedIn?: boolean });
+  // `signedIn: true`, a page of the reader's own or one that only writes, which the guest is sent
+  // to sign in for, and `open: true`, a page anyone opens, drawn outside the frame (a browser
+  // display's, which acts with the key in its address).
+  const handles = matches.map((match) => (match.handle ?? {}) as { fullBleed?: boolean; signedIn?: boolean; open?: boolean });
+  // Where a share link or a sign-in link lands, or a page open to anyone: drawn outside the frame
+  // like the sign-in page.
+  const isLinkPage = isShareLinkPage(location.pathname) || isInvitePage(location.pathname) || handles.some((handle) => handle.open === true);
   const isFullBleedPage = handles.some((handle) => handle.fullBleed === true);
   const isSignedInPage = handles.some((handle) => handle.signedIn === true);
   const authenticated = isAuthenticated.value;

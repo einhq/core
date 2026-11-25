@@ -167,7 +167,10 @@ here" inside the frame; a module page whose bundle cannot be loaded (`ModuleLoad
 ends on the root's error page, also inside the frame, which offers a reload
 ([RouteProblem.tsx](../../src/builtin/ui/src/client/components/RouteProblem/RouteProblem.tsx)). The
 dialog, drawer and full-screen surfaces draw the same, smaller. A page says it is drawn edge to edge
-with `export const handle = { fullBleed: true }`; any other gets the frame's `md` gutter.
+with `export const handle = { fullBleed: true }`; any other gets the frame's `md` gutter. One that
+says `open: true` is opened by anyone, signed in or not, and drawn outside the frame as a share
+link's page is: a browser display's (module-devices' `/display`), which acts with the device key in
+its address and reads nothing as the visitor.
 `sync:modules` gives a module with pages the lent specifiers' type paths in its `deno.jsonc`, so
 `deno task check` covers its pages; at runtime nothing reads them.
 

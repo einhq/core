@@ -276,3 +276,8 @@ export { type CatalogueEntry, commandCatalogue, forgetCommandCatalogues } from '
 // Where a module may connect at an address a person gives: the public internet, and off it what the
 // gate's `local` allows, checked again at each connection; and an answer read only up to a limit.
 export { AddressGate, type AddressGateOptions, followRedirects, type GateFetch, inNetworks, isPublicAddress, readAtMost } from '../lib/net/address-gate.ts';
+
+// The Web UI's navigation as the caller gets it: what a module reads to know the map styles and
+// layers its caller is offered, and their settings.
+export { readUiNav } from '../builtin/ui/lib/read-nav.ts';
+export type { MapLayerEntry, MapLayerParams, MapStyleEntry, MapTiles, UiNav } from '../builtin/ui/lib/nav.ts';

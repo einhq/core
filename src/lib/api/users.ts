@@ -97,6 +97,18 @@ export type UserInactive = { username: string; inactive: boolean };
 /** `user-elevate`: whether the sign-in is now an administrator's. */
 export type UserElevated = { elevated: boolean };
 
+/**
+ * What a change to the session's sign-in (`--session` to `login`, `logout` and `user-elevate`) adds:
+ * the one-time token `POST /__session` exchanges for the cookie of the session's new secret.
+ */
+export type SessionHandover = { handover?: string };
+
+/** `login`: the account signed in, by its own name also when it was named by its e-mail address. */
+export type SignedIn = { success: true; username: string } & SessionHandover;
+
+/** `logout`. */
+export type SignedOut = { ok: true } & SessionHandover;
+
 /** `user-set-primary-group`: the account's primary group before and after. */
 export type PrimaryGroupSet = { username: string; oldGid: GroupId; newGid: GroupId; primaryGroup: string };
 

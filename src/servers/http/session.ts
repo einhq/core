@@ -3,11 +3,12 @@ import { ulid } from '@std/ulid';
 import { Access, ADMIN_ACCESS, GUEST_ACCESS, GUEST_GID, GUEST_UID, isGuest, storedAccess } from '../../lib/access/mod.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
 import { guestMayBrowse, readSettings, secondsSetting } from '../../lib/config/mod.ts';
+import { sameToken } from '../../lib/token/mod.ts';
 import { type AppSession, appSessionHolds, touchAppToken } from '../../managers/devices/app-tokens.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { sessionHeldByShell } from '../../managers/shell/shell.ts';
 import { Node, NodeAlreadyExistsError, NodeNotFoundError, NodePath, NodeVFS } from '../../vfs/mod.ts';
-import { isSessionNode, NODE_TYPE_SESSION, SessionAttrs } from '../../vfs/types/session.ts';
+import { isSessionNode, newSessionSecret, NODE_TYPE_SESSION, SessionAttrs } from '../../vfs/types/session.ts';
 
 const logger = createLogger('http-session');
 
@@ -33,8 +34,15 @@ function cookieValue(headers: Headers, name: string): string | undefined {
   return value;
 }
 
+/**
+ * The session cookie's name for a request: `COOKIE_NAME`, and over HTTPS with the `__Host-` prefix,
+ * which the browser keeps only from this very host over HTTPS, so a sibling subdomain or a page
+ * served over plain HTTP cannot set the cookie the server reads.
+ */
+const sessionCookieName = (config: SessionConfig, headers: Headers): string => isForwardedHttps(headers) ? `__Host-${config.env.COOKIE_NAME}` : config.env.COOKIE_NAME;
+
 /** Whether a request presents the session cookie, valid or not. */
-export const carriesSessionCookie = (config: SessionConfig, headers: Headers): boolean => cookieValue(headers, config.env.COOKIE_NAME) !== undefined;
+export const carriesSessionCookie = (config: SessionConfig, headers: Headers): boolean => cookieValue(headers, sessionCookieName(config, headers)) !== undefined;
 
 function parseSessionCookie(value?: string): { name: string; secret: string } | false {
   if (!value || !value.includes('.')) {
@@ -131,7 +139,10 @@ export function isForwardedHttps(headers: Headers): boolean {
  */
 function issueCookie(config: SessionConfig, requestHeaders: Headers, responseHeaders: Headers, name: string, secret: string, maxAgeSec: number): void {
   const secure = isForwardedHttps(requestHeaders) ? ['Secure'] : [];
-  responseHeaders.append('set-cookie', [`${config.env.COOKIE_NAME}=${name}.${secret}`, ...secure, 'HttpOnly', `Max-Age=${maxAgeSec}`, 'SameSite=Lax', 'Path=/'].join('; '));
+  responseHeaders.append(
+    'set-cookie',
+    [`${sessionCookieName(config, requestHeaders)}=${name}.${secret}`, ...secure, 'HttpOnly', `Max-Age=${maxAgeSec}`, 'SameSite=Lax', 'Path=/'].join('; '),
+  );
 }
 
 type GetSessionOptions = {
@@ -176,7 +187,7 @@ type SessionIdent = { name: string; secret: string };
 /** A session's name and secret as this server makes them: a ULID, and 32 hex digits. */
 const isServerIdent = ({ name, secret }: SessionIdent): boolean => /^[0-9A-HJKMNP-TV-Z]{26}$/.test(name) && /^[0-9a-f]{32}$/.test(secret);
 
-const newIdent = (): SessionIdent => ({ name: ulid(), secret: crypto.randomUUID().replaceAll('-', '') });
+const newIdent = (): SessionIdent => ({ name: ulid(), secret: newSessionSecret() });
 
 /**
  * The session a cookie names when it is usable: a session node, not ended, with the cookie's secret
@@ -198,7 +209,7 @@ async function findSession(config: SessionConfig, ident: SessionIdent, sessionPa
     logger.warn('received session id that names no session');
   } else if (node.attrs.expired) {
     logger.warn('received session id which has expired');
-  } else if (node.attrs.secret !== ident.secret) {
+  } else if (!sameToken(node.attrs.secret, ident.secret)) {
     logger.warn('received session id cookie with non-matching secret');
   } else if (node.attrs.endsWithBoot !== undefined && node.attrs.endsWithBoot !== BOOT_ID) {
     logger.warn('received session of a page whose stream ended with the process that served it');
@@ -220,7 +231,7 @@ export async function getSession(
   opts: GetSessionOptions = {},
 ): Promise<{ responseHeaders: Headers; sessionPath: NodePath; access: Access }> {
   const responseHeaders = new Headers();
-  const sessionIdent = parseSessionCookie(cookieValue(headers, config.env.COOKIE_NAME)) || undefined;
+  const sessionIdent = parseSessionCookie(cookieValue(headers, sessionCookieName(config, headers))) || undefined;
   const sessionPath = sessionIdent ? join(config.env.SESSIONS_PATH, `session-${sessionIdent.name}`) : '';
   const found = sessionIdent ? await findSession(config, sessionIdent, sessionPath) : undefined;
 
@@ -263,6 +274,29 @@ export async function getSession(
   }
 
   return { responseHeaders, sessionPath: '', access: GUEST_ACCESS };
+}
+
+/**
+ * Exchange a handover token (`SessionAttrs.handover`) for the cookie of the session's new secret,
+ * once: the response headers that write it, or undefined when the session the request's cookie
+ * names holds no such token any more. The cookie the request presents names the session; its old
+ * secret no longer matches and proves nothing, the token does.
+ */
+export async function takeHandover(config: SessionConfig, headers: Headers, token: string): Promise<Headers | undefined> {
+  const sessionIdent = parseSessionCookie(cookieValue(headers, sessionCookieName(config, headers)));
+  if (!sessionIdent) return undefined;
+  const sessionPath = join(config.env.SESSIONS_PATH, `session-${sessionIdent.name}`);
+  const node = await config.vfs.get(ADMIN_ACCESS, sessionPath).catch(() => undefined);
+  if (!node || !isSessionNode(node) || node.attrs.expired) return undefined;
+  const { handover } = node.attrs;
+  if (!handover || handover.expiresAt < Date.now() || !sameToken(handover.token, token)) {
+    logger.warn('refused a session handover', { session: basename(sessionPath) });
+    return undefined;
+  }
+  const taken = await config.vfs.update<SessionAttrs>(ADMIN_ACCESS, sessionPath, { attrs: { handover: undefined, lastActivity: Date.now() } });
+  const responseHeaders = new Headers();
+  issueCookie(config, headers, responseHeaders, sessionIdent.name, taken.attrs.secret, cookieAge(await sessionLifetimes(config), taken.attrs.access));
+  return responseHeaders;
 }
 
 /**

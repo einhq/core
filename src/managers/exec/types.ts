@@ -122,9 +122,11 @@ export interface TtyIf extends ShellIf {
 
   getIO(): TtyIO;
 
-  login(username: string, password: string, session?: boolean): Promise<void>;
+  /** Sign this tty in and, with `session`, its session, returning the token that hands the session's new secret to the browser. */
+  login(username: string, password: string, session?: boolean): Promise<string | undefined>;
 
-  logout(session?: boolean): Promise<void>;
+  /** Sign this tty out and, with `session`, its session, returning its handover token as `login` does. */
+  logout(session?: boolean): Promise<string | undefined>;
 
   /** Act as a share link in this tty and, with `session`, in its session, which then lasts `expiresSec` (`share-link open`). */
   actAsLink(access: Access, session?: boolean, expiresSec?: number): Promise<void>;
@@ -133,10 +135,10 @@ export interface TtyIf extends ShellIf {
   recordAccess(input: TtyAccessInput): Promise<void>;
 
   /** Make this tty's sign-in an administrator's and, with `session`, its session's (`user-elevate`). */
-  elevate(password: string, session?: boolean): Promise<void>;
+  elevate(password: string, session?: boolean): Promise<string | undefined>;
 
   /** Make this tty's sign-in, and with `session` its session's, no longer an administrator's (`user-elevate --off`). */
-  unelevate(session?: boolean): Promise<void>;
+  unelevate(session?: boolean): Promise<string | undefined>;
 
   /**
    * In cooked mode, control characters like Ctrl+C are intercepted; in raw mode, all bytes pass

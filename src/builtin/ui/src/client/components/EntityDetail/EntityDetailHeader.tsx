@@ -106,8 +106,8 @@ const textOf = (node: ReactNode): string => {
 
 /**
  * What a page with this header is called: `name` when one is given, else the text written out in
- * `title`. A title a component of its own draws holds no text to read — the staging page's category
- * switcher — and says its name with `name` instead.
+ * `title`. A title a component of its own draws holds no text to read, and says its name with
+ * `name` instead.
  */
 const headerName = ({ title, name }: { title: ReactNode; name?: string }): string => (name ?? textOf(title)).replace(/\s+/g, ' ').trim();
 

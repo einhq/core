@@ -101,7 +101,7 @@ Deno.test({
 
     await t.step("the site's page loads scripts from EiN alone and only EiN frames it, but is not sandboxed like a file", async () => {
       const policy = /^content-security-policy: (.*)$/im.exec((await get('example.com', '/some/spa/route')).head)?.[1] ?? '';
-      assertStringIncludes(policy, "script-src 'self' https://www.gstatic.com");
+      assertStringIncludes(policy, "script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com");
       assertStringIncludes(policy, "frame-ancestors 'self'");
       assertStringIncludes(policy, "object-src 'none'");
       assertEquals(policy.includes('sandbox'), false, policy);

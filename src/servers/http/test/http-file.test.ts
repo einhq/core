@@ -113,6 +113,21 @@ Deno.test({
       assertEquals(etag !== null, true);
     });
 
+    await t.step("a visitor who has not signed in reads the modules' pages under /var/cache/ui, and nothing else", async () => {
+      for (const [parent, name] of [['/', 'var'], ['/var', 'cache'], ['/var/cache', 'ui']]) {
+        await vfs.ensure(ADMIN_ACCESS, 'directory', parent, name, { props: { mode: 0o755 } });
+      }
+      await vfs.create(ADMIN_ACCESS, 'file', '/var/cache/ui', 'visitor-test.js', { props: { mode: 0o644 }, attrs: { mimetype: 'text/javascript' } });
+      const handle = await vfs.open(ADMIN_ACCESS, '/var/cache/ui/visitor-test.js', { mode: 'w' });
+      await handle.write(new TextEncoder().encode('export default 1;'));
+      await handle.close();
+      const page = await fetch(`${baseUrl}/file/var/cache/ui/visitor-test.js`);
+      assertEquals([page.status, await page.text()], [200, 'export default 1;']);
+      const other = await fetch(`${baseUrl}/file/tmp/pixel.png`);
+      await other.body?.cancel();
+      assertEquals(other.status, 401);
+    });
+
     await t.step('HEAD returns the GET headers without a body', async () => {
       const res = await fetch(`${baseUrl}/file/tmp/pixel.png`, {
         method: 'HEAD',

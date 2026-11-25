@@ -1,4 +1,4 @@
-import type { UserElevated } from '../../../../lib/api/users.ts';
+import type { SessionHandover, UserElevated } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -10,12 +10,13 @@ export const userElevate = async (cmd: Command): CmdReturn => {
     string: ['password'],
   });
 
+  let handover: string | undefined;
   try {
     if (flags.off) {
-      await cmd.unelevate(flags.session);
+      handover = await cmd.unelevate(flags.session);
     } else {
       const password = await passwordReader(cmd)(flags.password);
-      await cmd.elevate(password ?? await cmd.prompt('Password: ', 'secret', 'add --password=- and give it on stdin'), flags.session);
+      handover = await cmd.elevate(password ?? await cmd.prompt('Password: ', 'secret', 'add --password=- and give it on stdin'), flags.session);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -24,7 +25,7 @@ export const userElevate = async (cmd: Command): CmdReturn => {
   }
 
   if (cmd.json) {
-    await cmd.writeJSON({ elevated: !flags.off } satisfies UserElevated);
+    await cmd.writeJSON({ elevated: !flags.off, ...(handover ? { handover } : {}) } satisfies UserElevated & SessionHandover);
   } else {
     const what = flags.session ? 'This sign-in' : 'This shell';
     const off = flags.session ? 'user-elevate --off --session' : 'user-elevate --off';
