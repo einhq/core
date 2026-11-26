@@ -2,14 +2,15 @@
  * Unlisted trees are left out of the library's views: the feed and a seek into it, its facets and
  * the `facets` command, a subject's media, a region; `--within` the tree, or a place inside it,
  * still lists what it holds, and `--within` a directory above it leaves it out. A provider that says
- * it finds its kinds anywhere keeps its hits in one. Marking and unmarking a directory takes effect
+ * it finds its kinds anywhere keeps its hits in one. `--include-unlisted` lists one directory in a tree
+ * again, the rest of it still out. Marking and unmarking a directory takes effect
  * on the next search. `unlistedIds` names the nodes that lie in one.
  */
 
 import { assertEquals } from '@std/assert';
 import { ADMIN_ACCESS } from '../../access/mod.ts';
 import { captureTime, createTestContext, testCommands } from '../../../testing/mod.ts';
-import { isUnlistedPath, UNLISTED_ATTR, unlistedIds, unlistedRoots, unlistedWithin } from '../unlisted.ts';
+import { isUnlistedPath, UNLISTED_ATTR, unlistedExcept, unlistedIds, unlistedRoots, unlistedWithin } from '../unlisted.ts';
 
 const testCtx = createTestContext({ boot: true });
 
@@ -137,6 +138,16 @@ Deno.test({
       await mkmedia('/home/anna/portrait.jpg', '2012-01-01T10:00:00');
       assertEquals(names(await client.execJson<Results>('search --within /home/anna')), ['portrait.jpg']);
       assertEquals((await client.execJson<Facets>('search --within /home/anna --facets')).total, 1);
+    });
+
+    await t.step('--include-unlisted lists a directory in the tree, and the rest of it stays out', async () => {
+      await cmd.shouldSucceed(`mkdir -p ${STAGING}/journal`);
+      await mkmedia(`${STAGING}/journal/kept.jpg`, '2010-06-20T10:00:00');
+      const feed = names(await client.execJson<Results>(`search --sort -time -l 100 --include-unlisted ${STAGING}/files`));
+      assertEquals([feed.includes('boat.jpg'), feed.includes('scan.jpg'), feed.includes('harbour.jpg'), feed.includes('kept.jpg')], [true, true, true, false]);
+      assertEquals(await unlistedExcept(vfs, [STAGING], [`${STAGING}/files`]), [`${STAGING}/journal`]);
+      assertEquals(await unlistedExcept(vfs, [STAGING], [STAGING]), []);
+      assertEquals(await unlistedExcept(vfs, [STAGING], ['/library']), [STAGING]);
     });
 
     await t.step("a provider's hit in the tree is left out, unless it finds its kinds anywhere", async () => {

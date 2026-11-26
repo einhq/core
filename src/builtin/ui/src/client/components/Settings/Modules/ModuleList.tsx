@@ -1,5 +1,5 @@
-import { Badge, Group, Switch, Text } from '@mantine/core';
-import { IconCircleArrowUp } from '@tabler/icons-react';
+import { Badge, Group, Switch, Text, ThemeIcon } from '@mantine/core';
+import { IconCircleArrowUp, IconLayoutDashboard } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { ModuleEntry } from '@ein/api';
 import { matchesText } from '../../../lib/text-match.ts';
@@ -54,16 +54,34 @@ type ModuleListProps = {
   scrolls: boolean;
   activeOnly: boolean;
   onActiveOnly: (next: boolean) => void;
+  /** The row above the modules that opens the overview, with how many updates it lists; absent where there is none. */
+  overview?: { selected: boolean; updates: number; checking: boolean; onSelect: () => void };
 };
 
 /**
  * The installed modules, narrowed by the filter, each opening its panel: its description under its
  * name, and at its right its version, marked when a newer one can be installed, or a badge when it
- * does not work. The switch at the foot leaves out the ones that do not; `action`, beside the
- * filter, opens the panel that installs one.
+ * does not work. Above them, while nothing narrows them, the row that opens the overview, with how
+ * many updates there are. The switch at the foot leaves out the ones that do not work; `action`,
+ * beside the filter, opens the panel that installs one.
  */
-export function ModuleList({ modules, selected, onSelect, hasUpdate, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly }: ModuleListProps) {
+export function ModuleList({ modules, selected, onSelect, hasUpdate, filter, onFilter, loading, action, scrolls, activeOnly, onActiveOnly, overview }: ModuleListProps) {
   const shown = modules.filter((module) => matchesText([module.name, module.description], filter));
+  const overviewRow = overview && !filter.trim() && (
+    <ListRow
+      key='\0overview'
+      selected={overview.selected}
+      onClick={overview.onSelect}
+      avatar={
+        <ThemeIcon size={36} radius='md' variant='light'>
+          <IconLayoutDashboard size={20} />
+        </ThemeIcon>
+      }
+      title='Overview'
+      subtitle={overview.checking ? 'Checking for updates…' : overview.updates > 0 ? 'What can be updated' : 'Everything is up to date'}
+      aside={overview.updates > 0 ? <Badge size='sm' circle style={{ flex: 'none' }} aria-label={`${overview.updates} updates`}>{overview.updates}</Badge> : undefined}
+    />
+  );
   return (
     <ListFrame
       what='modules'
@@ -72,17 +90,20 @@ export function ModuleList({ modules, selected, onSelect, hasUpdate, filter, onF
       loading={loading}
       action={action}
       scrolls={scrolls}
-      rows={shown.map((module) => (
-        <ListRow
-          key={module.name}
-          selected={module.name === selected}
-          onClick={() => onSelect(module.name)}
-          avatar={<ModuleAvatar name={module.name} size={36} />}
-          title={module.name}
-          subtitle={module.description ?? ''}
-          aside={<Aside module={module} update={hasUpdate?.(module) === true} />}
-        />
-      ))}
+      rows={[
+        ...(overviewRow ? [overviewRow] : []),
+        ...shown.map((module) => (
+          <ListRow
+            key={module.name}
+            selected={module.name === selected}
+            onClick={() => onSelect(module.name)}
+            avatar={<ModuleAvatar name={module.name} size={36} />}
+            title={module.name}
+            subtitle={module.description ?? ''}
+            aside={<Aside module={module} update={hasUpdate?.(module) === true} />}
+          />
+        )),
+      ]}
       footer={
         <Switch
           size='sm'

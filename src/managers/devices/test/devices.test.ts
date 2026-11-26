@@ -291,17 +291,15 @@ Deno.test({ name: 'devices', sanitizeResources: false, sanitizeOps: false }, asy
     });
 
     await t.step('a write nobody may make is refused before its body is read, and a body over its limit is 413', async () => {
-      let sent = 0;
-      const endless = new ReadableStream<Uint8Array>({
-        pull(controller) {
-          sent += 64 * 1024;
-          controller.enqueue(new Uint8Array(64 * 1024));
-        },
+      // The body sends nothing until the answer comes, so a server that read it first would never answer.
+      let finish = () => {};
+      const silent = new ReadableStream<Uint8Array>({
+        pull: (controller) => new Promise<void>((resolve) => finish = () => (controller.close(), resolve())),
       });
-      const guest = await fetch(`${baseUrl}/file/dev/porch`, { method: 'POST', body: endless });
+      const guest = await fetch(`${baseUrl}/file/dev/porch`, { method: 'POST', body: silent, signal: AbortSignal.timeout(5000) })
+        .finally(() => finish());
       await guest.body?.cancel();
       assertEquals(guest.status, 403);
-      assert(sent < 4 * 1024 * 1024, `${sent} bytes were taken before the refusal`);
 
       const key = await anna.execJson<DeviceKeyAnswer>('device-key porch --new --origin https://ein.example');
       const secret = new URL(key.url!).searchParams.get('key')!;

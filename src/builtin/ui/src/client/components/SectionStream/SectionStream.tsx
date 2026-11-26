@@ -22,11 +22,17 @@ export type SectionStreamProps<T> = {
   items: readonly T[];
   /** Stable per item: the section's key, and how it is found again after the list changes. */
   itemKey: (item: T) => string;
-  /** The sections drawn open, by key. Each is measured; every other one is `closedHeight` tall. */
+  /** The sections drawn open, by key. Each is measured and stays mounted; every other one is `closedHeight` tall. */
   openKeys: ReadonlySet<string>;
   closedHeight: number;
+  /**
+   * How tall a closed section is likely to be, when closed sections differ: each is then placed
+   * at this height until it is mounted, and measured from then on rather than clipped. Without
+   * it every closed section is exactly `closedHeight`.
+   */
+  estimate?: (item: T, index: number) => number;
   gap?: number;
-  /** Draws one section. A closed one is given a box exactly `closedHeight` tall, and clipped to it. */
+  /** Draws one section. A closed one is given a box exactly `closedHeight` tall, and clipped to it, unless there is an `estimate`. */
   children: (item: T, index: number, open: boolean) => ReactNode;
   /**
    * Where the page's headers end, in px from the top of the window, or in a `scroller` its top:
@@ -54,24 +60,35 @@ type Snapshot = { layout: StreamLayout; keys: string[] };
  * Because a closed section's height is fixed, where every section starts is arithmetic
  * (`lib/section-stream.ts`): the stream keeps its full height in the document from the first
  * frame, and only the open sections are measured. Those stay mounted wherever the window is.
+ * With an `estimate`, closed sections differ in height: each stands at its estimate until it is
+ * mounted, and at what it measured since, so the stream's height is close from the first frame
+ * and exact where it has been seen.
  *
  * The reader is held in place: when a section above the one across the reading line opens,
  * closes, grows or leaves the list, the window (or the `scroller` the stream is in) is scrolled by
  * exactly the difference before the frame is painted, so what is being read does not move. The browser's own scroll anchoring is
  * off for the stream, which would otherwise compensate a second time.
  */
-export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap = 0, children, readingLine, scroller, skeleton, onReadingLine, ref }: SectionStreamProps<T>) {
+export function SectionStream<T>(
+  { items, itemKey, openKeys, closedHeight, estimate, gap = 0, children, readingLine, scroller, skeleton, onReadingLine, ref }: SectionStreamProps<T>,
+) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  // Heights measured, by `measureKey`: a section open and closed are two heights.
   const [measured, setMeasured] = useState<ReadonlyMap<string, number>>(() => new Map());
 
   const keys = useMemo(() => items.map(itemKey), [items, itemKey]);
+  const openIndexes = useMemo(() => keys.flatMap((key, index) => openKeys.has(key) ? [index] : []), [keys, openKeys]);
   const layout = useMemo(() => {
-    const open = new Map<number, number>();
+    // Every section not `closedHeight` tall is given its own height; the layout's arithmetic
+    // takes them all alike.
+    const sized = new Map<number, number>();
     keys.forEach((key, index) => {
-      if (openKeys.has(key)) open.set(index, measured.get(key) ?? closedHeight);
+      const open = openKeys.has(key);
+      if (open) sized.set(index, measured.get(measureKey(key, true)) ?? closedHeight);
+      else if (estimate) sized.set(index, measured.get(measureKey(key, false)) ?? estimate(items[index], index));
     });
-    return streamLayout(keys.length, closedHeight, gap, open);
-  }, [keys, openKeys, measured, closedHeight, gap]);
+    return streamLayout(keys.length, closedHeight, gap, sized);
+  }, [keys, items, openKeys, measured, closedHeight, estimate, gap]);
   const height = streamHeight(layout);
 
   const window = useVerticalWindow(rootRef, height);
@@ -79,9 +96,9 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
   const mounted = useMemo(() => {
     const indexes = new Set<number>();
     for (let index = range.start; index < range.end; index++) indexes.add(index);
-    for (const index of layout.openIndexes) indexes.add(index);
+    for (const index of openIndexes) indexes.add(index);
     return [...indexes].sort((a, b) => a - b);
-  }, [range.start, range.end, layout]);
+  }, [range.start, range.end, openIndexes]);
 
   const report = useCallback((key: string, value: number) => {
     setMeasured((previous) => {
@@ -182,15 +199,15 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
     if (!skeleton) return [];
     const runs: { top: number; height: number }[] = [];
     let start = 0;
-    for (const open of [...layout.openIndexes, layout.count]) {
+    for (const open of [...openIndexes, layout.count]) {
       if (open > start) {
         const top = sectionTop(layout, start);
-        runs.push({ top, height: sectionTop(layout, open - 1) + closedHeight - top });
+        runs.push({ top, height: sectionTop(layout, open - 1) + sectionHeight(layout, open - 1) - top });
       }
       start = open + 1;
     }
     return runs;
-  }, [layout, skeleton, closedHeight]);
+  }, [layout, openIndexes, skeleton]);
 
   return (
     <Box ref={rootRef} pos='relative' style={{ height, overflowAnchor: 'none' }}>
@@ -215,6 +232,7 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
         const item = items[index];
         const key = keys[index];
         const open = openKeys.has(key);
+        const sized = open || estimate !== undefined;
         return (
           <Box
             key={key}
@@ -224,12 +242,12 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
               top: sectionTop(layout, index),
               left: 0,
               right: 0,
-              ...(open ? {} : { height: closedHeight, overflow: 'hidden' }),
+              ...(sized ? {} : { height: closedHeight, overflow: 'hidden' }),
               // Painted over the outline layer, which a mounted section covers.
               background: 'var(--mrx-surface-base)',
             }}
           >
-            {open ? <Measured sectionKey={key} onHeight={report}>{children(item, index, true)}</Measured> : children(item, index, false)}
+            {sized ? <Measured sectionKey={measureKey(key, open)} onHeight={report}>{children(item, index, open)}</Measured> : children(item, index, false)}
           </Box>
         );
       })}
@@ -237,7 +255,10 @@ export function SectionStream<T>({ items, itemKey, openKeys, closedHeight, gap =
   );
 }
 
-/** An open section, reporting its height whenever it changes. */
+/** What a section's height is kept under: open and closed apart. */
+const measureKey = (key: string, open: boolean) => `${open ? 'open' : 'closed'}\n${key}`;
+
+/** An open section, or a closed one of its own height, reporting its height whenever it changes. */
 function Measured({ sectionKey, onHeight, children }: { sectionKey: string; onHeight: (key: string, height: number) => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {

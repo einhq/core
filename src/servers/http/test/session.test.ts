@@ -273,8 +273,11 @@ Deno.test({
         [{ 'x-forwarded-proto': 'http' }, false],
         [{ 'x-forwarded-proto': 'https' }, true],
         [{ 'x-forwarded-proto': 'https, http' }, true],
+        [{ 'x-forwarded-proto': 'wss' }, true],
+        [{ 'x-forwarded-proto': 'ws' }, false],
         [{ forwarded: 'for=192.0.2.1;proto=https;host=ein.example' }, true],
         [{ forwarded: 'for=192.0.2.1;proto=http' }, false],
+        [{ forwarded: 'for=192.0.2.1;proto=wss' }, true],
       ];
       for (const [headers, secure] of cases) {
         const res = await fetch(`${baseUrl}/`, { headers: { ...NAVIGATION, ...headers } });
@@ -523,6 +526,17 @@ Deno.test({
       };
       assertEquals(await ask({ cookie, ...https }), 401);
       assertEquals(await ask({ cookie: `__Host-${cookie}`, ...https }), 204);
+    });
+
+    await t.step("the shell's socket behind a proxy that says wss reads the same __Host- cookie as the page", async () => {
+      const socket = await ShellClient.connect(baseUrl, `__Host-${cookie}`, { 'x-forwarded-proto': 'wss' });
+      try {
+        const sid = String((await socket.exec('echo $SID')).data).trim();
+        assertEquals(sid !== '' && sessionPath.endsWith(sid), true, `${sid} in ${sessionPath}`);
+      } finally {
+        socket.close();
+        await socket.closed;
+      }
     });
 
     await t.step('malformed cookie falls back to guest access', async () => {

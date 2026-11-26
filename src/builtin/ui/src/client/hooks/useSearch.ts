@@ -171,6 +171,7 @@ export function buildSearchCommand(
   for (const entry of filters.has ?? []) parts.push('--has', shq(entry));
   if (filters.like) parts.push('--like', shq(filters.like));
   if (filters.creator !== undefined) parts.push('--creator', String(filters.creator));
+  for (const path of filters.includeUnlisted ?? []) parts.push('--include-unlisted', shq(path));
   if (filters.sort) parts.push('--sort', filters.sort);
 
   const region = filters.region;

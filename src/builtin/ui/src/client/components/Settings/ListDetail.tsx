@@ -16,9 +16,9 @@ export const SPLIT_MIN_WIDTH = 720;
  * Keeps `--mrx-settings-around` on the split at how much of the window's height the page takes
  * above and below it: its distance from the top of the page, plus the padding of every box around
  * it under the body. The stylesheet gives it the rest of the window. Measured again whenever what
- * stands before it, or before a box around it, changes size: the page's header, the tab's top
- * row, all of them when the page narrows. Never the boxes around it, whose height follows its
- * own and would answer every change with another.
+ * stands before it, or before a box around it, changes size, comes or goes: the page's header, the
+ * tab's top row, all of them when the page narrows. Never the boxes around it, whose height follows
+ * its own and would answer every change with another.
  */
 export function fillWindow(split: HTMLElement | null) {
   if (!split) return;
@@ -32,12 +32,22 @@ export function fillWindow(split: HTMLElement | null) {
     const value = `${Math.ceil(around)}px`;
     if (split.style.getPropertyValue('--mrx-settings-around') !== value) split.style.setProperty('--mrx-settings-around', value);
   };
-  place();
   const observer = new ResizeObserver(place);
-  for (let box: Element | null = split; box && box !== document.body; box = box.parentElement) {
-    for (let before = box.previousElementSibling; before; before = before.previousElementSibling) observer.observe(before);
-  }
-  return () => observer.disconnect();
+  const watch = () => {
+    observer.disconnect();
+    for (let box: Element | null = split; box && box !== document.body; box = box.parentElement) {
+      for (let before = box.previousElementSibling; before; before = before.previousElementSibling) observer.observe(before);
+    }
+    place();
+  };
+  watch();
+  // Something put before it, or before a box around it, is watched too, and measured as it comes.
+  const added = new MutationObserver(watch);
+  for (let box = split.parentElement; box && box !== document.body; box = box.parentElement) added.observe(box, { childList: true });
+  return () => {
+    observer.disconnect();
+    added.disconnect();
+  };
 }
 
 /**

@@ -18,7 +18,7 @@ import { HomeOnThisDay } from '../components/Home/HomeOnThisDay.tsx';
  */
 export default function HomePage() {
   const today = useLocalDay();
-  const onThisDay = useCommand<OnThisDayEntry[]>(`onthisday ${today.slice(5)}`);
+  const onThisDay = useCommand<OnThisDayEntry[]>(`onthisday ${today.slice(5)} --limit all`);
   const news = useCommand<NewsEntry[]>('news');
   const events = useCommand<EventEntry[]>(`events --today ${today}`);
   const errors = [['onthisday', onThisDay.error], ['news', news.error], ['events', events.error]] as const;

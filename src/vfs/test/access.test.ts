@@ -219,9 +219,11 @@ Deno.test('VFS access enforcement', async (t) => {
       const made = await mkfile(vfs, OTHER, '/family', 'upload.jpg', 'x', 0o775);
       assertEquals([made.props.uid, made.props.gid], [OTHER.uid, 4242]);
 
-      // Its children — a derived node the pipeline adds, say — follow the same rule a level down.
+      // What the pipeline adds under it, at any depth, is the file's owner's, in the file's group.
       const child = await mkdir(vfs, ADMIN_ACCESS, '/family/upload.jpg', 'thumbnails');
-      assertEquals([child.props.uid, child.props.gid], [ADMIN_ACCESS.uid, 4242]);
+      assertEquals([child.props.uid, child.props.gid], [OTHER.uid, 4242]);
+      const rendition = await mkfile(vfs, ADMIN_ACCESS, '/family/upload.jpg/thumbnails', '320x320.avif', 'small');
+      assertEquals([rendition.props.uid, rendition.props.gid], [OTHER.uid, 4242]);
 
       // An explicit group still wins.
       const explicit = await vfs.create(OTHER, 'directory', '/family', 'mine', { props: { gid: OTHER.gid } });
@@ -230,6 +232,17 @@ Deno.test('VFS access enforcement', async (t) => {
       // A copy is a create in the destination.
       const copied = await vfs.copy(OWNER, '/area/public.txt', '/family', 'copied.txt');
       assertEquals([copied.props.uid, copied.props.gid], [OWNER.uid, 4242]);
+    });
+
+    await t.step("a file's owner reads what is made under it, in a group they are not in", async () => {
+      // Owned by OWNER but grouped with a group OWNER is not a member of.
+      await mkdir(vfs, ADMIN_ACCESS, '/', 'kept', 0o777);
+      await mkfile(vfs, OWNER, '/kept', 'photo.jpg', 'x', 0o770);
+      await vfs.update(ADMIN_ACCESS, '/kept/photo.jpg', { props: { gid: 4242 } });
+
+      await mkdir(vfs, ADMIN_ACCESS, '/kept/photo.jpg', 'thumbnails');
+      await mkfile(vfs, ADMIN_ACCESS, '/kept/photo.jpg/thumbnails', '320x320.avif', 'small');
+      assertEquals(await readFile(vfs, OWNER, '/kept/photo.jpg/thumbnails/320x320.avif'), 'small');
     });
 
     await t.step('others see a new node only as far as they see its parent', async () => {

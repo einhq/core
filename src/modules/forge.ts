@@ -5,7 +5,7 @@
  * answer. A repository's branches and tags come from git's own advertisement over smart HTTP
  * (`<repository>.git/info/refs?service=git-upload-pack`), its tree at a commit is the forge's
  * `/archive/<commit>.tar.gz`, and an organisation's repositories, a file at a branch and the
- * commit a short id names come from the forge's API. A host is GitHub when it is `github.com`, and a Forgejo or a Gitea
+ * commit a short id names and a branch's commits come from the forge's API. A host is GitHub when it is `github.com`, and a Forgejo or a Gitea
  * otherwise.
  *
  * A module's code is fetched over https only: plain http, which a machine on the way could read and
@@ -355,6 +355,33 @@ export const fetchFile = async (repository: Repository, ref: string, path: strin
     if (error instanceof ForgeError && error.status === 404) return undefined;
     throw error;
   }
+};
+
+/** One commit of a repository's history: its id, its message whole and when it was written. */
+type HistoryCommit = { commit: string; message: string; date: string };
+
+/** How many commits the forges answer with at most in one page. */
+const HISTORY_PAGE = 50;
+
+/** The commits that lead to `from`, newest first, `limit` of them at most, from the forge's API. */
+export const fetchHistory = async (repository: Repository, from: string, limit: number, tokens: Tokens, signal?: AbortSignal): Promise<HistoryCommit[]> => {
+  const headers = { ...authorization(repository, tokens, 'api'), ...(repository.kind === 'github' ? { Accept: 'application/vnd.github+json' } : {}) };
+  const found: HistoryCommit[] = [];
+  for (let page = 1; found.length < limit; page++) {
+    const query = repository.kind === 'github'
+      ? `sha=${encodeURIComponent(from)}&per_page=${HISTORY_PAGE}&page=${page}`
+      : `sha=${encodeURIComponent(from)}&limit=${HISTORY_PAGE}&page=${page}&stat=false&verification=false&files=false`;
+    const url = `${apiOrigin(repository)}/repos/${repository.owner}/${repository.name}/commits?${query}`;
+    const answer = await (await get(url, headers, signal)).json() as { sha?: unknown; commit?: { message?: unknown; author?: { date?: unknown } } }[];
+    if (!Array.isArray(answer)) throw new ForgeError(`${url}: not a list of commits`);
+    for (const each of answer) {
+      if (typeof each.sha !== 'string' || !COMMIT.test(each.sha)) continue;
+      const date = each.commit?.author?.date;
+      found.push({ commit: each.sha, message: typeof each.commit?.message === 'string' ? each.commit.message : '', date: typeof date === 'string' ? date : '' });
+    }
+    if (answer.length < HISTORY_PAGE) break;
+  }
+  return found.slice(0, limit);
 };
 
 /**

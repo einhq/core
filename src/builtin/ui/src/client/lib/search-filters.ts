@@ -98,6 +98,12 @@ export type SearchFilters = {
    * username, but the UI already holds the uid from `user-whoami`.
    */
   creator?: number;
+  /**
+   * Directories in unlisted trees to list as well (`search --include-unlisted`): the media page's
+   * "My" scope adds the reader's staged files. It widens what the other filters look through, so
+   * it is no filter of its own.
+   */
+  includeUnlisted?: string[];
   sort?: SearchSort;
 };
 

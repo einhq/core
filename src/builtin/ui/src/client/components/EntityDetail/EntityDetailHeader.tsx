@@ -164,8 +164,7 @@ export function EntityDetailHeader({
   const startRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const openUpload = useRef<() => void>(null);
-  const openFolder = useRef<() => void>(null);
-  const groups = useActionGroups(actions, openUpload, openFolder);
+  const groups = useActionGroups(actions, openUpload);
   const hasActions = groups.some((group) => group.length > 0);
   // A route in a dialog or drawer scrolls in its own box, under no app header.
   const onPage = useContext(SurfaceContext) === null;
@@ -254,7 +253,7 @@ export function EntityDetailHeader({
           <ActionsMenu groups={groups} />
         </Box>
       )}
-      {actions?.upload && <UploadDropzone {...actions.upload} openRef={openUpload} openFolderRef={openFolder} />}
+      {actions?.upload && <UploadDropzone {...actions.upload} openRef={openUpload} />}
 
       <Group ref={contentRef} className='mrx-entity-header-content' align='flex-end' wrap='nowrap' gap='lg'>
         {avatar && <Box className='mrx-entity-header-avatar'>{avatar}</Box>}

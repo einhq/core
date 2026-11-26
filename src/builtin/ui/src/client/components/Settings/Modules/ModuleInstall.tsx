@@ -1,10 +1,9 @@
-import { Alert, Anchor, Group, Loader, Stack, Text } from '@mantine/core';
-import { IconAlertTriangle, IconCheck } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ModuleInstallJob, ModuleInstallStatus } from '@ein/api';
 import { formatCount } from '../../../lib/format.ts';
+import { notifyBusy, type ProgressToast } from '../../../signals/notify.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
-import { formatTime } from '../../../lib/datetime.ts';
+import { namesList } from './UpdateDialog.tsx';
 
 /** How often `mod status` is asked while an install runs, and while none does. */
 const RUNNING_POLL_MS = 2_000;
@@ -64,57 +63,59 @@ export function useModuleInstall(onFinished: () => void) {
   return { install, seen: install !== null && install.id === seen, refresh: () => setTick((n) => n + 1) };
 }
 
-type InstallProgressProps = {
-  install: ModuleInstallJob;
-  onOpenModule: (name: string) => void;
-  onDismiss: () => void;
-};
+/** What `mod install` was asked, as the modules' names: a repository's address by the module it holds, a flag left out. */
+const askedFor = (args: string[]): string[] => args.filter((arg) => !arg.startsWith('-')).map((arg) => /\/module-([^/@]+?)(?:\.git)?(?:@.*)?$/.exec(arg)?.[1] ?? arg);
 
 /**
- * The install running, for everyone on the Modules tab: how many files of the module it is unpacking
- * are in place, and for the administrator what it was asked, who started it and its last line; once
- * it ends, what it installed, with a link to each, and for the administrator why it failed.
+ * The install this page saw running, as a toast at the foot of the screen while the page is open:
+ * what it installs, with a spinner, and how many files of the module it unpacks are in place; once
+ * it ends, what it put in place, with Open for the first, or why it failed, with Details, which
+ * `onDetails` shows, for the administrator. Leaving the page takes a running one's toast away; the
+ * install goes on.
  */
-export function InstallProgress({ install, onOpenModule, onDismiss }: InstallProgressProps) {
-  const asked = install.args.length ? `: mod install ${install.args.join(' ')}` : '';
-  const last = install.lines.at(-1)?.text.trim();
+export function useInstallToast(install: ModuleInstallJob | null, seen: boolean, onOpenModule: (name: string) => void, onDetails?: () => void) {
+  const toast = useRef<{ id: string; handle: ProgressToast } | null>(null);
+  const actions = useRef({ onOpenModule, onDetails });
+  actions.current = { onOpenModule, onDetails };
 
-  if (install.state === 'running') {
-    return (
-      <Alert color='blue' variant='light' icon={<Loader size={16} />} title={`Installing${asked}`}>
-        <Stack gap={2}>
-          <Text size='sm'>
-            Started{install.by && ` by ${install.by}`} at {formatTime(install.startedAt)}. It goes on when this page is closed.
-          </Text>
-          {install.unpacking && <Text size='sm'>{formatCount(install.unpacking.files)} files of {install.unpacking.module} unpacked</Text>}
-          {!install.unpacking && last && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{last}</Text>}
-        </Stack>
-      </Alert>
-    );
-  }
+  useEffect(() => {
+    if (!install || !seen) return;
+    const names = askedFor(install.args);
+    if (install.state === 'running') {
+      const unpacking = install.unpacking && ` · ${formatCount(install.unpacking.files)} files of ${install.unpacking.module} unpacked`;
+      const message = `${names.length ? `Installing ${namesList(names)}` : 'Installing modules'}${unpacking ?? ''}`;
+      if (toast.current?.id === install.id) toast.current.handle.update({ message });
+      else {
+        toast.current?.handle.dismiss();
+        toast.current = { id: install.id, handle: notifyBusy({ message }) };
+      }
+      return;
+    }
+    if (toast.current?.id !== install.id) return;
+    const handle = toast.current.handle;
+    toast.current = null;
+    const installed = install.installed ?? [];
+    if (install.state === 'done') {
+      const first = installed[0];
+      handle.finish({
+        color: 'green',
+        message: installed.length === 0
+          ? 'Nothing new: installed at that commit already'
+          : namesList(installed.map((module) => `${module.updated ? 'updated' : 'installed'} ${[module.name, module.version].filter(Boolean).join(' ')}`)).replace(/^./, (c) =>
+            c.toUpperCase()),
+        action: first ? { label: `Open ${first.name}`, onClick: () => actions.current.onOpenModule(first.name) } : undefined,
+      });
+      return;
+    }
+    const why = install.result?.failed[0] ?? install.lines.findLast((line) => line.error)?.text;
+    handle.finish({
+      color: 'red',
+      message: `The install failed${why ? `: ${why}` : ''}`,
+      action: actions.current.onDetails ? { label: 'Details', onClick: () => actions.current.onDetails!() } : undefined,
+    });
+  }, [install, seen]);
 
-  const installed = install.installed ?? [];
-  const failed = install.result?.failed ?? [];
-  return (
-    <Alert
-      color={install.state === 'done' ? 'teal' : 'red'}
-      variant='light'
-      icon={install.state === 'done' ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
-      title={install.state === 'done' ? `Done${asked}` : `Failed${asked}`}
-      withCloseButton
-      closeButtonLabel='Dismiss'
-      onClose={onDismiss}
-    >
-      <Stack gap={4}>
-        {installed.length === 0 && install.state === 'done' && <Text size='sm'>Nothing new: it is installed at that commit already.</Text>}
-        {installed.map((module) => (
-          <Group key={module.name} gap='xs'>
-            <Text size='sm'>{module.updated ? 'Updated' : 'Installed'} {[module.name, module.version].filter(Boolean).join(' ')}</Text>
-            <Anchor component='button' type='button' size='sm' onClick={() => onOpenModule(module.name)}>Open {module.name}</Anchor>
-          </Group>
-        ))}
-        {failed.map((reason) => <Text key={reason} size='sm' style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reason}</Text>)}
-      </Stack>
-    </Alert>
-  );
+  useEffect(() => () => {
+    if (toast.current) toast.current.handle.dismiss();
+  }, []);
 }

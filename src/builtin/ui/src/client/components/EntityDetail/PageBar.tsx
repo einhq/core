@@ -39,8 +39,7 @@ type PageBarProps = {
  */
 export function PageBar({ title, controls, actions, pattern, tabs, flushTabs, band }: PageBarProps) {
   const openUpload = useRef<() => void>(null);
-  const openFolder = useRef<() => void>(null);
-  const groups = useActionGroups(actions, openUpload, openFolder);
+  const groups = useActionGroups(actions, openUpload);
   const hasActions = groups.some((group) => group.length > 0);
   return (
     <Box
@@ -60,7 +59,7 @@ export function PageBar({ title, controls, actions, pattern, tabs, flushTabs, ba
         )}
       </Box>
       {tabs && <Box className='mrx-header-tabs' data-flush={flushTabs || undefined}>{tabs}</Box>}
-      {actions?.upload && <UploadDropzone {...actions.upload} openRef={openUpload} openFolderRef={openFolder} />}
+      {actions?.upload && <UploadDropzone {...actions.upload} openRef={openUpload} />}
     </Box>
   );
 }

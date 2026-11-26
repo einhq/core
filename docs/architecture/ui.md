@@ -69,8 +69,8 @@ thousand; the signals are published from them at most every 250 ms:
 
 `UploadDropzone` (`@ein/ui/components`) is the drop target. With `path` (what a page's
 `actions.upload` takes) it covers the window and its pickers are raised through `openRef` (files)
-and `openFolderRef` (a folder, an `<input webkitdirectory>`); the page header offers the folder
-picker as Upload a folder under ⋮ when the action has `keepFolders`. With `targets`, a drag of files
+and `openFolderRef` (a folder, an `<input webkitdirectory>`); the page header's Upload raises the
+file picker, and a folder comes in by a drop. With `targets`, a drag of files
 raises an overlay of tiles, one per target, and the files go into the one they are dropped on. The
 top bar's `UploadIndicator` shows the summary, each target's progress, the files in flight, the
 failures, and Cancel, Retry failed and Clear. While a drop is read, the drop overlay stays up saying
@@ -163,7 +163,7 @@ core's node charts stand as skeletons until their count is in); `search.explore`
 section of the Search page before anything is asked (archive's people, places, years and labels); `search.label`,
 drawn above the Search page's results while it asks for exactly one label, whose route gets the label's
 tag directory for `{path}` (archive's "Looks like", for the signed in); `home.start`, a way to
-begin under the home page's News while it is still empty (archive's Import media, for the signed in); `about.services`, a
+begin under the home page's News while it is still empty (archive's Upload, which opens Staging, for the signed in); `about.services`, a
 tile on the About dialog for a service EiN uses (ems's media service, the assistant's language model); `shell.float`,
 something floating over every page, the drawer and the lightbox and under a dialog (todo's widget), drawn once for the
 whole app by `FloatHost` in a layer of no size of its own, so the panel places what it draws itself (`position: fixed`)
@@ -172,7 +172,7 @@ and follows the node on screen with `useShownNode` — the picture in the lightb
 (`/dev/<device>`) for `{path}` (archive's Trips); `app.backup`, on the EiN app's App page, where the phone's photo
 backup sends, chosen through `window.EinApp`'s `backupSet`, which the kit lends (`@ein/ui/lib`; archive's staging
 category for the phone); `share.receive`, the route opened in the dialog with files another app shared to EiN, the first
-panel only (archive's Import media; see Shared files below); `devices.header`, a button in the Devices page's header
+panel only (archive's, which uploads them into the default staging category; see Shared files below); `devices.header`, a button in the Devices page's header
 beside its filters, which draws nothing while it has nothing to say (devices' hosts found on the network); `settings.views`, a
 settings view that sets up one thing with the settings it takes (core's Language and time, Sign-in and Module sources, the
 assistant's language model, devices' MQTT broker and restreamer, ems's media service and transcription, media's
@@ -283,8 +283,8 @@ reader's avatar rather than as a button of its own: its rows, the reader's own p
 Favourites, the shell's Profile and Trash (`ui.profile`, `ui.trash`) — stand under _Me_ and above the
 shell's fixed rows (Arrange navigation, Shortcuts, About, Logout).
 Staging, the reader's own inbox and a place of daily work, is a sidebar entry instead, below Media in
-the `main` section, shown to the signed in only; its Import media is a row of the Create menu, which
-opens the `/staging/import` route as a dialog.
+the `main` section, shown to the signed in only; its Upload is a row of the Create menu, which
+opens Staging.
 A member of the `sudo` group also has _Administer…_ there, which asks for their password again
 (`ElevateDialog`, `user-elevate --session`) and loads the page again as the administrator; an
 elevated sign-in has an orange ring round the avatar and a shield at its lower left, and
@@ -526,7 +526,8 @@ on the device; it changes nothing then, and queues nothing.
   keeps them in `ein-shared` and sends the browser on to the `/share` page (`pages/share.tsx`),
   which reads them into the page (`signals/shared-files.ts`), signed in first, and opens the first
   `share.receive` panel's route in the dialog over Home; that route takes them with
-  `takeSharedFiles` (archive's Import media, its Inbox chosen). The EiN app for Android is in the
+  `takeSharedFiles` (archive's queues them into today's upload folder of the reader's default staging
+  category and opens it). The EiN app for Android is in the
   Share menu by an intent filter of its own: it keeps the shared files and opens `/share`, where
   `shared-files.ts` lists them through `window.EinApp` (`shared`), reads each in base64 pieces
   (`sharedRead`) and has the app forget them (`sharedDone`), in place of the service worker's cache.
@@ -564,8 +565,8 @@ bar's `menu` layout through `SelectionBarContext` and turns an error into a toas
 rows — the faces, fullscreen, and Download, which saves the original. An album's Edit
 changes its name, description and span (`album set`; the span's date fields stop at the first and
 last capture, which `album-span --dry-run` answers), a suggested album's only its name (`staging
-rename`), and its Upload is a button in the header; Media and Staging have one too, into the
-reader's staging, keeping the folders dropped or picked (Upload a folder under ⋮). Upload also
+rename`), and its Upload is a button in the header; a staging category's page has one too, into
+its upload folder of today, keeping the folders dropped. Media has none: uploads start in Staging. Upload also
 makes the page a drop target (`UploadDropzone`). Its picker takes any file; a phone's own picker
 offers the photo library and camera beside its files.
 
@@ -832,7 +833,7 @@ A field given a `color` takes it in place of the accent, for a tint that says so
 such as how long a Todo card has waited; its pattern still picks where the tiling is cut. Nothing
 shades the band: each tile darkens as a whole towards the foot, where the title and controls stand.
 Every tile is its own path, so the field can arrive tile by tile the first time it is shown
-(`lib/hat-entrance.ts`): drawn as if by pen and filled from the foot up by default, or falling,
+(`lib/hat-entrance.ts`): drawn as if by pen and filled from the left by default, or falling,
 sliding in from the right, sweeping, growing, rippling, snapping in or lit by a wave, as the person's `CFG_USER_HEADER_ENTRANCE`
 says, and over as many milliseconds as `CFG_USER_HEADER_ENTRANCE_TIME` gives it (450 unless set; at 0
 it does not arrive at all): the timings written for an entrance are scaled to end then. The animations end on the tiles as drawn at rest and then come off, and the field is a layer
@@ -848,7 +849,9 @@ outlines, a field (`kind='wedge'`) takes its left, on a ground of the chrome's c
 cover. Its edge is a line across about a third of the width, leaning right towards the foot, so the
 wedge is widest there: the band's hats well left of it are whole, and across it they dissolve into
 the photo hat by hat, each fainter the further right its middle falls, give or take a little, so the
-fade is ragged. The wedge darkens towards its foot as a band does.
+fade is ragged. The wedge darkens towards its foot as a band does. The photo starts where the first
+of those fading hats does (the layout's `clear`), not at the band's left edge, so as much of its
+width shows as the band has room for, its left still under the fading hats.
 A header with a cover photo arrives whole, photo and all. It reads the photo first and shows only its
 ground until then; then its field arrives, hat by hat, while the photo fades in over the same time
 (`entranceTime`).

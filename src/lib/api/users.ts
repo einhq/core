@@ -394,6 +394,44 @@ export type OutdatedModule = {
   latest: { ref: string; commit: string; version?: string };
   /** Whether updating moves it on: another commit and, from a release, a higher version. */
   behind: boolean;
+  /**
+   * For one behind: the other installed modules that have to be updated with it, by name, for every
+   * range between them to hold, which `mod install` is given beside it (their `target`s).
+   */
+  together?: string[];
+  /** For one behind: each range updating it leaves unmet even so, which only `--force` installs past. */
+  held?: string[];
+};
+
+/** `mod changelog`: the commits of an installed module's repository, from what an update would install down. */
+export type ModuleChangelog = {
+  name: string;
+  /** The repository the commits are from. */
+  repository: string;
+  /** What is installed: its `mod.json`'s version, the ref it was asked for, and its commit. */
+  installed: { version: string | null; ref: string; commit: string };
+  /** What an update installs, as `mod outdated` has it; the installed commit when nothing is newer. */
+  latest: { ref: string; commit: string; version?: string };
+  /** Newest first: the ones an update brings, then the installed one and those before it. */
+  commits: ChangelogCommit[];
+  /** Whether there are older commits than those listed. */
+  more: boolean;
+};
+
+/** One commit of a module's history. */
+export type ChangelogCommit = {
+  commit: string;
+  /** Its message's first line, and the rest. */
+  subject: string;
+  body: string;
+  /** When it was written, as the forge says it. */
+  date: string;
+  /** The release tags on it: `v0.21.0`. */
+  tags: string[];
+  /** Whether it is the commit installed. */
+  installed: boolean;
+  /** Whether an update brings it: newer than the commit installed. */
+  coming: boolean;
 };
 
 /** How a module's last `mod setup` went. */

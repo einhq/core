@@ -24,13 +24,16 @@ export const onthisday = async (cmd: Command): CmdReturn => {
     await cmd.writeError(`onthisday: expected the day as MM-DD, got '${monthDay}'\n`);
     return 1;
   }
-  const limit = count(flags.limit, DEFAULT_LIMIT);
+  // `all` is handed on as it is: each provider reaches as far back as it has anything.
+  const limit = flags.limit === 'all' ? Infinity : count(flags.limit, DEFAULT_LIMIT);
   if (limit === undefined) {
-    await cmd.writeError('onthisday: --limit must be a non-negative whole number\n');
+    await cmd.writeError('onthisday: --limit must be a non-negative whole number or all\n');
     return 1;
   }
 
-  const gathered = limit > 0 ? await gather(cmd, 'onthisday', `${monthDay} --limit ${limit}`, readOnThisDay) : { entries: [], providers: 0, answered: 0 };
+  const gathered = limit > 0
+    ? await gather(cmd, 'onthisday', `${monthDay} --limit ${limit === Infinity ? 'all' : limit}`, readOnThisDay)
+    : { entries: [], providers: 0, answered: 0 };
   const failed = gatheredFailure(cmd, gathered);
   if (failed !== undefined) return failed;
   // Stable, so a year's entries keep their provider's order.
@@ -52,11 +55,12 @@ onthisday.spec = {
     { name: 'day', type: 'string' as const, description: 'day as MM-DD (default today, UTC)', optional: true },
   ],
   flags: [
-    { name: 'limit', type: 'number' as const, description: `entries returned across all providers (default ${DEFAULT_LIMIT})` },
+    { name: 'limit', type: 'string' as const, description: `entries returned across all providers, or all of them (default ${DEFAULT_LIMIT})` },
   ],
   examples: [
     'onthisday',
     'onthisday 06-21 --limit 20',
+    'onthisday --limit all',
   ],
   returns: 'the entries of every onthisday-* provider, newest year first: the year, what, the node it is about, which provider, and the route that draws it.',
 };

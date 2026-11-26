@@ -110,6 +110,8 @@ export const PATTERN_CONTROLS: Partial<Record<HatPattern, readonly [color: strin
  * dialog, outlines over a cover, or the left of a band beside a cover, hiding the cover under it and
  * dissolving into it hat by hat, in place of the outlines (`kind`). Where on the tiling it is cut follows the pattern and the route,
  * and for a foot the pattern alone.
+ * A wedge sets `--mrx-hat-clear` on that parent: how far from the left it hides what is under it whole,
+ * the left of its first hat that lets the cover through, so the cover can start there.
  * Over a cover each outline is light grey where the photo under it is dark and in the pattern's
  * colour where it is light, as read from `backdrop`, the photo's luminance; grey throughout without one.
  *
@@ -156,6 +158,16 @@ export function HatField({ pattern, kind = 'band', backdrop, color }: {
     () => size && size[0] > 0 && size[1] > 0 ? layoutOnce(size[0], size[1], seed, kind, backdrop) : null,
     [size, seed, kind, backdrop],
   );
+
+  // A wedge tells the box it fills how far from the left it hides what is under it whole.
+  useLayoutEffect(() => {
+    const parent = ref.current?.parentElement;
+    if (kind !== 'wedge' || !layout || !parent) return;
+    parent.style.setProperty('--mrx-hat-clear', `${layout.clear}px`);
+    return () => {
+      parent.style.removeProperty('--mrx-hat-clear');
+    };
+  }, [kind, layout]);
 
   // A ripple starts at the title, or behind the form in the middle of the login screen's background.
   const arrival = useMemo(() => {

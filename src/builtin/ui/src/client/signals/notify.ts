@@ -8,6 +8,8 @@ export type Toast = {
   action?: { label: string; onClick: () => void };
   /** How far a long piece of work has come, 0 to 1: drawn as a bar under the message (`notifyProgress`). */
   progress?: number;
+  /** A long piece of work whose end cannot be told is under way: drawn as a spinner (`notifyBusy`). */
+  busy?: boolean;
 };
 
 /** What is showing now, oldest first. */
@@ -48,7 +50,7 @@ export type ProgressToast = {
   id: number;
   /** Change what it says, how far the bar is, or its action (null takes the action away). */
   update: (change: { message?: string; progress?: number; action?: Toast['action'] | null; color?: Toast['color'] }) => void;
-  /** The work is over: the toast says how it ended, loses its bar, and leaves as `notify`'s do. */
+  /** The work is over: the toast says how it ended, loses its bar or spinner, and leaves as `notify`'s do. */
   finish: (toast: Omit<Toast, 'id' | 'progress'>) => void;
   dismiss: () => void;
 };
@@ -60,6 +62,19 @@ export type ProgressToast = {
  * say that it is stopping.
  */
 export function notifyProgress(toast: Omit<Toast, 'id'> & { progress: number }): ProgressToast {
+  return follow(toast);
+}
+
+/**
+ * Say that a long piece of work whose end cannot be told is under way — "Installing archive · 1,204
+ * files unpacked" — with a spinner, as `notifyProgress` does with its bar: it stays until `finish`.
+ */
+export function notifyBusy(toast: Omit<Toast, 'id' | 'progress' | 'busy'>): ProgressToast {
+  return follow({ ...toast, busy: true });
+}
+
+/** The toast `notifyProgress` and `notifyBusy` raise and follow. */
+function follow(toast: Omit<Toast, 'id'>): ProgressToast {
   const id = ++nextId;
   const put = (next: Toast) => {
     // Closed by hand, it stays closed; the work goes on.
@@ -83,7 +98,7 @@ export function notifyProgress(toast: Omit<Toast, 'id'> & { progress: number }):
           final.action!.onClick();
         },
       };
-      current = { ...final, id, action };
+      current = { ...final, busy: undefined, id, action };
       if (toasts.peek().some((each) => each.id === id)) put(current);
       else toasts.value = [...toasts.value, current];
       globalThis.setTimeout(() => dismissToast(id), action ? ACTION_MS : PLAIN_MS);

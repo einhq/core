@@ -1,9 +1,10 @@
 import { Alert, Badge, Box, Button, Code, Group, List, Loader, Paper, Stack, Text, Title } from '@mantine/core';
-import { IconAlertTriangle, IconCheck, IconDownload, IconRefresh, IconServer2 } from '@tabler/icons-react';
+import { IconAlertTriangle, IconDownload, IconRefresh, IconServer2 } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ModuleEntry, SupervisedService, SupervisorJob, SupervisorStatus } from '@ein/api';
 import { formatDateTime, formatTime } from '../../../lib/datetime.ts';
 import { shq } from '../../../lib/shquote.ts';
+import { notifyBusy, type ProgressToast } from '../../../signals/notify.ts';
 import { execCommand } from '../../../signals/shell-client.ts';
 import { Dialog, DialogActions } from '../../Surface/Dialog.tsx';
 import { Note } from '../Accounts/PanelParts.tsx';
@@ -69,10 +70,10 @@ export function useSupervisor(enabled: boolean): Supervisor {
 }
 
 /** `the media service` → `The media service`. */
-const capital = (text: string): string => text[0].toUpperCase() + text.slice(1);
+export const capital = (text: string): string => text[0].toUpperCase() + text.slice(1);
 
 /** What a job does, from its setup.sh options: `Installing the media service`, `Updating EiN and the database`. */
-const jobTitle = (job: SupervisorJob, services: SupervisedService[]): string => {
+export const jobTitle = (job: SupervisorJob, services: SupervisedService[]): string => {
   const title = (name: string) => services.find((service) => service.name === name)?.title ?? name;
   const install = job.args.find((arg) => arg.startsWith('--') && arg !== '--only');
   const only = job.args[job.args.indexOf('--only') + 1];
@@ -84,42 +85,43 @@ const jobTitle = (job: SupervisorJob, services: SupervisedService[]): string => 
 };
 
 /**
- * The supervisor's job, for everyone on the Modules tab: while it runs, what it does, who asked and
- * its last line; once it ends, whether it did, with its last lines when it failed.
+ * The supervisor's job this page saw running, as a toast at the foot of the screen while the page is
+ * open: what it does and its last line, with a spinner; once it ends, whether it did, and when it
+ * failed Details, which `onDetails` shows. Leaving the page takes a running one's toast away; the
+ * job goes on.
  */
-export function SupervisorJobAlert({ job, services, onDismiss }: { job: SupervisorJob; services: SupervisedService[]; onDismiss: () => void }) {
-  const title = jobTitle(job, services);
-  if (job.state === 'running') {
-    return (
-      <Alert color='blue' variant='light' icon={<Loader size={16} />} title={title}>
-        <Stack gap={2}>
-          <Text size='sm'>
-            Asked by {job.by} at {formatTime(job.startedAt)}. It goes on when this page is closed; EiN restarts during it, and this page comes back with it.
-          </Text>
-          {job.lines.at(-1) && <Text size='xs' c='dimmed' ff='monospace' style={{ overflowWrap: 'anywhere' }}>{job.lines.at(-1)}</Text>}
-        </Stack>
-      </Alert>
-    );
-  }
-  const done = job.state === 'done';
-  return (
-    <Alert
-      color={done ? 'teal' : 'red'}
-      variant='light'
-      icon={done ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
-      title={`${done ? 'Done' : 'Failed'}: ${title}`}
-      withCloseButton
-      closeButtonLabel='Dismiss'
-      onClose={onDismiss}
-    >
-      {!done && (
-        <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-          {job.lines.slice(-8).join('\n')}
-        </Code>
-      )}
-      {done && job.endedAt && <Text size='sm'>Ended at {formatTime(job.endedAt)}.</Text>}
-    </Alert>
-  );
+export function useSupervisorToast(supervisor: Supervisor, onDetails: () => void) {
+  const job = supervisor.status?.job ?? null;
+  const seen = job !== null && supervisor.seen === job.id;
+  // Read for the job's title only: a new list alone changes nothing to say.
+  const services = useRef(supervisor.status?.services ?? []);
+  services.current = supervisor.status?.services ?? [];
+  const toast = useRef<{ id: string; handle: ProgressToast } | null>(null);
+  const details = useRef(onDetails);
+  details.current = onDetails;
+
+  useEffect(() => {
+    if (!job || !seen) return;
+    const title = jobTitle(job, services.current);
+    if (job.state === 'running') {
+      const message = `${title}: EiN restarts during it${job.lines.at(-1) ? ` · ${job.lines.at(-1)}` : ''}`;
+      if (toast.current?.id === job.id) toast.current.handle.update({ message });
+      else {
+        toast.current?.handle.dismiss();
+        toast.current = { id: job.id, handle: notifyBusy({ message }) };
+      }
+      return;
+    }
+    if (toast.current?.id !== job.id) return;
+    const handle = toast.current.handle;
+    toast.current = null;
+    if (job.state === 'done') handle.finish({ color: 'green', message: `Done: ${title}` });
+    else handle.finish({ color: 'red', message: `Failed: ${title}`, action: { label: 'Details', onClick: () => details.current() } });
+  }, [job, seen]);
+
+  useEffect(() => () => {
+    if (toast.current) toast.current.handle.dismiss();
+  }, []);
 }
 
 type InstallDialogProps = {
@@ -134,7 +136,7 @@ type InstallDialogProps = {
  * container — the graphics card, a capability, this machine's network — as an add-on store rates
  * its add-ons. EiN restarts while it is installed.
  */
-function ServiceInstallDialog({ service, onClose, onStarted }: InstallDialogProps) {
+export function ServiceInstallDialog({ service, onClose, onStarted }: InstallDialogProps) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const shown = useRef(service);
@@ -200,7 +202,7 @@ function ServiceInstallDialog({ service, onClose, onStarted }: InstallDialogProp
 }
 
 /** A service's state as a badge: not installed, or its container's state and health. */
-function StateBadge({ service }: { service: SupervisedService }) {
+export function StateBadge({ service }: { service: SupervisedService }) {
   if (!service.installed) return <Badge size='sm' variant='light' color='red' tt='none' style={{ flex: 'none' }}>Not installed</Badge>;
   if (!service.state) return <Badge size='sm' variant='light' color='yellow' tt='none' style={{ flex: 'none' }}>No container</Badge>;
   const ok = service.state === 'running' && (!service.health || service.health === 'healthy');
@@ -408,43 +410,5 @@ export function NeededServices({ module, supervisor, admin }: { module: ModuleEn
       </Paper>
       <ServiceInstallDialog service={installing} onClose={() => setInstalling(null)} onStarted={supervisor.refresh} />
     </Stack>
-  );
-}
-
-/**
- * Above the Modules tab, for the administrator: the services installed modules talk to that are not
- * installed, with Install for each, so a module installed from here gets what it needs.
- */
-export function MissingServices({ supervisor }: { supervisor: Supervisor }) {
-  const [installing, setInstalling] = useState<SupervisedService | null>(null);
-  const status = supervisor.status;
-  if (!status?.configured || status.error) return null;
-  const missing = status.services.filter((service) => service.wanted && !service.installed && service.optional);
-  if (missing.length === 0) return null;
-  const running = status.job?.state === 'running';
-  return (
-    <>
-      {missing.map((service) => (
-        <Alert key={service.name} color='yellow' variant='light' icon={<IconAlertTriangle size={16} />} title={`${capital(service.title)} is not installed`}>
-          <Group justify='space-between' gap='sm' wrap='wrap'>
-            <Text size='sm' style={{ flex: 1, minWidth: 200 }}>
-              {service.wanted!.modules.map((each) =>
-                each.module
-              ).join(', ')} {service.wanted!.modules.length > 1 ? 'talk' : 'talks'} to it, and {service.wanted!.modules.length > 1 ? 'do' : 'does'} not work without it.
-            </Text>
-            <Button
-              size='xs'
-              leftSection={<IconDownload size={14} />}
-              disabled={running}
-              onClick={() =>
-                setInstalling(service)}
-            >
-              Install {service.title}
-            </Button>
-          </Group>
-        </Alert>
-      ))}
-      <ServiceInstallDialog service={installing} onClose={() => setInstalling(null)} onStarted={supervisor.refresh} />
-    </>
   );
 }

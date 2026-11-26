@@ -26,18 +26,21 @@ import { RoutePanel } from '../../Surface/SurfaceRouter.tsx';
 import { SERVICE_STATUS_COLOR } from '../../System/ServicesHealth.tsx';
 import { Checklist, type ChecklistItem } from '../Accounts/Checklist.tsx';
 import { Note, PanelSection } from '../Accounts/PanelParts.tsx';
+import { ModuleChangelog } from './ModuleChangelog.tsx';
 import { ModuleCommands } from './ModuleCommands.tsx';
 import { moduleState, STATE_COLOR, STATE_LABEL } from './ModuleList.tsx';
 import { ModuleSettings } from './ModuleSettings.tsx';
 import type { ModuleUpdate } from './useModuleUpdates.ts';
 import { NeededServices, type Supervisor } from './SupervisedServices.tsx';
+import { type PlannedUpdate, startUpdate, UpdateDialog } from './UpdateDialog.tsx';
 
 /** The panel's tabs, in order. */
-const MODULE_SECTIONS = ['overview', 'setup', 'services', 'pages', 'commands', 'settings', 'types'] as const;
+const MODULE_SECTIONS = ['overview', 'changes', 'setup', 'services', 'pages', 'commands', 'settings', 'types'] as const;
 type ModuleSection = typeof MODULE_SECTIONS[number];
 
 const SECTION_LABEL: Record<ModuleSection, string> = {
   overview: 'Overview',
+  changes: 'Changes',
   setup: 'Set up',
   services: 'Services',
   pages: 'Pages',
@@ -77,7 +80,8 @@ type ModulePanelProps = {
  * its buttons at the top right: Update, which says what it updates to, and Remove for the
  * administrator, and its documentation for everyone; under the tile why its setup failed, when it
  * did. Under that a tab each: Overview, with who has it, what it needs and what needs it, and where
- * it came from; the module's settings views (Set up), as on the System tab, for the administrator;
+ * it came from; Changes, its repository's commits, what an update brings above the installed one,
+ * for a module `mod install` fetched; the module's settings views (Set up), as on the System tab, for the administrator;
  * and what it brings — services with their state now, pages, commands, settings and node types. A
  * tab is drawn only when the module has something for it, with how many. Commands and settings open
  * in place, a command to its help and a setting to its control.
@@ -98,9 +102,11 @@ export function ModulePanel({ module, modules, supervisor, onOpenModule, section
   const ownTypes = (types ?? []).filter((entry) => entry.owner === module.name);
   const usedBy = modules.filter((entry) => Object.hasOwn(entry.dependencies, module.name));
 
-  // What each tab counts; Overview counts nothing and is drawn regardless.
+  // What each tab counts; Overview counts nothing and is drawn regardless, and Changes for a module
+  // `mod install` fetched, whose repository is known.
   const counts: Record<ModuleSection, number> = {
     overview: 0,
+    changes: 0,
     setup: ownViews.length,
     services: module.services.length,
     pages: module.routes.length,
@@ -108,7 +114,7 @@ export function ModulePanel({ module, modules, supervisor, onOpenModule, section
     settings: ownSettings.length,
     types: ownTypes.length,
   };
-  const shown = MODULE_SECTIONS.filter((each) => each === 'overview' || counts[each] > 0);
+  const shown = MODULE_SECTIONS.filter((each) => each === 'overview' || (each === 'changes' ? module.installed !== undefined : counts[each] > 0));
   const current: ModuleSection = shown.find((each) => each === section) ?? 'overview';
 
   return (
@@ -125,7 +131,17 @@ export function ModulePanel({ module, modules, supervisor, onOpenModule, section
               </Group>
             </Stack>
           </Group>
-          <Actions module={module} usedBy={usedBy} admin={admin} install={install} update={update} onStarted={onStarted} onRemoved={onRemoved} onProblem={setProblem} />
+          <Actions
+            module={module}
+            modules={modules}
+            usedBy={usedBy}
+            admin={admin}
+            install={install}
+            update={update}
+            onStarted={onStarted}
+            onRemoved={onRemoved}
+            onProblem={setProblem}
+          />
         </div>
         {module.description && (
           <Spoiler maxHeight={62} showLabel='More' hideLabel='Less' styles={{ control: { fontSize: 'var(--mantine-font-size-sm)' } }}>
@@ -170,6 +186,9 @@ export function ModulePanel({ module, modules, supervisor, onOpenModule, section
         <Tabs.Panel value='overview'>
           <Overview module={module} modules={modules} usedBy={usedBy} admin={admin} supervisor={supervisor} onChanged={onChanged} onOpenModule={onOpenModule} />
         </Tabs.Panel>
+        <Tabs.Panel value='changes'>
+          <ModuleChangelog module={module} />
+        </Tabs.Panel>
         <Tabs.Panel value='setup'>
           <Stack gap='lg'>
             {ownViews.map((view) => (
@@ -212,6 +231,8 @@ export function ModulePanel({ module, modules, supervisor, onOpenModule, section
 
 type ActionsProps = {
   module: ModuleEntry;
+  /** Every installed module, for the versions of those an update takes along. */
+  modules: ModuleEntry[];
   usedBy: ModuleEntry[];
   admin: boolean;
   install: ModuleInstallJob | null;
@@ -230,24 +251,37 @@ type ActionsProps = {
  * as `mod outdated` has it; and Remove, which asks in a dialog and says what goes with it. For
  * everyone its documentation: the Docs page's on the module, with the guide's pages on it and
  * everything it brings. An update runs on its own, which the tab follows, and waits while another
- * install runs.
+ * install runs. One that takes other modules along, or leaves a range unmet, says so in a dialog
+ * before it starts (`UpdateDialog`), and installs them together.
  */
-function Actions({ module, usedBy, admin, install, update, onStarted, onRemoved, onProblem }: ActionsProps) {
+function Actions({ module, modules, usedBy, admin, install, update, onStarted, onRemoved, onProblem }: ActionsProps) {
   const record = admin ? module.installed : undefined;
   const pinned = record !== undefined && record.ref === record.commit;
   // A release or a prerelease, `v<version>`, is updated to the newest one this core can run, which `mod install` takes without a ref.
   const release = record?.ref.startsWith('v') === true && tryParse(record.ref.slice(1)) !== undefined;
   const [updating, setUpdating] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const target = record && (release ? record.repository : `${record.repository}@${record.ref}`);
   const running = install?.state === 'running' ? install : null;
   const mine = updating || running?.args.includes(target!) === true;
+  const behind = update.state === 'behind' ? update : null;
+  const planned: PlannedUpdate[] = behind
+    ? [
+      { name: module.name, from: module.version ?? null, to: behind.to, target: behind.targets[0] },
+      ...behind.together.map((each) => ({ ...each, from: modules.find((other) => other.name === each.name)?.version ?? null })),
+    ]
+    : [];
 
   const start = async () => {
+    if (behind && (behind.together.length > 0 || behind.held.length > 0)) {
+      setConfirming(true);
+      return;
+    }
     setUpdating(true);
     onProblem(null);
     try {
-      await execCommand(`mod install --background ${shq(target!)}`);
+      await startUpdate([target!], false);
       onStarted();
     } catch (err) {
       onProblem(err instanceof Error ? err.message : String(err));
@@ -258,8 +292,8 @@ function Actions({ module, usedBy, admin, install, update, onStarted, onRemoved,
 
   const label = mine
     ? 'Updating'
-    : update.state === 'behind'
-    ? `Update to ${update.to}`
+    : behind
+    ? `Update to ${behind.to}${behind.together.length > 0 ? ` with ${behind.together.length} more` : ''}`
     : update.state === 'latest'
     ? 'Latest version'
     : update.state === 'checking'
@@ -288,6 +322,16 @@ function Actions({ module, usedBy, admin, install, update, onStarted, onRemoved,
       )}
       <Button component={Link} to={moduleRoute(module.name)} size='xs' variant='default' leftSection={<IconBook2 size={16} />}>Documentation</Button>
       {record && <RemoveDialog module={module} usedBy={usedBy} opened={asking} onClose={() => setAsking(false)} onRemoved={onRemoved} />}
+      {behind && (
+        <UpdateDialog
+          opened={confirming}
+          asked={[module.name]}
+          updates={planned}
+          held={behind.held}
+          onClose={() => setConfirming(false)}
+          onStarted={onStarted}
+        />
+      )}
     </Group>
   );
 }

@@ -439,6 +439,13 @@ html.mrx-page-covered {
   fill: var(--mrx-surface-chrome);
 }
 
+/* Its cover starts where the wedge first lets it through (`--mrx-hat-clear`), so the band shows as
+ * much of the picture as it can, its left under the wedge's fading hats. */
+.mrx-entity-header[data-split] .mrx-entity-header-background {
+  left: var(--mrx-hat-clear, 0px);
+  width: calc(100% - var(--mrx-hat-clear, 0px));
+}
+
 /* Without a cover the field darkens its own tiles towards the band's foot, so it needs no shade. */
 .mrx-entity-header[data-pattern]:not([data-has-cover='true']) .mrx-entity-header-shade {
   display: none;
@@ -3191,7 +3198,12 @@ html.mrx-floating .mrx-scrubber {
 }
 
 /* Home's On this day: the entries in one line, swiped or scrolled sideways without a scrollbar. */
-.mrx-home-onthisday {
+/* A row that scrolls sideways (`ScrollRow`), its arrows over its ends, level with round covers. */
+.mrx-scroll-row-frame {
+  position: relative;
+}
+
+.mrx-scroll-row {
   display: flex;
   gap: var(--mantine-spacing-md);
   overflow-x: auto;
@@ -3199,15 +3211,39 @@ html.mrx-floating .mrx-scrubber {
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   padding: 2px 2px var(--mantine-spacing-xs);
+  /* Snapped inside the padding, so the first item rests with the row at its start. */
+  scroll-padding-inline: 2px;
 }
 
-.mrx-home-onthisday::-webkit-scrollbar {
+.mrx-scroll-row::-webkit-scrollbar {
   display: none;
 }
 
-.mrx-home-onthisday > * {
+.mrx-scroll-row > * {
   flex: none;
   scroll-snap-align: start;
+}
+
+.mrx-scroll-row-arrow {
+  position: absolute;
+  top: 23px;
+  z-index: 1;
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.mrx-scroll-row-arrow[data-side='before'] {
+  left: 0;
+}
+
+.mrx-scroll-row-arrow[data-side='after'] {
+  right: 0;
+}
+
+/* A touch screen swipes instead. */
+@media (hover: none) {
+  .mrx-scroll-row-arrow {
+    display: none;
+  }
 }
 
 /* A recent search: its button and the cross that forgets it, as one pill. */
@@ -3879,6 +3915,24 @@ html.mrx-railed:not(.mrx-floating) .mrx-to-top {
 
 .mrx-module-installed-row:hover {
   background: var(--mrx-surface-overlay);
+}
+
+/* A module's Changes tab (`ModuleChangelog`): what an update would bring is marked down its left edge
+   in the primary colour, the installed commit in teal, and a release's line is set apart as the start
+   of the commits it releases. */
+.mrx-changelog-release {
+  background: var(--mrx-surface-overlay);
+}
+
+.mrx-changelog-row[data-coming],
+.mrx-changelog-release[data-coming] {
+  box-shadow: inset 3px 0 0 var(--mantine-primary-color-filled);
+}
+
+.mrx-changelog-row[data-installed],
+.mrx-changelog-release[data-installed] {
+  box-shadow: inset 3px 0 0 var(--mantine-color-teal-filled);
+  background: var(--mantine-color-teal-light);
 }
 
 /* A family card's expand bulge (`FamilyTreeCard`): its chevron darkens under the pointer, while the

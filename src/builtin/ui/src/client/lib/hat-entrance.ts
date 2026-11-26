@@ -20,7 +20,7 @@ type TileEntrance = {
  * `duration`, since the timings written below are scaled so the last tile ends then. Every animation ends on the tile as the field draws it at rest and holds there (`both`), so taking
  * the styles off afterwards changes nothing on screen. A ripple starts at `origin`.
  *
- * - `drawn`: each outline is drawn as if by pen and its colour floods in behind, the foot first.
+ * - `drawn`: each outline is drawn as if by pen and its colour floods in behind, the left first.
  * - `falling`: tiles drop in from above and land with a small bounce, the foot first.
  * - `sliding`: tiles glide in from past the right edge and settle, the left first.
  * - `sweep`: tiles fade in one after another from left to right.
@@ -66,7 +66,7 @@ function writtenEntrance(
   const entering = tiles.map((tile): TileEntrance => {
     switch (entrance) {
       case 'drawn': {
-        const delay = rise(tile) * 820 + tile.jitter * 160;
+        const delay = (tile.x / width) * 820 + tile.jitter * 160;
         return {
           style: {
             animation: animate(['draw', 520, delay, 'ease-out'], ['fill-in', 420, delay + 380, 'ease-out']),

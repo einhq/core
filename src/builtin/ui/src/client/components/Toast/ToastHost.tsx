@@ -2,7 +2,7 @@ import { Button, Group, Notification, Portal, Progress, Stack, Text } from '@man
 import { useSignals } from '@preact/signals-react/runtime';
 import { dismissToast, toasts } from '../../signals/notify.ts';
 
-/** The toasts `notify` and `notifyProgress` raise, stacked at the foot of the screen above everything else; a progress toast has its bar, and an action is a framed button beside the message. */
+/** The toasts `notify` and `notifyProgress` raise, stacked at the foot of the screen above everything else; a progress toast has its bar or its spinner, and an action is a framed button beside the message. */
 export function ToastHost() {
   useSignals();
   const showing = toasts.value;
@@ -16,6 +16,7 @@ export function ToastHost() {
             key={toast.id}
             color={toast.color ?? 'blue'}
             withBorder
+            loading={toast.busy}
             onClose={() => dismissToast(toast.id)}
             className='mrx-toast'
           >

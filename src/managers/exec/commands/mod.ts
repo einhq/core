@@ -129,6 +129,7 @@ import { modGroups } from './mod/mod-groups.ts';
 import { modInfo } from './mod/mod-info.ts';
 import { modInstall } from './mod/mod-install.ts';
 import { modList } from './mod/mod-list.ts';
+import { modChangelog } from './mod/mod-changelog.ts';
 import { modOutdated } from './mod/mod-outdated.ts';
 import { modRemove } from './mod/mod-remove.ts';
 import { modSearch } from './mod/mod-search.ts';
@@ -376,6 +377,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
 
   // Module management
   mod,
+  modChangelog,
   modGroups,
   modInfo,
   modCache,

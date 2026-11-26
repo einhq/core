@@ -3,7 +3,8 @@
  * around a date, and about one calendar day in earlier years. Core knows none of it. Each gathers
  * the answers of every command on `PATH` named after it with a dash (`news-*`, `events-*`,
  * `onthisday-*`), each a provider answering a list of entries in the shape below without `source`
- * (`Provided`), then orders the whole list and cuts it to the limit.
+ * (`Provided`), then orders the whole list and cuts it to the limit. A provider is asked with the
+ * caller's `--limit`; an `onthisday-*` one also takes `--limit all`, every year it has.
  *
  * Every entry has a `title`, one line saying what it is (what a terminal prints for it, and what a
  * reader hears for it), and a `route`: the providing module's route that draws it, whose query

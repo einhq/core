@@ -63,14 +63,9 @@ export type PageActions = {
 type ActionGroups = [PageAction[], PageAction[], PageAction[]];
 
 /**
- * `actions` as `ActionGroups`, Upload raising the file picker through `openUpload`, and with
- * `keepFolders`, Upload a folder under ⋮ the folder picker through `openFolder`.
+ * `actions` as `ActionGroups`, Upload raising the file picker through `openUpload`.
  */
-export function useActionGroups(
-  actions: PageActions | undefined,
-  openUpload: RefObject<(() => void) | null>,
-  openFolder: RefObject<(() => void) | null>,
-): ActionGroups {
+export function useActionGroups(actions: PageActions | undefined, openUpload: RefObject<(() => void) | null>): ActionGroups {
   const navigate = useNavigate();
   const location = useLocation();
   const nearby = useShowNearby(actions?.nearby);
@@ -102,10 +97,7 @@ export function useActionGroups(
     ...items.filter((item) => item.button && !item.lead),
     ...(nearby ? [{ ...nearby, iconOnly: true, stays: true }] : []),
   ];
-  const menu = [
-    ...(upload?.keepFolders ? [{ label: 'Upload a folder', icon: 'folder-up', disabled: upload.disabled, onClick: () => openFolder.current?.() }] : []),
-    ...items.filter((item) => !item.button && !item.lead),
-  ];
+  const menu = items.filter((item) => !item.button && !item.lead);
   const last: PageAction[] = trash ? [{ label: 'Move to trash', icon: 'trash', color: 'red', onClick: () => void moveToTrash(trash) }] : [];
   return [buttons, menu, last];
 }

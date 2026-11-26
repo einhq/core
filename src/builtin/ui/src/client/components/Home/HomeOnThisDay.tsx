@@ -1,10 +1,10 @@
 import { Box, Skeleton, Text, Title } from '@mantine/core';
 import type { OnThisDayEntry } from '@ein/api';
-import { RoutePanel } from '@ein/ui/components';
+import { RoutePanel, ScrollRow } from '@ein/ui/components';
 
 /**
- * This calendar day in earlier years (`onthisday`), as one row that scrolls sideways, newest year
- * first, each entry drawn by the route of the module that has it. Absent when no earlier year has
+ * This calendar day in every earlier year (`onthisday --limit all`), as one row that scrolls
+ * sideways (`ScrollRow`), newest year first, each entry drawn by the route of the module that has it. Absent when no earlier year has
  * anything, and when the command failed (`entries` stays null), which the page says above.
  */
 export function HomeOnThisDay({ entries, loading }: { entries: OnThisDayEntry[] | null; loading: boolean }) {
@@ -14,7 +14,7 @@ export function HomeOnThisDay({ entries, loading }: { entries: OnThisDayEntry[] 
   return (
     <Box mb='lg'>
       <Title order={2} size='h4' mb='sm'>On this day</Title>
-      <Box className='mrx-home-onthisday' role='list' aria-label='On this day'>
+      <ScrollRow label='On this day'>
         {entries.map((entry) => (
           <Box key={`${entry.source}\n${entry.route}`} role='listitem'>
             <RoutePanel
@@ -24,7 +24,7 @@ export function HomeOnThisDay({ entries, loading }: { entries: OnThisDayEntry[] 
             />
           </Box>
         ))}
-      </Box>
+      </ScrollRow>
     </Box>
   );
 }

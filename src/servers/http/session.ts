@@ -96,6 +96,8 @@ function cookieAge(lifetimes: SessionLifetimes, stored: unknown): number {
  * Whether the browser reached EiN over HTTPS. EiN itself serves plain HTTP, so
  * that happens only behind a TLS-terminating proxy, which says so in
  * `X-Forwarded-Proto` or `Forwarded`; the first entry is the client's hop.
+ * A WebSocket upgrade comes as `wss` (Traefik's), which is HTTPS as well, so
+ * the shell's socket reads the same session cookie as the page.
  *
  * The header is believed from anyone: a client that claims HTTPS over plain
  * HTTP only earns a `Secure` cookie its own browser will not send back.
@@ -103,7 +105,7 @@ function cookieAge(lifetimes: SessionLifetimes, stored: unknown): number {
 export function isForwardedHttps(headers: Headers): boolean {
   const xfp = headers.get('x-forwarded-proto');
   if (xfp) {
-    return xfp.split(',')[0].trim().toLowerCase() === 'https';
+    return isSecureProto(xfp.split(',')[0].trim());
   }
 
   const forwarded = headers.get('forwarded');
@@ -111,11 +113,13 @@ export function isForwardedHttps(headers: Headers): boolean {
     const proto = forwarded.split(',')[0].split(';')
       .map((pair) => pair.trim().split('='))
       .find(([key]) => key.toLowerCase() === 'proto');
-    return proto?.[1]?.replaceAll('"', '').toLowerCase() === 'https';
+    return isSecureProto(proto?.[1]?.replaceAll('"', '') ?? '');
   }
 
   return false;
 }
+
+const isSecureProto = (proto: string): boolean => ['https', 'wss'].includes(proto.toLowerCase());
 
 /**
  * Write the session cookie. It is `Secure` when the request came over HTTPS,

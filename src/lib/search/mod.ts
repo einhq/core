@@ -8,8 +8,8 @@
  * rest become predicates over them. A subtree (`--within`) is the exception: it
  * narrows the time-ordered store query itself, so it combines only with the
  * facets that query can carry. Whatever drives, nothing in an unlisted tree is
- * an answer unless the subtree asked for is inside it, or a container links it
- * (`unlisted.ts`); the text providers that can are told the trees, so they spend no hits on them.
+ * an answer unless the subtree asked for is inside it, a container links it, or the caller lists a
+ * directory in it again (`--include-unlisted`, `unlisted.ts`); the text providers that can are told the trees, so they spend no hits on them.
  * An attr asked to be missing (`--missing`) or to hold a value (`--has`) is a condition of the
  * store query when the timeline drives, and a test of each node otherwise.
  *
@@ -71,7 +71,7 @@ import {
 import { expandSubjectHits, hydrateSubjectCandidates, isSubjectKind, meetsMatch, resolveSubjects, type Subject, subjectOf, subjectsOfMedia } from './subjects.ts';
 import { CONTAINER_SCAN_LIMIT, containerMedia } from './containers.ts';
 import { buildLayoutResponse, type LayoutIndexItem, type LayoutMediaKind } from './layout.ts';
-import { isUnlistedPath, unlistedRoots, unlistedWithin } from './unlisted.ts';
+import { isUnlistedPath, unlistedExcept, unlistedRoots, unlistedWithin } from './unlisted.ts';
 import type { SearchHit } from '../api/search.ts';
 import type { GroupTally, SearchFacetsResponse, SearchGroupsResponse, SearchResponse } from '../api/search.ts';
 import { commandsNamed } from '../../managers/shell/command-lookup.ts';
@@ -349,6 +349,7 @@ const VALUE_FLAGS = [
   'group-by',
   'under',
   'within',
+  'include-unlisted',
   'like',
   'at',
   'missing',
@@ -1004,7 +1005,7 @@ export const search = async (cmd: Command): CmdReturn => {
     string: VALUE_FLAGS,
     // Without `collect`, @std/cli keeps only the LAST occurrence of a repeated
     // flag — so `--tag a --tag b` would silently mean just `b`.
-    collect: ['tag', 'kind', 'fields', 'subject', 'subject-name', 'missing', 'has'],
+    collect: ['tag', 'kind', 'fields', 'subject', 'subject-name', 'missing', 'has', 'include-unlisted'],
     boolean: ['facets', 'layout', 'include-stacked', 'undated'],
     alias: { l: 'limit' },
   });
@@ -1268,7 +1269,10 @@ export const search = async (cmd: Command): CmdReturn => {
   // What this view leaves out: the unlisted trees (`unlisted.ts`), or those inside the subtree
   // asked for. A container's members are what it links, wherever they are, so `--under` leaves
   // nothing out.
-  const unlisted = under !== undefined ? [] : unlistedWithin(await unlistedRoots(cmd.sys.vfs), within);
+  // A directory the caller lists again keeps its tree's rest out: a reader's "mine" lists their
+  // staged files, not their staging's journal.
+  const included = asArray(flags['include-unlisted']).map((path) => resolvePath(cmd.cwd, path));
+  const unlisted = under !== undefined ? [] : await unlistedExcept(cmd.sys.vfs, unlistedWithin(await unlistedRoots(cmd.sys.vfs), within), included);
 
   /**
    * The groups holding matching pictures, when entities are asked about with a filter only a
@@ -2175,6 +2179,12 @@ search.spec = {
       type: 'path' as const,
       description:
         "media anywhere in the tree under this directory, at any depth; by time, with the undated after the dated when there is no date window. Inside an unlisted tree (staging) it lists what the library's searches leave out",
+    },
+    {
+      name: 'include-unlisted',
+      type: 'path' as const,
+      description: 'a directory in an unlisted tree (staging) to list as well, the rest of the tree still left out (repeatable)',
+      repeatable: true,
     },
     { name: 'undated', type: 'bool' as const, description: 'only media with no capture time, in the order it arrived' },
     {

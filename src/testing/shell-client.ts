@@ -51,11 +51,12 @@ export class ShellClient {
   }
 
   /**
-   * Connect to the API shell endpoint, presenting `cookie` when given.
+   * Connect to the API shell endpoint, presenting `cookie` when given, with `headers` besides, such
+   * as a proxy's.
    */
-  static async connect(baseUrl: string, cookie?: string): Promise<ShellClient> {
+  static async connect(baseUrl: string, cookie?: string, headers: Record<string, string> = {}): Promise<ShellClient> {
     const wsUrl = baseUrl.replace('http', 'ws') + '/__shell';
-    const ws = cookie === undefined ? new WebSocket(wsUrl) : new WebSocketWithHeaders(wsUrl, { headers: { cookie } });
+    const ws = cookie === undefined ? new WebSocket(wsUrl) : new WebSocketWithHeaders(wsUrl, { headers: { ...headers, cookie } });
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {

@@ -121,6 +121,8 @@ Deno.test({ name: 'news, events and onthisday', sanitizeResources: false, saniti
       const entries = await shell.execJson<OnThisDayEntry[]>('onthisday 09-02 --limit 5');
       assertEquals(entries.map((entry) => [entry.year, entry.source]), [[2019, 'alpha'], [2010, 'alpha']]);
       assertEquals(entries[0].title, 'alpha 2019, asked 09-02 --limit 5');
+      const all = await shell.execJson<OnThisDayEntry[]>('onthisday 09-02 --limit all');
+      assertEquals(all.map((entry) => [entry.year, entry.title]), [[2019, 'alpha 2019, asked 09-02 --limit all'], [2010, 'alpha 2010']]);
       const text = await shell.execString('onthisday 09-02 2>&1', { json: false });
       assertStringIncludes(text, 'onthisday: onthisday-beta: answered something other than a list of entries');
     });

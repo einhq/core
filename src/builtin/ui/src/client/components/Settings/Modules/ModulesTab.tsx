@@ -14,9 +14,10 @@ import { fillWindow, PaneScroll, SPLIT_MIN_WIDTH } from '../ListDetail.tsx';
 import { byState, ModuleList, moduleState } from './ModuleList.tsx';
 import { ModulePanel } from './ModulePanel.tsx';
 import { AddModule } from './AddModule.tsx';
-import { InstallProgress, useModuleInstall } from './ModuleInstall.tsx';
+import { useInstallToast, useModuleInstall } from './ModuleInstall.tsx';
+import { ModulesOverview } from './ModulesOverview.tsx';
 import { useModuleUpdates } from './useModuleUpdates.ts';
-import { MissingServices, ServicesPanel, SupervisorJobAlert, useSupervisor } from './SupervisedServices.tsx';
+import { ServicesPanel, useSupervisor, useSupervisorToast } from './SupervisedServices.tsx';
 
 /** The history state of a module opened from the list where they take turns, so going back to the list pops it. */
 const OPENED = { modulesOpened: true };
@@ -30,24 +31,27 @@ const wasOpened = (state: unknown): boolean => (state as { modulesOpened?: unkno
  * page's own scroll, and opening a module is a step in the history that Back undoes.
  *
  * The open module is the URL's `module` and its panel's tab is `section`, so either can be linked
- * to; side by side, nothing named shows the first. `published=1` opens the panel that installs a
- * module instead, which the button beside the filter does: Install for the administrator, Published
- * for anyone else, who sees what there is but cannot install it. For the administrator `services=1`
- * opens the services beside EiN, which the server button beside it does. The list is asked fresh rather
+ * to. For the administrator the list starts with Overview (`overview=1`), what can be updated and
+ * what needs a look (`ModulesOverview`), which side by side shows when nothing is named; for anyone
+ * else, nothing named shows the first module. `published=1` opens the panel that installs a module
+ * instead, which the button beside the filter does: Install for the administrator, Published for
+ * anyone else, who sees what there is but cannot install it. For the administrator `services=1` opens
+ * the services beside EiN, which the server button beside it does. The list is asked fresh rather
  * than reused from the docs' kept answer: a `mod setup` since then changes whether a module works,
  * and an install or a removal here asks it again, and loads the shell's navigation and module pages
  * again.
  *
- * Above them, the module install EiN is running, whoever started it, and when one this page saw
- * running ends, what it came to. For the administrator `mod outdated` is asked as the tab opens and
- * after each install, so the list marks a module with something newer and its Update says what.
- * The administrator sees the supervisor's install or update there too, and the services installed
- * modules talk to that are not installed, each with Install.
+ * A module install EiN runs, whoever started it, and the supervisor's install or update, are toasts
+ * while this page is open, saying what they came to when one this page saw running ends; nothing is
+ * put above the list, so list and panel keep the window's height. For the administrator `mod
+ * outdated` is asked as the tab opens and after each install, so the list marks a module with
+ * something newer and its Update says what.
  */
 export function ModulesTab() {
   const { data: modules, loading, error, refetch: refetchList } = useModuleReference({ fresh: true });
   const admin = useAccessIds()?.admin === true;
-  const { updateOf, refresh: refreshUpdates } = useModuleUpdates(admin);
+  const moduleUpdates = useModuleUpdates(admin);
+  const { updateOf, refresh: refreshUpdates } = moduleUpdates;
   // A module installed, updated or removed changes the shell's navigation and pages too.
   const refetch = () => {
     refetchList();
@@ -57,11 +61,7 @@ export function ModulesTab() {
     refetch();
     refreshUpdates();
   });
-  const [dismissed, setDismissed] = useState<string | null>(null);
-  const shownInstall = install && (install.state === 'running' || (seen && dismissed !== install.id)) ? install : null;
   const supervisor = useSupervisor(admin);
-  const job = supervisor.status?.job ?? null;
-  const shownJob = job && (job.state === 'running' || (supervisor.seen === job.id && dismissed !== job.id)) ? job : null;
   const [widthRef, width] = useElementWidth<HTMLDivElement>();
   const narrow = width < SPLIT_MIN_WIDTH;
   // On a phone the panel is no box: its sections use the page's width.
@@ -76,7 +76,10 @@ export function ModulesTab() {
 
   const services = admin && params.get('services') === '1';
   const published = !services && params.get('published') === '1';
-  const named = published || services ? null : params.get('module');
+  const askedOverview = admin && !services && !published && params.get('overview') === '1';
+  const named = published || services || askedOverview ? null : params.get('module');
+  // Side by side, the administrator's tab opens on the overview when nothing else is asked for.
+  const overview = askedOverview || (admin && !narrow && !services && !published && named === null);
   const section = params.get('section');
   const firstLoad = loading && !modules;
   const opened = wasOpened(location.state);
@@ -84,12 +87,12 @@ export function ModulesTab() {
   const activeOnly = active === 'true';
   // A module that does not work, opened from elsewhere, is listed while it is open, so the list marks it.
   const listed = all.filter((module) => !activeOnly || moduleState(module) === 'active' || module.name === named);
-  const selected = published || services ? undefined : all.find((module) => module.name === named) ?? (narrow ? undefined : listed[0]);
+  const selected = published || services || overview ? undefined : all.find((module) => module.name === named) ?? (narrow ? undefined : listed[0]);
 
   // Opening a module from the list where they take turns is pushed; anything else replaces, and
   // keeps the opened mark, so the way back still pops to the list. The panel's tab carries over
   // from one module to the next.
-  const go = (name: string | null, push = false, tab = section, show?: 'published' | 'services') => {
+  const go = (name: string | null, push = false, tab = section, show?: 'published' | 'services' | 'overview') => {
     const next = new URLSearchParams({ tab: 'modules' });
     if (show) next.set(show, '1');
     else if (name) next.set('module', name);
@@ -98,10 +101,13 @@ export function ModulesTab() {
   };
   const backToList = () => (opened ? navigate(-1) : go(null));
 
-  const detailAlone = narrow && (published || services || (firstLoad ? named !== null : selected !== undefined));
+  const detailAlone = narrow && (published || services || askedOverview || (firstLoad ? named !== null : selected !== undefined));
+
+  useInstallToast(install, seen, (name) => go(name), admin ? () => go(null, false, section, 'overview') : undefined);
+  useSupervisorToast(supervisor, () => go(null, false, section, 'overview'));
 
   // When the open module changes, its panel starts at its top.
-  const shown = published ? '\0published' : services ? '\0services' : selected?.name ?? '';
+  const shown = published ? '\0published' : services ? '\0services' : overview ? '\0overview' : selected?.name ?? '';
   const lastShown = useRef(shown);
   useLayoutEffect(() => {
     if (lastShown.current === shown) return;
@@ -156,6 +162,15 @@ export function ModulesTab() {
       scrolls={!narrow}
       activeOnly={activeOnly}
       onActiveOnly={(next) => setActive(next ? 'true' : 'false')}
+      overview={admin
+        ? {
+          selected: overview,
+          updates: (moduleUpdates.answer?.modules.filter((each) => each.behind).length ?? 0) +
+            (supervisor.status?.services.filter((service) => service.installed && service.available).length ?? 0),
+          checking: moduleUpdates.loading,
+          onSelect: () => go(null, narrow, section, 'overview'),
+        }
+        : undefined}
     />
   );
 
@@ -171,8 +186,26 @@ export function ModulesTab() {
             '--mrx-detail-gutter': narrow ? '0px' : 'var(--scrollarea-scrollbar-size, 0px)',
           } as CSSProperties}
         >
-          {services
-            ? <ServicesPanel supervisor={supervisor} admin={admin} />
+          {error && (
+            <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />} mb='md'>
+              {error.message}
+            </Alert>
+          )}
+          {services ? <ServicesPanel supervisor={supervisor} admin={admin} /> : overview
+            ? (
+              <ModulesOverview
+                modules={all}
+                updates={moduleUpdates}
+                supervisor={supervisor}
+                install={install}
+                onOpenModule={(name, tab) => go(name, narrow, tab ?? null)}
+                onOpenServices={() => go(null, narrow, section, 'services')}
+                onStarted={() => {
+                  refreshInstall();
+                  supervisor.refresh();
+                }}
+              />
+            )
             : published
             ? <AddModule installed={all} install={install} onStarted={refreshInstall} onOpenModule={(name) => go(name)} />
             : firstLoad
@@ -229,14 +262,6 @@ export function ModulesTab() {
 
   return (
     <Stack ref={widthRef} gap='lg'>
-      {error && (
-        <Alert color='red' variant='light' icon={<IconAlertTriangle size={16} />}>
-          {error.message}
-        </Alert>
-      )}
-      {shownInstall && <InstallProgress install={shownInstall} onOpenModule={(name) => go(name)} onDismiss={() => setDismissed(shownInstall.id)} />}
-      {shownJob && <SupervisorJobAlert job={shownJob} services={supervisor.status?.services ?? []} onDismiss={() => setDismissed(shownJob.id)} />}
-      {admin && <MissingServices supervisor={supervisor} />}
       {body}
     </Stack>
   );

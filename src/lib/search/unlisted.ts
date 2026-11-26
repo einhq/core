@@ -38,6 +38,28 @@ export const unlistedWithin = (roots: readonly string[], within?: string): strin
 };
 
 /**
+ * `roots` with the directories in `kept` listed again: a root at or under one of them goes, and a
+ * root above one is replaced by its other children, level by level down to the kept directory, so
+ * the rest of that tree stays out. A view of a reader's own media lists their staged files this way
+ * (`search --include-unlisted /home/<user>/staging/files`), not their staging's journal.
+ */
+export const unlistedExcept = async (vfs: ModuleVFS, roots: readonly string[], kept: readonly string[]): Promise<string[]> => {
+  if (kept.length === 0) return [...roots];
+  const out: string[] = [];
+  const split = async (dir: string): Promise<void> => {
+    if (kept.some((path) => isUnlistedPath([path], dir))) return;
+    if (!kept.some((path) => path.startsWith(`${dir}/`))) {
+      out.push(dir);
+      return;
+    }
+    const children = await vfs.children(ADMIN_ACCESS, dir).catch(() => []);
+    for (const child of children) await split(`${dir === '/' ? '' : dir}/${child.name}`);
+  };
+  for (const root of roots) await split(root);
+  return out;
+};
+
+/**
  * Which of `ids`, files or directories, lie in an unlisted tree: for a view that holds nodes by id,
  * such as the files above a map's positions, and would rather not resolve each one.
  *

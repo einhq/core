@@ -5,22 +5,36 @@
  * installed at a commit stays there and is left out, as are the deployment's modules.
  *
  * A module is behind when that is another commit and, from a release, a higher version, so one
- * installed from its branch past the newest release is not behind it. Every repository is asked at
- * once, and one that does not answer is named rather than failing the others. Names narrow the
- * list to those modules.
+ * installed from its branch past the newest release is not behind it. One behind says which others
+ * have to be updated with it for the ranges between them to hold, and what holds it when one has
+ * nothing newer that does (`updatesTogether`). Every repository is asked at once, and one that does
+ * not answer is named rather than failing the others. Names narrow the list to those modules; the
+ * others are asked all the same, for what goes with them.
  */
 
 import { join } from '@std/path';
 import { greaterThan, tryParse } from '@std/semver';
 import type { ModuleInstall, ModuleOutdated, OutdatedModule } from '../../../../lib/api/mod.ts';
 import { MOD_PATH } from '../../../../lib/paths.ts';
-import { fetchFile, fetchRefs, findRelease, type InsecureHosts, parseRepository, refusedHttp, releases, resolveRef, type Tokens } from '../../../../modules/forge.ts';
+import {
+  fetchFile,
+  fetchRefs,
+  findRelease,
+  type InsecureHosts,
+  parseRepository,
+  type Refs,
+  refusedHttp,
+  releases,
+  resolveRef,
+  type Tokens,
+} from '../../../../modules/forge.ts';
 import { readInstallRecord } from '../../../../modules/install.ts';
 import { checkCoreApi, type ModuleManifest, readManifests } from '../../../../modules/mod.ts';
 import { mayUseModule } from '../../../../modules/audience.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { FORGE_TIMEOUT_MS, moduleSources, within } from './sources.ts';
+import { type Manifested, updatesTogether } from '../../../../modules/update-plan.ts';
 
 const short = (commit: string): string => commit.slice(0, 9);
 
@@ -38,15 +52,19 @@ const readManifest = async (cmd: Command, repository: NonNullable<ReturnType<typ
   }
 };
 
-/** What updating one installed module would take, and whether it moves it on. Throws when its repository does not answer. */
-const check = async (
+/**
+ * What updating one installed module would take, whether it moves it on, and the ranges of the
+ * `mod.json` it would take, none when that is the one installed; with the repository's refs. Throws
+ * when its repository does not answer.
+ */
+export const checkInstalled = async (
   cmd: Command,
   name: string,
   version: string | null,
   record: ModuleInstall,
   { insecure, tokens }: { insecure: InsecureHosts; tokens: Tokens },
   prereleases: boolean,
-): Promise<OutdatedModule> => {
+): Promise<{ module: OutdatedModule; dependencies?: Record<string, string>; refs: Refs }> => {
   const repository = parseRepository(record.repository, insecure);
   if (!repository) throw new Error(refusedHttp(record.repository, insecure) ?? `not a repository's address: ${record.repository}`);
   const refs = await fetchRefs(repository, tokens, within(cmd, FORGE_TIMEOUT_MS));
@@ -56,8 +74,9 @@ const check = async (
   let latest = resolveRef(refs, release ? undefined : record.ref, undefined, prereleases);
   if (!latest) throw new Error(`${record.repository} has no branch or tag '${record.ref}' any more`);
   let latestVersion = latest.commit === record.commit ? version ?? undefined : undefined;
+  let manifest: Partial<ModuleManifest> | undefined;
   if (latest.commit !== record.commit) {
-    let manifest = await readManifest(cmd, repository, latest.ref, tokens);
+    manifest = await readManifest(cmd, repository, latest.ref, tokens);
     // A newest release written for another module API gives way to the newest this core runs, as in `mod install`.
     if (release && manifest && checkCoreApi(manifest as ModuleManifest).errors.length > 0) {
       const all = releases(refs, prereleases);
@@ -79,21 +98,26 @@ const check = async (
   const [published, installed] = [tryParse(latestVersion ?? ''), tryParse(version ?? '')];
   const behind = latest.commit !== record.commit && (!release || !published || !installed || greaterThan(published, installed));
   return {
-    name,
-    version,
-    ref: record.ref,
-    commit: record.commit,
-    target,
-    latest: { ref: latest.ref, commit: latest.commit, ...(latestVersion ? { version: latestVersion } : {}) },
-    behind,
+    module: {
+      name,
+      version,
+      ref: record.ref,
+      commit: record.commit,
+      target,
+      latest: { ref: latest.ref, commit: latest.commit, ...(latestVersion ? { version: latestVersion } : {}) },
+      behind,
+    },
+    dependencies: latest.commit === record.commit ? undefined : manifest?.dependencies ?? {},
+    refs,
   };
 };
 
-/** One line for a module that is behind: what it is now, and what updating takes it to. */
+/** The lines for a module that is behind: what it is now, what updating takes it to and with which others, and what holds it. */
 const line = (module: OutdatedModule): string => {
   const from = module.version ?? short(module.commit);
   const to = module.latest.version && module.latest.version !== module.version ? module.latest.version : short(module.latest.commit);
-  return `${module.name} ${from} → ${to} (${module.latest.ref})\n`;
+  const together = module.together?.length ? `, with ${module.together.join(', ')}` : '';
+  return `${module.name} ${from} → ${to} (${module.latest.ref})${together}\n${(module.held ?? []).map((why) => `  held: ${why}\n`).join('')}`;
 };
 
 export const modOutdated = async (cmd: Command): CmdReturn => {
@@ -101,9 +125,9 @@ export const modOutdated = async (cmd: Command): CmdReturn => {
   const modulesPath = cmd.env.MOD_PATH || MOD_PATH;
   const { insecure, tokens, prereleases } = await moduleSources(cmd);
 
+  const manifests = await readManifests(cmd.sys.vfs, cmd.access, modulesPath);
   const candidates: { name: string; version: string | null; record: ModuleInstall }[] = [];
-  for (const [name, manifest] of await readManifests(cmd.sys.vfs, cmd.access, modulesPath)) {
-    if (names.length > 0 && !names.includes(name)) continue;
+  for (const [name, manifest] of manifests) {
     if (!await mayUseModule(cmd.sys.vfs, cmd.access, name)) continue;
     const record = await readInstallRecord(cmd.sys.vfs, cmd.access, join(modulesPath, name));
     if (!record || record.ref === record.commit) continue;
@@ -111,16 +135,27 @@ export const modOutdated = async (cmd: Command): CmdReturn => {
   }
   candidates.sort((a, b) => a.name.localeCompare(b.name));
 
+  const listed = (name: string) => names.length === 0 || names.includes(name);
   const failed: ModuleOutdated['failed'] = [];
   const checked = await Promise.all(candidates.map(async ({ name, version, record }) => {
     try {
-      return await check(cmd, name, version, record, { insecure, tokens }, prereleases);
+      return await checkInstalled(cmd, name, version, record, { insecure, tokens }, prereleases);
     } catch (error) {
-      failed.push({ name, reason: error instanceof Error ? error.message : String(error) });
+      if (listed(name)) failed.push({ name, reason: error instanceof Error ? error.message : String(error) });
       return undefined;
     }
   }));
-  const modules = checked.filter((module) => module !== undefined);
+
+  const installed = new Map<string, Manifested>([...manifests].map(([name, manifest]) => [name, { version: manifest.version, dependencies: manifest.dependencies ?? {} }]));
+  const newer = new Map<string, Manifested>();
+  for (const each of checked) {
+    if (each?.module.behind) newer.set(each.module.name, { version: each.module.latest.version, dependencies: each.dependencies ?? {} });
+  }
+  const modules = checked.flatMap((each) => each && listed(each.module.name) ? [each.module] : []).map((module) => {
+    if (!module.behind) return module;
+    const { with: together, held } = updatesTogether(module.name, installed, newer);
+    return { ...module, together, held };
+  });
 
   if (cmd.json) {
     await cmd.writeJSON({ modules, failed } satisfies ModuleOutdated);

@@ -85,8 +85,8 @@ function useLanded(paths: UploadTarget[], onUploaded: (() => void) | undefined) 
 /**
  * Files dropped anywhere on the window, for as long as this page is the one being looked at.
  *
- * With `path`, they go into that directory, and the pickers are raised through `openRef` (files)
- * and `openFolderRef` (a folder and everything in it) — the page header's Upload. Full screen rather
+ * With `path`, they go into that directory, and the pickers are raised through `openRef` (files,
+ * the page header's Upload) and `openFolderRef` (a folder and everything in it). Full screen rather
  * than a region around the grid because the grid is the page — a bordered rectangle to aim at would
  * be the whole viewport anyway, and wrapping it costs the tiles their own drag and click handling.
  *

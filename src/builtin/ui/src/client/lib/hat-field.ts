@@ -44,6 +44,11 @@ type HatFieldLayout = {
   tiles: HatTile[];
   /** A hat's mean width, in pixels. */
   hatSize: number;
+  /**
+   * In a wedge, how far from the left it hides the cover whole, in pixels: the left of the first hat
+   * that lets the cover through; the field's width in any other field.
+   */
+  clear: number;
 };
 
 /** Pixels per `HAT_POINTS` unit: a hat about 38 px across. */
@@ -129,6 +134,7 @@ export function layoutHatField(width: number, height: number, seed: string, kind
   // controls sit in its middle rather than on a foot of their own.
   const depth = .75 * Math.min(1, height / 160);
   const tiles: HatTile[] = [];
+  let clear = width;
 
   for (const [index, hat] of tiling().entries()) {
     const corners = hat.corners.map(([x, y]) => [(x - ox) * scale, (y - oy) * scale] as const);
@@ -154,6 +160,7 @@ export function layoutHatField(width: number, height: number, seed: string, kind
     // How many hats past a wedge's edge, give or take its scatter.
     const across = (x - edge(y)) / hatPx + (unit(hash ^ 0x27d4eb2f, index) - .5) * WEDGE.scatter;
     const ground = kind === 'wedge' ? round(1 - smoothstep(-WEDGE.fade, WEDGE.fade, across)) : 0;
+    if (kind === 'wedge' && ground < 1) clear = Math.max(0, Math.min(clear, minX));
     if (kind === 'wedge' && ground === 0) continue;
 
     const light = Math.max(0, 1 - Math.hypot((x - .86 * lit) / (.62 * lit), (y + .3 * height) / (1.5 * height)));
@@ -171,7 +178,7 @@ export function layoutHatField(width: number, height: number, seed: string, kind
     });
   }
 
-  return { tiles, hatSize: hatPx };
+  return { tiles, hatSize: hatPx, clear };
 }
 
 /** A number in [0, 1) for hat `index` of the field seeded with `hash`. */

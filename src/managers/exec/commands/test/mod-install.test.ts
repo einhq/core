@@ -14,11 +14,22 @@
  * repository that holds no module leave nothing behind; a private repository is read with its
  * host's token; an install goes on when the session that asked for it ends, another is refused
  * while it runs, the same one is joined, and mod status says how it stands; and mod remove takes an
- * installed module's tree with it; mod outdated says what updating a module would take it to.
+ * installed module's tree with it; mod outdated says what updating a module would take it to, and
+ * which others go with it; modules named together are one change, judged where it ends; and mod
+ * changelog lists a module's commits from what an update brings down past the one installed.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import type { ModuleEntry, ModuleGroups, ModuleInstallResult, ModuleInstallStatus, ModuleOutdated, ModuleSearch, SystemInfo } from '../../../../lib/api/mod.ts';
+import type {
+  ModuleChangelog,
+  ModuleEntry,
+  ModuleGroups,
+  ModuleInstallResult,
+  ModuleInstallStatus,
+  ModuleOutdated,
+  ModuleSearch,
+  SystemInfo,
+} from '../../../../lib/api/mod.ts';
 import { FakeForge, type Files, moduleFiles } from '../../../../testing/fake-forge.ts';
 import { createTestContext, type ShellClient } from '../../../../testing/mod.ts';
 
@@ -412,6 +423,79 @@ Deno.test({ name: 'mod-install', sanitizeResources: false, sanitizeOps: false },
       assert((await install(`swell@${old}`)).success);
       assertEquals(await outdated('swell'), []);
       await client.execString('mod-remove --force swell');
+    });
+
+    await t.step('modules named together are one change: a release that breaks its dependents goes in with theirs, and mod outdated says which go together', async () => {
+      const outdated = async () => (await client.execJson<ModuleOutdated>('mod outdated keel mast sail')).modules;
+      await forge.publish('acme', 'module-keel', moduleFiles('keel', '0.1.0', 'keel 1'), { tag: 'v0.1.0' });
+      await forge.publish('acme', 'module-mast', moduleFiles('mast', '0.1.0', 'mast 1', { dependencies: { keel: '^0.1.0' } }), { tag: 'v0.1.0' });
+      await forge.publish('acme', 'module-sail', moduleFiles('sail', '0.1.0', 'sail 1', { dependencies: { keel: '^0.1.0' } }), { tag: 'v0.1.0' });
+      assert((await install('mast sail')).success);
+
+      await forge.publish('acme', 'module-keel', moduleFiles('keel', '0.2.0', 'keel 2'), { tag: 'v0.2.0' });
+      await forge.publish('acme', 'module-mast', moduleFiles('mast', '0.2.0', 'mast 2', { dependencies: { keel: '^0.2.0' } }), { tag: 'v0.2.0' });
+      // Either alone is refused, saying what to name beside it.
+      const provider = await install('keel');
+      assertEquals(provider.success, false);
+      assertStringIncludes(provider.error ?? '', 'mast needs keel ^0.1.0, sail needs keel ^0.1.0, and this is keel 0.2.0: mod install keel mast sail updates them together');
+      const dependent = await install('mast');
+      assertEquals(dependent.success, false);
+      assertStringIncludes(dependent.error ?? '', 'mast needs keel ^0.2.0, and keel 0.1.0 is installed: mod install keel mast updates both');
+
+      // sail has no release that takes keel 0.2.0 yet, so it holds keel and mast, and naming them is refused.
+      const [keel, mast] = await outdated();
+      assertEquals([keel.together, keel.held], [['mast'], ['sail 0.1.0 needs keel ^0.1.0, and nothing newer of sail takes keel 0.2.0']]);
+      assertEquals([mast.together, mast.held], [['keel'], ['sail 0.1.0 needs keel ^0.1.0, and nothing newer of sail takes keel 0.2.0']]);
+      assertStringIncludes(await run('mod outdated keel'), 'keel 0.1.0 → 0.2.0 (v0.2.0), with mast\n  held: sail 0.1.0 needs keel ^0.1.0');
+      assertEquals((await install('keel mast')).success, false);
+      assertEquals(await run('$MOD_PATH/keel/bin/keel'), 'keel 1');
+
+      // Once it has, the three go in as one, the dependent named first, keel put in place before what needs it.
+      await forge.publish('acme', 'module-sail', moduleFiles('sail', '0.2.0', 'sail 2', { dependencies: { keel: '^0.2.0' } }), { tag: 'v0.2.0' });
+      assertEquals((await outdated()).map((each) => [each.name, each.together, each.held]), [
+        ['keel', ['mast', 'sail'], []],
+        ['mast', ['keel', 'sail'], []],
+        ['sail', ['keel', 'mast'], []],
+      ]);
+      const together = await install('mast keel sail');
+      assert(together.success, together.error);
+      assertEquals(together.answer?.installed.map((module) => [module.name, module.version]), [['keel', '0.2.0'], ['mast', '0.2.0'], ['sail', '0.2.0']]);
+      assertEquals(
+        (await client.execJson<ModuleEntry[]>('mod-list')).filter((module) => ['keel', 'mast', 'sail'].includes(module.name)).map((module) => module.setup?.ok),
+        [true, true, true],
+      );
+    });
+
+    await t.step('mod changelog lists the commits from what an update brings down past the one installed, with their release tags', async () => {
+      const changelog = (args = '') => client.execJson<ModuleChangelog>(`mod changelog keel ${args}`);
+      const installed = (await changelog()).installed.commit;
+      const fix = await forge.publish('acme', 'module-keel', moduleFiles('keel', '0.2.1', 'keel 3'), { message: 'fix(keel): a knot holds\n\nIt held only once.' });
+      const release = await forge.publish('acme', 'module-keel', moduleFiles('keel', '0.2.1', 'keel 3'), { tag: 'v0.2.1', message: 'chore(release): keel 0.2.1' });
+
+      const answer = await changelog();
+      assertEquals([answer.installed.version, answer.latest.version, answer.latest.commit], ['0.2.0', '0.2.1', release]);
+      assertEquals(
+        answer.commits.slice(0, 3).map((each) => [each.commit, each.subject, each.tags, each.installed, each.coming]),
+        [[release, 'chore(release): keel 0.2.1', ['v0.2.1'], false, true], [fix, 'fix(keel): a knot holds', [], false, true], [
+          installed,
+          answer.commits[2].subject,
+          ['v0.2.0'],
+          true,
+          false,
+        ]],
+      );
+      assertEquals(answer.commits[1].body, 'It held only once.');
+      assertEquals(answer.commits.at(-1)?.tags, ['v0.1.0']);
+      assertEquals(answer.more, false);
+
+      const limited = await changelog('--limit 2');
+      assertEquals([limited.commits.length, limited.more], [2, true]);
+      assertStringIncludes(await run('mod changelog keel --limit 2'), 'The installed commit');
+
+      const refused = await client.exec('mod changelog nothing');
+      assertEquals(refused.success, false);
+      assertStringIncludes(refused.error ?? '', 'no module nothing is installed');
+      await client.execString('mod-remove --force mast && mod-remove --force sail && mod-remove --force keel');
     });
 
     await t.step("mod remove takes an installed module's tree with it", async () => {

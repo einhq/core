@@ -2740,17 +2740,51 @@ export class LocalNodeVFS implements NodeVFS {
     return await this.withTransaction([entry.id], async (mut) => {
       const parent = await this.store.getNode(entry.id, mut.tx);
 
-      return await this.createChildren<T>(access, mut, entry, parent, specs);
+      return await this.createChildren<T>(access, mut, entry, parent, specs, await this.fileOwner(parent, mut.tx));
     });
   }
 
-  /** One level of a `createTree`, then its own children. Depth first, in order. */
+  /**
+   * The owner of the file `node` is, or else of the nearest file above it on any of its paths;
+   * undefined when it is under no file.
+   */
+  private async fileOwner(node: Node, tx: Transaction): Promise<UserId | undefined> {
+    if (node.type === NODE_TYPE_FILE) return node.props.uid;
+    // A store mirroring a host folder holds nothing under a file.
+    if (node.id === this.rootId || this.store.pathAddressed) return undefined;
+
+    // Each path lists its ancestors from the root down, so the nearest file is the last one.
+    const nearest = async (ancestors: NodeId[]): Promise<Node | undefined> => {
+      const nodes = this.store.getNodes
+        ? await this.store.getNodes(ancestors, tx)
+        : new Map(await Promise.all(ancestors.map(async (id) => [id, await this.store.getNode(id, tx)] as const)));
+      return ancestors.map((id) => nodes.get(id)).findLast((ancestor) => ancestor?.type === NODE_TYPE_FILE);
+    };
+    if (this.store.resolvePaths) {
+      for (const path of (await this.store.resolvePaths([node.id], tx)).get(node.id) ?? []) {
+        const file = await nearest(path.ancestors);
+        if (file) return file.props.uid;
+      }
+      return undefined;
+    }
+    for (const parent of await this.store.getParents(node.id, tx)) {
+      const owner = await this.fileOwner(parent, tx);
+      if (owner !== undefined) return owner;
+    }
+    return undefined;
+  }
+
+  /**
+   * One level of a `createTree`, then its own children. Depth first, in order. `fileOwner` is
+   * the owner of the file the parent is or sits under (`fileOwner()`), undefined when there is none.
+   */
   private async createChildren<T extends NodeAttrs = NodeAttrs>(
     access: Access,
     mut: Mutation,
     parentEntry: NodeEntry,
     parent: Node,
     specs: NodeTreeSpec<T>[],
+    fileOwner: UserId | undefined,
   ): Promise<Node<T>[]> {
     // Write and execute on the directory being written into, at every level.
     // The deeper ones cost nothing to check: the node was just returned by the
@@ -2761,10 +2795,12 @@ export class LocalNodeVFS implements NodeVFS {
     const planned = specs.map((spec) => {
       const path = join(parentEntry.vfsAbsPath, spec.name);
 
-      // Owned by its creator, grouped with the node it is created in — Linux's setgid directory,
-      // for every node, since here any node can hold children. A family album's uploads and the
-      // faces, thumbnails and metadata the pipeline adds under them stay in the album's group
-      // whoever made them, and a private area's stay in its owner's. Others see it only as far as
+      // Owned by its creator — or, under a file, by that file's owner: the thumbnails, metadata and
+      // faces the pipeline adds to someone's photo are theirs, whoever ran the step, so whoever
+      // owns the photo reads them whatever its group. Grouped with the node it is created in —
+      // Linux's setgid directory, for every node, since here any node can hold children. A family
+      // album's uploads and the faces, thumbnails and metadata the pipeline adds under them stay in
+      // the album's group whoever made them, and a private area's stay in its owner's. Others see it only as far as
       // they could see the parent. The parent's access list comes along, the way a Linux default
       // ACL does, so a person, group or share link granted the album sees what is added to it.
       // An administrator's access that creates in someone's name (`Access.creator`) records the
@@ -2774,7 +2810,7 @@ export class LocalNodeVFS implements NodeVFS {
       const gid = scratch ? access.gid : parent.props.gid;
       const props: NodePropsCreate = {
         mode: scratch ? 0o700 : modeUnder(parent.props.mode),
-        uid: access.uid,
+        uid: scratch ? access.uid : fileOwner ?? access.uid,
         gid,
         ...(!scratch && parent.props.acl?.length ? { acl: parent.props.acl } : {}),
         ...(access.creator !== undefined && isAdmin(access) ? { birthtime: { uid: access.creator, timestamp: Date.now() } } : {}),
@@ -2833,7 +2869,7 @@ export class LocalNodeVFS implements NodeVFS {
           absPath: join(parentEntry.absPath || parentEntry.vfsAbsPath, spec.name),
         };
 
-        await this.createChildren(access, mut, childEntry, node, spec.children as NodeTreeSpec<T>[]);
+        await this.createChildren(access, mut, childEntry, node, spec.children as NodeTreeSpec<T>[], node.type === NODE_TYPE_FILE ? node.props.uid : fileOwner);
       }
     }
 

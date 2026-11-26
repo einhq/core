@@ -17,6 +17,12 @@
  * at a version the module does not accept refuses it.
  * An update must be accepted by every installed module that depends on it, unless `--force`.
  *
+ * The modules named are one change: before any is put in place, the `mod.json` each would be
+ * installed at is read, and the ranges are judged by where the change ends. A module named
+ * beside one it depends on is judged by its new range, not the one installed, and a dependency
+ * named is put in place before the module that needs it, so a release that breaks its dependents
+ * goes in with theirs that accept it (`mod install archive importer`).
+ *
  * Then each module put in place is set up, dependencies first, and its services started — or
  * restarted, on an update — and every module depending on an updated one, however indirectly, is
  * set up again with its running services restarted, so nothing keeps running the code replaced.
@@ -55,6 +61,7 @@ import {
   ABBREVIATED_COMMIT,
   fetchArchive,
   fetchCommit,
+  fetchFile,
   fetchRefs,
   findRelease,
   ForgeError,
@@ -115,7 +122,16 @@ type Run = {
   pagesOnly: Set<string>;
   /** The drop-in directories the modules put in place add, change or take away (`changedDropIns`). */
   dropIns: Set<string>;
+  /** The modules named, by name, with what each would be installed at (`planTarget`). */
+  planned: Map<string, Planned>;
+  /** The modules named that this run has tried already, put in place or not. */
+  settled: Set<string>;
+  /** Says why one module could not be installed, and the run goes on. */
+  fail: (message: string) => Promise<void>;
 };
+
+/** A module named, with the version and dependencies of the `mod.json` it would be installed at. */
+type Planned = { target: InstallTarget; version?: string; dependencies: Record<string, string> };
 
 const short = (commit: string): string => commit.slice(0, 9);
 
@@ -246,6 +262,51 @@ const dependentsOf = async (run: Run, name: string): Promise<[string, string][]>
     .map((manifest) => [manifest.name, manifest.dependencies![name]]);
 
 /**
+ * What a module named would be installed at, as `installTarget` would take it: its name, and the
+ * version and dependencies of that commit's `mod.json`. Nothing when that cannot be told without
+ * installing it, which then says why.
+ */
+const planTarget = async (run: Run, target: InstallTarget): Promise<[string, Planned] | undefined> => {
+  try {
+    const located = await locate(run, target);
+    const read = async (ref?: string) => {
+      const resolved = resolveRef(located.refs, ref, undefined, run.prereleases) ?? await resolveAbbreviated(run, located.repository, ref);
+      if (!resolved) return undefined;
+      const text = await fetchFile(located.repository, resolved.commit, 'mod.json', run.tokens, within(run.cmd, FORGE_TIMEOUT_MS));
+      return text === undefined ? undefined : { resolved, manifest: JSON.parse(text) as ModuleManifest };
+    };
+    let found = await read(target.ref);
+    // A newest release for another module API gives way to the newest this core runs, as it does when installed.
+    if (found && target.ref === undefined && !runs(found.manifest)) {
+      const older = await olderCompatible(run, located.repository, located.refs, found.resolved.ref);
+      found = older ? await read(older) : undefined;
+    }
+    const name = found?.manifest.name;
+    if (!found || typeof name !== 'string' || !MODULE_NAME.test(name)) return undefined;
+    return [name, { target, version: found.manifest.version, dependencies: found.manifest.dependencies ?? {} }];
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Put a module named in place, once: before the module that needs it, or where it was named.
+ * Why it could not be is said with `run.fail`, and the run goes on.
+ */
+const installPlanned = async (run: Run, name: string): Promise<InstalledModule | undefined> => {
+  const planned = run.planned.get(name);
+  if (!planned || run.settled.has(name)) return undefined;
+  run.settled.add(name);
+  try {
+    return await installTarget(run, planned.target);
+  } catch (error) {
+    if (!(error instanceof InstallError)) throw error;
+    await run.fail(error.message);
+    return undefined;
+  }
+};
+
+/**
  * Put one module in place, its missing dependencies first; nothing when the commit asked for is
  * the one installed already. Without a ref, `range` picks the newest release in it, and a release
  * written for another module API gives way to the newest older one written for this core's.
@@ -359,6 +420,7 @@ const installTarget = async (
     run.visiting.add(name);
     try {
       for (const [dependency, range] of Object.entries(manifest.dependencies ?? {})) {
+        if (!run.visiting.has(dependency)) await installPlanned(run, dependency);
         const present = await readModJson(vfs, cmd.access, join(run.modules, dependency));
         let version = present && runs(present) ? present.version : undefined;
         if (version === undefined) {
@@ -367,7 +429,9 @@ const installTarget = async (
           version ??= (await readModJson(vfs, cmd.access, join(run.store, dependency)))?.version;
         }
         if (!accepts(version, range)) {
-          throw new InstallError(`${name} needs ${dependency} ${range}, and ${dependency} ${version} is installed: mod install ${dependency} updates it`);
+          throw new InstallError(
+            `${name} needs ${dependency} ${range}, and ${dependency} ${version} is installed: mod install ${dependency} ${name} updates both, when a release of ${dependency} in that range runs on this core`,
+          );
         }
       }
     } finally {
@@ -375,10 +439,21 @@ const installTarget = async (
     }
 
     if (!run.force) {
-      const refusing = (await dependentsOf(run, name)).filter(([, range]) => !accepts(manifest.version, range));
+      // A dependent named too and not yet put in place, or being put in place now, is judged by the range it is installed with.
+      const refusing = (await dependentsOf(run, name))
+        .map(([dependent, range]): [string, string | undefined] => {
+          const planned = run.settled.has(dependent) && !run.visiting.has(dependent) ? undefined : run.planned.get(dependent);
+          return [dependent, planned ? planned.dependencies[name] : range];
+        })
+        .filter((entry): entry is [string, string] => entry[1] !== undefined && !accepts(manifest.version, entry[1]));
       if (refusing.length > 0) {
         const needs = refusing.map(([dependent, range]) => `${dependent} needs ${name} ${range}`).join(', ');
-        throw new InstallError(`${needs}, and this is ${name} ${manifest.version}: --force installs it all the same`);
+        const together = [name, ...refusing.map(([dependent]) => dependent)].join(' ');
+        throw new InstallError(
+          `${needs}, and this is ${name} ${manifest.version}: mod install ${together} updates them together, when ${
+            refusing.length > 1 ? 'they have releases' : 'it has a release'
+          } that accept it (mod outdated says), and --force installs it all the same`,
+        );
       }
     }
 
@@ -515,6 +590,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
   const { sources, problems, insecure, tokens, prereleases } = await moduleSources(cmd);
   for (const problem of problems) await cmd.writeError(`mod install: CFG_MODULE_SOURCES: ${problem}\n`);
 
+  const failed: string[] = [];
   const run: Run = {
     cmd,
     job,
@@ -530,29 +606,51 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     visiting: new Set(),
     pagesOnly: new Set(),
     dropIns: new Set(),
+    planned: new Map(),
+    settled: new Set(),
+    fail: async (message) => {
+      failed.push(message);
+      await cmd.writeError(`mod install: ${message}\n`);
+    },
   };
   await removeLeftovers(run);
 
-  const failed: string[] = [];
-  const fail = async (message: string): Promise<void> => {
-    failed.push(message);
-    await cmd.writeError(`mod install: ${message}\n`);
-  };
-
+  const parsed: InstallTarget[] = [];
   for (const value of targets) {
     const target = parseInstallTarget(value, insecure);
-    if ('error' in target) {
-      await fail(target.error);
+    if ('error' in target) await run.fail(target.error);
+    else parsed.push(target);
+  }
+  // Several named are one change, judged where it ends; one alone, or --missing, needs no plan.
+  const named = new Map<InstallTarget, string>();
+  if (parsed.length > 1 && !run.missing) {
+    for (const [target, plan] of parsed.map((target) => [target, planTarget(run, target)] as const)) {
+      const found = await plan;
+      if (!found || run.planned.has(found[0])) continue;
+      run.planned.set(...found);
+      named.set(target, found[0]);
+    }
+  }
+
+  const put = new Set<string>();
+  for (const target of parsed) {
+    const name = named.get(target);
+    if (name !== undefined) {
+      await installPlanned(run, name);
       continue;
     }
     try {
       const installed = await installTarget(run, target);
-      // Kept to its groups before it is set up, so it is never everyone's on the way.
-      if (installed && groups.length > 0) await writeModuleGroups(cmd.sys.vfs, installed.name, groups);
+      if (installed) put.add(installed.name);
     } catch (error) {
       if (!(error instanceof InstallError)) throw error;
-      await fail(error.message);
+      await run.fail(error.message);
     }
+  }
+  // Kept to their groups before they are set up, so none is everyone's on the way; a module named
+  // may have been put in place earlier, as another's dependency.
+  for (const module of groups.length > 0 ? run.installed : []) {
+    if (put.has(module.name) || run.planned.has(module.name)) await writeModuleGroups(cmd.sys.vfs, module.name, groups);
   }
 
   // What was put in place runs: set up, dependencies first, with its services started. An update
@@ -565,7 +663,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
   const startedHere = new Set<string>();
   for (const module of setUp) {
     if (await setupOne(cmd, module.name) !== 0) {
-      await fail(`${module.name}: its setup failed (mod list --long says why)`);
+      await run.fail(`${module.name}: its setup failed (mod list --long says why)`);
       continue;
     }
     if (run.pagesOnly.has(module.name)) await say(run, `  Nothing but the pages of ${module.name} changed: its services keep running`);
@@ -584,7 +682,7 @@ const installNow = async (cmd: Command, job: InstallJob): CmdReturn => {
     const running = affected.length > 0 ? await runningServices(cmd) : new Set<string>();
     for (const name of affected) {
       await say(run, `${name} depends on what was updated: setting it up again`);
-      if (await setupOne(cmd, name) !== 0) await fail(`${name}: its setup failed after the update (mod list --long says why)`);
+      if (await setupOne(cmd, name) !== 0) await run.fail(`${name}: its setup failed after the update (mod list --long says why)`);
       await restartServices(cmd, (await servicesOf(cmd, name)).filter((service) => running.has(service) && !readers.has(service)), 'mod install');
     }
   }
@@ -614,7 +712,7 @@ modInstall.spec = {
       type: 'string' as const,
       variadic: true,
       description:
-        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more); without one, its newest release (v<version> tag) that this core can run, or its default branch when it has none',
+        'A published module by name (archive), or its repository (https://github.com/einhq/module-archive), either with @branch, @tag or @commit (its id whole, or its first seven characters or more); without one, its newest release (v<version> tag) that this core can run, or its default branch when it has none. Several are one change: the ranges between them are judged as they will be once all are installed',
     },
   ],
   flags: [

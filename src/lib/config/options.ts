@@ -530,7 +530,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: 'drawn',
     label: 'Header entrance',
     description:
-      "How the tiles of a page's header arrive when the page opens: drawn as if by pen and filled from the bottom up, falling into place, sliding in from the right, swept in from left to right, growing from the bottom edge, rippling out from the title, snapping in like puzzle pieces, or a wave of light across them. A device set to reduce motion never animates it.",
+      "How the tiles of a page's header arrive when the page opens: drawn as if by pen and filled from the left, falling into place, sliding in from the right, swept in from left to right, growing from the bottom edge, rippling out from the title, snapping in like puzzle pieces, or a wave of light across them. A device set to reduce motion never animates it.",
     group: 'Appearance',
   },
   {
@@ -550,7 +550,7 @@ export const CORE_OPTIONS: ConfigOption[] = [
     default: 'split',
     label: 'Header over a cover',
     description:
-      "How the tiles of a page's header meet its cover photo: split gives the left of the header to the tiles, dissolving hat by hat into the photo along a slanted edge, with their outlines running on over it; lines lays only their outlines over the photo, fading out from the left.",
+      "How the tiles of a page's header meet its cover photo: split gives the left of the header to the tiles, dissolving hat by hat into the photo along a slanted edge, the photo starting where they begin to fade, with their outlines running on over it; lines lays only their outlines over the photo, fading out from the left.",
     group: 'Appearance',
   },
 ];

@@ -25,12 +25,12 @@ Deno.test('every entrance gives every tile an animation that holds its end, and 
   }
 });
 
-Deno.test('drawn starts at the foot and works up', () => {
+Deno.test('drawn starts at the left and works right', () => {
   const { tiles: entering } = hatEntrance('drawn', 450, tiles, width, height, hatSize, origin);
   const start = (i: number) => delays(entering[i].style.animation)[0];
-  const foot = tiles.map((tile, i) => [tile, i] as const).filter(([tile]) => tile.y > 150).map(([, i]) => start(i));
-  const top = tiles.map((tile, i) => [tile, i] as const).filter(([tile]) => tile.y < 50).map(([, i]) => start(i));
-  assert(Math.max(...foot) < Math.min(...top), 'a tile at the top is drawn before one at the foot');
+  const left = tiles.map((tile, i) => [tile, i] as const).filter(([tile]) => tile.x < width / 4).map(([, i]) => start(i));
+  const right = tiles.map((tile, i) => [tile, i] as const).filter(([tile]) => tile.x > width / 2).map(([, i]) => start(i));
+  assert(Math.max(...left) < Math.min(...right), 'a tile at the right is drawn before one at the left');
   assert(entering.every((tile) => tile.pathLength === 1 && tile.style['--mrx-hat-fill'] !== undefined));
 });
 

@@ -1,8 +1,8 @@
 /**
  * A forge that answers as Forgejo does, for the tests of `mod install` and `mod search`: git's ref
  * advertisement over smart HTTP, `/archive/<commit>.tar.gz` under one top directory, an
- * organisation's repositories, a file at a branch or tag and the commit a short id begins in its API. A repository may be private,
- * read only with its token.
+ * organisation's repositories, a file at a branch, tag or commit, the commit a short id begins and a
+ * branch's commits, newest first, in its API. A repository may be private, read only with its token.
  */
 
 import { encodeHex } from '@std/encoding/hex';
@@ -15,6 +15,8 @@ type FakeRepository = {
   branches: Map<string, string>;
   tags: Map<string, string>;
   commits: Map<string, Files>;
+  /** Each commit's message, time and the commit before it on its branch. */
+  log: Map<string, { message: string; date: string; parent?: string }>;
   description: string;
   /** Read only with this token, as a private repository is. */
   token?: string;
@@ -39,14 +41,25 @@ export class FakeForge {
   }
 
   /** A new commit of `files` on `branch` of `owner/name`, tagged `tag` when given, and its id. */
-  async publish(owner: string, name: string, files: Files, opts: { branch?: string; tag?: string; token?: string; description?: string } = {}): Promise<string> {
+  async publish(
+    owner: string,
+    name: string,
+    files: Files,
+    opts: { branch?: string; tag?: string; token?: string; description?: string; message?: string } = {},
+  ): Promise<string> {
     const key = `${owner}/${name}`;
     const repository = this.repositories.get(key) ??
-      { branches: new Map(), tags: new Map(), commits: new Map(), description: opts.description ?? '', token: opts.token };
+      { branches: new Map(), tags: new Map(), commits: new Map(), log: new Map(), description: opts.description ?? '', token: opts.token };
     this.repositories.set(key, repository);
     const commit = encodeHex(new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${key}:${this.counter++}`))));
+    const branch = opts.branch ?? 'main';
     repository.commits.set(commit, files);
-    repository.branches.set(opts.branch ?? 'main', commit);
+    repository.log.set(commit, {
+      message: opts.message ?? `commit ${this.counter}`,
+      date: new Date(Date.UTC(2026, 0, 1, 0, this.counter)).toISOString(),
+      parent: repository.branches.get(branch),
+    });
+    repository.branches.set(branch, commit);
     if (opts.tag) repository.tags.set(opts.tag, commit);
     return commit;
   }
@@ -100,10 +113,27 @@ export class FakeForge {
     if (raw) {
       const repository = this.repositories.get(`${raw[1]}/${raw[2]}`);
       const ref = url.searchParams.get('ref') ?? 'main';
-      const commit = repository?.branches.get(ref) ?? repository?.tags.get(ref);
+      const commit = repository?.branches.get(ref) ?? repository?.tags.get(ref) ?? (repository?.commits.has(ref) ? ref : undefined);
       const file = commit ? repository!.commits.get(commit)?.[raw[3]] : undefined;
       if (file === undefined) return new Response('Not found', { status: 404 });
       return new Response(typeof file === 'string' ? file : file.text);
+    }
+
+    const history = /^\/api\/v1\/repos\/([^/]+)\/([^/]+)\/commits$/.exec(url.pathname);
+    if (history) {
+      const repository = this.repositories.get(`${history[1]}/${history[2]}`);
+      if (!repository || !allowed(repository)) return new Response('Not found', { status: 404 });
+      const from = url.searchParams.get('sha') ?? 'main';
+      const limit = Number(url.searchParams.get('limit') ?? 50);
+      const page = Number(url.searchParams.get('page') ?? 1);
+      const listed = [];
+      for (let at = repository.branches.get(from) ?? repository.tags.get(from) ?? from; repository.log.has(at);) {
+        const entry = repository.log.get(at)!;
+        listed.push({ sha: at, commit: { message: entry.message, author: { date: entry.date } } });
+        if (!entry.parent) break;
+        at = entry.parent;
+      }
+      return Response.json(listed.slice((page - 1) * limit, page * limit));
     }
     return new Response('Not found', { status: 404 });
   }

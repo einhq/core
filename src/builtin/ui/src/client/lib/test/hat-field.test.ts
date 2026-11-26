@@ -111,6 +111,20 @@ Deno.test('a wedge covers the left of a band and fades hat by hat across a slant
   assert(layoutHatField(width, height, 'album:/albums', 'band').tiles.every((tile) => tile.ground === 0));
 });
 
+Deno.test('a wedge hides the cover whole left of its clear edge, and lets it through from there', () => {
+  const width = 1000, height = 200;
+  const { tiles, clear } = layoutHatField(width, height, 'album:/albums/a', 'wedge');
+  assert(clear > 0 && clear < .34 * width, `clear at ${clear}`);
+  const hats = polygons(tiles.filter((tile) => tile.ground === 1).map((tile) => tile.d).join(''));
+  for (let i = 0; i < 300; i++) {
+    const point: Point = [(i * 37.3) % clear, (i * 13.7) % height];
+    assertEquals(hats.filter((hat) => contains(hat, point)).length, 1, `${point} is in no whole hat or in two`);
+  }
+  const fadingLeft = Math.min(...polygons(tiles.filter((tile) => tile.ground < 1).map((tile) => tile.d).join('')).flat().map(([x]) => x));
+  assert(Math.abs(fadingLeft - clear) < 1, `the first fading hat starts at ${fadingLeft}, not ${clear}`);
+  assertEquals(layoutHatField(width, height, 'album:/albums', 'band').clear, width);
+});
+
 Deno.test('a field larger than the patch grows its hats to fill it', () => {
   const width = 4000, height = 2400;
   const corners = hatsOf(width, height, 'mixed:/login', 'backdrop').flat();
