@@ -14,6 +14,9 @@
  * - what the shell lends (`SHARED_PACKAGES`, the kit as `@ein/ui/*`), read from the
  *   shell's runtime at load time, so there is one React;
  * - its own files, by relative path or through its own `imports` and `exports`, CSS included;
+ * - what a module it lists in its `dependencies` exports (`@<dep>/<export>`), with that file's
+ *   own imports, by the same rules: the dependency's files are bundled into this module's pages,
+ *   so a change to them builds this module again;
  * - anything at all with `import type`, which is erased before bundling.
  *
  * No npm and no network: a build is the module's own few files, so it is quick and needs little
@@ -162,42 +165,73 @@ const collectSources = async (
 ): Promise<{ sources: Map<string, string>; aliases: Map<string, string> }> => {
   const sources = new Map<string, string>();
   const aliases = new Map<string, string>();
-
-  /** An own alias: `imports` (exact or a `/`-ended prefix) to a file in the module, or `@<name>/<export>`. */
-  const ownTarget = (spec: string): string | undefined => {
-    const imports = manifest.imports ?? {};
-    let target: string | undefined = imports[spec];
-    if (target === undefined) {
-      const prefix = Object.keys(imports).filter((key) => key.endsWith('/') && spec.startsWith(key)).sort((a, b) => b.length - a.length)[0];
-      if (prefix) target = imports[prefix] + spec.slice(prefix.length);
+  const modulesPath = dirname(modulePath);
+  /** The modules whose files a page reaches: this one, then each dependency once read, staged under `.deps/<name>/`. */
+  const owners = new Map<string, { manifest: Manifest; path: string; prefix: string }>([[manifest.name, { manifest, path: modulePath, prefix: '' }]]);
+  const dependency = async (name: string) => {
+    if (!owners.has(name)) {
+      const path = `${modulesPath}/${name}`;
+      const text = await reader.maybeText(`${path}/mod.json`);
+      if (text === undefined) return undefined;
+      owners.set(name, { manifest: JSON.parse(text) as Manifest, path, prefix: `.deps/${name}/` });
     }
-    if (target === undefined && spec.startsWith(`@${manifest.name}/`)) target = manifest.exports?.[`./${spec.slice(manifest.name.length + 2)}`];
-    return target !== undefined && isRelative(target) ? inside(target) : undefined;
+    return owners.get(name);
   };
 
-  const visit = async (rel: string, from: string): Promise<void> => {
-    if (sources.has(rel)) return;
-    const text = await reader.maybeText(`${modulePath}/${rel}`);
-    if (text === undefined) throw new Error(`${from}: ${rel} does not exist`);
-    sources.set(rel, text);
+  /** An alias of `owner`'s: its `imports` (exact or a `/`-ended prefix) to a file of its own, `@<name>/<export>`, or a dependency's export; a staged path. */
+  const target = async (owner: string, spec: string): Promise<string | undefined> => {
+    const { manifest: own, prefix } = owners.get(owner)!;
+    const imports = own.imports ?? {};
+    let found: string | undefined = imports[spec];
+    if (found === undefined) {
+      const key = Object.keys(imports).filter((each) => each.endsWith('/') && spec.startsWith(each)).sort((a, b) => b.length - a.length)[0];
+      if (key) found = imports[key] + spec.slice(key.length);
+    }
+    if (found === undefined && spec.startsWith(`@${own.name}/`)) found = own.exports?.[`./${spec.slice(own.name.length + 2)}`];
+    if (found !== undefined) {
+      const rel = isRelative(found) ? inside(found) : undefined;
+      return rel === undefined ? undefined : `${prefix}${rel}`;
+    }
+    const match = /^@([^/]+)\/(.+)$/.exec(spec);
+    const deps = (own as { dependencies?: Record<string, string> }).dependencies ?? {};
+    if (!match || !(match[1] in deps)) return undefined;
+    const dep = await dependency(match[1]);
+    const exported = dep?.manifest.exports?.[`./${match[2]}`];
+    const rel = exported !== undefined && isRelative(exported) ? inside(exported) : undefined;
+    return rel === undefined || !dep ? undefined : `${dep.prefix}${rel}`;
+  };
+
+  /** The module a staged path is a file of. */
+  const ownerOf = (staged: string): string => staged.startsWith('.deps/') ? staged.split('/')[1] : manifest.name;
+
+  const visit = async (staged: string, from: string): Promise<void> => {
+    if (sources.has(staged)) return;
+    const owner = owners.get(ownerOf(staged))!;
+    const rel = staged.slice(owner.prefix.length);
+    const text = await reader.maybeText(`${owner.path}/${rel}`);
+    if (text === undefined) throw new Error(`${from}: ${staged} does not exist`);
+    sources.set(staged, text);
     if (!/\.(tsx?|jsx?|mjs)$/.test(rel)) return;
 
     for (const spec of specifiersOf(text)) {
       if (lent.has(spec)) continue;
       if (isRelative(spec)) {
-        const target = inside(join(dirname(rel), spec));
-        if (!target) throw new Error(`${rel}: '${spec}' leaves the module`);
-        await visit(target, rel);
+        const next = inside(join(dirname(rel), spec));
+        if (!next) throw new Error(`${staged}: '${spec}' leaves the module`);
+        await visit(`${owner.prefix}${next}`, staged);
         continue;
       }
-      const own = ownTarget(spec);
-      if (own) {
-        aliases.set(spec, own);
-        await visit(own, rel);
+      const aliased = await target(ownerOf(staged), spec);
+      if (aliased) {
+        // One import map serves every file of the bundle, so an alias means one file wherever it is used.
+        const known = aliases.get(spec);
+        if (known !== undefined && known !== aliased) throw new Error(`${staged}: '${spec}' is ${aliased} here and ${known} elsewhere in the same pages`);
+        aliases.set(spec, aliased);
+        await visit(aliased, staged);
         continue;
       }
       throw new Error(
-        `${rel}: '${spec}' is neither lent by the shell nor the module's own; a module's pages import ` +
+        `${staged}: '${spec}' is neither lent by the shell nor the module's own; a module's pages import ` +
           `the shell's packages, the kit (@ein/ui/*) and their own files, and use 'import type' for types`,
       );
     }

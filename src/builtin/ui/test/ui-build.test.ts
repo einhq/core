@@ -216,6 +216,36 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
       await client.exec(`rm -rf ${modules}/uifix2`);
     });
 
+    await t.step('a page imports what a module it depends on exports, and is built again when that changes', async () => {
+      const dep = `${modules}/uidep`;
+      const user = `${modules}/uiuser`;
+      await put(`${dep}/mod.json`, JSON.stringify({ name: 'uidep', version: '0.1.0', exports: { './hello': './ui/hello.tsx' } }));
+      await put(`${dep}/ui/hello.tsx`, `${imp('{ WORD }', './word.ts')}\nexport const Hello = () => <b>{WORD}</b>;\n`);
+      await put(`${dep}/ui/word.ts`, `export const WORD = 'hello';\n`);
+      await put(`${dep}/ui/secret.ts`, `export const SECRET = 1;\n`);
+      const userModJson = (dependencies: Record<string, string>) =>
+        put(`${user}/mod.json`, JSON.stringify({ name: 'uiuser', version: '0.1.0', dependencies, ui: { routes: { '/uiuser': 'ui/page.tsx' } } }));
+      await userModJson({ uidep: '^0.1.0' });
+      await put(`${user}/ui/page.tsx`, `${imp('{ Hello }', '@uidep/hello')}\nexport default function Page() {\n  return <Hello />;\n}\n`);
+
+      const built = (await build('uiuser')).uiuser;
+      assertEquals(built.state, 'built', built.error);
+      assertEquals((await build('uiuser')).uiuser.state, 'cached');
+      await put(`${dep}/ui/word.ts`, `export const WORD = 'hej';\n`);
+      assertEquals((await build('uiuser')).uiuser.state, 'built');
+
+      // Only what it exports, and only of a module it depends on.
+      await put(`${user}/ui/page.tsx`, `${imp('{ SECRET }', '@uidep/secret')}\nexport default function Page() {\n  return <p>{SECRET}</p>;\n}\n`);
+      assertEquals((await build('uiuser')).uiuser.state, 'failed');
+      await put(`${user}/ui/page.tsx`, `${imp('{ Hello }', '@uidep/hello')}\nexport default function Page() {\n  return <Hello />;\n}\n`);
+      await userModJson({});
+      const unlisted = (await build('uiuser')).uiuser;
+      assertEquals(unlisted.state, 'failed');
+      assertStringIncludes(unlisted.error ?? '', `'@uidep/hello' is neither lent by the shell nor the module's own`);
+      await client.exec(`rm -rf ${dep} ${user}`);
+      await build('--all');
+    });
+
     await t.step("writes the installation's third-party notices where the shell is served, and the manifest names them", async () => {
       const www = `${(await client.exec('echo $WWW_PATH')).data}`.trim();
       await put(`${www}/ui/public/licences.txt`, 'EiN: third-party notices\n');

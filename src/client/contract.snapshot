@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.74
+MODULE_API_VERSION 0.15.75
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts AccountFace a95dc46998fb @signature=59ed6a161071,account=715046550be0,eager=f5689222adad,size=422f3ae77ed1
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
