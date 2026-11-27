@@ -3,6 +3,7 @@ import { parseArgs } from '../../../../lib/args/mod.ts';
 import { UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { ensureHome } from './home.ts';
 
 export const userEnable = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {});
@@ -27,14 +28,15 @@ export const userEnable = async (cmd: Command): CmdReturn => {
       return 1;
     }
 
+    const homeMade = await ensureHome(cmd, username, user.attrs.uid);
     await cmd.sys.vfs.update<UserAttrs>(cmd.access, userPath, {
       attrs: { inactive: false },
     });
 
     if (cmd.json) {
-      await cmd.writeJSON({ username, inactive: false } satisfies UserInactive);
+      await cmd.writeJSON({ username, inactive: false, homeMade } satisfies UserInactive);
     } else {
-      await cmd.write(`User '${username}' enabled\n`);
+      await cmd.write(`User '${username}' enabled${homeMade ? '; its home was made again' : ''}\n`);
     }
 
     return 0;
@@ -49,7 +51,7 @@ userEnable.spec = {
   name: 'user-enable',
   admin: true,
   effect: 'write' as const,
-  description: 'Enable a disabled user account',
+  description: 'Enable a disabled user account, making its home again when disabling removed it',
   args: [
     {
       name: 'username',

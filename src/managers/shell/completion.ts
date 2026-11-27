@@ -20,8 +20,9 @@
  *
  * A command's name comes from `-I`: the shell's aliases, builtins, functions
  * and keywords, and `completion-commands`'s names on PATH, which leave out a
- * group's subcommands (`pipeline-run` is reached as `pipeline run`). With no
- * match, `bashdefault` has bash complete it — a path to a command, a directory.
+ * group's subcommands (`pipeline-run` is reached as `pipeline run`) until the
+ * group's name and its `-` are typed. With no match, `bashdefault` has bash
+ * complete it — a path to a command, a directory.
  *
  * Builtins have no spec, so the ones that take names rather than paths get
  * bash's own: variables, aliases, builtins, commands, shell options and jobs.

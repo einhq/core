@@ -403,8 +403,8 @@ Deno.test({
         await admin.execJson<UserUpdated>('user-update bo --name "Bo Berg"'),
         { username: 'bo', updated: { name: 'Bo Berg' } },
       );
-      assertEquals(await admin.execJson<UserInactive>('user-disable bo'), { username: 'bo', inactive: true });
-      assertEquals(await admin.execJson<UserInactive>('user-enable bo'), { username: 'bo', inactive: false });
+      assertEquals(await admin.execJson<UserInactive>('user-disable bo'), { username: 'bo', inactive: true, homeRemoved: true });
+      assertEquals(await admin.execJson<UserInactive>('user-enable bo'), { username: 'bo', inactive: false, homeMade: true });
       const bo = userNamed(await admin.execJson<UserEntry[]>('user-list'), 'bo');
       const family = groupNamed(await admin.execJson<GroupEntry[]>('group-list'), 'family');
       assertEquals(

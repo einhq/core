@@ -38,6 +38,7 @@ import {
   HOME_MODE,
   homePath,
   HOMES_PATH,
+  INVITATIONS_PATH,
   LIB_PATH,
   LINKS_PATH,
   LOGS_PATH,
@@ -289,7 +290,7 @@ export class SystemTestHarness {
         }
       };
 
-      for (const dir of [TEMP_PATH, SESSIONS_PATH, LINKS_PATH, HOMES_PATH, USERS_PATH, BIN_PATH, ETC_PATH, GROUPS_PATH, MOD_PATH]) {
+      for (const dir of [TEMP_PATH, SESSIONS_PATH, LINKS_PATH, INVITATIONS_PATH, HOMES_PATH, USERS_PATH, BIN_PATH, ETC_PATH, GROUPS_PATH, MOD_PATH]) {
         await ensurePath(dir);
       }
       // The archive and core's label tree, as 02_archive.sh makes them at boot; the other roots are

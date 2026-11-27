@@ -4,7 +4,7 @@ import { CommandAttrs, NODE_TYPE_COMMAND } from '../../../../vfs/types/command.t
 import { Command } from '../../command.ts';
 import { CmdReturn, CmdSpec } from '../../types.ts';
 import { commandSpec } from '../../../../lib/commands/catalogue.ts';
-import { listCommands, printWords } from './lib/utils.ts';
+import { findCommand, printWords } from './lib/utils.ts';
 
 export const completeArg = async (cmd: Command): CmdReturn => {
   try {
@@ -25,8 +25,7 @@ export const completeArg = async (cmd: Command): CmdReturn => {
       return 0;
     }
 
-    const entries = await listCommands(cmd);
-    const cmdNode = entries.find((e) => e.name === command);
+    const cmdNode = await findCommand(cmd, String(command));
 
     if (!cmdNode) {
       const strArgs = positionalArgs.map((a) => `"${a}"`).join(' ');

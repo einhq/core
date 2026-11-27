@@ -1,13 +1,14 @@
 /**
  * `passwordSignIn`: a failure tells a guesser nothing about which accounts exist, by its message
  * or by its time, and an account's refusal shows only to someone with its password.
+ * `checkAccountPassword`: a check of a known account's password is throttled as a sign-in is.
  */
 
 import { assertEquals, assertGreater, assertRejects } from '@std/assert';
 import { ADMIN_ACCESS } from '../../access/mod.ts';
 import { createTestContext, testCommands } from '../../../testing/mod.ts';
-import { AUTHENTICATION_FAILED, passwordSignIn, setAccountPassword } from '../account-password.ts';
-import { SignInThrottle } from '../sign-in-throttle.ts';
+import { AUTHENTICATION_FAILED, checkAccountPassword, passwordSignIn, setAccountPassword } from '../account-password.ts';
+import { FREE_FAILURES, SignInThrottle } from '../sign-in-throttle.ts';
 
 const testCtx = createTestContext({ boot: true });
 
@@ -51,6 +52,20 @@ Deno.test({
 
     await t.step("a disabled account's reason shows only with its right password", async () => {
       await assertRejects(() => passwordSignIn(vfs, 'bo', 'swordfish', origin()), Error, 'account disabled');
+    });
+
+    await t.step('checking a password waits out a failure and counts it, as a sign-in does', async () => {
+      const now = 1_000_000;
+      const waits: number[] = [];
+      const throttle = new SignInThrottle({ now: () => now, sleep: (ms) => (waits.push(ms), Promise.resolve()) });
+      const check = (password: string) => checkAccountPassword(vfs, '/etc/users/anna', password, { from: '192.0.2.7', throttle });
+
+      assertEquals(await check('hunter2'), true);
+      assertEquals(waits, []);
+      assertEquals(await check('wrong'), false);
+      assertEquals(waits, [1000]);
+      for (let i = 1; i < FREE_FAILURES; i++) await check('wrong');
+      await assertRejects(() => check('hunter2'), Error, 'too many failed sign-ins');
     });
 
     await t.step('an unknown account costs a hash, as a wrong password does', async () => {

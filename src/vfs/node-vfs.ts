@@ -46,7 +46,7 @@ import {
 import type { IndexDecl } from '../lib/contributions/types.ts';
 import type { AuditQuery, AuditRecord } from './audit.ts';
 import type { AccessLogPurge, AccessLogQuery, AccessRecord } from '../lib/api/audit.ts';
-import type { OwnerRelease, ReleasedOwner } from './node-store.ts';
+import type { IdNamed, NamedId, OwnerRelease, ReleasedOwner } from './node-store.ts';
 
 /**
  * The virtual filesystem as a module is given it (`cmd.sys.vfs`): every operation takes the
@@ -711,6 +711,12 @@ export interface NodeVFS extends ModuleVFS {
    * owned goes to `release.to`, and every ACL entry naming it is dropped. Administrators only.
    */
   releaseOwner(access: Access, release: OwnerRelease): Promise<ReleasedOwner>;
+
+  /**
+   * How many nodes in this VFS and every mount name a uid or gid, but those of `except` (see
+   * `NodeStore.countNamed`). Administrators only.
+   */
+  countNamed(access: Access, named: NamedId, except: NodeId[]): Promise<IdNamed>;
 
   /**
    * The uids and gids named by the stored reach of some node, in this VFS and every mount (see

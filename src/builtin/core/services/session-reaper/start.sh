@@ -1,4 +1,4 @@
-# session-reaper — keep /var/sessions bounded, and turn off share links that expired.
+# session-reaper — keep /var/sessions bounded, and turn off share links and invitations that expired.
 #
 # Collects sessions whose cookie has lapsed and the ttys of processes that are
 # gone. The first pass is also the boot sweep: `service start-all` runs this
@@ -12,11 +12,14 @@
 # its last request, and nothing cares whether it lingers for another hour.
 #
 # A held share link stops granting at its expiry on its own; `share-link reap`
-# takes the expired ones' entries off the nodes and their records away.
+# takes the expired ones' entries off the nodes and their records away. An
+# invitation opens nothing past its expiry either; `invitation reap` removes the
+# expired ones' records.
 echo session-reaper: starting
 while true; do
   session-reap --max 1000
   share-link reap
+  invitation reap
 
   sleep "${CFG_SESSION_REAP_INTERVAL:-3600}"
 done

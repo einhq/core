@@ -131,6 +131,8 @@ export { ADMIN_ACCESS } from '../lib/access/constants.ts';
 export { isAdmin, isVisitor, nodeOwnership, verifyAccess } from '../lib/access/verify-access.ts';
 /** The access an account signs in with, for work done on its behalf: `accessOfUser(vfs, access, username)`. */
 export { accessOfUser } from '../lib/auth/member-gids.ts';
+/** The first number past every uid and gid an account or group has had, deleted ones too: `nextAccountId(vfs, access, usersPath, groupsPath)`. */
+export { nextAccountId } from '../lib/auth/issued-ids.ts';
 export { type DefaultOwnership, resolveDefaultOwnership } from '../lib/access/default-ownership.ts';
 export { applySharePreference, type SharePreference } from '../lib/access/share-preference.ts';
 
@@ -172,6 +174,8 @@ export { NodeAccessDeniedError, NodeAlreadyExistsError, NodeError, NodeNotFoundE
 export type { ResourceHandleIf } from '../registries/types.ts';
 /** A stream's writer, as `vfs.open` gives it to the one who opens a stream node to write. */
 export { isStreamWriter, type StreamWriter } from '../registries/stream/types.ts';
+/** A socket's listener, as `vfs.open` gives it to the socket's owner who opens it to read, and each end of its connections. */
+export { isSocketConnection, isSocketListener, type SocketConnection, type SocketListener, type SocketPeer } from '../registries/socket/types.ts';
 
 /* Shell helpers */
 export { collectUnknownFlags, parseArgs, reportUnknownFlags } from '../lib/args/mod.ts';

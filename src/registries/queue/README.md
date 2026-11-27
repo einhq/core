@@ -17,6 +17,9 @@ PostgreSQL with LISTEN/NOTIFY for consumer wakeup. No external message broker re
   drawn in arrival order, so a write that publishes an event per file costs a statement per batch.
   Do not build a consumer that depends on the order of two routed events.
 - **Ack/Nack**: Consumers must acknowledge or reject each message before receiving the next one.
+  A handle opened without `w`, `a` or `+` acks each entry as it reads it.
+- **Access**: a read takes its entry from the other consumers, so the VFS lets only those with
+  write access to a queue node open it at all, in any mode; read access is enough to peek.
 - **Peek**: `peek(id, limit)` lists the first live deliveries in claim order, each `ready` or
   `in-flight` with its attempt count, without locking a row or spending an attempt. Reading a queue
   is a claim, so this is the only way to look at one; `queue-peek` and `head` on a queue node use it

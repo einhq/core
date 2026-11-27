@@ -2,17 +2,20 @@
  * Someone who has not signed in reads what is shared with them and not how the household runs: the
  * guest where visitors may browse, and whoever holds a share link, list no accounts, groups or homes
  * and read no log, queue, pool or pipeline. They still learn who they are, get their sidebar, and
- * see who wrote the comments they read. A member reads them.
+ * see who wrote the comments they read. A member reads them, but for the queues and pools.
  */
 
-import { assert, assertEquals } from '@std/assert';
+import { assertEquals } from '@std/assert';
 import type { ShareLinkCreated, Whoami } from '../../../lib/api/mod.ts';
 import type { CommentEntry } from '../../../lib/api/comments.ts';
 import { createTestContext, testCommands } from '../../../testing/mod.ts';
 
 const testCtx = createTestContext({ boot: true });
 
-/** What a visitor is refused; a member is refused only the system log, the administrators' (ein/core#1378). */
+/**
+ * What a visitor is refused; a member is refused only the system log, the queues and the pools, the
+ * administrators' (ein/core#1378, ein/core#1370).
+ */
 const CLOSED = [
   'ls /etc/users',
   'ls /etc/groups',
@@ -34,6 +37,9 @@ Deno.test({
   await testCtx.setup();
   const admin = await testCtx.server.createShellClient();
   const cmd = testCommands(admin);
+
+  /** What of `CLOSED` only the administrators read. */
+  const ADMINS_ONLY = ['tail -n 1 /var/logs/system', 'ls /var/queues', 'ls /var/pools'];
 
   /** Each of `CLOSED` refused for `client`, and the rest of what a visitor runs answered. */
   const assertVisitor = async (client: Awaited<ReturnType<typeof testCtx.server.createShellClient>>, username: string) => {
@@ -78,11 +84,11 @@ Deno.test({
       await cmd.shouldSucceed(`share-link remove ${created.link.id}`);
     });
 
-    await t.step('a member reads them all', async () => {
+    await t.step("a member reads them all, but what is the administrators'", async () => {
       const member = await testCtx.server.createShellClient({ username: 'commenter', password: 'hunter2' });
       try {
-        for (const command of CLOSED.filter((command) => !command.includes('/var/logs/system'))) {
-          assert((await member.exec(command)).success, `${command} failed`);
+        for (const command of CLOSED) {
+          assertEquals((await member.exec(command)).success, !ADMINS_ONLY.includes(command), command);
         }
       } finally {
         member.close();

@@ -10,6 +10,7 @@ import { ulid } from '@std/ulid';
 import { type Channel, type Connection, type ConnectionInfo, type PKAuthContext, Server, type ServerAuthContext, type Session, SFTP, type StderrWritable } from 'ssh2';
 import { type Access, ADMIN_ACCESS } from '../../lib/access/mod.ts';
 import { accountByLoginName } from '../../lib/auth/email.ts';
+import { sshPasswordsAllowed } from '../../lib/config/mod.ts';
 import { userAccess } from '../../lib/auth/member-gids.ts';
 import { passwordSignIn, type SignInAccount, SignInFailedError } from '../../lib/auth/account-password.ts';
 import { BOOT_ID } from '../../lib/boot-id/mod.ts';
@@ -50,11 +51,24 @@ type AuthenticatedUser = {
   method: 'password' | 'publickey';
 };
 
+/** The SSH servers running in this process, which `endSshConnectionsOf` reaches. */
+const liveServers = new Set<SSHServer>();
+
+/**
+ * End every SSH connection signed in as `uid`, on every server of this process, but those whose
+ * access `where` refuses: a connection's access names it by its `sid`. Returns how many it ended.
+ */
+export function endSshConnectionsOf(uid: number, where: (access: Access) => boolean = () => true): number {
+  let ended = 0;
+  for (const server of liveServers) ended += server.endConnectionsWhere((user) => user.access.uid === uid && where(user.access));
+  return ended;
+}
+
 export class SSHServer {
   private server: Server;
   private connections = new Map<string, Connection>();
-  /** The account each authenticated connection signed in as, by connection id. */
-  private usernames = new Map<string, string>();
+  /** Who each authenticated connection signed in as, by connection id. */
+  private users = new Map<string, AuthenticatedUser>();
   private userWatch?: EventSubscription;
 
   constructor(private config: SSHServerConfig) {
@@ -99,12 +113,14 @@ export class SSHServer {
   async start(): Promise<number> {
     this.userWatch = await this.watchUsers();
     await this.server.listen(this.config.port, '0.0.0.0');
+    liveServers.add(this);
     const port = this.server.address()?.port ?? this.config.port;
     logger.info('SSH server listening', { port });
     return port;
   }
 
   async stop(): Promise<void> {
+    liveServers.delete(this);
     await this.userWatch?.unsubscribe();
     this.userWatch = undefined;
     this.server.close();
@@ -129,11 +145,19 @@ export class SSHServer {
   }
 
   private endConnectionsOf(username: string): void {
-    for (const [connId, name] of this.usernames) {
-      if (name !== username) continue;
-      logger.info('ending SSH connection of a disabled account', { connId, username });
+    this.endConnectionsWhere((user) => user.username === username, 'a disabled account');
+  }
+
+  /** End every authenticated connection whose user `ends` accepts; returns how many. */
+  endConnectionsWhere(ends: (user: AuthenticatedUser) => boolean, why = 'a signed-out account'): number {
+    let ended = 0;
+    for (const [connId, user] of this.users) {
+      if (!ends(user)) continue;
+      logger.info(`ending SSH connection of ${why}`, { connId, username: user.username });
       this.connections.get(connId)?.end();
+      ended++;
     }
+    return ended;
   }
 
   private handleConnection(
@@ -151,7 +175,10 @@ export class SSHServer {
 
     client.on('authentication', async (ctx: ServerAuthContext) => {
       try {
-        if (ctx.method === 'password') {
+        // Read at each attempt, so turning passwords off needs no restart
+        const passwords = await sshPasswordsAllowed(this.config.vfs);
+        const offered = passwords ? ['publickey', 'password'] : ['publickey'];
+        if (ctx.method === 'password' && passwords) {
           const user = await this.authenticatePassword(
             ctx.username,
             (ctx as ServerAuthContext & { password: string }).password,
@@ -174,7 +201,7 @@ export class SSHServer {
             return;
           }
         }
-        ctx.reject(['publickey', 'password']);
+        ctx.reject(offered);
       } catch (err) {
         logger.error('authentication error', {
           error: (err as Error).message,
@@ -189,7 +216,7 @@ export class SSHServer {
         username: authenticatedUser?.username,
       });
       if (authenticatedUser) {
-        this.usernames.set(connId, authenticatedUser.username);
+        this.users.set(connId, authenticatedUser);
         void record({ event: 'sign-in', uid: authenticatedUser.access.uid, method: authenticatedUser.method });
       }
 
@@ -208,7 +235,7 @@ export class SSHServer {
 
     client.on('close', () => {
       this.connections.delete(connId);
-      this.usernames.delete(connId);
+      this.users.delete(connId);
       if (authenticatedUser) void record({ event: 'sign-out', uid: authenticatedUser.access.uid });
       logger.info('SSH client disconnected', { connId });
     });

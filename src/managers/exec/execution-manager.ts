@@ -1,3 +1,4 @@
+import type { Access } from '../../lib/access/types.ts';
 import type { ManagerIf } from '../types.ts';
 import { SystemCore } from '../../system-core.ts';
 import { Signal } from './signal.ts';
@@ -47,10 +48,10 @@ export interface ExecutionManager extends ManagerIf {
   /**
    * Deliver a signal to every running command acting as `uid` — foreground,
    * background and detached alike, on any TTY — or with `elevated`, only to
-   * those it started as an elevated sign-in (`user-elevate`). Returns how many
-   * it reached.
+   * those it started as an elevated sign-in (`user-elevate`), and with `where`
+   * only to those whose access it accepts. Returns how many it reached.
    */
-  signalUid(uid: number, signal: Signal, opts?: { elevated?: boolean }): Promise<number>;
+  signalUid(uid: number, signal: Signal, opts?: { elevated?: boolean; where?: (access: Access) => boolean }): Promise<number>;
 
   /** SIGINT to the foreground command(s) on a TTY. Returns how many it reached. */
   interrupt(tty: string): Promise<number>;

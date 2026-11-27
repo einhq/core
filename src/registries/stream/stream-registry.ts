@@ -1,5 +1,5 @@
 import { AbstractResourceHandle, type RegistryIf, type ResourceHandleIf, type ResourceMode, type ResourceOptions } from '../types.ts';
-import { isPictureStream, STREAM_GRACE_MS, STREAM_PICTURE_FRESH_MS, STREAM_PICTURE_WAIT_MS, STREAM_READER_BUFFER, type StreamWriter } from './types.ts';
+import { isPictureStream, STREAM_GRACE_MS, STREAM_PICTURE_FRESH_MS, STREAM_PICTURE_WAIT_MS, STREAM_READER_BUFFER, type StreamReader, type StreamWriter } from './types.ts';
 
 /**
  * A stream's registry: live bytes from one writer to any number of readers, kept in this process's
@@ -287,10 +287,11 @@ class StreamWriterHandle extends AbstractResourceHandle implements StreamWriter 
   }
 }
 
-class StreamReaderHandle extends AbstractResourceHandle {
+class StreamReaderHandle extends AbstractResourceHandle implements StreamReader {
   #chunks: Uint8Array[] = [];
   #held = 0;
   #ended = false;
+  #behind = false;
   #waiting?: PromiseWithResolvers<void>;
   /** Set when it joins a stream: takes it out of the stream's readers. */
   left?: () => void;
@@ -299,10 +300,17 @@ class StreamReaderHandle extends AbstractResourceHandle {
     super(id, options, mode, registry);
   }
 
+  get behind(): boolean {
+    return this.#behind;
+  }
+
   /** Bytes for this reader; past its limit it is let go, and reads what it holds and then its end. */
   push(data: Uint8Array): void {
     if (this.#ended) return;
-    if (this.#held + data.length > this.limit) return this.end();
+    if (this.#held + data.length > this.limit) {
+      this.#behind = true;
+      return this.end();
+    }
     this.#chunks.push(data);
     this.#held += data.length;
     this.#waiting?.resolve();

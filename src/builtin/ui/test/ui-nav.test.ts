@@ -94,7 +94,7 @@ Deno.test({ name: 'ui-nav', sanitizeResources: false, sanitizeOps: false }, asyn
     });
 
     await t.step("an entry kept to a group is its members' and the administrator's, whether or not the group has a home", async () => {
-      await client.exec('group-create crew --gid 7002 && group-add-member crew anna');
+      await client.exec('group-create crew --gid 7900 && group-add-member crew anna');
       await write(`${UI_NAV_D_PATH}/boats.json`, {
         topbar: [{ id: 'boats.new', title: 'Boat', icon: 'sailboat', group: 'crew', action: { dialog: '/boats/new' } }],
       });

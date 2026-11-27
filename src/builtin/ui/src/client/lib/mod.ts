@@ -14,6 +14,7 @@ export * from './text-match.ts';
 export * from './natural-search.ts';
 export { mediaItemFrom, type MediaRef } from './media-item.ts';
 export { davUrl, fileUrl } from './file-url.ts';
+export { fetchInvitation, type NodeInvitation, type NodeSocketMode, type NodeSocketOptions, nodeSocketUrl, openNodeSocket, parseInvitationLink } from './node-socket.ts';
 export { displayUrl, documentViewUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, renditionName, thumbnailUrl, VIDEO_SOURCE_TYPE, WAVEFORM_ASPECT } from './derivatives.ts';
 export * from './card-layout.ts';
 export * from './node-path.ts';
@@ -71,5 +72,7 @@ export {
   type EinAppInfo,
   inEinApp,
 } from './ein-app.ts';
+// How a node's socket ended (`openNodeSocket`), for a module's page.
+export { NODE_SOCKET_CLOSE } from '@ein/api';
 // A `position` setting's value, `lat, lng, zoom`, read and written, for a module's page that takes one.
 export { formatMapPosition, type MapPosition, parseMapPosition } from '@ein/api';

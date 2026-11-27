@@ -151,6 +151,8 @@ export const METRICS_PATH = `${LOGS_PATH}/metrics`;
 export const SESSIONS_PATH = `${VAR_PATH}/sessions`;
 /** One `share-link` node per link that opens a node without signing in, named by its token's hash. */
 export const LINKS_PATH = `${VAR_PATH}/links`;
+/** One `invitation` node per invitation that opens stream and socket nodes to someone with no account here, named by its token's hash. */
+export const INVITATIONS_PATH = `${VAR_PATH}/invitations`;
 export const QUEUES_PATH = `${VAR_PATH}/queues`;
 export const PIPELINE_QUEUE_PATH = `${QUEUES_PATH}/pipeline-engine`;
 export const POOLS_PATH = `${VAR_PATH}/pools`;
@@ -181,6 +183,7 @@ export const VAR_DIRS = [
   QUEUES_PATH,
   SESSIONS_PATH,
   LINKS_PATH,
+  INVITATIONS_PATH,
   UPLOAD_SPOOL_PATH,
   WWW_PATH,
 ] as const;
@@ -264,6 +267,7 @@ export const pathEnv = (): Record<string, string> => ({
   LOGS_PATH,
   SESSIONS_PATH,
   LINKS_PATH,
+  INVITATIONS_PATH,
   QUEUES_PATH,
   PIPELINE_QUEUE_PATH,
   POOLS_PATH,

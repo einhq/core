@@ -8,7 +8,7 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert';
-import { isStreamWriter, StreamRegistry, type StreamWriter } from '../mod.ts';
+import { isStreamReader, isStreamWriter, StreamRegistry, type StreamWriter } from '../mod.ts';
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 const text = (data: Uint8Array) => new TextDecoder().decode(data);
@@ -126,7 +126,10 @@ Deno.test('StreamRegistry', async (t) => {
     assertEquals(text(await keeping.read(16)), '6789');
     assertEquals(await readAll(slow), '12345');
     assertEquals((await registry.stat('s')).readers, 1);
+    assert(isStreamReader(slow) && slow.behind, 'it says it was let go for falling behind');
     await writer.close();
+    assertEquals(await readAll(keeping), '');
+    assert(isStreamReader(keeping) && !keeping.behind, "the writer's close is no reader's falling behind");
     await slow.close();
     await keeping.close();
   });

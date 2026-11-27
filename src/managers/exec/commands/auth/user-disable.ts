@@ -4,6 +4,7 @@ import { userRole } from '../../../../lib/auth/roles.ts';
 import { UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { removeEmptyHome } from './home.ts';
 import { endSessionsOf } from './sessions.ts';
 
 export const userDisable = async (cmd: Command): CmdReturn => {
@@ -45,11 +46,12 @@ export const userDisable = async (cmd: Command): CmdReturn => {
       attrs: { inactive: true },
     });
     await endSessionsOf(cmd, user.attrs.uid);
+    const homeRemoved = await removeEmptyHome(cmd, username);
 
     if (cmd.json) {
-      await cmd.writeJSON({ username, inactive: true } satisfies UserInactive);
+      await cmd.writeJSON({ username, inactive: true, homeRemoved } satisfies UserInactive);
     } else {
-      await cmd.write(`User '${username}' disabled\n`);
+      await cmd.write(`User '${username}' disabled${homeRemoved ? '; its empty home was removed' : ''}\n`);
     }
 
     return 0;
@@ -64,7 +66,7 @@ userDisable.spec = {
   name: 'user-disable',
   admin: true,
   effect: 'write' as const,
-  description: 'Disable a user account and end its open sessions',
+  description: 'Disable a user account and end its open sessions; a home that holds nothing but directories is removed',
   args: [
     {
       name: 'username',

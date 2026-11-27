@@ -43,6 +43,7 @@ import type { AccessLogPurge, AccessLogQuery, AccessRecord } from './access-log.
 import { type AuditInput, type AuditOp, type AuditQuery, type AuditRecord, auditRecord, isPathWithin } from './audit.ts';
 import { NODE_TYPE_POSITION } from './types/position.ts';
 import { NODE_TYPE_CONTROL, NODE_TYPE_DEVICE } from './types/device.ts';
+import { NODE_TYPE_SOCKET } from './types/socket.ts';
 import { NODE_TYPE_STREAM } from './types/stream.ts';
 import { NODE_TYPE_LOG } from './types/log.ts';
 import { DeviceWriteHandle } from './device-write-handle.ts';
@@ -76,7 +77,20 @@ import {
   NodeTierImmutableError,
   NodeTransactionError,
 } from './errors.ts';
-import type { EdgeMove, NodeStore, NodeUpdate, OwnerRelease, PathNode, ReleasedOwner, StorageDelete, StoredPath, StoreNodeQuery, Transaction } from './node-store.ts';
+import type {
+  EdgeMove,
+  IdNamed,
+  NamedId,
+  NodeStore,
+  NodeUpdate,
+  OwnerRelease,
+  PathNode,
+  ReleasedOwner,
+  StorageDelete,
+  StoredPath,
+  StoreNodeQuery,
+  Transaction,
+} from './node-store.ts';
 import type { NodeVFS } from './node-vfs.ts';
 import type { Node, NodeAttrs, NodeChild, NodeId, NodePath, NodeType } from './node.ts';
 import {
@@ -1776,6 +1790,16 @@ export class LocalNodeVFS implements NodeVFS {
       released.acl += mounted.acl;
     }
     return released;
+  }
+
+  async countNamed(access: Access, named: NamedId, except: NodeId[]): Promise<IdNamed> {
+    if (!isAdmin(access)) throw new NodeAccessDeniedError(this.store.rootId, 'countNamed');
+    const counts = await this.store.countNamed?.(named, except) ?? { owned: 0, acl: 0, born: 0, changed: 0, modified: 0 };
+    for (const mount of this.mountpoints) {
+      const mounted = await mount.vfs.countNamed(access, named, except);
+      for (const key of Object.keys(counts) as (keyof IdNamed)[]) counts[key] += mounted[key];
+    }
+    return counts;
   }
 
   async reachNamed(access: Access): Promise<{ uids: UserId[]; gids: GroupId[] }> {
@@ -5040,6 +5064,13 @@ export class LocalNodeVFS implements NodeVFS {
         }
       }
 
+      // A queue's reader takes each entry it reads from the others, so opening one to read changes
+      // it as an append does and needs write access too. Looking without taking is `queuePeek`.
+      if (node.type === NODE_TYPE_QUEUE && !writes) {
+        this.assertMountWritable(entry);
+        assertAccess(access, node, 'w');
+      }
+
       const reg = this.regs[node.type as keyof VfsRegistries];
 
       if (!reg) {
@@ -5074,6 +5105,18 @@ export class LocalNodeVFS implements NodeVFS {
       // A stream is live bytes: read from now on, or written by its one writer to whoever reads. A
       // mode that writes opens the writer, though it reads as well, as the shell's `>` (`w+`) does.
       if (node.type === NODE_TYPE_STREAM) return await reg.open(id, this.tierOpts(node) as any, writes ? 'w' : 'r');
+
+      // A socket's owner listens on it, opening it to read; whoever may read and write it connects,
+      // opening it in a mode that writes, and the listener is told who connected.
+      if (node.type === NODE_TYPE_SOCKET) {
+        if (!writes) {
+          if (node.props.uid !== access.uid && !bypassesAccess(access)) throw new NodeAccessDeniedError(entry.vfsAbsPath, 'listen on a socket of someone else');
+          return await reg.open(id, this.tierOpts(node) as any, 'r');
+        }
+        assertAccess(access, node, 'r');
+        const peer = { uid: access.uid, gid: access.gid, ...(access.invitation ? { invitation: access.invitation } : {}) };
+        return await reg.open(id, { ...this.tierOpts(node), peer } as any, 'r+');
+      }
 
       // A device's log or track keeps its history: writing one appends to it, `>` as `>>`.
       const endpoint = (node.type === NODE_TYPE_LOG || node.type === 'track') && DEVICE_ENDPOINT_RE.test(entry.vfsAbsPath);

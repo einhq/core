@@ -1,5 +1,5 @@
 import { ulid } from '@std/ulid';
-import { ADMIN_ACCESS, isAdmin, isGuest, isVisitor, verifyAccess } from '../../lib/access/mod.ts';
+import { type Access, ADMIN_ACCESS, isAdmin, isGuest, isVisitor, verifyAccess } from '../../lib/access/mod.ts';
 import { guestMayBrowse } from '../../lib/config/mod.ts';
 import { Deferred, deferred } from '../../lib/async/mod.ts';
 import { JSONObject } from '../../types.ts';
@@ -242,8 +242,10 @@ export class ExecManager implements ExecutionManager {
     }
   }
 
-  public async signalUid(uid: number, signal: Signal, opts?: { elevated?: boolean }): Promise<number> {
-    const commands = Object.values(this.running).filter((cmd) => cmd.access.uid === uid && (!opts?.elevated || cmd.access.elevated === true));
+  public async signalUid(uid: number, signal: Signal, opts?: { elevated?: boolean; where?: (access: Access) => boolean }): Promise<number> {
+    const commands = Object.values(this.running).filter((cmd) =>
+      cmd.access.uid === uid && (!opts?.elevated || cmd.access.elevated === true) && (opts?.where?.(cmd.access) ?? true)
+    );
     await Promise.all(commands.map((cmd) => this.deliver(cmd, signal)));
     return commands.length;
   }

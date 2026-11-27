@@ -19,7 +19,7 @@
  */
 
 import { QUEUES_PATH } from '../../../../lib/paths.ts';
-import { join } from '@std/path';
+import { basename, join } from '@std/path';
 import { instancesRoot } from './lib.ts';
 import type { AggregateBucket } from '../../../../vfs/query.ts';
 import type { Access } from '../../../../lib/access/mod.ts';
@@ -28,10 +28,15 @@ import type { QueueStat } from '../../../../registries/queue/types.ts';
 import type { PipelineInstanceAttrs, PipelineStepAttrs } from '../../../pipeline/types.ts';
 import { eta, type NodesEntry, type PipelinesEntry, rate, type Sample, within } from '../../../../lib/metrics/mod.ts';
 import type { CrawlCoverage } from '../../../../lib/api/pipeline.ts';
-import { HOUR, MINUTE, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
+import { fmtAge, HOUR, MINUTE, RATE_WINDOW_MS, readSeries } from '../system/lib.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
-import { INSTANCE_STATUSES, type InstanceStatus, type PipelineOverview, type PipelineRow } from '../../../../lib/api/pipeline.ts';
+import { type HeldKind, INSTANCE_STATUSES, type InstanceStatus, type PipelineOverview, type PipelineRow } from '../../../../lib/api/pipeline.ts';
+import type { PoolKindRefusal } from '../../../../lib/api/system.ts';
+import type { PoolCounts } from '../../../../registries/pool/mod.ts';
+import { poolWorkerStates } from '../../../pipeline/pool-worker.ts';
+import { readPoolStat } from '../pool/pool-reading.ts';
+import { kindRefusal, kindRest } from '../pool/pool-stat.ts';
 
 /** Step statuses that mean "not finished" — the live work. */
 const UNFINISHED_STEPS = ['pending', 'queued', 'waiting', 'running'];
@@ -179,6 +184,41 @@ const readCoverage = async (cmd: Command): Promise<CrawlCoverage | undefined> =>
   };
 };
 
+/** What `heldOn` reads of a worker: what it offers, and its rests and refusals by kind. */
+type WorkerRefusals = { name?: string; kinds: string[]; resting: Record<string, { until: number }>; refused: Record<string, PoolKindRefusal> };
+
+/**
+ * The kinds of one pool that its workers refused to run, with jobs of them still in the pool. A
+ * refusal lasts until a step of the kind completes, so one whose kind has nothing left is about
+ * work that has gone, and is left out.
+ */
+export const heldOn = (pool: string, workers: WorkerRefusals[], byKind: Record<string, PoolCounts>): HeldKind[] =>
+  [...new Set(workers.flatMap((worker) => Object.keys(worker.refused)))].flatMap((kind) => {
+    const waiting = (byKind[kind]?.ready ?? 0) + (byKind[kind]?.claimed ?? 0);
+    const { refusal } = kindRefusal(workers, kind);
+    if (!refusal || waiting === 0) return [];
+    const { restingUntil } = kindRest(workers, kind);
+    return [{ pool, kind, waiting, since: refusal.since, at: refusal.at, reason: refusal.reason, ...(restingUntil === undefined ? {} : { restingUntil }) }];
+  });
+
+/**
+ * Why pooled steps wait when it is not for their turn: the kinds the workers in this process could
+ * not run, a service they call being down (ein/core#1584). Only a pool with a refusal is read, so
+ * the usual answer costs nothing.
+ */
+const readHeld = async (cmd: Command): Promise<HeldKind[]> => {
+  const workers = poolWorkerStates();
+  const pools = [...new Set(workers.filter((worker) => Object.keys(worker.refused).length > 0).map((worker) => worker.pool))];
+  const held: HeldKind[] = [];
+  for (const path of pools) {
+    try {
+      const { byKind } = await readPoolStat(cmd.sys.vfs, cmd.access, path);
+      held.push(...heldOn(basename(path), workers.filter((worker) => worker.pool === path), byKind ?? {}));
+    } catch { /* a pool this caller may not read, or gone */ }
+  }
+  return held.sort((a, b) => a.since - b.since);
+};
+
 /** The workload as `pipeline-overview` answers it. */
 export const readPipelineOverview = async (cmd: Command): Promise<PipelineOverview> => {
   const vfs = cmd.sys.vfs;
@@ -311,6 +351,7 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
   }
 
   const coverage = await readCoverage(cmd);
+  const held = await readHeld(cmd);
 
   const mem = Deno.memoryUsage();
   return {
@@ -320,6 +361,7 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
     active,
     quiet,
     quietMs,
+    held,
     completions,
     coverage,
     memory: {
@@ -332,7 +374,7 @@ export const readPipelineOverview = async (cmd: Command): Promise<PipelineOvervi
 
 export const pipelineOverview = async (cmd: Command): CmdReturn => {
   const payload = await readPipelineOverview(cmd);
-  const { instances: { total, byStatus, byPipeline }, steps: { byStatus: stepsByStatus }, queues, quiet, completions, coverage } = payload;
+  const { instances: { total, byStatus, byPipeline }, steps: { byStatus: stepsByStatus }, queues, quiet, held, completions, coverage } = payload;
 
   if (cmd.json) {
     await cmd.writeJSON(payload);
@@ -355,6 +397,10 @@ export const pipelineOverview = async (cmd: Command): CmdReturn => {
   for (const step of quiet) {
     const said = step.outputAt === undefined ? 'no output yet' : `last output ${humanizeDuration(Date.now() - step.outputAt)} ago`;
     await cmd.writeLn(`  quiet ${step.pipeline}/${step.id} ${step.step}: running ${humanizeDuration(Date.now() - step.startedAt)}, ${said}`);
+  }
+  for (const kind of held) {
+    const resting = kind.restingUntil === undefined ? '' : `, next try in ${fmtAge(kind.restingUntil - Date.now())}`;
+    await cmd.writeLn(`  held ${kind.pool} ${kind.kind}: ${kind.waiting} waiting, could not run for ${fmtAge(Date.now() - kind.since)}${resting}: ${kind.reason}`);
   }
 
   for (const queue of queues) {
@@ -387,7 +433,8 @@ export const pipelineOverview = async (cmd: Command): CmdReturn => {
 pipelineOverview.spec = {
   name: 'pipeline-overview',
   effect: 'read' as const,
-  description: 'Pipeline workload summary: instance counts (running, failed, completed), queue depths, active instances, completion rate',
+  description:
+    'Pipeline workload summary: instance counts (running, failed, completed), queue depths, active instances, completion rate, and the pool kinds held because a service their steps call cannot run them',
   args: [],
   flags: [],
 };

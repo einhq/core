@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
-import { createExtension } from '../../lib/pg/mod.ts';
+import { createExtension, migrate } from '../../lib/pg/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingKeysMatch, routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode, ResourceSeekMode } from '../types.ts';
@@ -153,17 +153,42 @@ export class PgLogRegistry implements LogRegistryIf {
     this.listenPool = config.listenPool ?? config.pool;
   }
 
-  /** Create the logs table and the entry id sequence, and start listening for relay events. */
+  /** Bring the tables to the registry's schema version, and start listening for relay events. */
   async init(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    await createExtension(this.pool, 'timescaledb');
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'logs',
+      table: this.logsTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [{ name: 'tables', run: (client) => this.createTables(client) }],
+    });
+
+    await this.bound.refresh();
+    await this.watchLogBindings();
+
+    this.relayUnsubscribe = this.config.router.on((routingKey: string, payload: unknown) => {
+      this.handleRelayEvent(routingKey, payload);
+      return Promise.resolve();
+    });
+
+    this.initialized = true;
+  }
+
+  /**
+   * The logs table, the entry id sequence, and the trigger that tells every registry over them
+   * that the bindings changed (`watchLogBindings`). Each class's entry table is made when it is
+   * first written (`ensureClass`).
+   */
+  private async createTables(client: PoolClient): Promise<void> {
+    await createExtension(client, 'timescaledb');
 
     // `routing_patterns` mirrors the wildcard entries of `routing_keys` as compiled regexes,
     // so postgres runs a regex and never parses a pattern itself.
-    await this.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS ${this.logsTable} (
         id                VARCHAR(26) PRIMARY KEY,
         key               INTEGER GENERATED ALWAYS AS IDENTITY UNIQUE,
@@ -175,30 +200,39 @@ export class PgLogRegistry implements LogRegistryIf {
     `);
 
     // Owned by the logs table so that dropping the registry's tables drops it too.
-    await this.query(`CREATE SEQUENCE IF NOT EXISTS ${this.entryIdSeq} OWNED BY ${this.logsTable}.id`);
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS ${this.entryIdSeq} OWNED BY ${this.logsTable}.id`);
 
-    await this.query(`
+    await client.query(`
       CREATE INDEX IF NOT EXISTS ${this.logsTable}_routing_keys_idx
       ON ${this.logsTable}
       USING GIN (routing_keys);
     `);
 
     // Partial: the pattern branch of the relay lookup scans only logs that bound one.
-    await this.query(`
+    await client.query(`
       CREATE INDEX IF NOT EXISTS ${this.logsTable}_routing_patterns_idx
       ON ${this.logsTable} (id)
       WHERE routing_patterns <> '{}';
     `);
 
-    await this.bound.refresh();
-    await this.watchLogBindings();
+    // Statement-level, payload unused: the handler reloads the whole set, so one notification per
+    // statement is enough.
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.logsTable}_notify_trigger()
+      RETURNS trigger AS $$
+      BEGIN
+        PERFORM pg_notify('${this.bindingsChannel}', '');
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
 
-    this.relayUnsubscribe = this.config.router.on((routingKey: string, payload: unknown) => {
-      this.handleRelayEvent(routingKey, payload);
-      return Promise.resolve();
-    });
-
-    this.initialized = true;
+    await client.query(`
+      DROP TRIGGER IF EXISTS ${this.logsTable}_notify ON ${this.logsTable};
+      CREATE TRIGGER ${this.logsTable}_notify
+      AFTER INSERT OR UPDATE OR DELETE ON ${this.logsTable}
+      FOR EACH STATEMENT EXECUTE FUNCTION ${this.logsTable}_notify_trigger();
+    `);
   }
 
   /** Every routing key any log is currently bound to. */
@@ -213,28 +247,10 @@ export class PgLogRegistry implements LogRegistryIf {
    * Invalidate the bound set when the logs table changes underneath us.
    *
    * `touch`/`delete` keep it current for our own writes; this covers a writer we
-   * do not control. Statement-level, payload unused — the handler reloads the
-   * whole set, so one notification per statement is enough.
+   * do not control, through the logs table's trigger.
    */
   private async watchLogBindings(): Promise<void> {
     try {
-      await this.query(`
-        CREATE OR REPLACE FUNCTION ${this.logsTable}_notify_trigger()
-        RETURNS trigger AS $$
-        BEGIN
-          PERFORM pg_notify('${this.bindingsChannel}', '');
-          RETURN NULL;
-        END;
-        $$ LANGUAGE plpgsql;
-      `);
-
-      await this.query(`
-        DROP TRIGGER IF EXISTS ${this.logsTable}_notify ON ${this.logsTable};
-        CREATE TRIGGER ${this.logsTable}_notify
-        AFTER INSERT OR UPDATE OR DELETE ON ${this.logsTable}
-        FOR EACH STATEMENT EXECUTE FUNCTION ${this.logsTable}_notify_trigger();
-      `);
-
       this.addListener(this.bindingsChannel, () => {
         this.bound.invalidate();
         void this.bound.refresh();

@@ -98,6 +98,16 @@ export const CORE_OPTIONS: ConfigOption[] = [
     group: 'Sessions',
     restarts: ['session-reaper'],
   },
+  {
+    key: 'CFG_SSH_PASSWORD_AUTH',
+    scope: 'system',
+    type: 'boolean',
+    default: 'true',
+    label: 'Passwords over SSH and SFTP',
+    description:
+      "Whether the SSH and SFTP server accepts an account's password, or only a key from its ~/.ssh/authorized_keys. Off, it does not offer passwords and refuses them; connections already signed in stay. Turn it off before port 2222 is reachable from the internet.",
+    group: 'Sessions',
+  },
 
   /* Processing */
   {

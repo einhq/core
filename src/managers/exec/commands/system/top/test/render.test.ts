@@ -57,6 +57,7 @@ const sample = (): TopData => ({
     ],
     quiet: [],
     quietMs: 1_800_000,
+    held: [],
     completions: [{ at: NOW - 600_000, count: 321 }],
     memory: { heapUsedMb: 300, heapTotalMb: 400, rssMb: 900 },
   },

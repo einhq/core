@@ -97,6 +97,9 @@ export interface TtyIf extends ShellIf {
   /** Where the shell's input comes from. */
   readonly origin: ShellOrigin;
 
+  /** The address of the client on the other end, when known. */
+  readonly from?: string;
+
   /**
    * The environment the tty was opened with — its server's, or the process's settings for a system
    * shell — which nothing run in it can change, unlike the shell's own (`export`).

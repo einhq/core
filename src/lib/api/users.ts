@@ -91,8 +91,11 @@ export type UserUpdated = { username: string; updated: { name?: string; email?: 
 /** `group-update`: the attrs it wrote. */
 export type GroupUpdated = { groupname: string; updated: { title?: string; description?: string } };
 
-/** `user-disable`, `user-enable`: whether the account is now refused sign-in. */
-export type UserInactive = { username: string; inactive: boolean };
+/**
+ * `user-disable`, `user-enable`: whether the account is now refused sign-in; whether disabling
+ * removed its home, which held nothing but directories, and whether enabling made it again.
+ */
+export type UserInactive = { username: string; inactive: boolean; homeRemoved?: boolean; homeMade?: boolean };
 
 /** `user-elevate`: whether the sign-in is now an administrator's. */
 export type UserElevated = { elevated: boolean };

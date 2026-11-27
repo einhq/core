@@ -149,8 +149,9 @@ pgTest('PgStore audit trail reads forward on its primary key over a million reco
     );
     // A million writes a second apart over 50 homes and 7 categories each, ids in time order, as a
     // trail years old: two chunks. Loaded without the trail's other indexes, which a second store's
-    // start then makes again.
+    // start then makes again, taking the tables for ones from before versions were recorded.
     for (const index of ['uid_idx', 'node_idx', 'path_idx', 'cause_idx']) await ctx.pool.query(`DROP INDEX ${table}_${index}`);
+    await ctx.pool.query(`DELETE FROM ${ctx.prefix}_schema WHERE part = 'nodes'`);
     await ctx.pool.query(`
       INSERT INTO ${table} (id, uid, op, node_id, node_type, path)
       SELECT ${idSql('(1700000000::bigint + g) * 1000', 'g')}, 1000 + g % 50, 'update', ${idSql('0', 'g')},

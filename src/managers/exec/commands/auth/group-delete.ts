@@ -1,6 +1,7 @@
 import { ADMIN_GID, ADMIN_GROUPNAME } from '../../../../lib/access/mod.ts';
 import type { GroupDeleted } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { raiseLastIssuedId } from '../../../../lib/auth/issued-ids.ts';
 import { groupRole } from '../../../../lib/auth/roles.ts';
 import { groupHomePath } from '../../../../lib/paths.ts';
 import { shq } from '../../../../lib/shell-quote/mod.ts';
@@ -106,7 +107,9 @@ export const groupDelete = async (cmd: Command): CmdReturn => {
       }
     }
 
-    // Before the group goes: a gid nothing names any more can be handed out again.
+    // Before the group goes, its gid is marked as given out (sessions of its members still carry it),
+    // and a gid nothing names any more is the heir's.
+    await raiseLastIssuedId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, groupGid);
     const released = await cmd.sys.vfs.releaseOwner(cmd.access, { kind: 'gid', id: groupGid, to: heir.gid });
 
     // Recursive: the users directory goes with it.

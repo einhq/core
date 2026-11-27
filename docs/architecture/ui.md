@@ -281,7 +281,7 @@ make and model in the query). The random-album button is media's, beside the sea
 and the album it names. The account menu is the shell's dropdown too (`ui.account`, signed in only), drawn on the
 reader's avatar rather than as a button of its own: its rows, the reader's own pages — media's
 Favourites, the shell's Profile and Trash (`ui.profile`, `ui.trash`) — stand under _Me_ and above the
-shell's fixed rows (Arrange navigation, Shortcuts, About, Logout).
+shell's fixed rows (Arrange navigation, Shortcuts but not on a phone, About, Logout).
 Staging, the reader's own inbox and a place of daily work, is a sidebar entry instead, below Media in
 the `main` section, shown to the signed in only; its Upload is a row of the Create menu, which
 opens Staging.

@@ -7,7 +7,7 @@
  * both an inline and a delegated step is driven here to exercise both.
  */
 
-import { assertEquals, assertExists } from '@std/assert';
+import { assertEquals, assertExists, assertStringIncludes } from '@std/assert';
 import { PIPELINES_PATH, POOLS_PATH } from '../../../../../lib/paths.ts';
 import { ADMIN_ACCESS } from '../../../../../lib/access/mod.ts';
 import { SystemTestHarness } from '../../../../../testing/mod.ts';
@@ -38,6 +38,14 @@ Deno.test({
     return res.success ? (res.data as { counts: { ready: number } }).counts.ready : 0;
   };
   let instanceId = '';
+  const writeText = async (path: string, text: string) => {
+    const handle = await vfs.open(ADMIN_ACCESS, path, { mode: 'w' });
+    try {
+      await handle.write(new TextEncoder().encode(text));
+    } finally {
+      await handle.close();
+    }
+  };
 
   try {
     await client.exec('mkdir -p /opt/steps && mkdir -p /work');
@@ -165,6 +173,56 @@ Deno.test({
 
       await vfs.update(ADMIN_ACCESS, stepPath, { attrs: { status: 'waiting', startedAt: undefined } });
       await vfs.poolRelease(ADMIN_ACCESS, `${POOLS_PATH}/nobody`, job.id, owner);
+    });
+
+    await t.step('a kind whose steps could not run is held, and its steps say why', async () => {
+      // The service the step calls is away: the step exits 75, its job goes back to the pool and
+      // the step to `waiting`, as a queued one reads. The overview and the status say what on.
+      await client.exec('mkfile /opt/steps/step-away && chmod 755 /opt/steps/step-away');
+      await writeText('/opt/steps/step-away', "echo 'ems: media.probe unreachable: connection refused' >&2\nexit 75\n");
+      await client.exec('mkfile /work/ovwheld.yaml');
+      await writeText(
+        '/work/ovwheld.yaml',
+        [
+          'name: ovwheld',
+          'trigger:',
+          '  event: updated',
+          '  nodeType: file',
+          '  filter: |',
+          '    exit 1',
+          'steps:',
+          '  probe:',
+          '    command: step-away',
+          '    pool: heldpool',
+          '    kind: probe',
+          '',
+        ].join('\n'),
+      );
+      assertEquals((await client.exec('pipeline define /work/ovwheld.yaml')).success, true);
+      await client.exec('mkdir -p /opt/heldpool-worker && mkfile /opt/heldpool-worker/start.sh && chmod 755 /opt/heldpool-worker/start.sh');
+      await writeText('/opt/heldpool-worker/start.sh', `pipeline-worker --pool ${POOLS_PATH}/heldpool --name heldpool-worker --kind probe --concurrency 1`);
+      assertEquals((await client.exec('service add heldpool-worker /opt/heldpool-worker && service enable heldpool-worker && service start heldpool-worker')).success, true);
+
+      try {
+        await client.exec('mknode -t file --as "name=b.bin" /work/b.bin');
+        const started = await client.execJson<{ id: string }>('pipeline start ovwheld /work/b.bin');
+        const held = async () => (await overview()).held.find((kind) => kind.pool === 'heldpool');
+        await waitFor(async () => (await held()) !== undefined, 'the kind to be held');
+
+        const kind = await held();
+        assertEquals([kind?.kind, kind?.waiting, kind?.reason], ['probe', 1, 'ems: media.probe unreachable: connection refused']);
+        const text = await client.execString('pipeline-overview', { json: false });
+        assertStringIncludes(text, 'held heldpool probe: 1 waiting, could not run for');
+        assertStringIncludes(text, ': ems: media.probe unreachable: connection refused');
+
+        const status = await client.execString(`pipeline-status ovwheld/${started.id}`, { json: false });
+        assertStringIncludes(status, 'probe: waiting, could not run');
+        assertStringIncludes(status, 'ems: media.probe unreachable: connection refused');
+
+        assertEquals((await client.exec(`pipeline cancel ovwheld/${started.id}`)).success, true);
+      } finally {
+        await client.exec('service stop heldpool-worker');
+      }
     });
 
     await t.step('a cancelled instance leaves the live counts for cancelled', async () => {

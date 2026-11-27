@@ -489,9 +489,12 @@ export function AppHeader({ menuOpen, onToggleMenu }: { menuOpen: boolean; onTog
                       Arrange navigation
                     </Menu.Item>
                   )}
-                  <Menu.Item leftSection={<IconKeyboard size={14} />} rightSection={<Kbd size='xs'>?</Kbd>} onClick={() => (shortcutHelpOpen.value = true)}>
-                    Shortcuts
-                  </Menu.Item>
+                  {/* A phone has no keyboard to speak of; one connected to it still opens the list with `?`. */}
+                  {!phone && (
+                    <Menu.Item leftSection={<IconKeyboard size={14} />} rightSection={<Kbd size='xs'>?</Kbd>} onClick={() => (shortcutHelpOpen.value = true)}>
+                      Shortcuts
+                    </Menu.Item>
+                  )}
                   <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => openDialog('/about')}>
                     About EiN
                   </Menu.Item>

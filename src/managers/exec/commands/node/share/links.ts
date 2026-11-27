@@ -3,6 +3,7 @@ import { basename, join } from '@std/path';
 import { type Access, ADMIN_ACCESS, ADMIN_UID, GUEST_ACCESS, type HeldLink, LINK_UID_BASE, linkLive } from '../../../../../lib/access/mod.ts';
 import type { HeldShareLink, ShareLink } from '../../../../../lib/api/share.ts';
 import { accountOfUid, displayAccess, displayRefusal } from '../../../../../lib/auth/display-account.ts';
+import { lastIssuedId, raiseLastIssuedId } from '../../../../../lib/auth/issued-ids.ts';
 import type { Node, NodeChildEntry, NodeVFS } from '../../../../../vfs/mod.ts';
 import { NODE_TYPE_SESSION, type SessionAttrs } from '../../../../../vfs/types/session.ts';
 import { isShareLinkNode, type ShareLinkAttrs } from '../../../../../vfs/types/share-link.ts';
@@ -34,9 +35,13 @@ export const readLink = async (cmd: Command, id: string): Promise<Node<ShareLink
 export const allLinks = async (cmd: Command): Promise<NodeChildEntry<ShareLinkAttrs>[]> =>
   (await cmd.sys.vfs.children<ShareLinkAttrs>(ADMIN_ACCESS, cmd.env.LINKS_PATH).catch(() => [])).filter((entry) => isShareLinkNode(entry.node));
 
-/** A uid for a new link: past every link's, from `LINK_UID_BASE` up. */
+/** A uid for a new link, from `LINK_UID_BASE` up: past every link's, and every removed one's (`LAST_ID_ATTR`). */
 export const newLinkUid = async (cmd: Command): Promise<number> =>
-  (await allLinks(cmd)).reduce((highest, entry) => Math.max(highest, entry.node.attrs.uid), LINK_UID_BASE - 1) + 1;
+  Math.max(
+    LINK_UID_BASE - 1,
+    (await lastIssuedId(cmd.sys.vfs, ADMIN_ACCESS, cmd.env.LINKS_PATH)) ?? 0,
+    ...(await allLinks(cmd)).map((entry) => entry.node.attrs.uid),
+  ) + 1;
 
 /**
  * The access of someone who opened the link `id`: its principal, in no group, or for a link that
@@ -148,10 +153,11 @@ export const updateHeld = async (cmd: Command, id: string, replacement?: HeldLin
 };
 
 /**
- * Turn a link off: its uid off every node, its record gone, and every session and shell acting as
- * it the guest again. Answers how many access-list entries it took away.
+ * Turn a link off: its uid off every node and never given out again, its record gone, and every
+ * session and shell acting as it the guest again. Answers how many access-list entries it took away.
  */
 export const removeLink = async (cmd: Command, id: string, uid: number): Promise<number> => {
+  await raiseLastIssuedId(cmd.sys.vfs, ADMIN_ACCESS, cmd.env.LINKS_PATH, uid);
   const released = await cmd.sys.vfs.releaseOwner(ADMIN_ACCESS, { kind: 'uid', id: uid, to: ADMIN_UID });
   await cmd.sys.vfs.unlink(ADMIN_ACCESS, join(cmd.env.LINKS_PATH, id), cmd.env.LINKS_PATH);
   await updateHeld(cmd, id);

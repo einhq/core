@@ -1,7 +1,7 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@ein/bash-executor@^3.1.2": "3.1.2",
+    "jsr:@ein/bash-executor@^3.1.3": "3.1.3",
     "jsr:@ein/bash-parser@^3.0.2": "3.0.2",
     "jsr:@ein/ssh2-ts@1.5.0": "1.5.0",
     "jsr:@ein/ssh2-ts@^1.1.8": "1.5.0",
@@ -83,11 +83,12 @@
     "npm:remark-gfm@^4.0.1": "4.0.1"
   },
   "jsr": {
-    "@ein/bash-executor@3.1.2": {
-      "integrity": "04b381fb8c5010ef31e5985abf64abd458604704ceda3e7731fceb887650d966",
+    "@ein/bash-executor@3.1.3": {
+      "integrity": "4b5540e5ad0aa4f886ac5a26e8aaf44372cc5916e1ca40b449e6e7ac2a661dda",
       "dependencies": [
         "jsr:@ein/bash-parser",
-        "jsr:@std/path@1"
+        "jsr:@std/path@1",
+        "jsr:@std/path@^1.1.6"
       ]
     },
     "@ein/bash-parser@3.0.2": {
@@ -1607,7 +1608,7 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@ein/bash-executor@^3.1.2",
+      "jsr:@ein/bash-executor@^3.1.3",
       "jsr:@ein/ssh2-ts@1.5.0",
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/cli@^1.0.32",

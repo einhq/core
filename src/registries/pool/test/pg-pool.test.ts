@@ -208,7 +208,9 @@ pgTest('PgPoolRegistry starts a new count table from the jobs already there', as
     await first.complete('kept', job.id, 'w');
     await first.dispose();
 
+    // As tables from before versions were recorded, without the count table.
     await ctx.pool.query(`DROP TABLE ${ctx.prefix}_pools_count`);
+    await ctx.pool.query(`DELETE FROM ${ctx.prefix}_schema WHERE part = 'pools'`);
 
     const second = new PgPoolRegistry({ pool: ctx.pool, name: ctx.prefix });
     await second.init();

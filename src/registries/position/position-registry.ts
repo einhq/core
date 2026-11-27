@@ -5,8 +5,8 @@
  * accurate distance calculations on the Earth's surface.
  */
 
-import type { Pool } from 'pg';
-import { createExtension } from '../../lib/pg/mod.ts';
+import type { Pool, PoolClient } from 'pg';
+import { createExtension, migrate } from '../../lib/pg/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { assertPolygon, polygonToWkt } from './geo.ts';
 import { PositionHandle } from './position-handle.ts';
@@ -47,80 +47,78 @@ export class PositionRegistry implements PositionRegistryIf {
     this.pool = config.pool;
   }
 
-  /** Initialize the registry by enabling PostGIS and creating the positions table. */
+  /** Bring the positions table to the registry's schema version; see `src/lib/pg/schema.ts`. */
   async init(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    const client = await this.pool.connect();
-    try {
-      await createExtension(client, 'postgis');
-
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.tableName} (
-          id            VARCHAR(26) PRIMARY KEY,
-          geog          GEOGRAPHY(POINT, 4326),
-          radius        DOUBLE PRECISION NOT NULL DEFAULT 0,
-          polygon       GEOGRAPHY(POLYGON, 4326),
-          owner_types   TEXT[],
-          size_bytes    INT NOT NULL DEFAULT 0,
-          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
-
-      // A table made before `owner_types` gains it here, empty: its rows are `unowned` until the
-      // VFS records them. Looked up first, since the ALTER waits for every reader of the table.
-      const hasOwners = await client.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'owner_types'`,
-        [this.tableName],
-      );
-      if (hasOwners.rowCount === 0) {
-        await client.query(`SET lock_timeout = '10s'`);
-        try {
-          await client.query(`ALTER TABLE ${this.tableName} ADD COLUMN IF NOT EXISTS owner_types TEXT[]`);
-        } finally {
-          await client.query(`RESET lock_timeout`);
-        }
-      }
-
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.tableName}_owner_types_idx
-        ON ${this.tableName}
-        USING GIN (owner_types)
-      `);
-
-      // `unowned` at every boot, which finds none once they are recorded
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.tableName}_unowned_idx
-        ON ${this.tableName} (id)
-        WHERE owner_types IS NULL
-      `);
-
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.tableName}_geog_idx
-        ON ${this.tableName}
-        USING GIST (geog)
-      `);
-
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.tableName}_polygon_idx
-        ON ${this.tableName}
-        USING GIST (polygon)
-      `);
-
-      // Bounding-box queries run in planar lon/lat space (geography envelopes
-      // cannot span 180+ degrees of longitude)
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.tableName}_geog_geom_idx
-        ON ${this.tableName}
-        USING GIST (((geog::geometry)))
-      `);
-    } finally {
-      client.release();
-    }
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'positions',
+      table: this.tableName,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [
+        { name: 'table', run: (client) => this.createTable(client) },
+        { name: 'owner types', run: (client) => this.addOwnerTypes(client) },
+      ],
+    });
 
     this.initialized = true;
+  }
+
+  private async createTable(client: PoolClient): Promise<void> {
+    await createExtension(client, 'postgis');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName} (
+        id            VARCHAR(26) PRIMARY KEY,
+        geog          GEOGRAPHY(POINT, 4326),
+        radius        DOUBLE PRECISION NOT NULL DEFAULT 0,
+        polygon       GEOGRAPHY(POLYGON, 4326),
+        owner_types   TEXT[],
+        size_bytes    INT NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.tableName}_geog_idx
+      ON ${this.tableName}
+      USING GIST (geog)
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.tableName}_polygon_idx
+      ON ${this.tableName}
+      USING GIST (polygon)
+    `);
+
+    // Bounding-box queries run in planar lon/lat space (geography envelopes
+    // cannot span 180+ degrees of longitude)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.tableName}_geog_geom_idx
+      ON ${this.tableName}
+      USING GIST (((geog::geometry)))
+    `);
+  }
+
+  /** The node types that own a position. A table made before the column gains it empty: its rows are `unowned` until the VFS records them. */
+  private async addOwnerTypes(client: PoolClient): Promise<void> {
+    await client.query(`ALTER TABLE ${this.tableName} ADD COLUMN IF NOT EXISTS owner_types TEXT[]`);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.tableName}_owner_types_idx
+      ON ${this.tableName}
+      USING GIN (owner_types)
+    `);
+
+    // `unowned` at every boot, which finds none once they are recorded
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.tableName}_unowned_idx
+      ON ${this.tableName} (id)
+      WHERE owner_types IS NULL
+    `);
   }
 
   /** Release any resources held by the registry. */

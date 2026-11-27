@@ -23,11 +23,14 @@ chmod 755 /dev
 
 # The household's accounts and groups, and what the machine runs and logs, are for those signed in
 # (`users`): neither the guest nor a share link lists them or reads below them. The homes they only
-# pass through, to their own, so the account names are not read off them either. Set on every boot,
-# whatever an existing one has.
-chown "$ADMIN_USERNAME:$USERS_GROUPNAME" "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$QUEUES_PATH" "$POOLS_PATH" "$PIPELINES_PATH" "$HOMES_PATH" "$GROUP_HOMES_PATH"
-chmod 750 "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$QUEUES_PATH" "$POOLS_PATH" "$PIPELINES_PATH"
+# pass through, to their own, so the account names are not read off them either. The queues and
+# pools carry the work on everyone's files, and their consumers are the administrator's services, so
+# they are the administrator group's alone. Set on every boot, whatever an existing one has.
+chown "$ADMIN_USERNAME:$USERS_GROUPNAME" "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$PIPELINES_PATH" "$HOMES_PATH" "$GROUP_HOMES_PATH"
+chmod 750 "$USERS_PATH" "$GROUPS_PATH" "$LOGS_PATH" "$PIPELINES_PATH"
 chmod 751 "$HOMES_PATH" "$GROUP_HOMES_PATH"
+chown "$ADMIN_USERNAME:$ADMIN_GROUPNAME" "$QUEUES_PATH" "$POOLS_PATH"
+chmod 750 "$QUEUES_PATH" "$POOLS_PATH"
 
 # Everyone signed in shares the home of `users`, the household's. Made once, as the attr on the
 # homes' directory records: an administrator who takes it away (group-home --off) does not get it

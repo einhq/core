@@ -15,13 +15,14 @@
 
 import { assertEquals } from '@std/assert';
 import { createTestContext } from '../../testing/mod.ts';
-import { USERS_GID } from '../../lib/access/mod.ts';
+import { ADMIN_GID, USERS_GID } from '../../lib/access/mod.ts';
 import {
   GROUP_HOMES_PATH,
   GROUPS_PATH,
   HOMES_PATH,
   LOGS_PATH,
   PIPELINE_INSTANCES_PATH,
+  PIPELINE_QUEUE_PATH,
   PIPELINES_PATH,
   POOLS_PATH,
   QUEUES_PATH,
@@ -88,14 +89,18 @@ Deno.test({
     // As on Linux: the administrator's group may read the system tree but not write it, so adding
     // someone to `admin` does not let them change what every shell sources. The accounts, the groups
     // and how the machine runs are for those signed in, `users`, and the homes are passed through but
-    // listed only by them; the pipeline instances are the administrator group's alone.
+    // listed only by them; the queues, the pools and the pipeline instances are the administrator
+    // group's alone.
     await t.step('the system directories are 0755, those signed in only list some, and the upload spool is closed', async () => {
-      const closed = [USERS_PATH, GROUPS_PATH, LOGS_PATH, QUEUES_PATH, POOLS_PATH, PIPELINES_PATH];
+      const closed = [USERS_PATH, GROUPS_PATH, LOGS_PATH, PIPELINES_PATH];
+      const work = [QUEUES_PATH, POOLS_PATH];
       const passed = [HOMES_PATH, GROUP_HOMES_PATH];
       for (const path of ['/etc', '/var', '/usr', SESSIONS_PATH, ...VAR_DIRS, ...closed, ...passed]) {
         const { mode, gid } = await admin.execJson<{ mode: number; gid: number }>(`props ${path}`);
         const expected = closed.includes(path)
           ? ['750', USERS_GID]
+          : work.includes(path)
+          ? ['750', ADMIN_GID]
           : passed.includes(path)
           ? ['751', USERS_GID]
           : [path === PIPELINE_INSTANCES_PATH ? '750' : path === UPLOAD_SPOOL_PATH ? '700' : '755', gid];
@@ -115,6 +120,22 @@ Deno.test({
         member.close();
       }
       assertEquals((await admin.execString(`ls ${LOGS_PATH}/services >/dev/null && tail -n1 ${SYSTEM_LOG_PATH} >/dev/null && echo read`)).trim(), 'read');
+    });
+
+    // They carry the work on everyone's files, and reading a queue takes its entries from the engine.
+    await t.step("the queues and pools are the administrator group's", async () => {
+      await admin.execString(`mknode -t queue ${QUEUES_PATH}/probe && echo '{"job":1}' >> ${QUEUES_PATH}/probe`);
+      await admin.execString('user-create work-reader && user-passwd work-reader --new-password hunter2');
+      const member = await testCtx.server.createShellClient({ username: 'work-reader', password: 'hunter2' });
+      try {
+        for (const probe of [`ls ${QUEUES_PATH}`, `ls ${POOLS_PATH}`, `cat ${QUEUES_PATH}/probe`, `queue-peek ${QUEUES_PATH}/probe`, `cat ${PIPELINE_QUEUE_PATH}`]) {
+          assertEquals((await member.exec(probe)).success, false, `${probe} succeeded`);
+        }
+      } finally {
+        member.close();
+      }
+      assertEquals((await admin.execJson<{ items: { data: unknown }[] }>(`queue-peek ${QUEUES_PATH}/probe`)).items.map((item) => item.data), [{ job: 1 }]);
+      await admin.execString(`rm ${QUEUES_PATH}/probe`);
     });
 
     // What boot and `mod setup` put in /etc and /var, files included, is no more open to the group.

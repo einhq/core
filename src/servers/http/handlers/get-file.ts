@@ -54,13 +54,15 @@ const FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; media-sr
 /**
  * What a page of the site, the shell among them, may load: scripts from EiN itself and Google's Cast
  * sender (cast-sender.ts loads it from www.gstatic.com), so injected markup runs nothing, and only
- * EiN's own pages may frame it. `'wasm-unsafe-eval'` lets a module's page compile WebAssembly (Doom
- * does) without letting any script `eval` text. Pictures may come from anywhere, since a map's tiles come from
- * whatever server its layer names; styles may be inline, as Mantine writes them.
+ * EiN's own pages may frame it. `'wasm-unsafe-eval'` lets a module's page compile WebAssembly
+ * without letting any script `eval` text. Pictures may come from anywhere, since a map's tiles come
+ * from whatever server its layer names; styles may be inline, as Mantine writes them. A page may
+ * connect to another server, such as another EiN whose invitation it was handed (`/__invite/`).
  */
 const PAGE_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com",
+  "connect-src 'self' https: wss: http: ws:",
   "style-src 'self' 'unsafe-inline'",
   'img-src * data: blob:',
   "media-src 'self' blob:",

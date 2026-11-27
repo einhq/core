@@ -233,6 +233,18 @@ pgTest('PgStore node CRUD and children', async (t) => {
       assertEquals((await vfs.get(ADMIN_ACCESS, '/granted')).props.acl ?? undefined, undefined);
     });
 
+    await t.step('countNamed counts the nodes naming a uid or gid, but those left out', async () => {
+      await vfs.create(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, '/', 'named-own', { props: { mode: 0o750, uid: 2011, gid: 2011 } });
+      await vfs.create(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, '/', 'named-made', { props: { mode: 0o755, birthtime: { uid: 2011, timestamp: Date.now() } } });
+      await vfs.create(ADMIN_ACCESS, NODE_TYPE_DIRECTORY, '/', 'named-acl', { props: { mode: 0o700, acl: [{ uid: 2011, mode: 0o4 }, { gid: 2011, mode: 0o4 }] } });
+      const own = (await vfs.get(ADMIN_ACCESS, '/named-own')).id;
+
+      assertEquals(await store.countNamed!({ kind: 'uid', id: 2011 }, []), { owned: 1, acl: 1, born: 1, changed: 0, modified: 0 });
+      assertEquals(await store.countNamed!({ kind: 'uid', id: 2011 }, [own]), { owned: 0, acl: 1, born: 1, changed: 0, modified: 0 });
+      assertEquals(await store.countNamed!({ kind: 'gid', id: 2011 }, []), { owned: 1, acl: 1, born: 0, changed: 0, modified: 0 });
+      assertEquals(await store.countNamed!({ kind: 'uid', id: 2012 }, []), { owned: 0, acl: 0, born: 0, changed: 0, modified: 0 });
+    });
+
     await t.step('unlink removes nodes', async () => {
       await vfs.unlink(ADMIN_ACCESS, '/dir/second', '/dir');
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/dir/second'), false);

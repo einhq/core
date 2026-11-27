@@ -10,6 +10,7 @@
 import { createSha256 } from '../../lib/hash/mod.ts';
 import { Buffer } from 'node:buffer';
 import type { Pool } from 'pg';
+import { migrate } from '../../lib/pg/mod.ts';
 import { getMimeFromBuffer, MIME_SAMPLE_BYTES } from '../../lib/media/mod.ts';
 import { ensureResource, type ResourceMode, type ResourceOptions } from '../types.ts';
 import { PgBlobHandle } from './pg-blob-handle.ts';
@@ -32,20 +33,26 @@ export class PgBlobRegistry implements BlobRegistryIf {
     return `${this.config.prefix}_blobs`;
   }
 
+  /** Brings the table to the registry's schema version; see `src/lib/pg/schema.ts`. */
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    const client = await this.config.pool.connect();
-    try {
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.lobTable} (
-          node_id TEXT PRIMARY KEY,
-          loid OID NOT NULL
-        )
-      `);
-    } finally {
-      client.release();
-    }
+    await migrate(this.config.pool, {
+      mount: this.config.prefix,
+      part: 'blobs',
+      table: this.lobTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [{
+        name: 'table',
+        run: async (client) =>
+          void await client.query(`
+            CREATE TABLE IF NOT EXISTS ${this.lobTable} (
+              node_id TEXT PRIMARY KEY,
+              loid OID NOT NULL
+            )
+          `),
+      }],
+    });
 
     this.initialized = true;
   }

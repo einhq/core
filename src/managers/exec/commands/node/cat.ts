@@ -15,6 +15,7 @@ import { NODE_TYPE_POOL } from '../../../../vfs/types/pool.ts';
 import { NODE_TYPE_QUEUE } from '../../../../vfs/types/queue.ts';
 import { NODE_TYPE_ROUTER } from '../../../../vfs/types/router.ts';
 import { LogHandle } from '../../../../registries/log/mod.ts';
+import { NodeAccessDeniedError } from '../../../../vfs/errors.ts';
 import type { Command } from '../../command.ts';
 import { signalExitCode } from '../../signal.ts';
 import type { CmdReturn } from '../../types.ts';
@@ -140,7 +141,13 @@ const catNode = async (cmd: Command, path: string, flags: CatFlags): CmdReturn =
       // queue, reading it does not consume anything.
       case NODE_TYPE_POOL:
       case NODE_TYPE_QUEUE: {
-        const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+        // Reading a queue takes each entry it shows, so it needs write access to the queue.
+        const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' }).catch((error) => {
+          if (node.type === NODE_TYPE_QUEUE && error instanceof NodeAccessDeniedError) {
+            throw new Error('reading a queue takes its entries, which needs write access to it; queue-peek shows them');
+          }
+          throw error;
+        });
         try {
           const stream = handle.readable;
           const reader = stream.getReader();

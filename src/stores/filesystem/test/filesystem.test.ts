@@ -129,6 +129,17 @@ Deno.test('FilesystemStore', async (t) => {
       assertEquals(names, ['file1.txt', 'subdir']);
     });
 
+    await t.step('a file without an extension is typed by its content, again when it changes', async () => {
+      const typeOf = async () => (await vfs.children(ADMIN_ACCESS, '/subdir')).find((c) => c.name === 'tool')?.node.attrs.mimetype;
+      await Deno.writeTextFile(join(testDir, 'subdir', 'tool'), '#!/bin/bash\necho hi\n');
+      assertEquals(await typeOf(), 'text/x-shellscript');
+      assertEquals(await typeOf(), 'text/x-shellscript');
+
+      await Deno.writeFile(join(testDir, 'subdir', 'tool'), new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]));
+      assertEquals(await typeOf(), 'image/png');
+      await Deno.remove(join(testDir, 'subdir', 'tool'));
+    });
+
     await t.step('create - new file', async () => {
       const newFile = await vfs.create(ADMIN_ACCESS, 'file', '/', 'newfile.txt', {
         props: { mode: 0o644, uid: 0, gid: 0 },

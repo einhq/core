@@ -43,6 +43,11 @@ export type Access = {
    * has not signed in, and never writes.
    */
   link?: HeldLink;
+  /**
+   * Set when the access acts through an invitation (`?invite=` on a node's socket): its id. The
+   * access is the invitation's creator's, as it is then.
+   */
+  invitation?: string;
 };
 
 /** What a run's writes are recorded as coming from besides its account: the run, its cause, and in whose name it creates. */

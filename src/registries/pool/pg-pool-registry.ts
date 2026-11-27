@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import { migrate } from '../../lib/pg/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { resolvePolicy, tallyCounts, validateVector } from './lib.ts';
 import { PoolHandle } from './pool-handle.ts';
@@ -899,7 +900,6 @@ export class PgPoolRegistry implements PoolRegistryIf {
   private async createCounts(client: PoolClient): Promise<void> {
     const exists = await client.query<{ t: string | null }>(`SELECT to_regclass($1)::text AS t`, [this.countTable]);
 
-    await client.query(`DROP TABLE IF EXISTS ${this.tablePrefix}_tally`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS ${this.countTable} (
         pool_id VARCHAR(26) NOT NULL REFERENCES ${this.poolsTable}(id) ON DELETE CASCADE,
@@ -956,140 +956,141 @@ export class PgPoolRegistry implements PoolRegistryIf {
     }
   }
 
+  /** Brings the tables to the registry's schema version; see `src/lib/pg/schema.ts`. */
   private async createSchema(): Promise<void> {
-    const client = await this.pool.connect();
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'pools',
+      table: this.poolsTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [
+        { name: 'tables', run: (client) => this.createTables(client) },
+        { name: 'tally table dropped', run: async (client) => void await client.query(`DROP TABLE IF EXISTS ${this.tablePrefix}_tally`) },
+      ],
+    });
+  }
 
-    try {
-      await client.query('BEGIN');
+  private async createTables(client: PoolClient): Promise<void> {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.poolsTable} (
+        id                VARCHAR(26) PRIMARY KEY,
+        aging_seconds     INTEGER     NOT NULL DEFAULT 0,
+        aging_boost       INTEGER     NOT NULL DEFAULT 1,
+        aging_max         INTEGER     NOT NULL DEFAULT 0,
+        lease_ms          BIGINT      NOT NULL DEFAULT 60000,
+        max_attempts      INTEGER     NOT NULL DEFAULT 3,
+        backoff_ms        BIGINT      NOT NULL DEFAULT 5000,
+        backoff_max_ms    BIGINT      NOT NULL DEFAULT 300000,
+        sweep_interval_ms BIGINT      NOT NULL DEFAULT 30000,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.poolsTable} (
-          id                VARCHAR(26) PRIMARY KEY,
-          aging_seconds     INTEGER     NOT NULL DEFAULT 0,
-          aging_boost       INTEGER     NOT NULL DEFAULT 1,
-          aging_max         INTEGER     NOT NULL DEFAULT 0,
-          lease_ms          BIGINT      NOT NULL DEFAULT 60000,
-          max_attempts      INTEGER     NOT NULL DEFAULT 3,
-          backoff_ms        BIGINT      NOT NULL DEFAULT 5000,
-          backoff_max_ms    BIGINT      NOT NULL DEFAULT 300000,
-          sweep_interval_ms BIGINT      NOT NULL DEFAULT 30000,
-          created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.jobsTable} (
+        id           BIGSERIAL   PRIMARY KEY,
+        pool_id      VARCHAR(26) NOT NULL REFERENCES ${this.poolsTable}(id) ON DELETE CASCADE,
+        kind         TEXT        NOT NULL,
+        state        TEXT        NOT NULL DEFAULT 'ready',
+        priority     INTEGER     NOT NULL DEFAULT 0,
+        eff_priority INTEGER     NOT NULL DEFAULT 0,
+        requires     JSONB       NOT NULL DEFAULT '{}'::jsonb,
+        params       JSONB       NOT NULL DEFAULT 'null'::jsonb,
+        dedup_key    TEXT,
+        exclusive    TEXT,
+        attempts     INTEGER     NOT NULL DEFAULT 0,
+        max_attempts INTEGER     NOT NULL DEFAULT 3,
+        available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        lease_owner  TEXT,
+        lease_until  TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        claimed_at   TIMESTAMPTZ,
+        finished_at  TIMESTAMPTZ,
+        result       JSONB,
+        error        TEXT,
+        CONSTRAINT ${this.jobsTable}_state_chk
+          CHECK (state IN ('ready','claimed','done','failed','cancelled'))
+      )
+    `);
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.jobsTable} (
-          id           BIGSERIAL   PRIMARY KEY,
-          pool_id      VARCHAR(26) NOT NULL REFERENCES ${this.poolsTable}(id) ON DELETE CASCADE,
-          kind         TEXT        NOT NULL,
-          state        TEXT        NOT NULL DEFAULT 'ready',
-          priority     INTEGER     NOT NULL DEFAULT 0,
-          eff_priority INTEGER     NOT NULL DEFAULT 0,
-          requires     JSONB       NOT NULL DEFAULT '{}'::jsonb,
-          params       JSONB       NOT NULL DEFAULT 'null'::jsonb,
-          dedup_key    TEXT,
-          exclusive    TEXT,
-          attempts     INTEGER     NOT NULL DEFAULT 0,
-          max_attempts INTEGER     NOT NULL DEFAULT 3,
-          available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-          lease_owner  TEXT,
-          lease_until  TIMESTAMPTZ,
-          created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-          claimed_at   TIMESTAMPTZ,
-          finished_at  TIMESTAMPTZ,
-          result       JSONB,
-          error        TEXT,
-          CONSTRAINT ${this.jobsTable}_state_chk
-            CHECK (state IN ('ready','claimed','done','failed','cancelled'))
-        )
-      `);
+    // The claim's hot path: one pool's ready jobs in scheduling order, so the
+    // scan stops at the first row the offer satisfies.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_idx
+        ON ${this.jobsTable} (pool_id, eff_priority DESC, created_at ASC, id ASC)
+        WHERE state = 'ready'
+    `);
 
-      // The claim's hot path: one pool's ready jobs in scheduling order, so the
-      // scan stops at the first row the offer satisfies.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_idx
-          ON ${this.jobsTable} (pool_id, eff_priority DESC, created_at ASC, id ASC)
-          WHERE state = 'ready'
-      `);
+    // Same, narrowed by kind. This is what stops a CPU worker from walking a
+    // GPU-heavy backlog on every claim — pass `kinds` from workers.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_kind_idx
+        ON ${this.jobsTable} (pool_id, kind, eff_priority DESC, created_at ASC, id ASC)
+        WHERE state = 'ready'
+    `);
 
-      // Same, narrowed by kind. This is what stops a CPU worker from walking a
-      // GPU-heavy backlog on every claim — pass `kinds` from workers.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_kind_idx
-          ON ${this.jobsTable} (pool_id, kind, eff_priority DESC, created_at ASC, id ASC)
-          WHERE state = 'ready'
-      `);
+    // The exclusivity guarantee. The claim's NOT EXISTS is only the fast path:
+    // under READ COMMITTED two claimers can both pass it.
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${this.jobsTable}_exclusive_idx
+        ON ${this.jobsTable} (pool_id, exclusive)
+        WHERE state = 'claimed' AND exclusive IS NOT NULL
+    `);
 
-      // The exclusivity guarantee. The claim's NOT EXISTS is only the fast path:
-      // under READ COMMITTED two claimers can both pass it.
-      await client.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS ${this.jobsTable}_exclusive_idx
-          ON ${this.jobsTable} (pool_id, exclusive)
-          WHERE state = 'claimed' AND exclusive IS NOT NULL
-      `);
+    // At most one live job per dedup key; also the ON CONFLICT arbiter in add.
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${this.jobsTable}_dedup_idx
+        ON ${this.jobsTable} (pool_id, dedup_key)
+        WHERE dedup_key IS NOT NULL AND state IN ('ready','claimed')
+    `);
 
-      // At most one live job per dedup key; also the ON CONFLICT arbiter in add.
-      await client.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS ${this.jobsTable}_dedup_idx
-          ON ${this.jobsTable} (pool_id, dedup_key)
-          WHERE dedup_key IS NOT NULL AND state IN ('ready','claimed')
-      `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_lease_idx
+        ON ${this.jobsTable} (lease_until) WHERE state = 'claimed'
+    `);
 
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_lease_idx
-          ON ${this.jobsTable} (lease_until) WHERE state = 'claimed'
-      `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_aging_idx
+        ON ${this.jobsTable} (pool_id, created_at) WHERE state = 'ready'
+    `);
 
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_aging_idx
-          ON ${this.jobsTable} (pool_id, created_at) WHERE state = 'ready'
-      `);
+    // The oldest ready job of each kind, for `tally`.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_kind_age_idx
+        ON ${this.jobsTable} (pool_id, kind, created_at) WHERE state = 'ready'
+    `);
 
-      // The oldest ready job of each kind, for `tally`.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_ready_kind_age_idx
-          ON ${this.jobsTable} (pool_id, kind, created_at) WHERE state = 'ready'
-      `);
+    // Listing and purging a pool's jobs by state, and by kind within it.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.jobsTable}_pool_state_kind_idx
+        ON ${this.jobsTable} (pool_id, state, kind)
+    `);
 
-      // Listing and purging a pool's jobs by state, and by kind within it.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.jobsTable}_pool_state_kind_idx
-          ON ${this.jobsTable} (pool_id, state, kind)
-      `);
+    await this.createCounts(client);
 
-      await this.createCounts(client);
-
-      // Notify only on a real transition. A predicate as loose as
-      // `NEW.state = 'ready'` would emit a notification per aged row, thousands
-      // per sweep. A claim (ready -> claimed) correctly fires nothing.
-      await client.query(`
-        CREATE OR REPLACE FUNCTION ${this.jobsTable}_notify_trigger() RETURNS trigger AS $$
-        BEGIN
-          IF TG_OP = 'INSERT' THEN
-            IF NEW.state = 'ready' THEN
-              PERFORM pg_notify('${this.jobsChannel}', NEW.pool_id);
-            END IF;
-          ELSIF OLD.state IS DISTINCT FROM NEW.state
-                AND (NEW.state = 'ready' OR OLD.state = 'claimed') THEN
+    // Notify only on a real transition. A predicate as loose as
+    // `NEW.state = 'ready'` would emit a notification per aged row, thousands
+    // per sweep. A claim (ready -> claimed) correctly fires nothing.
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.jobsTable}_notify_trigger() RETURNS trigger AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' THEN
+          IF NEW.state = 'ready' THEN
             PERFORM pg_notify('${this.jobsChannel}', NEW.pool_id);
           END IF;
-          RETURN NEW;
-        END; $$ LANGUAGE plpgsql
-      `);
+        ELSIF OLD.state IS DISTINCT FROM NEW.state
+              AND (NEW.state = 'ready' OR OLD.state = 'claimed') THEN
+          PERFORM pg_notify('${this.jobsChannel}', NEW.pool_id);
+        END IF;
+        RETURN NEW;
+      END; $$ LANGUAGE plpgsql
+    `);
 
-      await client.query(`DROP TRIGGER IF EXISTS ${this.jobsTable}_notify ON ${this.jobsTable}`);
-      await client.query(`
-        CREATE TRIGGER ${this.jobsTable}_notify AFTER INSERT OR UPDATE ON ${this.jobsTable}
-          FOR EACH ROW EXECUTE FUNCTION ${this.jobsTable}_notify_trigger()
-      `);
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    await client.query(`DROP TRIGGER IF EXISTS ${this.jobsTable}_notify ON ${this.jobsTable}`);
+    await client.query(`
+      CREATE TRIGGER ${this.jobsTable}_notify AFTER INSERT OR UPDATE ON ${this.jobsTable}
+        FOR EACH ROW EXECUTE FUNCTION ${this.jobsTable}_notify_trigger()
+    `);
   }
 }
 

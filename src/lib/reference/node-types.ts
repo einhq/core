@@ -113,6 +113,13 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
       'A link that opens an album, and what it holds, to whoever has it, without signing in; under /var/links, with when it expires and how often it was opened. `share-link` makes, lists and turns them off.',
   },
   {
+    type: 'invitation',
+    label: 'Invitation',
+    category: 'system',
+    description:
+      "A token that opens stream nodes over a WebSocket, each to read or to write, and socket nodes to connect to, to someone with no account here, from a page of any address, as the account that made it; under /var/invitations, keeping only the token's hash, with when it expires and how often it was used. `invitation` makes, lists and turns them off.",
+  },
+  {
     type: 'device',
     label: 'Device',
     category: 'system',
@@ -131,7 +138,14 @@ export const CORE_NODE_TYPES: NodeTypeDoc[] = [
     label: 'Stream',
     category: 'system',
     description:
-      "Live bytes from one writer to whoever reads, such as a camera's video under its device, which its driver writes. Nothing is kept: a reader gets the bytes from the moment it opens it (`cat /dev/front-door/main.ts > door.ts` records the camera until stopped).",
+      "Live bytes from one writer to whoever reads, such as a camera's video under its device, which its driver writes. Nothing is kept: a reader gets the bytes from the moment it opens it (`cat /dev/front-door/main.ts > door.ts` records the camera until stopped). A page holds one open over a WebSocket at its `/file/` address, `?mode=w` as its writer, `?mode=r` as a reader.",
+  },
+  {
+    type: 'socket',
+    label: 'Socket',
+    category: 'system',
+    description:
+      "A meeting point between one listener and its clients, such as a module's service and the pages that talk to it. Its owner listens on it and accepts connections; whoever may read and write it connects, each connection two-way whole messages between that client and the listener alone, and nothing is kept. A page connects over a WebSocket at its `/file/` address, `?mode=rw`.",
   },
   {
     type: 'device-key',

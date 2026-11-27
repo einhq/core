@@ -28,6 +28,7 @@ export type VfsRegistries = {
   device?: RegistryIf;
   control?: RegistryIf<LogResourceOptions, LogStat>;
   stream?: RegistryIf;
+  socket?: RegistryIf;
 };
 
 /**

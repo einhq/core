@@ -211,6 +211,10 @@ export class Cmd implements Command {
     return this._opts.tty.launchEnv;
   }
 
+  get from(): string | undefined {
+    return this._opts.tty.from;
+  }
+
   get json() {
     // `spec.json: false` opts a text primitive out entirely — the API shell sets
     // JSON_OUTPUT=1 for every command, and `seq | grep` has to keep working.

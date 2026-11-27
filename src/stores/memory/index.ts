@@ -19,7 +19,9 @@ import {
   type AuditRecord,
   type ChildLinkFilter,
   type EdgeMove,
+  type IdNamed,
   namedBy,
+  type NamedId,
   type NewChild,
   NO_OP_TRANSACTION,
   type Node,
@@ -699,6 +701,22 @@ export class InMemoryStore implements NodeStore {
     await this.refreshBelow(regranted);
 
     return released;
+  }
+
+  async countNamed(named: NamedId, except: NodeId[]): Promise<IdNamed> {
+    const counts: IdNamed = { owned: 0, acl: 0, born: 0, changed: 0, modified: 0 };
+    const skip = new Set(except);
+    for (const node of this.nodes.values()) {
+      if (skip.has(node.id)) continue;
+      const { props } = node;
+      if (props[named.kind] === named.id) counts.owned++;
+      if (props.acl?.some((entry) => entry[named.kind] === named.id)) counts.acl++;
+      if (named.kind !== 'uid') continue;
+      if (props.birthtime.uid === named.id) counts.born++;
+      if (props.changetime.uid === named.id) counts.changed++;
+      if (props.modtime.uid === named.id) counts.modified++;
+    }
+    return counts;
   }
 
   async getNodes<T extends NodeAttrs = NodeAttrs>(

@@ -100,6 +100,16 @@ export type OwnerRelease =
 /** How many nodes `releaseOwner` changed: those it owned, and those whose ACL named it. */
 export type ReleasedOwner = { owned: number; acl: number };
 
+/** A user's uid or a group's gid, as `countNamed` looks for it. */
+export type NamedId = { kind: 'uid'; id: UserId } | { kind: 'gid'; id: GroupId };
+
+/**
+ * How many nodes `countNamed` found naming an id: those it owns, those whose ACL names it, and for
+ * a uid those it made, last changed and last modified (always 0 for a gid). A node may count in
+ * several.
+ */
+export type IdNamed = { owned: number; acl: number; born: number; changed: number; modified: number };
+
 /** A deleted node's registry storage, by its id there and the node type whose registry holds it. */
 export type StorageDelete = { id: NodeId; type: NodeType };
 
@@ -606,6 +616,13 @@ export interface NodeStore {
    * to release.
    */
   releaseOwner?(release: OwnerRelease, changeUid: UserId): Promise<ReleasedOwner>;
+
+  /**
+   * How many nodes name `named` (see `IdNamed`), leaving out the nodes of `except`: what would
+   * still point at the id once its account or group is gone, and at whoever is given it next.
+   * Optional, like `releaseOwner`.
+   */
+  countNamed?(named: NamedId, except: NodeId[]): Promise<IdNamed>;
 
   /**
    * Find the softlinks pointing *at* the given paths — the reverse of following

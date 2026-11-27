@@ -4,7 +4,7 @@
  * shell's `login` and `user-elevate`, the SSH server and `user-passwd` follow one rule.
  */
 
-import { join } from '@std/path';
+import { basename, join } from '@std/path';
 import { toText } from '@std/streams/to-text';
 import { type Access, ADMIN_ACCESS, ADMIN_GID, ADMIN_UID } from '../access/mod.ts';
 import type { NodeVFS } from '../../vfs/node-vfs.ts';
@@ -52,10 +52,24 @@ export async function accountPasswordHash(vfs: NodeVFS, userPath: string): Promi
   }
 }
 
-/** Whether `password` is the one set for the account at `userPath`; false when it has none. */
-export async function isAccountPassword(vfs: NodeVFS, userPath: string, password: string): Promise<boolean> {
+/** Where a password check comes from: the client's address when known, and the throttle to count it in. */
+type CheckOrigin = { from?: string; throttle?: SignInThrottle };
+
+/**
+ * Whether `password` is the one set for the account at `userPath`; false when it has none. The check
+ * is an attempt at the account's password like a sign-in, so it goes through the throttle under the
+ * account's name and from `origin.from`, and a wrong password is answered no sooner than the
+ * throttle answers a failure. Throws the throttle's refusal when it holds the attempt back.
+ */
+export async function checkAccountPassword(vfs: NodeVFS, userPath: string, password: string, origin: CheckOrigin = {}): Promise<boolean> {
+  const attempt = await (origin.throttle ?? signInThrottle).begin(basename(userPath), origin.from);
   const passwordHash = await accountPasswordHash(vfs, userPath);
-  return passwordHash !== undefined && await verifyPassword(password, passwordHash);
+  if (passwordHash !== undefined && await verifyPassword(password, passwordHash)) {
+    attempt.succeeded();
+    return true;
+  }
+  await attempt.failed();
+  return false;
 }
 
 const dummyHashes = new Map<number, Promise<string>>();
@@ -115,7 +129,7 @@ export type SignInAccount = { username: string; userPath: string; userNode: Node
 type PasswordSignIn = SignInAccount & { passwordHash: string };
 
 /** Where a sign-in comes from: the process's environment, for the hash cost, and the client's address when known. */
-type SignInOrigin = { env: Record<string, string | undefined>; from?: string; throttle?: SignInThrottle };
+type SignInOrigin = CheckOrigin & { env: Record<string, string | undefined> };
 
 /**
  * Sign in by password: the account `typed` names, by username or e-mail address, when `password`

@@ -227,7 +227,6 @@ Deno.test({
     await t.step('an expired link opens nothing, and reap turns it off', async () => {
       const soon = await admin.execJson<ShareLinkCreated>(`share-link create /alb --expires ${Date.now() + DAY_MS}`);
       const soonUid = await uidOf(soon.link.id);
-      // A uid turned off, its entries gone with it, may be handed out again.
       assert(soonUid >= LINK_UID_BASE);
       const never = await admin.execJson<ShareLink>(`share-link set ${soon.link.id} --never`);
       assertEquals(never.expiresAt, undefined);
@@ -245,6 +244,11 @@ Deno.test({
       assertEquals((await admin.execJson<{ removed: number }>('share-link reap')).removed, 1);
       assertEquals((await props('/alb')).acl?.some((entry) => entry.uid === soonUid) ?? false, false);
       assertEquals(await admin.execJson<ShareLink[]>('share-link list /alb'), []);
+
+      // A link turned off, the one with the highest uid, never passes its uid on.
+      const next = await admin.execJson<ShareLinkCreated>('share-link create /alb');
+      assertEquals(await uidOf(next.link.id), soonUid + 1);
+      await admin.execJson(`share-link remove ${next.link.id}`);
     });
 
     await t.step('only someone who may change a node shares it, and an expiry is in the future', async () => {

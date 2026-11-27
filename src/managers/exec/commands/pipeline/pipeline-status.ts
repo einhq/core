@@ -2,6 +2,9 @@ import { join } from '@std/path';
 import { colorer, Table } from '../../../shell/terminal/mod.ts';
 import { instancesRoot, resolveInstance } from './lib.ts';
 import type { PipelineStepAttrs } from '../../../pipeline/types.ts';
+import { refusalReason } from '../../../pipeline/step-error.ts';
+import { STEP_EXIT_TEMPORARY } from '../../../../lib/step-exit.ts';
+import { fmtAge } from '../system/lib.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import type { PipelineInstanceStatus, PipelineStepStatus } from '../../../../lib/api/pipeline.ts';
@@ -114,10 +117,30 @@ export const pipelineStatus = async (cmd: Command): CmdReturn => {
 
   await cmd.write(table.render());
   for (const step of steps) {
+    const why = stepWhy(step.node.attrs);
+    if (why) await cmd.write(`\n${step.node.attrs.stepName}: ${why}\n`);
+  }
+  for (const step of steps) {
     if (step.node.attrs.output) await cmd.write(`\n${step.node.attrs.stepName}:\n${step.node.attrs.output}\n`);
   }
   return 0;
 };
+
+/**
+ * Why a waiting or failed step is so, in a line, from its error: a step that could not run yet
+ * (exit 75) reads `waiting` as a queued one does, and only its error tells the service it waits
+ * for (ein/core#1584). None for a step with no error, or in any other state.
+ */
+export function stepWhy(attrs: Pick<PipelineStepAttrs, 'status' | 'error' | 'exitCode' | 'waitingSince'>, now = Date.now()): string | undefined {
+  if (!attrs.error) return undefined;
+  const reason = refusalReason(attrs.error);
+  if (attrs.status === 'failed') return `failed: ${reason}`;
+  if (attrs.status !== 'waiting') return undefined;
+  if (attrs.exitCode !== STEP_EXIT_TEMPORARY) return `waiting, the last attempt failed: ${reason}`;
+  // Set at each refusal, so it says when the step was last tried, not how long it has waited.
+  const ago = attrs.waitingSince === undefined ? '' : ` ${fmtAge(now - attrs.waitingSince)} ago`;
+  return `waiting, could not run${ago}: ${reason}`;
+}
 
 function getStatusColor(status: string): 'green' | 'blue' | 'yellow' | 'red' | 'gray' {
   switch (status) {

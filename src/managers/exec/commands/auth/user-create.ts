@@ -2,6 +2,7 @@ import { ADMIN_ACCESS, ADMIN_GID, ADMIN_UID, GUEST_UID, isLinkUid, LINK_UID_BASE
 import { accountNameProblem, type UserCreated } from '../../../../lib/api/users.ts';
 import { emailHolder, parseEmailFlag } from '../../../../lib/auth/email.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { nextAccountId, raiseLastIssuedId } from '../../../../lib/auth/issued-ids.ts';
 import { groupRole } from '../../../../lib/auth/roles.ts';
 import { defaultUserGroups } from '../../../../lib/config/read-settings.ts';
 import { HOME_MODE } from '../../../../lib/paths.ts';
@@ -102,12 +103,12 @@ export const userCreate = async (cmd: Command): CmdReturn => {
     uid = gid;
   }
 
-  // Without --uid: past every user, on a number no other group holds. The guest's uid and
-  // `USERS_GID` are skipped even where nothing holds them yet: the access model treats the one as
-  // the guest and the other as every signed-in person's group.
+  // Without --uid: past every uid and gid any account or group has had, the deleted ones' too. The
+  // guest's uid and `USERS_GID` are skipped even where nothing holds them yet: the access model
+  // treats the one as the guest and the other as every signed-in person's group.
   if (uid === -1) {
-    uid = users.reduce((max, entry) => Math.max(max, entry.node.attrs.uid || 0), 999) + 1;
-    while (gidHolder(uid) || uid === GUEST_UID || uid === USERS_GID) uid++;
+    uid = await nextAccountId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, cmd.env.GROUPS_PATH);
+    while (uid === GUEST_UID || uid === USERS_GID) uid++;
   }
 
   if (isLinkUid(uid)) {
@@ -130,6 +131,7 @@ export const userCreate = async (cmd: Command): CmdReturn => {
   }
 
   try {
+    await raiseLastIssuedId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, uid);
     // The account is the administrator's; its primary group is its own, on its uid.
     await cmd.sys.vfs.create<UserAttrs>(
       cmd.access,

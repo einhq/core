@@ -236,7 +236,7 @@ Deno.test({
       // `users` carries USERS_GID, which every session is given whatever else it
       // has — that is what makes the node's group universal on the real corpus.
       await cmd.shouldSucceed('group-create users --gid 1002');
-      await cmd.shouldSucceed('group-create editors --gid 7101');
+      await cmd.shouldSucceed('group-create editors --gid 7900');
       await cmd.shouldSucceed('user-create bo');
       await cmd.shouldSucceed('group-add-member editors anna');
 
@@ -402,7 +402,7 @@ Deno.test({
 
       // -b clears what each node lists for users and groups before the new list goes on.
       await cmd.shouldSucceed('share-set /own -b -m g:editors:rwx');
-      assertEquals((await props('/own/inner')).acl, [{ gid: 7101, mode: 0o7 }]);
+      assertEquals((await props('/own/inner')).acl, [{ gid: 7900, mode: 0o7 }]);
     });
 
     await t.step('several paths in one call, a refused one counted rather than fatal', async () => {

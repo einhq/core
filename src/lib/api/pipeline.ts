@@ -73,6 +73,13 @@ export type PipelineOverview = {
   /** How long a running step goes without output or progress before it is listed in `quiet`. */
   quietMs: number;
   /**
+   * Pool kinds whose steps could not run yet (exit 75) with none of the kind completing since, and
+   * jobs of it still in the pool: a service they call is down or turning them away. Their steps
+   * read `waiting`, as merely queued ones do; this says what they wait on. From the workers in this
+   * process, the longest held first.
+   */
+  held: HeldKind[];
+  /**
    * Instances completed over the last day, in ~16.7-minute buckets (`at` is the bucket's start),
    * from the sampler's `pipelines` series; empty until it has two samples.
    */
@@ -88,6 +95,23 @@ export type PipelineOverview = {
    * live promises.
    */
   memory: { heapUsedMb: number; heapTotalMb: number; rssMb: number };
+};
+
+/** A pool kind whose steps could not run yet (`PipelineOverview.held`). */
+export type HeldKind = {
+  /** The pool's name (`media`). */
+  pool: string;
+  kind: string;
+  /** Its jobs still ready or claimed. */
+  waiting: number;
+  /** Since when its steps have been turned away with none of it completing (epoch ms). */
+  since: number;
+  /** When the last of them was. */
+  at: number;
+  /** The last line of that step's error, as its service said. */
+  reason: string;
+  /** While every worker that offers the kind rests it: when it is tried again. */
+  restingUntil?: number;
 };
 
 /**

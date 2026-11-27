@@ -99,7 +99,7 @@ Deno.test({
       assertEquals(await list('completio'), ['completion']);
       assertEquals(await tab('unali'), 'unalias ');
       assertEquals(await tab('completion pa'), 'completion path ');
-      // A group's subcommand typed out is still completed, by bash's own command completion
+      // A group's subcommand is offered once the group's name and its `-` are typed
       assertEquals(await tab('completion-pa'), 'completion-path ');
     } finally {
       await shell.close();

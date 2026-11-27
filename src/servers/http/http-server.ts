@@ -8,9 +8,11 @@ import { DavSignIns } from './dav/sign-in.ts';
 import { DownloadLog } from './download-log.ts';
 import { handleAppPair, handleAppSession, handleAppSignIn, handleAppUnpair } from './handlers/app.ts';
 import { handleDevWrite } from './handlers/dev-write.ts';
+import { handleFileSocket, isWebSocketUpgrade } from './handlers/file-socket.ts';
 import { handleGetArchive } from './handlers/get-archive.ts';
 import { handleGetDefault } from './handlers/get-default.ts';
 import { handleGetFile, ticketPreflight } from './handlers/get-file.ts';
+import { handleGetInvite } from './handlers/get-invite.ts';
 import { handleGetSession, handlePostSession } from './handlers/get-session.ts';
 import { handleGetShell } from './handlers/get-shell.ts';
 import { handleLive } from './handlers/live.ts';
@@ -71,9 +73,13 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
     try {
       const url = new URL(req.url);
 
-      // The shell acts as the session, and a write changes what it may reach: neither is open to
-      // a page of another origin that the browser hands the cookie to.
-      if ((url.pathname.startsWith('/__shell') || !READ_METHODS.has(req.method)) && carriesSessionCookie(config, req.headers) && isCrossOrigin(req.headers)) {
+      // The shell and a socket act as the session, and a write changes what it may reach: none is
+      // open to a page of another origin that the browser hands the cookie to. A socket on a node
+      // that carries a ticket or an invitation acts as that and ignores the cookie.
+      const socket = isWebSocketUpgrade(req);
+      const bearer = url.pathname.startsWith('/file/') && (url.searchParams.has('ticket') || url.searchParams.has('invite'));
+      const actsAsSession = url.pathname.startsWith('/__shell') || (socket && !bearer) || !READ_METHODS.has(req.method);
+      if (actsAsSession && carriesSessionCookie(config, req.headers) && isCrossOrigin(req.headers)) {
         logger.warn('refused a request from a page of another origin', {
           method: req.method,
           path: url.pathname,
@@ -89,6 +95,8 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleGetSession(config, req);
       } else if (url.pathname === '/__session' && req.method === 'POST') {
         return await handlePostSession(config, req);
+      } else if (url.pathname.startsWith('/__invite/') && READ_METHODS.has(req.method)) {
+        return await handleGetInvite(config, req, url);
       } else if (url.pathname.startsWith('/__page/') && req.method === 'GET') {
         return await handlePageSignIn(config, req, url);
       } else if (url.pathname === '/__app/pair' && req.method === 'POST') {
@@ -103,6 +111,7 @@ export async function startHttpServer(config: HttpServerConfig): Promise<void> {
         return await handleLive(config, req, url);
       } else if (url.pathname.startsWith('/file/')) {
         if (req.method === 'OPTIONS' && url.searchParams.has('ticket')) return ticketPreflight();
+        if (socket && req.method === 'GET') return await handleFileSocket({ ...config, sockets }, req, url, clientAddress(req.headers, info.remoteAddr));
         const devWrite = await handleDevWrite(config, req, url, info.remoteAddr);
         if (devWrite) return devWrite;
         if (req.method === 'GET' || req.method === 'HEAD') {

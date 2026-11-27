@@ -89,6 +89,12 @@ const readSystemSettingsFiles = async (vfs: ModuleVFS): Promise<Record<string, s
 export const guestMayBrowse = async (vfs: ModuleVFS): Promise<boolean> => (await readSystemSettings(vfs)).CFG_GUEST_BROWSING === 'true';
 
 /**
+ * Whether the SSH and SFTP server accepts passwords as well as keys: `CFG_SSH_PASSWORD_AUTH`, on
+ * unless set to `false`.
+ */
+export const sshPasswordsAllowed = async (vfs: ModuleVFS): Promise<boolean> => (await readSystemSettings(vfs)).CFG_SSH_PASSWORD_AUTH !== 'false';
+
+/**
  * The groups a new account joins besides its own when `user-create` is given none, as a comma
  * list: `CFG_DEFAULT_USER_GROUPS` as the system's files hold it now, `users` when they leave it
  * unset, and empty, for none, when it is set empty. A shell's environment holds the value from when
@@ -126,13 +132,18 @@ export const readSecret = async (vfs: ModuleVFS, key: string, etcPath?: string):
  *
  * Only the system's own address gets it. Any shell can put `<urlKey>=…` in front of a command,
  * so a request going anywhere but the address the system's files hold goes without the key;
- * otherwise whoever answers there would receive it.
+ * otherwise whoever answers there would receive it. The deployment's key is for the address the
+ * deployment names beside it, when it names one: an administrator who points the setting at
+ * another service, and gives that one no key of its own, does not send it the deployment's.
  */
 export const serviceKey = async (ctx: SettingsContext, key: string, urlKey: string): Promise<string | undefined> => {
   const secret = await readSecret(ctx.sys.vfs, key);
   if (!secret) return undefined;
   const system = await readSystemSettings(ctx.sys.vfs);
-  return (ctx.env[urlKey] ?? '') === (system[urlKey] ?? '') ? secret.value : undefined;
+  const url = ctx.env[urlKey] ?? '';
+  if (url !== (system[urlKey] ?? '')) return undefined;
+  const deployed = Deno.env.get(urlKey);
+  return secret.source === 'environment' && deployed !== undefined && url !== deployed ? undefined : secret.value;
 };
 
 /** A settings file's keys and values. */

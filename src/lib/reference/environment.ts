@@ -240,6 +240,7 @@ export const PATH_DESCRIPTIONS: Record<string, string> = {
   LOGS_PATH: 'Logs and metrics.',
   SESSIONS_PATH: 'Open sessions.',
   LINKS_PATH: 'Share links: one node per link that opens an album without signing in.',
+  INVITATIONS_PATH: 'Invitations: one node per invitation that opens stream and socket nodes over a WebSocket to someone with no account here.',
   QUEUES_PATH: 'Queues.',
   PIPELINE_QUEUE_PATH: 'The queue the pipeline engine works from.',
   POOLS_PATH: 'Job pools.',

@@ -1,5 +1,5 @@
 /**
- * How fast passwords may be tried. Every password check (`passwordSignIn`, `user-elevate`) begins
+ * How fast passwords may be tried. Every password check (`passwordSignIn`, `checkAccountPassword`) begins
  * an attempt here, which counts as a failure from the moment it begins until it succeeds, so
  * attempts made in parallel count as soon as they are made. Failures are counted per client address
  * (an IPv6 address by its /64, which one client holds whole), per account and across all of them,

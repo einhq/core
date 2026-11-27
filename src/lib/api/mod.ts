@@ -44,3 +44,5 @@ export type { ContainerListing, ContainerMember } from '../containers/types.ts';
 export type { SubjectEntry, SubjectListing, SubjectMatch, SubjectsOf } from '../subjects/types.ts';
 export type { EnvVarDoc, EnvVarKind, NodeTypeCategory, NodeTypeDoc, Owned } from '../reference/types.ts';
 export * from './devices.ts';
+export * from './node-socket.ts';
+export * from './invitation.ts';

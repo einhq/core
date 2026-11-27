@@ -23,21 +23,22 @@ ResourceHandleIf (open resource)
 
 ## Registries
 
-| Registry                | Backend                  | Purpose                                       |
-| ----------------------- | ------------------------ | --------------------------------------------- |
-| [blob](blob/)           | PostgreSQL LOB / Memory  | Binary storage in PostgreSQL large objects    |
-| [control](control/)     | the log registry         | A device's control: its reported states       |
-| [device](device/)       | None                     | A device: what is written goes to its driver  |
-| [file](file/)           | Filesystem / Memory      | Binary file storage                           |
-| [embedding](embedding/) | PostgreSQL + pgvector    | Vector embeddings with similarity search      |
-| [position](position/)   | PostgreSQL + PostGIS     | Geo shapes (point/circle/polygon), queries    |
-| [log](log/)             | PostgreSQL + TimescaleDB | Time-series logs with retention policies      |
-| [null](null/)           | None                     | `/dev/null`: reads end at once, writes vanish |
-| [pool](pool/)           | PostgreSQL / Memory      | Work pools claimed by capability, with leases |
-| [queue](queue/)         | PostgreSQL / Memory      | Durable message queues with fanout            |
-| [router](router/)       | In-memory                | Pub/sub routing with routing keys             |
-| [stream](stream/)       | In-memory                | Live bytes from one writer to many readers    |
-| [track](track/)         | PostgreSQL + PostGIS     | GPS tracks, spatially indexed and simplified  |
+| Registry                | Backend                  | Purpose                                             |
+| ----------------------- | ------------------------ | --------------------------------------------------- |
+| [blob](blob/)           | PostgreSQL LOB / Memory  | Binary storage in PostgreSQL large objects          |
+| [control](control/)     | the log registry         | A device's control: its reported states             |
+| [device](device/)       | None                     | A device: what is written goes to its driver        |
+| [file](file/)           | Filesystem / Memory      | Binary file storage                                 |
+| [embedding](embedding/) | PostgreSQL + pgvector    | Vector embeddings with similarity search            |
+| [position](position/)   | PostgreSQL + PostGIS     | Geo shapes (point/circle/polygon), queries          |
+| [log](log/)             | PostgreSQL + TimescaleDB | Time-series logs with retention policies            |
+| [null](null/)           | None                     | `/dev/null`: reads end at once, writes vanish       |
+| [pool](pool/)           | PostgreSQL / Memory      | Work pools claimed by capability, with leases       |
+| [queue](queue/)         | PostgreSQL / Memory      | Durable message queues with fanout                  |
+| [router](router/)       | In-memory                | Pub/sub routing with routing keys                   |
+| [stream](stream/)       | In-memory                | Live bytes from one writer to many readers          |
+| [socket](socket/)       | In-memory                | Two-way messages between a listener and each client |
+| [track](track/)         | PostgreSQL + PostGIS     | GPS tracks, spatially indexed and simplified        |
 
 ## Access Modes
 

@@ -240,11 +240,33 @@ Deno.test({
       await cmd.shouldSucceed('group-create taken --gid 3002');
       await cmd.shouldFail('user-create squatter --uid 3002');
 
-      // Picked automatically — one past the highest uid, 3010 — the uid steps past a held gid.
-      await cmd.shouldSucceed('group-create taken-next --gid 3011');
+      // Picked automatically, the uid goes past every gid as well as every uid.
+      await cmd.shouldSucceed('group-create taken-next --gid 9000');
       await cmd.shouldSucceed('user-create newcomer');
       const newcomer = await client.execJson<{ uid: number; gid: number }>('user-info newcomer');
-      assertEquals([newcomer.uid, newcomer.gid], [3012, 3012]);
+      assertEquals([newcomer.uid, newcomer.gid], [9001, 9001]);
+    });
+
+    await t.step("a deleted account's or group's number is never given out again", async () => {
+      // Nodes' birth uids, the audit trail and the access log go on naming a deleted account's uid,
+      // and signed-in sessions a deleted group's gid.
+      await cmd.shouldSucceed('user-create passing');
+      const passing = await client.execJson<{ uid: number }>('user-info passing');
+      await cmd.shouldSucceed('user-delete passing');
+      await cmd.shouldSucceed('user-create arriving');
+      assertEquals((await client.execJson<{ uid: number }>('user-info arriving')).uid, passing.uid + 1);
+
+      await cmd.shouldSucceed('group-create disbanded');
+      const disbanded = await client.execJson<{ gid: number }>('attrs /etc/groups/disbanded');
+      await cmd.shouldSucceed('group-delete disbanded');
+      await cmd.shouldSucceed('group-create founded');
+      assertEquals((await client.execJson<{ gid: number }>('attrs /etc/groups/founded')).gid, disbanded.gid + 1);
+
+      // A number given explicitly counts too, and so does a group's for the next account.
+      await cmd.shouldSucceed('group-create fleeting --gid 9500');
+      await cmd.shouldSucceed('group-delete fleeting');
+      await cmd.shouldSucceed('user-create latecomer');
+      assertEquals((await client.execJson<{ uid: number }>('user-info latecomer')).uid, 9501);
     });
 
     await t.step('0 is an id like any other, not a request to pick one', async () => {

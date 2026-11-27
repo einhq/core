@@ -20,6 +20,8 @@ export interface Command {
   readonly env: Record<string, string>;
   /** The tty's `launchEnv`: where a setting no one at the shell may change is read. */
   readonly launchEnv: Readonly<Record<string, string>>;
+  /** The tty's client address, when known: where a password typed into the command comes from. */
+  readonly from?: string;
   readonly cwd: string;
   readonly id: string;
   readonly parentId?: string;

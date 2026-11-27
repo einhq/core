@@ -52,6 +52,7 @@ import { acl } from './node/acl.ts';
 import { share } from './node/share/share.ts';
 import { shareInfo } from './node/share/share-info.ts';
 import { shareLink } from './node/share/share-link.ts';
+import { invitation } from './node/share/invitation.ts';
 import { shareSet } from './node/share/share-set.ts';
 import { attrs } from './node/attrs.ts';
 import { cat } from './node/cat.ts';
@@ -334,6 +335,7 @@ export const COMMAND_NAMES: CmdFunction[] = [
   share,
   shareInfo,
   shareLink,
+  invitation,
   shareSet,
   stat,
   mknode,

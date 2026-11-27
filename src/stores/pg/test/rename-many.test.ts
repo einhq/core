@@ -75,7 +75,9 @@ pgTest('PgStore batched moves and links under a path', async (t) => {
     await t.step('boot keeps one softlink index, byte-ordered, in place of the default-collation one', async () => {
       const client = await ctx.pool.connect();
       try {
+        // As tables from before versions were recorded, with the old index.
         await client.query(`CREATE INDEX ${ctx.prefix}_nodes_softlink_idx ON ${ctx.prefix}_nodes (softlink) WHERE softlink IS NOT NULL`);
+        await client.query(`DELETE FROM ${ctx.prefix}_schema WHERE part = 'nodes'`);
         await createPgVfs(ctx.pool, ctx.prefix).then((booted) => booted.dispose());
         const { rows } = await client.query<{ indexname: string; indexdef: string }>(
           `SELECT indexname, indexdef FROM pg_indexes WHERE tablename = $1 AND indexdef ILIKE '%softlink%'`,

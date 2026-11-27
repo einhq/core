@@ -7,7 +7,7 @@
  */
 
 import type { Pool } from 'pg';
-import { createExtension, currentWorkClass, runAsBackground } from '../../lib/pg/mod.ts';
+import { createExtension, currentWorkClass, migrate, runAsBackground } from '../../lib/pg/mod.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
 import { EmbeddingHandle } from './embedding-handle.ts';
@@ -73,28 +73,36 @@ export class EmbeddingRegistry implements EmbeddingRegistryIf {
     this.pool = config.pool;
   }
 
-  /** Initialize the registry by enabling pgvector and creating the embeddings metadata table. */
+  /**
+   * Bring the embeddings metadata table to the registry's schema version (`src/lib/pg/schema.ts`).
+   * Each type's vector table is made when the type is first written (`registerType`).
+   */
   async init(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    const client = await this.pool.connect();
-    try {
-      await createExtension(client, 'vector');
-
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.embeddingsTable} (
-          id            VARCHAR(26) PRIMARY KEY,
-          type          TEXT NOT NULL,
-          size          INT NOT NULL,
-          size_bytes    INT NOT NULL,
-          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
-    } finally {
-      client.release();
-    }
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'embeddings',
+      table: this.embeddingsTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [{
+        name: 'table',
+        run: async (client) => {
+          await createExtension(client, 'vector');
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS ${this.embeddingsTable} (
+              id            VARCHAR(26) PRIMARY KEY,
+              type          TEXT NOT NULL,
+              size          INT NOT NULL,
+              size_bytes    INT NOT NULL,
+              created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+          `);
+        },
+      }],
+    });
 
     this.initialized = true;
   }

@@ -6,7 +6,8 @@ import { listCommands, printWords } from './lib/utils.ts';
 /**
  * The commands on PATH a command's name completes to: those starting with
  * `--word`, without the subcommands of a group (`pipeline-run`), which are
- * reached as `pipeline run`.
+ * reached as `pipeline run`, unless the word already names the group
+ * (`pipeline-r`).
  */
 export const completeCommands = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
@@ -23,7 +24,7 @@ export const completeCommands = async (cmd: Command): CmdReturn => {
   const names = entries
     .map((e) => e.name)
     .filter((name) => name.startsWith(word))
-    .filter((name) => !groups.some((group) => name.startsWith(group)));
+    .filter((name) => !groups.some((group) => name.startsWith(group) && !word.startsWith(group)));
 
   await printWords(cmd, [...new Set(names)]);
 

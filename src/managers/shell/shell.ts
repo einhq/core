@@ -78,8 +78,7 @@ import { StepTimer } from '../../lib/metrics/mod.ts';
 import type { BufferManagerIf } from '../buffer/mod.ts';
 import { ResourceHandleIf, ResourceMode } from '../../registries/types.ts';
 import { isMemberOf, userAccess } from '../../lib/auth/member-gids.ts';
-import { AUTHENTICATION_FAILED, isAccountPassword, passwordSignIn, SignInFailedError } from '../../lib/auth/account-password.ts';
-import { signInThrottle } from '../../lib/auth/sign-in-throttle.ts';
+import { AUTHENTICATION_FAILED, checkAccountPassword, passwordSignIn, SignInFailedError } from '../../lib/auth/account-password.ts';
 import { assertAccess, Node, NodeNotFoundError, NodePath, NodeVFS, recordAccess } from '../../vfs/mod.ts';
 import { NODE_TYPE_COMMAND } from '../../vfs/types/command.ts';
 import { NODE_TYPE_DIRECTORY } from '../../vfs/types/directory.ts';
@@ -327,16 +326,18 @@ export function openShellList(): OpenShellInfo[] {
 
 /**
  * Sign every shell acting as `uid` out to the guest, as `logout` does, and kill
- * its jobs, detached ones included, when the account is disabled. A shell takes
+ * its jobs, detached ones included, when the account is disabled or its password
+ * changes; with `where`, only the shells whose access and session it accepts. A shell takes
  * its access when it opens or logs in and keeps it; nothing else would take it
  * back. That reaches a closed shell whose detached job is still running too,
  * since the job's steps would go on starting under the shell's access.
  * Returns how many shells it reached.
  */
-export async function signOutShellsOf(uid: number): Promise<number> {
+export async function signOutShellsOf(uid: number, where: (access: Access, sessionPath: NodePath) => boolean = () => true): Promise<number> {
   let reached = 0;
   for (const shell of liveShells) {
-    if (shell.getAccess().uid !== uid) continue;
+    const access = shell.getAccess();
+    if (access.uid !== uid || !where(access, shell.sessionPath)) continue;
     try {
       await shell.logout();
       await shell.killJobs();
@@ -1377,9 +1378,7 @@ export class Shell implements TtyIf {
       throw new Error(`${account.name} is not in the ${SUDO_GROUPNAME} group`);
     }
     try {
-      const attempt = await signInThrottle.begin(account.name, this.from);
-      if (!await isAccountPassword(this.config.vfs, join(USERS_PATH, account.name), password)) throw new Error(AUTHENTICATION_FAILED);
-      attempt.succeeded();
+      if (!await checkAccountPassword(this.config.vfs, join(USERS_PATH, account.name), password, { from: this.from })) throw new Error(AUTHENTICATION_FAILED);
     } catch (error) {
       await this.recordAccess({ event: 'elevate-failed', reason: error instanceof Error ? error.message : String(error) });
       throw error;

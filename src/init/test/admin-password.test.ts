@@ -5,9 +5,15 @@
 
 import { assertEquals } from '@std/assert';
 import { ADMIN_ACCESS } from '../../lib/access/mod.ts';
-import { isAccountPassword } from '../../lib/auth/account-password.ts';
+import { checkAccountPassword } from '../../lib/auth/account-password.ts';
+import { SignInThrottle } from '../../lib/auth/sign-in-throttle.ts';
 import { createTestContext } from '../../testing/mod.ts';
+import type { NodeVFS } from '../../vfs/mod.ts';
 import { setFirstAdminPassword } from '../admin-password.ts';
+
+/** Whether `password` is the account's, through a throttle of the test's own that never waits. */
+const isAccountPassword = (vfs: NodeVFS, userPath: string, password: string) =>
+  checkAccountPassword(vfs, userPath, password, { throttle: new SignInThrottle({ now: () => Date.now(), sleep: () => Promise.resolve() }) });
 
 const testCtx = createTestContext({ boot: true });
 

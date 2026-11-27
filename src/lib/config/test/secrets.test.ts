@@ -1,7 +1,8 @@
 /**
  * A key to another service is in no shell's environment and no file anyone but the administrator
  * reads; the settings say only whether it is set. `serviceKey` hands it out for the system's own
- * address of its service and nowhere else, and the administrator's key wins over the deployment's.
+ * address of its service and nowhere else, the administrator's key wins over the deployment's, and
+ * the deployment's goes only to the address the deployment names.
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
@@ -114,6 +115,26 @@ Deno.test({
       }
       assertEquals(await keyFor({}), undefined);
       assertEquals((await entry()).source, 'default');
+    });
+
+    await t.step("the deployment's key goes to the deployment's address, not to one the administrator set", async () => {
+      Deno.env.set(KEY, DEPLOYED);
+      Deno.env.set(URL_KEY, 'http://deployed.example');
+      try {
+        await admin.exec(`config set ${URL_KEY} http://deployed.example`);
+        assertEquals(await keyFor({ [URL_KEY]: 'http://deployed.example' }), DEPLOYED);
+
+        await admin.exec(`config set ${URL_KEY} http://other.example`);
+        assertEquals(await keyFor({ [URL_KEY]: 'http://other.example' }), undefined);
+
+        await admin.exec(`config set ${KEY} ${SET}`);
+        assertEquals(await keyFor({ [URL_KEY]: 'http://other.example' }), SET);
+      } finally {
+        await admin.exec(`config unset ${KEY}`);
+        await admin.exec(`config unset ${URL_KEY}`);
+        Deno.env.delete(URL_KEY);
+        Deno.env.delete(KEY);
+      }
     });
   } finally {
     unregisterConfigOptions('example');

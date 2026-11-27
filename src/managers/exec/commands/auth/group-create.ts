@@ -1,6 +1,7 @@
 import { isLinkUid, LINK_UID_BASE } from '../../../../lib/access/mod.ts';
 import { accountNameProblem, type GroupCreated } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { nextAccountId, raiseLastIssuedId } from '../../../../lib/auth/issued-ids.ts';
 import { shq } from '../../../../lib/shell-quote/mod.ts';
 import { GroupAttrs, NODE_TYPE_GROUP } from '../../../../vfs/types/group.ts';
 import type { Command } from '../../command.ts';
@@ -35,10 +36,9 @@ export const groupCreate = async (cmd: Command): CmdReturn => {
 
   const groups = await cmd.sys.vfs.children<GroupAttrs>(cmd.access, cmd.env.GROUPS_PATH);
 
-  // Without --gid: past every group.
+  // Without --gid: past every uid and gid any account or group has had, the deleted ones' too.
   if (gid === -1) {
-    const maxGid = groups.reduce((max, entry) => Math.max(max, entry.node.attrs.gid || 0), 999);
-    gid = maxGid + 1;
+    gid = await nextAccountId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, cmd.env.GROUPS_PATH);
   }
 
   // Kept apart from share links' uids, which an ACL entry names beside gids.
@@ -58,6 +58,7 @@ export const groupCreate = async (cmd: Command): CmdReturn => {
   }
 
   try {
+    await raiseLastIssuedId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, gid);
     await cmd.sys.vfs.create<GroupAttrs>(
       cmd.access,
       NODE_TYPE_GROUP,

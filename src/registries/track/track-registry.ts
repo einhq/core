@@ -18,7 +18,7 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import type { RelayEventUnsubscriber, RouterManagerIf } from '../../managers/router/mod.ts';
-import { createExtension } from '../../lib/pg/mod.ts';
+import { createExtension, migrate } from '../../lib/pg/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
 import { routingPatternSources } from '../routing-key-match.ts';
 import { ensureResource, ResourceMode } from '../types.ts';
@@ -127,12 +127,33 @@ export class TrackRegistry implements TrackRegistryIf {
       return;
     }
 
-    await createExtension(this.pool, 'postgis');
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'tracks',
+      table: this.tracksTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [
+        { name: 'tables', run: (client) => this.createTables(client) },
+        { name: 'judging columns', run: (client) => this.addJudging(client) },
+      ],
+    });
+
+    await this.bound.refresh();
+
+    this.relayUnsubscribe = this.config.router.on(async (routingKey: string, payload: unknown) => {
+      await this.handleRelayEvent(routingKey, payload);
+    });
+
+    this.initialized = true;
+  }
+
+  private async createTables(client: PoolClient): Promise<void> {
+    await createExtension(client, 'postgis');
 
     // The summary lives on this row rather than being aggregated per call: `ls
     // /tracks` asks every track how big it is, and that must not touch the
     // points table.
-    await this.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS ${this.tracksTable} (
         id                VARCHAR(26) PRIMARY KEY,
         routing_keys      TEXT[] NOT NULL DEFAULT '{}',
@@ -148,22 +169,19 @@ export class TrackRegistry implements TrackRegistryIf {
       )
     `);
 
-    // The version of the rules the track's fixes were last judged by; 0 for never.
-    await this.query(`ALTER TABLE ${this.tracksTable} ADD COLUMN IF NOT EXISTS rules INTEGER NOT NULL DEFAULT 0`);
-
-    await this.query(`
+    await client.query(`
       CREATE INDEX IF NOT EXISTS ${this.tracksTable}_routing_keys_idx
       ON ${this.tracksTable} USING GIN (routing_keys)
     `);
 
     // `routing_patterns` holds the compiled regex of each wildcard binding in `routing_keys`;
     // its index is partial, so the pattern branch below reads only the tracks that bound one.
-    await this.query(`
+    await client.query(`
       CREATE INDEX IF NOT EXISTS ${this.tracksTable}_routing_patterns_idx
       ON ${this.tracksTable} (id) WHERE routing_patterns <> '{}'
     `);
 
-    await this.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS ${this.pointsTable} (
         track_id  VARCHAR(26) NOT NULL REFERENCES ${this.tracksTable}(id) ON DELETE CASCADE,
         ts        TIMESTAMPTZ NOT NULL,
@@ -175,25 +193,14 @@ export class TrackRegistry implements TrackRegistryIf {
       )
     `);
 
-    // What the rules made of the fix: NULL for accepted, `excursion` or `inaccurate` for rejected,
-    // `jump` for a fix the line is cut before.
-    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS rule TEXT`);
-
-    // How far off the fix may be, in metres, as its receiver said; NULL when it did not.
-    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION`);
-
-    // What a person said of the fix, which judging never touches: NULL for nothing, `reject` or
-    // `accept`. A fix a person rejected is not judged, and has no rule.
-    await this.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS manual TEXT`);
-
     // Viewport reads run in planar lon/lat space — a geography envelope cannot
     // span 180+ degrees of longitude.
-    await this.query(`
+    await client.query(`
       CREATE INDEX IF NOT EXISTS ${this.pointsTable}_geom_idx
       ON ${this.pointsTable} USING GIST (((geog::geometry)))
     `);
 
-    await this.query(`
+    await client.query(`
       CREATE OR REPLACE FUNCTION ${this.pointsTable}_notify_trigger()
       RETURNS trigger AS $$
       BEGIN
@@ -203,20 +210,29 @@ export class TrackRegistry implements TrackRegistryIf {
       $$ LANGUAGE plpgsql
     `);
 
-    await this.query(`
+    await client.query(`
       DROP TRIGGER IF EXISTS ${this.pointsTable}_notify ON ${this.pointsTable};
       CREATE TRIGGER ${this.pointsTable}_notify
       AFTER INSERT ON ${this.pointsTable}
       FOR EACH ROW EXECUTE FUNCTION ${this.pointsTable}_notify_trigger()
     `);
+  }
 
-    await this.bound.refresh();
+  /** What judging a track's fixes keeps on the track and on each fix. */
+  private async addJudging(client: PoolClient): Promise<void> {
+    // The version of the rules the track's fixes were last judged by; 0 for never.
+    await client.query(`ALTER TABLE ${this.tracksTable} ADD COLUMN IF NOT EXISTS rules INTEGER NOT NULL DEFAULT 0`);
 
-    this.relayUnsubscribe = this.config.router.on(async (routingKey: string, payload: unknown) => {
-      await this.handleRelayEvent(routingKey, payload);
-    });
+    // What the rules made of the fix: NULL for accepted, `excursion` or `inaccurate` for rejected,
+    // `jump` for a fix the line is cut before.
+    await client.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS rule TEXT`);
 
-    this.initialized = true;
+    // How far off the fix may be, in metres, as its receiver said; NULL when it did not.
+    await client.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION`);
+
+    // What a person said of the fix, which judging never touches: NULL for nothing, `reject` or
+    // `accept`. A fix a person rejected is not judged, and has no rule.
+    await client.query(`ALTER TABLE ${this.pointsTable} ADD COLUMN IF NOT EXISTS manual TEXT`);
   }
 
   async dispose(): Promise<void> {

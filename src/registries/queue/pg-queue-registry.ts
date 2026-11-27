@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import { migrate } from '../../lib/pg/mod.ts';
 import { createLogger } from '../../managers/logger/mod.ts';
 import type { RelayEventUnsubscriber } from '../../managers/router/mod.ts';
 import { BoundRoutingKeys } from '../bound-routing-keys.ts';
@@ -71,7 +72,7 @@ export class PgQueueRegistry implements QueueRegistryIf {
   constructor(protected config: PgQueueRegistryConfig) {
     const name = `${config.name}_queues`;
     if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
-      throw new Error(`Invalid table prefix: ${name}`);
+      throw new Error(`invalid table prefix: ${name}`);
     }
     this.tablePrefix = name;
     this.pool = config.pool;
@@ -915,132 +916,131 @@ export class PgQueueRegistry implements QueueRegistryIf {
     };
   }
 
+  /** Brings the tables to the registry's schema version; see `src/lib/pg/schema.ts`. */
   private async createSchema(): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    await migrate(this.pool, {
+      mount: this.config.name,
+      part: 'queues',
+      table: this.subscriptionsTable,
+      // A change is a new migration at the end, never an edit to one here.
+      migrations: [{ name: 'tables', run: (client) => this.createTables(client) }],
+    });
+  }
 
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.messagesTable} (
-          id            BIGSERIAL PRIMARY KEY,
-          routing_key   TEXT NOT NULL,
-          payload       JSONB NOT NULL,
-          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
+  private async createTables(client: PoolClient): Promise<void> {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.messagesTable} (
+        id            BIGSERIAL PRIMARY KEY,
+        routing_key   TEXT NOT NULL,
+        payload       JSONB NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
-      // `routing_patterns` holds the compiled regex of every wildcard binding in
-      // `routing_keys`, written by `touch`. Compiling in
-      // TS and storing the result is what keeps one set of pattern semantics for both
-      // backends — postgres only ever runs the regex.
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.subscriptionsTable} (
-          id                VARCHAR(26) PRIMARY KEY,
-          routing_keys      TEXT[] NOT NULL DEFAULT '{}',
-          routing_patterns  TEXT[] NOT NULL DEFAULT '{}',
-          created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
+    // `routing_patterns` holds the compiled regex of every wildcard binding in
+    // `routing_keys`, written by `touch`. Compiling in
+    // TS and storing the result is what keeps one set of pattern semantics for both
+    // backends — postgres only ever runs the regex.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.subscriptionsTable} (
+        id                VARCHAR(26) PRIMARY KEY,
+        routing_keys      TEXT[] NOT NULL DEFAULT '{}',
+        routing_patterns  TEXT[] NOT NULL DEFAULT '{}',
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.subscriptionsTable}_routing_keys_idx
-        ON ${this.subscriptionsTable}
-        USING GIN (routing_keys);
-      `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.subscriptionsTable}_routing_keys_idx
+      ON ${this.subscriptionsTable}
+      USING GIN (routing_keys);
+    `);
 
-      // Partial, so the fanout's pattern branch scans only subscriptions that bound a
-      // pattern — normally none, and the branch costs nothing on a system with none.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.subscriptionsTable}_routing_patterns_idx
-        ON ${this.subscriptionsTable} (id)
-        WHERE routing_patterns <> '{}';
-      `);
+    // Partial, so the fanout's pattern branch scans only subscriptions that bound a
+    // pattern — normally none, and the branch costs nothing on a system with none.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.subscriptionsTable}_routing_patterns_idx
+      ON ${this.subscriptionsTable} (id)
+      WHERE routing_patterns <> '{}';
+    `);
 
-      // `attempts` counts deliveries handed out, not nacks: the lease sweep has
-      // to spend one too, or a consumer that dies on an entry instead of nacking
-      // it would still be redelivered forever. `dead_at` is a state, not a
-      // delete — the poison message is the one message worth being able to look
-      // at afterwards.
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.deliveriesTable} (
-          id              BIGSERIAL PRIMARY KEY,
-          subscription_id VARCHAR(26) REFERENCES ${this.subscriptionsTable}(id) ON DELETE CASCADE,
-          message_id      BIGINT REFERENCES ${this.messagesTable}(id) ON DELETE CASCADE,
-          locked_at       TIMESTAMPTZ,
-          attempts        INTEGER NOT NULL DEFAULT 0,
-          dead_at         TIMESTAMPTZ,
-          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-          UNIQUE(subscription_id, message_id)
-        )
-      `);
+    // `attempts` counts deliveries handed out, not nacks: the lease sweep has
+    // to spend one too, or a consumer that dies on an entry instead of nacking
+    // it would still be redelivered forever. `dead_at` is a state, not a
+    // delete — the poison message is the one message worth being able to look
+    // at afterwards.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.deliveriesTable} (
+        id              BIGSERIAL PRIMARY KEY,
+        subscription_id VARCHAR(26) REFERENCES ${this.subscriptionsTable}(id) ON DELETE CASCADE,
+        message_id      BIGINT REFERENCES ${this.messagesTable}(id) ON DELETE CASCADE,
+        locked_at       TIMESTAMPTZ,
+        attempts        INTEGER NOT NULL DEFAULT 0,
+        dead_at         TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(subscription_id, message_id)
+      )
+    `);
 
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_claimable_idx
-          ON ${this.deliveriesTable}(subscription_id)
-          WHERE locked_at IS NULL AND dead_at IS NULL
-      `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_claimable_idx
+        ON ${this.deliveriesTable}(subscription_id)
+        WHERE locked_at IS NULL AND dead_at IS NULL
+    `);
 
-      // The mirror image, for the lease sweep. Partial in the other direction so
-      // the claim path's index stays exactly as narrow as it was: under load
-      // nothing is locked for long and this one is nearly empty.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_locked_idx
-          ON ${this.deliveriesTable}(subscription_id, locked_at)
-          WHERE locked_at IS NOT NULL
-      `);
+    // The mirror image, for the lease sweep. Partial in the other direction so
+    // the claim path's index stays exactly as narrow as it was: under load
+    // nothing is locked for long and this one is nearly empty.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_locked_idx
+        ON ${this.deliveriesTable}(subscription_id, locked_at)
+        WHERE locked_at IS NOT NULL
+    `);
 
-      // For "does this message still have a delivery": ack's cleanup, the orphan
-      // sweep, and the cascade from a deleted message all look it up by message.
-      await client.query(`
-        CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_message_idx
-          ON ${this.deliveriesTable}(message_id)
-      `);
+    // For "does this message still have a delivery": ack's cleanup, the orphan
+    // sweep, and the cascade from a deleted message all look it up by message.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS ${this.deliveriesTable}_message_idx
+        ON ${this.deliveriesTable}(message_id)
+    `);
 
-      // Trigger notifies with subscription_id so listeners can filter by queue
-      await client.query(`
-        CREATE OR REPLACE FUNCTION ${this.deliveriesTable}_notify_trigger()
-        RETURNS trigger AS $$
-        BEGIN
-          PERFORM pg_notify('${this.deliveriesChannel}', NEW.subscription_id);
-          RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-      `);
+    // Trigger notifies with subscription_id so listeners can filter by queue
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.deliveriesTable}_notify_trigger()
+      RETURNS trigger AS $$
+      BEGIN
+        PERFORM pg_notify('${this.deliveriesChannel}', NEW.subscription_id);
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
 
-      await client.query(`
-        DROP TRIGGER IF EXISTS ${this.deliveriesTable}_notify ON ${this.deliveriesTable};
-        CREATE TRIGGER ${this.deliveriesTable}_notify
-        AFTER INSERT ON ${this.deliveriesTable}
-        FOR EACH ROW EXECUTE FUNCTION ${this.deliveriesTable}_notify_trigger();
-      `);
+    await client.query(`
+      DROP TRIGGER IF EXISTS ${this.deliveriesTable}_notify ON ${this.deliveriesTable};
+      CREATE TRIGGER ${this.deliveriesTable}_notify
+      AFTER INSERT ON ${this.deliveriesTable}
+      FOR EACH ROW EXECUTE FUNCTION ${this.deliveriesTable}_notify_trigger();
+    `);
 
-      // Invalidates the in-process bound-routing-key cache. STATEMENT level, not
-      // ROW: the payload is unused because the handler reloads the whole set, so
-      // a multi-row change needs exactly one notification.
-      await client.query(`
-        CREATE OR REPLACE FUNCTION ${this.subscriptionsTable}_notify_trigger()
-        RETURNS trigger AS $$
-        BEGIN
-          PERFORM pg_notify('${this.subscriptionsChannel}', '');
-          RETURN NULL;
-        END;
-        $$ LANGUAGE plpgsql;
-      `);
+    // Invalidates the in-process bound-routing-key cache. STATEMENT level, not
+    // ROW: the payload is unused because the handler reloads the whole set, so
+    // a multi-row change needs exactly one notification.
+    await client.query(`
+      CREATE OR REPLACE FUNCTION ${this.subscriptionsTable}_notify_trigger()
+      RETURNS trigger AS $$
+      BEGIN
+        PERFORM pg_notify('${this.subscriptionsChannel}', '');
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
 
-      await client.query(`
-        DROP TRIGGER IF EXISTS ${this.subscriptionsTable}_notify ON ${this.subscriptionsTable};
-        CREATE TRIGGER ${this.subscriptionsTable}_notify
-        AFTER INSERT OR UPDATE OR DELETE ON ${this.subscriptionsTable}
-        FOR EACH STATEMENT EXECUTE FUNCTION ${this.subscriptionsTable}_notify_trigger();
-      `);
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    await client.query(`
+      DROP TRIGGER IF EXISTS ${this.subscriptionsTable}_notify ON ${this.subscriptionsTable};
+      CREATE TRIGGER ${this.subscriptionsTable}_notify
+      AFTER INSERT OR UPDATE OR DELETE ON ${this.subscriptionsTable}
+      FOR EACH STATEMENT EXECUTE FUNCTION ${this.subscriptionsTable}_notify_trigger();
+    `);
   }
 
   // Table name helpers

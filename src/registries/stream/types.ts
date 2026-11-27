@@ -43,6 +43,18 @@ export interface StreamWriter extends ResourceHandleIf {
   writeStart(data: Uint8Array): Promise<number>;
 }
 
+/**
+ * A stream's reader: the handle the VFS gives whoever opens a stream to read. Each read answers at
+ * most one of the writer's writes, whole when the size asked for holds it.
+ */
+export interface StreamReader extends ResourceHandleIf {
+  /** Whether it was let go for falling more than `STREAM_READER_BUFFER` behind, rather than the writer closing. */
+  readonly behind: boolean;
+}
+
+/** Whether `handle` is a stream's reader, as the VFS opens one to read. */
+export const isStreamReader = (handle: ResourceHandleIf): handle is StreamReader => typeof (handle as Partial<StreamReader>).behind === 'boolean';
+
 /** Whether `handle` is a stream's writer, as the VFS opens one to write. */
 export const isStreamWriter = (handle: ResourceHandleIf): handle is StreamWriter =>
   typeof (handle as Partial<StreamWriter>).onWanted === 'function' && typeof (handle as Partial<StreamWriter>).writeStart === 'function';

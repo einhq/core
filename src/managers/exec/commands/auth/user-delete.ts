@@ -2,6 +2,7 @@ import { dirname, join } from '@std/path';
 import { ADMIN_GID, ADMIN_UID, ADMIN_USERNAME } from '../../../../lib/access/mod.ts';
 import type { UserDeleted } from '../../../../lib/api/users.ts';
 import { parseArgs } from '../../../../lib/args/mod.ts';
+import { raiseLastIssuedId } from '../../../../lib/auth/issued-ids.ts';
 import { memberNames } from '../../../../lib/auth/member-gids.ts';
 import { userRole } from '../../../../lib/auth/roles.ts';
 import { shq } from '../../../../lib/shell-quote/mod.ts';
@@ -9,12 +10,13 @@ import { GroupAttrs } from '../../../../vfs/types/group.ts';
 import { UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
+import { stillNamed } from './home.ts';
 import { endSessionsOf } from './sessions.ts';
 import { removeLinksShownAs } from '../node/share/links.ts';
 
 export const userDelete = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
-    boolean: ['force'],
+    boolean: ['force', 'unused'],
     string: ['to'],
     alias: { f: 'force' },
   });
@@ -49,6 +51,19 @@ export const userDelete = async (cmd: Command): CmdReturn => {
 
     const userUid = user.attrs.uid;
 
+    // Nothing passes to anyone: the account goes only when nothing outside it names its uid.
+    if (flags.unused) {
+      if (flags.to !== undefined) {
+        await cmd.writeError(`user delete: --unused takes no --to: nothing passes to anyone\n`);
+        return 1;
+      }
+      const reasons = await stillNamed(cmd, username, userUid);
+      if (reasons.length > 0) {
+        await cmd.writeError(`user delete: '${username}' is still in use: ${reasons.join('; ')}\n`);
+        return 1;
+      }
+    }
+
     // Left out, the heir is the administrator, which is valid whether or not a user node carries that uid.
     const heirName = flags.to === undefined ? ADMIN_USERNAME : String(flags.to);
     const heirNode = await cmd.sys.vfs.get<UserAttrs>(cmd.access, `${cmd.env.USERS_PATH}/${heirName}`).catch(() => undefined);
@@ -62,8 +77,10 @@ export const userDelete = async (cmd: Command): CmdReturn => {
       return 1;
     }
 
-    // Before the account goes: a uid nothing names any more can be handed out again, and a
-    // failed delete is then retried with the nodes already handed over.
+    // Before the account goes: its uid is marked as given out, since nodes' birth and change uids,
+    // the audit trail and the access log go on naming it, and what it owned goes to the heir, so a
+    // failed delete is retried with the nodes already handed over.
+    await raiseLastIssuedId(cmd.sys.vfs, cmd.access, cmd.env.USERS_PATH, userUid);
     const released = await cmd.sys.vfs.releaseOwner(cmd.access, { kind: 'uid', id: userUid, to: heir.uid });
 
     // Out of every group first.
@@ -149,7 +166,8 @@ userDelete.spec = {
   name: 'user-delete',
   admin: true,
   effect: 'write' as const,
-  description: 'Delete a user account, its home, its own group, and its open sessions; what it owned goes to another user',
+  description:
+    'Delete a user account, its home, its own group, and its open sessions; what it owned goes to another user, or with --unused it goes only when nothing outside it names it',
   args: [
     {
       name: 'username',
@@ -159,6 +177,12 @@ userDelete.spec = {
   ],
   flags: [
     { name: 'to', type: 'user' as const, description: `user that takes over the nodes it owned (default ${ADMIN_USERNAME})` },
+    {
+      name: 'unused',
+      type: 'bool' as const,
+      description:
+        'delete only when nothing outside the account names it: no node it owns, made or changed, no ACL, audit or access-log record, no share link; its home may hold directories only',
+    },
     { name: 'force', type: 'bool' as const, description: 'force deletion even if errors occur' },
   ],
 };

@@ -65,3 +65,27 @@ Deno.test("releaseOwner of a share link's uid drops its entries everywhere and o
     await outer.dispose();
   }
 });
+
+Deno.test('countNamed counts the nodes naming an id, through mounts, but those left out', async () => {
+  const outer = await createTestVfs();
+  const inner = await createTestVfs();
+  try {
+    await outer.vfs.create(ADMIN_ACCESS, 'directory', '/', 'mnt', { props: { mode: 0o755 } });
+    await outer.vfs.mount(ADMIN_ACCESS, '/mnt', inner.vfs);
+
+    await outer.vfs.create(ADMIN_ACCESS, 'directory', '/', 'home', { props: { mode: 0o750, uid: 2001, gid: 2001 } });
+    await outer.vfs.create(ADMIN_ACCESS, 'directory', '/', 'made', { props: { mode: 0o755, birthtime: { uid: 2001, timestamp: Date.now() } } });
+    await outer.vfs.create(ADMIN_ACCESS, 'directory', '/mnt', 'shared', { props: { mode: 0o700, acl: [{ uid: 2001, mode: 0o4 }, { gid: 2001, mode: 0o4 }] } });
+    const home = (await outer.vfs.get(ADMIN_ACCESS, '/home')).id;
+
+    assertEquals(await outer.vfs.countNamed(ADMIN_ACCESS, { kind: 'uid', id: 2001 }, []), { owned: 1, acl: 1, born: 1, changed: 0, modified: 0 });
+    assertEquals(await outer.vfs.countNamed(ADMIN_ACCESS, { kind: 'uid', id: 2001 }, [home]), { owned: 0, acl: 1, born: 1, changed: 0, modified: 0 });
+    // A gid is named as owner and in ACLs only.
+    assertEquals(await outer.vfs.countNamed(ADMIN_ACCESS, { kind: 'gid', id: 2001 }, []), { owned: 1, acl: 1, born: 0, changed: 0, modified: 0 });
+
+    await assertRejects(() => outer.vfs.countNamed({ uid: 2002, gid: 2002, gids: [2002] }, { kind: 'uid', id: 2001 }, []));
+  } finally {
+    await inner.dispose();
+    await outer.dispose();
+  }
+});

@@ -288,7 +288,9 @@ pgTest('one type in name order walks the type and name index', async (t) => {
     });
 
     await t.step('a table made before the column has it on its named rows, and an update fills the rest', async () => {
+      // As tables from before versions were recorded, without the column.
       await ctx.pool.query(`ALTER TABLE ${attrsTable} DROP COLUMN node_type`);
+      await ctx.pool.query(`DELETE FROM ${ctx.prefix}_schema WHERE part = 'nodes'`);
       const again = new PgStore({ pgPool: ctx.pool, name: ctx.prefix });
       await again.initialize();
       const types = await nodeTypes();

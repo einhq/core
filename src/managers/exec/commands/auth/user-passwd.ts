@@ -1,11 +1,12 @@
 import { parseArgs } from '../../../../lib/args/mod.ts';
 import { isAdmin } from '../../../../lib/access/mod.ts';
-import { hasAccountPassword, isAccountPassword, setAccountPassword } from '../../../../lib/auth/account-password.ts';
+import { checkAccountPassword, hasAccountPassword, setAccountPassword } from '../../../../lib/auth/account-password.ts';
 import { userRole } from '../../../../lib/auth/roles.ts';
 import { isUserNode, UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { passwordReader } from './password-stdin.ts';
+import { endOtherSessionsOf } from './sessions.ts';
 
 export const userPasswd = async (cmd: Command): CmdReturn => {
   const flags = parseArgs(cmd.args, {
@@ -54,7 +55,8 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
     }
 
     // Anyone but an admin proves the current password, and a current password given is checked
-    // whoever gives it: an admin may leave it out, not get a wrong one past.
+    // whoever gives it: an admin may leave it out, not get a wrong one past. The check is tried no
+    // faster than a sign-in, so a session that is not its account's owner's cannot guess with it.
     if (!admin || oldPassword !== undefined) {
       if (!oldPassword) {
         await cmd.writeError('user passwd: current password must be provided (--old-password)\n');
@@ -65,7 +67,7 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
         await cmd.writeError('user passwd: no existing password found, contact admin\n');
         return 1;
       }
-      if (!await isAccountPassword(cmd.sys.vfs, userPath, oldPassword)) {
+      if (!await checkAccountPassword(cmd.sys.vfs, userPath, oldPassword, { from: cmd.from })) {
         await cmd.writeError('user passwd: authentication failed\n');
         return 1;
       }
@@ -77,6 +79,9 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
     if (user.attrs.mustResetPassword) {
       await cmd.sys.vfs.update<UserAttrs>({ ...cmd.access, admin: true }, userPath, { attrs: { mustResetPassword: false } });
     }
+
+    // Whoever signed in with the old password, or holds a cookie of such a sign-in, is signed out.
+    await endOtherSessionsOf(cmd, user.attrs.uid);
 
     if (cmd.json) {
       await cmd.writeJSON({ ok: true });
@@ -94,7 +99,7 @@ export const userPasswd = async (cmd: Command): CmdReturn => {
 userPasswd.spec = {
   name: 'user-passwd',
   effect: 'write' as const,
-  description: 'Change user password',
+  description: "Change user password; the account's other sign-ins end",
   args: [
     {
       name: 'username',

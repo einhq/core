@@ -6,7 +6,8 @@
  *   user-invite-accept <token> [--password=<p>|-]    whoever holds it sees which account it is for, and chooses its password
  *
  * The administrator sends the link however they like; EiN sends no e-mail. Choosing a password
- * with it spends it, sets the password whether or not the account had one, and signs in.
+ * with it spends it, sets the password whether or not the account had one, ends the account's
+ * other sign-ins, and signs in.
  */
 
 import { join } from '@std/path';
@@ -20,6 +21,7 @@ import { isUserNode, type UserAttrs } from '../../../../vfs/types/user.ts';
 import type { Command } from '../../command.ts';
 import type { CmdReturn } from '../../types.ts';
 import { passwordReader } from './password-stdin.ts';
+import { endOtherSessionsOf } from './sessions.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -110,6 +112,8 @@ export const userInviteAccept = async (cmd: Command): CmdReturn => {
     if (userNode.attrs.mustResetPassword) {
       await cmd.sys.vfs.update<UserAttrs>({ ...cmd.access, admin: true }, userPath, { attrs: { mustResetPassword: false } });
     }
+    // The account's sign-ins until now end, before this one begins.
+    await endOtherSessionsOf(cmd, userNode.attrs.uid);
     await cmd.login(username, password, flags.session);
 
     const answer: UserInviteAccepted = { username, ...(title ? { title } : {}), ...(email ? { email } : {}), signedIn: true };
@@ -125,7 +129,7 @@ userInviteAccept.spec = {
   name: 'user-invite-accept',
   guest: true,
   effect: 'read' as const,
-  description: 'Which account a sign-in link is for, and with --password, choose its password with it, which spends the link and signs in',
+  description: "Which account a sign-in link is for, and with --password, choose its password with it, which spends the link, ends the account's other sign-ins and signs in",
   args: [{ name: 'token', type: 'string' as const, description: 'the token after /invite/ in the link' }],
   flags: [
     { name: 'password', type: 'string' as const, writes: true, description: "the account's new password, as --password=<p>, or --password=- to read it from stdin" },

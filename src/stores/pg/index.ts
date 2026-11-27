@@ -17,7 +17,9 @@ import {
   type AuditRecord,
   type ChildLinkFilter,
   type EdgeMove,
+  type IdNamed,
   namedBy,
+  type NamedId,
   type NewChild,
   type Node,
   NodeAlreadyExistsError,
@@ -77,7 +79,7 @@ import {
   type TreeTables,
   TYPED_ORDER_REF,
 } from './query.ts';
-import { createExtension } from '../../lib/pg/mod.ts';
+import { createExtension, migrate, type Migration } from '../../lib/pg/mod.ts';
 import { AUDIT_RECENT_DAYS } from '../../lib/api/audit.ts';
 import { ulidToUuid, uuidAtTime, uuidTime, uuidToUlid } from './ulid-uuid.ts';
 import type { IndexDecl } from '../../lib/contributions/types.ts';
@@ -271,6 +273,15 @@ const indexLeaders = new Map<string, Set<string>>();
 /** How `indexLeaders` names an index's leading attr: by its path and the collation it is held in. */
 const leaderKey = (attr: string, collation: NodeQueryCollation = 'bytes'): string => `${attr} ${collation}`;
 
+/**
+ * The leaders of the declared `indexes` an order by them can read: an order by the leading attr
+ * excludes the rows without it, which a partial index on that same attr leaves out too; one partial
+ * on another attr cannot serve it.
+ */
+const declaredLeaders = (indexes: IndexDecl[]): string[] =>
+  indexes.filter((index) => index.using === undefined && index.on.length > 0 && (!index.partial || index.partial === index.on[0]))
+    .map((index) => leaderKey(index.on[0], index.collation));
+
 /** The access columns of a row, read under `prefix` (`p_mode` and so on for `p_`). */
 const rowOwnership = (row: Record<string, unknown>, prefix = ''): Ownership => ({
   mode: row[`${prefix}mode`] as Mode,
@@ -327,7 +338,7 @@ export class PgStore implements NodeStore {
     pathCaches.set(name, this.paths);
     this.trees = treeCaches.get(name) ?? new TreeCache();
     treeCaches.set(name, this.trees);
-    this.leaders = indexLeaders.get(name) ?? new Set(ORDERED_INDEX_LEADERS.map((attr) => leaderKey(attr)));
+    this.leaders = indexLeaders.get(name) ?? new Set([...ORDERED_INDEX_LEADERS.map((attr) => leaderKey(attr)), ...declaredLeaders(CORE_ATTR_INDEXES)]);
     indexLeaders.set(name, this.leaders);
     this.plan = { ...DEFAULT_QUERY_PLAN, ...config.queryPlan };
   }
@@ -399,306 +410,312 @@ export class PgStore implements NodeStore {
     this.initialized = true;
   }
 
+  /** Brings the tables to the store's schema version; see `src/lib/pg/schema.ts`. */
   private async createSchema(): Promise<void> {
-    const conn = await this.pool.connect();
-    try {
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.nodesTable} (
-          id VARCHAR(26) PRIMARY KEY,
-          type VARCHAR(64) NOT NULL,
-          mode INTEGER NOT NULL DEFAULT 493,
-          uid INTEGER NOT NULL DEFAULT 0,
-          gid INTEGER NOT NULL DEFAULT 0,
-          acl JSONB,
-          birth_uid INTEGER NOT NULL,
-          birth_time TIMESTAMPTZ NOT NULL,
-          change_uid INTEGER NOT NULL,
-          change_time TIMESTAMPTZ NOT NULL,
-          mod_uid INTEGER NOT NULL,
-          mod_time TIMESTAMPTZ NOT NULL,
-          softlink VARCHAR(256),
-          tier VARCHAR(16),
-          reach INTEGER
-        )
-      `);
-      // A table made before `reach` gains the column here, empty; `fillReach` fills it. Looked up
-      // first, so a boot that has nothing to add asks for no exclusive lock, and bounded, so one
-      // stuck behind a long reader fails instead of hanging (ein/core#41).
-      const hasReach = await conn.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'reach'`,
-        [this.nodesTable],
-      );
-      if (hasReach.rowCount === 0) {
-        await conn.query(`SET lock_timeout = '10s'`);
-        try {
-          await conn.query(`ALTER TABLE ${this.nodesTable} ADD COLUMN IF NOT EXISTS reach INTEGER`);
-        } finally {
-          await conn.query(`RESET lock_timeout`);
-        }
-      }
-      // A number never changes its formula and is never given again, so a process keeps what it
-      // has read until `pruneClasses` deletes the class.
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.reachTable} (
-          id SERIAL PRIMARY KEY,
-          key TEXT NOT NULL UNIQUE,
-          formula JSONB NOT NULL
-        )
-      `);
-      await conn.query(`CREATE SEQUENCE IF NOT EXISTS ${this.reachPrunes} OWNED BY ${this.reachTable}.id`);
+    await migrate(this.pool, { mount: this.config.name, part: 'nodes', table: this.nodesTable, migrations: this.migrations() });
+  }
 
-      // `node_type` repeats the node's type beside its attrs, so one index can hold a type's rows
-      // in the order of an attr (`type_name_sorted_<language>`); no attrs index reaches the nodes table.
-      // Every insert sets it. A table made before the column has it filled once for its named
-      // rows, the only ones that index holds, and an attrs update fills it for a row without.
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.attrsTable} (
-          node_id VARCHAR(26) PRIMARY KEY REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
-          node_type VARCHAR(64),
-          attributes JSONB NOT NULL DEFAULT '{}'
-        )
-      `);
-      const typed = await conn.query(
-        `SELECT 1 FROM pg_attribute WHERE attrelid = $1::regclass AND attname = 'node_type' AND NOT attisdropped`,
-        [this.attrsTable],
-      );
-      if (typed.rows.length === 0) {
-        await conn.query(`ALTER TABLE ${this.attrsTable} ADD COLUMN node_type VARCHAR(64)`);
-        await conn.query(`
-          UPDATE ${this.attrsTable} a SET node_type = n.type
-          FROM ${this.nodesTable} n
-          WHERE n.id = a.node_id AND (${attrTextExpr(TYPED_ORDER_REF, 'a.attributes')}) IS NOT NULL
-        `);
-      }
+  /** The store's schema, in order. A change is a new migration at the end, never an edit to one here. */
+  private migrations(): Migration[] {
+    return [
+      { name: 'tables', run: (conn) => this.createTables(conn) },
+      {
+        name: 'reach column',
+        // A table made before `reach` gains the column, empty; `fillReach` fills it.
+        run: async (conn) => void await conn.query(`ALTER TABLE ${this.nodesTable} ADD COLUMN IF NOT EXISTS reach INTEGER`),
+      },
+      { name: 'node type beside the attrs', run: (conn) => this.addNodeType(conn) },
+      { name: 'hierarchy vacuumed sooner', run: (conn) => this.vacuumHierarchySooner(conn) },
+      { name: 'replaced indexes dropped', run: (conn) => this.dropReplacedIndexes(conn) },
+    ];
+  }
 
-      // PK is (parent_id, name) to support hard links - same child can appear
-      // multiple times under same parent with different names
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.hierarchyTable} (
-          parent_id VARCHAR(26) NOT NULL REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
-          child_id VARCHAR(26) NOT NULL REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
-          name VARCHAR(255) NOT NULL,
-          position INTEGER NOT NULL DEFAULT 0,
-          PRIMARY KEY (parent_id, name)
-        )
-      `);
-      // A child count is an index-only scan, which stays index-only only while the visibility map
-      // is fresh. Pipeline instances are made and pruned all day, and at the default scale factor
-      // (a fifth of the table) a vacuum comes round only after hundreds of thousands of changes,
-      // leaving the count reading most of its rows from the heap (ein/core#747). Set only when
-      // missing: the ALTER takes a lock that would wait behind a running vacuum on every boot.
-      const vacuumOptions = ['autovacuum_vacuum_scale_factor=0.01', 'autovacuum_vacuum_insert_scale_factor=0.01'];
-      const options = await conn.query(`SELECT reloptions FROM pg_class WHERE oid = $1::regclass`, [this.hierarchyTable]);
-      const set: string[] = options.rows[0]?.reloptions ?? [];
-      if (!vacuumOptions.every((option) => set.includes(option))) {
-        await conn.query(`ALTER TABLE ${this.hierarchyTable} SET (${vacuumOptions.join(', ')})`);
-      }
+  private async createTables(conn: PoolClient): Promise<void> {
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.nodesTable} (
+        id VARCHAR(26) PRIMARY KEY,
+        type VARCHAR(64) NOT NULL,
+        mode INTEGER NOT NULL DEFAULT 493,
+        uid INTEGER NOT NULL DEFAULT 0,
+        gid INTEGER NOT NULL DEFAULT 0,
+        acl JSONB,
+        birth_uid INTEGER NOT NULL,
+        birth_time TIMESTAMPTZ NOT NULL,
+        change_uid INTEGER NOT NULL,
+        change_time TIMESTAMPTZ NOT NULL,
+        mod_uid INTEGER NOT NULL,
+        mod_time TIMESTAMPTZ NOT NULL,
+        softlink VARCHAR(256),
+        tier VARCHAR(16),
+        reach INTEGER
+      )
+    `);
+    // A number never changes its formula and is never given again, so a process keeps what it
+    // has read until `pruneClasses` deletes the class.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.reachTable} (
+        id SERIAL PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        formula JSONB NOT NULL
+      )
+    `);
+    await conn.query(`CREATE SEQUENCE IF NOT EXISTS ${this.reachPrunes} OWNED BY ${this.reachTable}.id`);
 
-      // Create indexes for common queries
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_child_idx
-        ON ${this.hierarchyTable}(child_id)
-      `);
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_parent_child_idx
-        ON ${this.hierarchyTable}(parent_id, child_id)
-      `);
+    // `node_type` repeats the node's type beside its attrs, so one index can hold a type's rows
+    // in the order of an attr (`type_name_sorted_<language>`); no attrs index reaches the nodes table.
+    // Every insert sets it.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.attrsTable} (
+        node_id VARCHAR(26) PRIMARY KEY REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
+        node_type VARCHAR(64),
+        attributes JSONB NOT NULL DEFAULT '{}'
+      )
+    `);
+    // PK is (parent_id, name) to support hard links - same child can appear
+    // multiple times under same parent with different names
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.hierarchyTable} (
+        parent_id VARCHAR(26) NOT NULL REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
+        child_id VARCHAR(26) NOT NULL REFERENCES ${this.nodesTable}(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (parent_id, name)
+      )
+    `);
+    // Create indexes for common queries
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_child_idx
+      ON ${this.hierarchyTable}(child_id)
+    `);
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_parent_child_idx
+      ON ${this.hierarchyTable}(parent_id, child_id)
+    `);
 
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.nodesTable}_type_idx
-        ON ${this.nodesTable}(type)
-      `);
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_parent_order_idx
-        ON ${this.hierarchyTable}(parent_id, position, name);
-      `);
-      // Backlinks: "what points at this path, or under it?" (findSoftlinks, findSoftlinksUnder).
-      // Byte-ordered, so a path prefix is one range scan whatever the database's collation, and
-      // partial, since only softlink nodes have a target at all. It takes the place of an index in
-      // the default collation, which cannot serve that range.
-      await conn.query(`DROP INDEX IF EXISTS ${this.nodesTable}_softlink_idx`);
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.nodesTable}_softlink_c_idx
-        ON ${this.nodesTable} ((softlink COLLATE "C"))
-        WHERE softlink IS NOT NULL
-      `);
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.nodesTable}_type_idx
+      ON ${this.nodesTable}(type)
+    `);
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.hierarchyTable}_parent_order_idx
+      ON ${this.hierarchyTable}(parent_id, position, name);
+    `);
+    // Backlinks: "what points at this path, or under it?" (findSoftlinks, findSoftlinksUnder).
+    // Byte-ordered, so a path prefix is one range scan whatever the database's collation, and
+    // partial, since only softlink nodes have a target at all.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.nodesTable}_softlink_c_idx
+      ON ${this.nodesTable} ((softlink COLLATE "C"))
+      WHERE softlink IS NOT NULL
+    `);
 
-      await this.createAuditTrail(conn);
+    await this.createAuditTrail(conn);
 
-      // The access log: sign-ins, sign-outs, share links opened and downloads (`appendAccessLog`).
-      // Ids are monotonic ULIDs, as text: a range of them is a range of time, which reads and the purge use.
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.accessLogTable} (
-          id VARCHAR(26) PRIMARY KEY,
-          at TIMESTAMPTZ NOT NULL,
-          event VARCHAR(32) NOT NULL,
-          uid INTEGER,
-          sid TEXT,
-          from_addr TEXT,
-          via VARCHAR(16),
-          method VARCHAR(16),
-          reason TEXT,
-          link_id TEXT,
-          path TEXT,
-          count INTEGER
-        )
-      `);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_uid_idx ON ${this.accessLogTable} (uid, id)`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_event_idx ON ${this.accessLogTable} (event, id)`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_sid_idx ON ${this.accessLogTable} (sid, id) WHERE sid IS NOT NULL`);
-      await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_path_idx ON ${this.accessLogTable} (path text_pattern_ops)`);
+    // The access log: sign-ins, sign-outs, share links opened and downloads (`appendAccessLog`).
+    // Ids are monotonic ULIDs, as text: a range of them is a range of time, which reads and the purge use.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.accessLogTable} (
+        id VARCHAR(26) PRIMARY KEY,
+        at TIMESTAMPTZ NOT NULL,
+        event VARCHAR(32) NOT NULL,
+        uid INTEGER,
+        sid TEXT,
+        from_addr TEXT,
+        via VARCHAR(16),
+        method VARCHAR(16),
+        reason TEXT,
+        link_id TEXT,
+        path TEXT,
+        count INTEGER
+      )
+    `);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_uid_idx ON ${this.accessLogTable} (uid, id)`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_event_idx ON ${this.accessLogTable} (event, id)`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_sid_idx ON ${this.accessLogTable} (sid, id) WHERE sid IS NOT NULL`);
+    await conn.query(`CREATE INDEX IF NOT EXISTS ${this.accessLogTable}_path_idx ON ${this.accessLogTable} (path text_pattern_ops)`);
 
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${this.storageDeletesTable} (
-          id VARCHAR(26) PRIMARY KEY,
-          type VARCHAR(64) NOT NULL
-        )
-      `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${this.storageDeletesTable} (
+        id VARCHAR(26) PRIMARY KEY,
+        type VARCHAR(64) NOT NULL
+      )
+    `);
 
-      // Attribute-query indexes. The expressions must match what query.ts
-      // emits (same COALESCE shape, same COLLATE "C") or the planner won't use
-      // them — attrSortExpr() is the single source for both.
-      const sha256Expr = attrSortExpr('sha256');
+    // Attribute-query indexes. The expressions must match what query.ts
+    // emits (same COALESCE shape, same COLLATE "C") or the planner won't use
+    // them — attrSortExpr() is the single source for both.
+    const sha256Expr = attrSortExpr('sha256');
 
-      // Serves the per-hash equality lookups the `duplicates` command runs after
-      // grouping by checksum. Partial: most attr rows have no sha256, and an
-      // `= $1` lookup implies IS NOT NULL so the planner can still use it.
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_sha256_idx
-        ON ${this.attrsTable} ((${sha256Expr}), node_id)
-        WHERE (attributes->>'sha256') IS NOT NULL
-      `);
-      // Every embedding of one kind, in id order: the batch passes page through a kind with a
-      // keyset cursor on the node id, which this index serves from the cursor on. Without it a
-      // page is a walk of the whole attrs table in id order, through the shared buffers the
-      // vector indexes need for search.
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_embedding_type_idx
-        ON ${this.attrsTable} ((${attrSortExpr('embeddingType')}), node_id)
-        WHERE (attributes->>'embeddingType') IS NOT NULL
-      `);
-      // The indexes on module attrs — capture time, faces, album spans, events, residences, dated
-      // partnerships, cameras — are the modules' to declare (`mod.json` `indexes`) and are made by
-      // `ensureAttrIndexes` at `mod setup`, under the names they had here, so an archive that
-      // already has them builds nothing.
+    // Serves the per-hash equality lookups the `duplicates` command runs after
+    // grouping by checksum. Partial: most attr rows have no sha256, and an
+    // `= $1` lookup implies IS NOT NULL so the planner can still use it.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_sha256_idx
+      ON ${this.attrsTable} ((${sha256Expr}), node_id)
+      WHERE (attributes->>'sha256') IS NOT NULL
+    `);
+    // Every embedding of one kind, in id order: the batch passes page through a kind with a
+    // keyset cursor on the node id, which this index serves from the cursor on. Without it a
+    // page is a walk of the whole attrs table in id order, through the shared buffers the
+    // vector indexes need for search.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_embedding_type_idx
+      ON ${this.attrsTable} ((${attrSortExpr('embeddingType')}), node_id)
+      WHERE (attributes->>'embeddingType') IS NOT NULL
+    `);
+    // The indexes on module attrs — capture time, faces, album spans, events, residences, dated
+    // partnerships, cameras — are the modules' to declare (`mod.json` `indexes`) and are made by
+    // `ensureAttrIndexes` at `mod setup`, under the names they had here, so an archive that
+    // already has them builds nothing.
 
-      // Substring search on a name — the `contains` operator. `%foo%` cannot be
-      // rewritten into a range, so no btree can serve it; a trigram index makes
-      // it a lookup.
-      //
-      // GIN over the *uncollated* projection, which is what
-      // `conditionSql`'s `contains` branch emits — a COLLATE "C" wrapper here
-      // would be a different expression and the planner would ignore the index.
-      // Not partial: `name` is required on files and carried by most other node
-      // types, so there is no minority to exclude.
-      await createExtension(conn, 'pg_trgm');
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_name_trgm_idx
-        ON ${this.attrsTable} USING GIN ((${attrTextExpr('name')}) gin_trgm_ops)
-      `);
+    // Substring search on a name — the `contains` operator. `%foo%` cannot be
+    // rewritten into a range, so no btree can serve it; a trigram index makes
+    // it a lookup.
+    //
+    // GIN over the *uncollated* projection, which is what
+    // `conditionSql`'s `contains` branch emits — a COLLATE "C" wrapper here
+    // would be a different expression and the planner would ignore the index.
+    // Not partial: `name` is required on files and carried by most other node
+    // types, so there is no minority to exclude.
+    await createExtension(conn, 'pg_trgm');
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_name_trgm_idx
+      ON ${this.attrsTable} USING GIN ((${attrTextExpr('name')}) gin_trgm_ops)
+    `);
 
-      // The `name_sorted_<language>` and `type_name_sorted_<language>` indexes take the place of
-      // these two, which held names in Swedish alone.
-      await conn.query(`DROP INDEX IF EXISTS ${this.attrsTable}_name_sorted_idx`);
-      await conn.query(`DROP INDEX IF EXISTS ${this.attrsTable}_type_name_sorted_idx`);
-      await this.createAttrIndexes(conn, CORE_ATTR_INDEXES);
+    await this.createAttrIndexes(conn, CORE_ATTR_INDEXES);
 
-      // One type's named rows in name order, per language — search's people or albums by name.
-      // `name_sorted_<language>` cannot serve that: the type is a filter on the joined nodes, which
-      // the planner takes as independent of the name, so it expects a few rows of a type where a
-      // fifth of the names may be people, and bitmap-scans and sorts every name past the cursor.
-      for (const language of NAME_LANGUAGES) {
-        await conn.query(`
-          CREATE INDEX IF NOT EXISTS ${this.attrsTable}_type_name_sorted_${language}_idx
-          ON ${this.attrsTable} (node_type, (${attrSortExpr(TYPED_ORDER_REF, 'attributes', language)}), node_id)
-          WHERE (${attrTextExpr(TYPED_ORDER_REF)}) IS NOT NULL
-        `);
-      }
+    // Counts the derivatives, which is how the dashboard knows how much of
+    // the library is *originals* and therefore how much is left to index.
+    // Partial and key-less: the only question asked of it is "how many rows
+    // have this key", so the predicate is the whole index and it stays a
+    // fraction of the size of the table it replaces a scan over.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_source_idx
+      ON ${this.attrsTable} (node_id)
+      WHERE (attributes->>'sourceId') IS NOT NULL
+    `);
 
-      // Counts the derivatives, which is how the dashboard knows how much of
-      // the library is *originals* and therefore how much is left to index.
-      // Partial and key-less: the only question asked of it is "how many rows
-      // have this key", so the predicate is the whole index and it stays a
-      // fraction of the size of the table it replaces a scan over.
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_source_idx
-        ON ${this.attrsTable} (node_id)
-        WHERE (attributes->>'sourceId') IS NOT NULL
-      `);
-
-      // Planner statistics for the one expression every media query filters on
-      // and no index carries stats for: `sourceId IS NULL`, the "not a
-      // rendition" predicate. A partial index gets no statistics of its own, and
-      // for `IS NULL` on an expression it knows nothing about PostgreSQL assumes
-      // one row in two hundred — far too few, which makes a skip-scan plus a full
-      // sort look cheaper than an ordered scan of the time index. The object is
-      // created once; an ANALYZE straight after is what fills it, since
-      // autovacuum only comes round on its own schedule.
-      const sourceStats = `${this.attrsTable}_source_stats`;
-      const existing = await conn.query(`SELECT 1 FROM pg_statistic_ext WHERE stxname = $1`, [sourceStats]);
-      if (existing.rows.length === 0) {
-        await conn.query(`CREATE STATISTICS IF NOT EXISTS ${sourceStats} ON ((attributes->>'sourceId')) FROM ${this.attrsTable}`);
-        await conn.query(`ANALYZE ${this.attrsTable}`);
-      }
-
-      // Pipeline instance state, for the dashboard's status counts. Partial on
-      // pipelineName so the index covers instance nodes only (a few percent of
-      // the table), and **status leads**: every query filters status with
-      // eq/in and groups by pipelineName, so status is the selective column.
-      // It cannot serve an index-only scan (an expression index never does), so a
-      // count reads each matched row: pipeline-overview counts only the
-      // statuses that are not `completed`, which are few.
-      //
-      // Leading with pipelineName instead would leave the selectivity to the
-      // partial predicate, and there are no statistics for a JSONB expression —
-      // the planner estimates `IS NOT NULL` at ~99% and picks a seq scan. Hence
-      // also the ANALYZE below.
-      //
-      // `status` itself has statistics, filled by that ANALYZE. Without them `= 'running'` is
-      // taken for one row in two hundred of the whole table, where it matches a handful, and
-      // the dashboard's running lists get a parallel plan whose workers take longer to start
-      // than the index scan takes to answer (ein/core#747).
-      await conn.query(`CREATE STATISTICS IF NOT EXISTS ${this.attrsTable}_status_stats ON ((attributes->>'status')) FROM ${this.attrsTable}`);
-      const statusExpr = attrSortExpr('status');
-      const pipelineExpr = attrSortExpr('pipelineName');
-      const completedAtExpr = attrSortExpr('completedAt');
-
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_pipeline_status_idx
-        ON ${this.attrsTable} ((${statusExpr}), (${pipelineExpr}), node_id)
-        WHERE (attributes->>'pipelineName') IS NOT NULL
-      `);
-      // Serves instance listings ordered newest-first and pruning by age.
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_pipeline_completed_idx
-        ON ${this.attrsTable} ((${completedAtExpr}), node_id)
-        WHERE (attributes->>'pipelineName') IS NOT NULL
-      `);
-      // The same for step nodes, for pipeline-overview's unfinished-step count, which is
-      // otherwise a scan of the whole attrs table.
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_step_status_idx
-        ON ${this.attrsTable} ((${statusExpr}), node_id)
-        WHERE (attributes->>'stepName') IS NOT NULL
-      `);
-      // Steps whose input nothing can process, which `health` counts. Only failed steps carry a
-      // cause, so the index holds few rows; the planner proves its predicate from the query's
-      // `= $1` on the same projection.
-      const causeExpr = attrSortExpr('cause');
-      await conn.query(`
-        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_step_cause_idx
-        ON ${this.attrsTable} ((${causeExpr}), node_id)
-        WHERE (attributes->>'stepName') IS NOT NULL AND (attributes->>'cause') IS NOT NULL
-      `);
-
-      // A fresh index on an existing table is unusable until it has statistics,
-      // and createSchema runs on every boot against a table that may already
-      // hold millions of rows — autovacuum would get there eventually, leaving
-      // the dashboard on seq scans until it did.
+    // Planner statistics for the one expression every media query filters on
+    // and no index carries stats for: `sourceId IS NULL`, the "not a
+    // rendition" predicate. A partial index gets no statistics of its own, and
+    // for `IS NULL` on an expression it knows nothing about PostgreSQL assumes
+    // one row in two hundred — far too few, which makes a skip-scan plus a full
+    // sort look cheaper than an ordered scan of the time index. The object is
+    // created once; an ANALYZE straight after is what fills it, since
+    // autovacuum only comes round on its own schedule.
+    const sourceStats = `${this.attrsTable}_source_stats`;
+    const existing = await conn.query(`SELECT 1 FROM pg_statistic_ext WHERE stxname = $1`, [sourceStats]);
+    if (existing.rows.length === 0) {
+      await conn.query(`CREATE STATISTICS IF NOT EXISTS ${sourceStats} ON ((attributes->>'sourceId')) FROM ${this.attrsTable}`);
       await conn.query(`ANALYZE ${this.attrsTable}`);
-    } finally {
-      conn.release();
     }
+
+    // Pipeline instance state, for the dashboard's status counts. Partial on
+    // pipelineName so the index covers instance nodes only (a few percent of
+    // the table), and **status leads**: every query filters status with
+    // eq/in and groups by pipelineName, so status is the selective column.
+    // It cannot serve an index-only scan (an expression index never does), so a
+    // count reads each matched row: pipeline-overview counts only the
+    // statuses that are not `completed`, which are few.
+    //
+    // Leading with pipelineName instead would leave the selectivity to the
+    // partial predicate, and there are no statistics for a JSONB expression —
+    // the planner estimates `IS NOT NULL` at ~99% and picks a seq scan. Hence
+    // also the ANALYZE below.
+    //
+    // `status` itself has statistics, filled by that ANALYZE. Without them `= 'running'` is
+    // taken for one row in two hundred of the whole table, where it matches a handful, and
+    // the dashboard's running lists get a parallel plan whose workers take longer to start
+    // than the index scan takes to answer (ein/core#747).
+    await conn.query(`CREATE STATISTICS IF NOT EXISTS ${this.attrsTable}_status_stats ON ((attributes->>'status')) FROM ${this.attrsTable}`);
+    const statusExpr = attrSortExpr('status');
+    const pipelineExpr = attrSortExpr('pipelineName');
+    const completedAtExpr = attrSortExpr('completedAt');
+
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_pipeline_status_idx
+      ON ${this.attrsTable} ((${statusExpr}), (${pipelineExpr}), node_id)
+      WHERE (attributes->>'pipelineName') IS NOT NULL
+    `);
+    // Serves instance listings ordered newest-first and pruning by age.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_pipeline_completed_idx
+      ON ${this.attrsTable} ((${completedAtExpr}), node_id)
+      WHERE (attributes->>'pipelineName') IS NOT NULL
+    `);
+    // The same for step nodes, for pipeline-overview's unfinished-step count, which is
+    // otherwise a scan of the whole attrs table.
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_step_status_idx
+      ON ${this.attrsTable} ((${statusExpr}), node_id)
+      WHERE (attributes->>'stepName') IS NOT NULL
+    `);
+    // Steps whose input nothing can process, which `health` counts. Only failed steps carry a
+    // cause, so the index holds few rows; the planner proves its predicate from the query's
+    // `= $1` on the same projection.
+    const causeExpr = attrSortExpr('cause');
+    await conn.query(`
+      CREATE INDEX IF NOT EXISTS ${this.attrsTable}_step_cause_idx
+      ON ${this.attrsTable} ((${causeExpr}), node_id)
+      WHERE (attributes->>'stepName') IS NOT NULL AND (attributes->>'cause') IS NOT NULL
+    `);
+
+    // A fresh index on an existing table is unusable until it has statistics, and the table may
+    // already hold millions of rows: autovacuum would get there eventually, leaving the dashboard
+    // on seq scans until it did.
+    await conn.query(`ANALYZE ${this.attrsTable}`);
+  }
+
+  /**
+   * `node_type` repeats the node's type beside its attrs, for the `type_name_sorted_<language>`
+   * indexes. A table made before the column has it filled once for its named rows, the only ones
+   * those indexes hold, and an attrs update fills it for a row without.
+   */
+  private async addNodeType(conn: PoolClient): Promise<void> {
+    const typed = await conn.query(
+      `SELECT 1 FROM pg_attribute WHERE attrelid = $1::regclass AND attname = 'node_type' AND NOT attisdropped`,
+      [this.attrsTable],
+    );
+    if (typed.rows.length === 0) {
+      await conn.query(`ALTER TABLE ${this.attrsTable} ADD COLUMN node_type VARCHAR(64)`);
+      await conn.query(`
+        UPDATE ${this.attrsTable} a SET node_type = n.type
+        FROM ${this.nodesTable} n
+        WHERE n.id = a.node_id AND (${attrTextExpr(TYPED_ORDER_REF, 'a.attributes')}) IS NOT NULL
+      `);
+    }
+
+    // One type's named rows in name order, per language — search's people or albums by name.
+    // `name_sorted_<language>` cannot serve that: the type is a filter on the joined nodes, which
+    // the planner takes as independent of the name, so it expects a few rows of a type where a
+    // fifth of the names may be people, and bitmap-scans and sorts every name past the cursor.
+    for (const language of NAME_LANGUAGES) {
+      await conn.query(`
+        CREATE INDEX IF NOT EXISTS ${this.attrsTable}_type_name_sorted_${language}_idx
+        ON ${this.attrsTable} (node_type, (${attrSortExpr(TYPED_ORDER_REF, 'attributes', language)}), node_id)
+        WHERE (${attrTextExpr(TYPED_ORDER_REF)}) IS NOT NULL
+      `);
+    }
+
+    await conn.query(`ANALYZE ${this.attrsTable}`);
+  }
+
+  private async vacuumHierarchySooner(conn: PoolClient): Promise<void> {
+    // A child count is an index-only scan, which stays index-only only while the visibility map
+    // is fresh. Pipeline instances are made and pruned all day, and at the default scale factor
+    // (a fifth of the table) a vacuum comes round only after hundreds of thousands of changes,
+    // leaving the count reading most of its rows from the heap (ein/core#747).
+    await conn.query(`ALTER TABLE ${this.hierarchyTable} SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_insert_scale_factor = 0.01)`);
+  }
+
+  /** The indexes others took the place of. */
+  private async dropReplacedIndexes(conn: PoolClient): Promise<void> {
+    // By `softlink_c_idx`: one in the default collation cannot serve a path prefix as a range.
+    await conn.query(`DROP INDEX IF EXISTS ${this.nodesTable}_softlink_idx`);
+    // By `name_sorted_<language>` and `type_name_sorted_<language>`: these held names in Swedish alone.
+    await conn.query(`DROP INDEX IF EXISTS ${this.attrsTable}_name_sorted_idx`);
+    await conn.query(`DROP INDEX IF EXISTS ${this.attrsTable}_type_name_sorted_idx`);
   }
 
   /**
@@ -1040,10 +1057,8 @@ export class PgStore implements NodeStore {
       }
       const keys = index.on.map((attr) => `(${attrSortExpr(attrRefOf(attr), 'attributes', index.collation)})`).join(', ');
       await conn.query(`CREATE INDEX IF NOT EXISTS ${this.attrsTable}_${index.name}_idx ON ${this.attrsTable} (${keys}, node_id)${where}`);
-      // An order by the leading attr excludes the rows without it, which a partial index on that
-      // same attr leaves out too; one partial on another attr cannot serve it.
-      if (index.on.length > 0 && (!index.partial || index.partial === index.on[0])) this.leaders.add(leaderKey(index.on[0], index.collation));
     }
+    for (const leader of declaredLeaders(indexes)) this.leaders.add(leader);
   }
 
   /**
@@ -1518,6 +1533,28 @@ export class PgStore implements NodeStore {
       throw error;
     }
     return released;
+  }
+
+  /** One pass over the nodes: the uid and acl columns have no index for this, and it is rare. */
+  async countNamed(named: NamedId, except: NodeId[]): Promise<IdNamed> {
+    // A column name, from the closed union — never caller text.
+    const column = named.kind;
+    const byUid = named.kind === 'uid';
+    const [row] = await this.runParameterized({
+      text: `
+        SELECT
+          count(*) FILTER (WHERE ${column} = $1) AS owned,
+          count(*) FILTER (WHERE acl @> $2::jsonb) AS acl,
+          count(*) FILTER (WHERE $4 AND birth_uid = $1) AS born,
+          count(*) FILTER (WHERE $4 AND change_uid = $1) AS changed,
+          count(*) FILTER (WHERE $4 AND mod_uid = $1) AS modified
+        FROM ${this.nodesTable}
+        WHERE (${column} = $1 OR acl @> $2::jsonb OR ($4 AND (birth_uid = $1 OR change_uid = $1 OR mod_uid = $1)))
+          AND NOT (id = ANY($3))
+      `,
+      values: [named.id, JSON.stringify([{ [column]: named.id }]), except, byUid],
+    });
+    return { owned: Number(row.owned), acl: Number(row.acl), born: Number(row.born), changed: Number(row.changed), modified: Number(row.modified) };
   }
 
   /** Backlink lookup, served by the partial `C`-collated index on `softlink`. */

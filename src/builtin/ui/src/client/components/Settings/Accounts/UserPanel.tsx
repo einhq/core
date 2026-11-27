@@ -516,7 +516,7 @@ function SignInSection({ user, users, groups, sessions, run, onDeleted }: SignIn
       title='Sign-in and removal'
       lead={user.inactive
         ? `${name} can't sign in. Enabling lets them sign in again with their password.`
-        : `Disabling signs ${name} out everywhere and stops them signing in. Nothing they own is changed.`}
+        : `Disabling signs ${name} out everywhere and stops them signing in. Nothing they own is changed, but a home folder with nothing in it is removed, and made again if they are enabled.`}
       error={error}
       onDismiss={() => setError(null)}
     >

@@ -4,7 +4,8 @@
  * A NodeStore implementation that reflects a host filesystem directory in real-time.
  * Uses base64-encoded relative paths as IDs for O(1) lookups.
  * Note: IDs will change if files are moved/renamed.
- * No caching - every operation reads directly from the filesystem.
+ * Every operation reads directly from the filesystem; only the type sniffed from a file's first
+ * bytes is kept, while the file's size and modification time are unchanged.
  *
  * Supported node types: directory, file, softlink
  */
@@ -47,6 +48,12 @@ type WalkEntry = {
   stat: Deno.FileInfo;
 };
 
+/** Entries a listing reads at once: each is an `lstat`, and a file without a known extension an open and a read. */
+const LIST_CONCURRENCY = 32;
+
+/** Sniffed types a store keeps; past this many the oldest is dropped. */
+const SNIFFED_MAX = 4096;
+
 // ===== FilesystemStore Implementation =====
 
 type FilesystemStoreConfig = NodeStoreConfig & {
@@ -63,6 +70,7 @@ export class FilesystemStore implements NodeStore {
   private _rootId?: NodeId;
   private initialized = false;
   private rootPath: string;
+  private sniffed = new Map<string, { size: number; mtime: number; mimetype: string }>();
 
   constructor(public config: FilesystemStoreConfig) {
     // Normalize the root path
@@ -142,21 +150,7 @@ export class FilesystemStore implements NodeStore {
       attrs.size = stat.size;
       attrs.mimetype = await getMimeFromExt(absolutePath);
       if (attrs.mimetype === MIME_DEFAULT_TYPE && stat.size > 0) {
-        // No known extension: sniff content (magic bytes + text heuristic)
-        try {
-          const file = await Deno.open(absolutePath, { read: true });
-          try {
-            const buf = new Uint8Array(MIME_SAMPLE_BYTES);
-            const n = await file.read(buf);
-            if (n) {
-              attrs.mimetype = await getMimeFromBuffer(buf.subarray(0, n));
-            }
-          } finally {
-            file.close();
-          }
-        } catch {
-          // unreadable: keep the default type
-        }
+        attrs.mimetype = await this.sniffMime(absolutePath, stat);
       }
     }
 
@@ -183,6 +177,41 @@ export class FilesystemStore implements NodeStore {
     };
 
     return node;
+  }
+
+  /**
+   * The type of a file with no known extension, from its first bytes (magic bytes and a text
+   * heuristic). It is kept while the file's size and modification time stay the same, so a
+   * directory of scripts listed again opens none of them.
+   */
+  private async sniffMime(absolutePath: string, stat: Deno.FileInfo): Promise<string> {
+    const mtime = stat.mtime?.getTime();
+    const known = this.sniffed.get(absolutePath);
+    if (known && mtime !== undefined && known.size === stat.size && known.mtime === mtime) return known.mimetype;
+
+    let mimetype: string = MIME_DEFAULT_TYPE;
+    try {
+      const file = await Deno.open(absolutePath, { read: true });
+      try {
+        const buf = new Uint8Array(MIME_SAMPLE_BYTES);
+        const n = await file.read(buf);
+        if (n) {
+          mimetype = await getMimeFromBuffer(buf.subarray(0, n));
+        }
+      } finally {
+        file.close();
+      }
+    } catch {
+      // unreadable: keep the default type, and look again next time
+      return mimetype;
+    }
+
+    if (mtime !== undefined) {
+      this.sniffed.delete(absolutePath);
+      this.sniffed.set(absolutePath, { size: stat.size, mtime, mimetype });
+      if (this.sniffed.size > SNIFFED_MAX) this.sniffed.delete(this.sniffed.keys().next().value!);
+    }
+    return mimetype;
   }
 
   // ===== Helper: Find path by ID =====
@@ -285,25 +314,31 @@ export class FilesystemStore implements NodeStore {
   ): Promise<NodeChildEntry<T>[]> {
     const parent = await this.findPathById(parentId);
     const lookup = opts?.name !== undefined || opts?.childId !== undefined;
-    const entries: NodeChildEntry<T>[] = [];
+    const links = await this.getChildLinks(parentId, opts);
+    const entries: (NodeChildEntry<T> | undefined)[] = [];
 
-    for (const link of await this.getChildLinks(parentId, opts)) {
+    const entryOf = async (link: NodeChild): Promise<NodeChildEntry<T> | undefined> => {
       const childPath = join(parent.absolutePath, link.name);
 
       try {
         const childStat = await Deno.lstat(childPath);
-        entries.push({
+        return {
           node: await this.fileInfoToNode<T>(childStat, childPath, relative(this.rootPath, childPath)),
           name: link.name,
           position: link.position,
           childCount: !lookup && childStat.isDirectory ? await this.countChildren(link.id) : 0,
-        });
+        };
       } catch {
         // Skip children we can't access
+        return undefined;
       }
+    };
+
+    for (let i = 0; i < links.length; i += LIST_CONCURRENCY) {
+      entries.push(...await Promise.all(links.slice(i, i + LIST_CONCURRENCY).map(entryOf)));
     }
 
-    return pageChildEntries(entries, opts);
+    return pageChildEntries(entries.filter((entry) => entry !== undefined), opts);
   }
 
   /**
