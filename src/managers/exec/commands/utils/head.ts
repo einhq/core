@@ -61,18 +61,16 @@ const firstLines = async (cmd: Command, input: Input, count: number) => {
   }
 };
 
-/** The first `count` bytes, as they come. */
+/** The first `count` bytes, as they come and as they are. */
 const firstBytes = async (cmd: Command, input: Input, count: number) => {
   if (count === 0) return;
-  const decoder = new TextDecoder();
   let left = count;
   for await (const chunk of input.chunks()) {
     const part = chunk.subarray(0, left);
     left -= part.length;
-    await cmd.write(decoder.decode(part, { stream: left > 0 }));
+    await cmd.write(part);
     if (left === 0) return;
   }
-  await cmd.write(decoder.decode());
 };
 
 head.spec = {
@@ -89,7 +87,7 @@ head.spec = {
   ],
   flags: [
     { name: 'n', type: 'string' as const, description: 'print the first NUM lines instead of the first 10 (-NUM works too)' },
-    { name: 'c', type: 'string' as const, description: 'print the first NUM bytes' },
+    { name: 'c', type: 'string' as const, description: 'print the first NUM bytes, as they are, so a binary file can be cut' },
   ],
   examples: [
     'head -n 20 /archive/albums/Exempelalbum_2019/files/notes.txt',

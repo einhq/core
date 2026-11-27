@@ -13,7 +13,8 @@ import type { UnzipAnswer } from '../../../../lib/api/node.ts';
 import { ADMIN_ACCESS } from '../../../../lib/access/mod.ts';
 import { createTestContext, type ShellClient, testCommands } from '../../../../testing/mod.ts';
 import { NODE_TYPE_FILE } from '../../../../vfs/types/file.ts';
-import { expandZip, SPACE_FACTOR, UnzipRefusedError } from '../node/unzip.ts';
+import { ExpandRefusedError, SPACE_FACTOR } from '../node/expand.ts';
+import { expandZip } from '../node/unzip.ts';
 
 const testCtx = createTestContext();
 
@@ -184,7 +185,7 @@ Deno.test({
     await t.step('the space check refuses what would not fit, before anything is written', async () => {
       const needs = Math.ceil(NESTED_BYTES * SPACE_FACTOR);
 
-      const refused = await assertRejects(() => expand('/z/full', { free: needs - 1 }), UnzipRefusedError);
+      const refused = await assertRejects(() => expand('/z/full', { free: needs - 1 }), ExpandRefusedError);
       assertMatch(refused.message, /^not enough space/);
       assertEquals(await vfs.exists(ADMIN_ACCESS, '/z/full'), false);
 
@@ -194,7 +195,7 @@ Deno.test({
     await t.step('a run again needs room only for what it writes', async () => {
       await cmd.shouldSucceed('rm /z/full/lösa-blad.txt');
 
-      await assertRejects(() => expand('/z/full', { free: Math.ceil(24 * SPACE_FACTOR) - 1 }), UnzipRefusedError);
+      await assertRejects(() => expand('/z/full', { free: Math.ceil(24 * SPACE_FACTOR) - 1 }), ExpandRefusedError);
       const answer = await expand('/z/full', { free: Math.ceil(24 * SPACE_FACTOR) });
 
       assertEquals({ files: answer.files, skipped: answer.skipped }, { files: 1, skipped: 3 });

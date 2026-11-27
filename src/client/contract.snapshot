@@ -1,4 +1,4 @@
-MODULE_API_VERSION 0.15.75
+MODULE_API_VERSION 0.15.77
 src/builtin/ui/src/client/components/mod.ts ACTIVE_MARKER_COLOR 20d3d194e263
 src/builtin/ui/src/client/components/mod.ts AccountFace a95dc46998fb @signature=59ed6a161071,account=715046550be0,eager=f5689222adad,size=422f3ae77ed1
 src/builtin/ui/src/client/components/mod.ts ActiveInstances 3255d36470ec @signature=4816e57e7841,active=e543fd612d0d,quiet=a01ee7d07d71,quietMs=4505dcf45964
@@ -641,6 +641,7 @@ src/builtin/ui/src/client/lib/mod.ts mediaItemFrom f279caa26c24 0|d0de4fc1d6ad=d
 src/builtin/ui/src/client/lib/mod.ts mentionAtCaret 92a99aaac68c 0|336e2b46aff6=336e2b46aff6,1|b3d9da3d9fc5=b3d9da3d9fc5,@signature=b1b3fb6502dc
 src/builtin/ui/src/client/lib/mod.ts modeOctal 7fc8095b3966 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=de39118fc3e6
 src/builtin/ui/src/client/lib/mod.ts modeString 7fc8095b3966 0|b3d9da3d9fc5=b3d9da3d9fc5,@signature=de39118fc3e6
+src/builtin/ui/src/client/lib/mod.ts moduleWorker a87dac74923a 0|336e2b46aff6=336e2b46aff6,1|336e2b46aff6=336e2b46aff6,2|eca65291df81=eca65291df81,@signature=fd6438c549cc
 src/builtin/ui/src/client/lib/mod.ts monthLabel 7d2cd6bb37f3 0|336e2b46aff6=336e2b46aff6,@signature=27f0f62d76d0
 src/builtin/ui/src/client/lib/mod.ts nameProblem 1ab777b83b46 0|336e2b46aff6=336e2b46aff6,@signature=808132c70b34
 src/builtin/ui/src/client/lib/mod.ts naturalSearchDetails ac9094a683b4 0|e4d28e70980d=e4d28e70980d,1|12e74ce29eb6=12e74ce29eb6,2|dd4692a2169c=dd4692a2169c,@signature=b7746ecfde85
@@ -784,6 +785,7 @@ src/builtin/ui/src/client/signals/mod.ts closeTerminalTab 22de26fcf923 0|336e2b4
 src/builtin/ui/src/client/signals/mod.ts codeEditorRequest 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentMediaIndex 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts currentMediaItem 0a752fffac0f
+src/builtin/ui/src/client/signals/mod.ts currentUiManifest 2ab2bd684ec6
 src/builtin/ui/src/client/signals/mod.ts currentUser 0a752fffac0f
 src/builtin/ui/src/client/signals/mod.ts decreaseTerminalHeight df01802e180a
 src/builtin/ui/src/client/signals/mod.ts dialogPath 0a752fffac0f
@@ -1400,6 +1402,8 @@ src/lib/api/mod.ts SupervisedService 2571db02f6a1 available=eaf045ae8495,built=5
 src/lib/api/mod.ts SupervisorJob 86cd047d6fb6 args=3d90c35b349d,by=2e436585632a,endedAt=eaa8c370ccb5,id=752fa5797ebe,lines=4b85d992ef3f,startedAt=f7a48429c31f,state=02bcf625bf3b
 src/lib/api/mod.ts SupervisorStatus 15f2f45ea6f6 checkError=d26d1d6e2c17,checkedAt=a8fb8df676d1,configured=11d162315d51,engine=25a6a4eaf8a3,error=03c9a5b2b69b,job=0dababb538e1,services=4eb5da9c854f,updateAt=f116cb72ce9b,version=b3cf6f09d5d6
 src/lib/api/mod.ts SystemInfo 7dd0b2089adc api=0398aee21fe0,build=a2a6852185c3,database=be65addccaf9,denoVersion=c9c36a453d5f,hostname=c983f8ec2462,timeZone=244a6abd36d3,uptimeMs=7f31c93a294f,version=103f4ae183fc
+src/lib/api/mod.ts TarAnswer 76e29eba6ec7 archive=270d78b1fb08,bytes=23e3d4379f17,directories=0bbc5256d9d5,directory=9d3bb5657e0d,failed=f398e94afbfc,files=77829de4e38a,links=7b5af449b1df,ok=23e6985ecee8,skipped=00f17ad73148
+src/lib/api/mod.ts TarListEntry 2c1eb5e91ca8 linkname=2f4d919629ef,mode=63788613056a,mtime=d55304ec2113,path=3fd20668ef6e,size=5d025bf53508,type=26a496381e6e
 src/lib/api/mod.ts TextEmbedding 8f4c92e08581 model=9574a17f64c2,vectors=4a9c29e273fc
 src/lib/api/mod.ts TrashEntry b7fba30a32e2 count=5f7a2d24acdb,id=752fa5797ebe,label=995d88c00ff2,mimetype=fc3dc85c3380,name=6d0c36381511,origPath=8c19a28ebd5f,path=3fd20668ef6e,trashedAt=2c8ead892bf3,type=e22be5ee8605
 src/lib/api/mod.ts TrashPutResult f6567116f44d batch=3a237b429964,entries=064ea5557fb6

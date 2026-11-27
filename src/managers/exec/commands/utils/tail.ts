@@ -138,7 +138,8 @@ const tailFileBlob = async (
 
   const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
   try {
-    if (nodeType === NODE_TYPE_FILE) {
+    // Lines of a picture or a recording are noise; its bytes, asked for with -c, are its bytes.
+    if (nodeType === NODE_TYPE_FILE && !flags.bytes) {
       const node = await cmd.sys.vfs.get(cmd.access, path);
       const mimetype = (node.attrs.mimetype as string | undefined) || '';
       if (mimetype.startsWith('image/') || mimetype.startsWith('video/') || mimetype.startsWith('audio/')) {
@@ -270,7 +271,7 @@ const tailLines = async (cmd: Command, handle: ResourceHandleIf, count: number):
   }
 };
 
-/** Print the last N bytes (or from byte +N) of a seekable handle. */
+/** Write the last N bytes (or from byte +N) of a seekable handle, as they are. */
 const tailBytes = async (cmd: Command, handle: ResourceHandleIf, spec: string): Promise<void> => {
   const size = await handle.size();
   const fromStart = spec.startsWith('+');
@@ -279,16 +280,20 @@ const tailBytes = async (cmd: Command, handle: ResourceHandleIf, spec: string): 
   const start = fromStart ? Math.min(size, Math.max(0, count - 1)) : Math.max(0, size - count);
   await handle.seek(start, ResourceSeekMode.Start);
 
-  const decoder = new TextDecoder();
-  while (true) {
+  while (!cmd.interrupted) {
     const chunk = await handle.read(READ_CHUNK);
     if (chunk.length === 0) break;
-    await cmd.write(decoder.decode(chunk, { stream: true }));
+    await cmd.write(chunk);
   }
 };
 
-/** tail as a pipe filter: buffer stdin, then slice. */
+/** tail as a pipe filter: lines buffer stdin, then slice; bytes pass through as they are. */
 const tailStdin = async (cmd: Command, flags: ReturnType<typeof parseArgs>): Promise<number> => {
+  if (flags.bytes) {
+    await tailStdinBytes(cmd, flags.bytes);
+    return cmd.interrupted ? signalExitCode(cmd.signal ?? 'SIGINT') : 0;
+  }
+
   const input = await cmd.stdin.text();
   if (cmd.interrupted) return signalExitCode(cmd.signal ?? 'SIGINT');
 
@@ -296,35 +301,71 @@ const tailStdin = async (cmd: Command, flags: ReturnType<typeof parseArgs>): Pro
     return 0;
   }
 
-  if (flags.bytes) {
-    const fromStart = flags.bytes.startsWith('+');
-    const count = parseCount(fromStart ? flags.bytes.slice(1) : flags.bytes, fromStart ? 1 : 0);
-    const bytes = new TextEncoder().encode(input);
-    const slice = fromStart ? bytes.slice(Math.max(0, count - 1)) : bytes.slice(Math.max(0, bytes.length - count));
-    await cmd.write(new TextDecoder().decode(slice));
-  } else {
-    let count = 10;
-    let fromStart = false;
+  let count = 10;
+  let fromStart = false;
 
-    if (flags.lines) {
-      fromStart = flags.lines.startsWith('+');
-      count = parseCount(fromStart ? flags.lines.slice(1) : flags.lines, 10);
-    }
+  if (flags.lines) {
+    fromStart = flags.lines.startsWith('+');
+    count = parseCount(fromStart ? flags.lines.slice(1) : flags.lines, 10);
+  }
 
-    const endsWithNewline = input.endsWith('\n');
-    let lines = input.split('\n');
-    if (endsWithNewline && lines[lines.length - 1] === '') {
-      lines.pop();
-    }
+  const endsWithNewline = input.endsWith('\n');
+  let lines = input.split('\n');
+  if (endsWithNewline && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
 
-    lines = fromStart ? lines.slice(Math.max(0, count - 1)) : lines.slice(Math.max(0, lines.length - count));
+  lines = fromStart ? lines.slice(Math.max(0, count - 1)) : lines.slice(Math.max(0, lines.length - count));
 
-    for (const line of lines) {
-      await cmd.write(`${line}\n`);
-    }
+  for (const line of lines) {
+    await cmd.write(`${line}\n`);
   }
 
   return 0;
+};
+
+/**
+ * Write stdin from byte +N on as it arrives, or its last N bytes, held back in a window of N until
+ * it ends.
+ */
+const tailStdinBytes = async (cmd: Command, spec: string): Promise<void> => {
+  const fromStart = spec.startsWith('+');
+  const count = parseCount(fromStart ? spec.slice(1) : spec, fromStart ? 1 : 0);
+
+  if (fromStart) {
+    let skip = Math.max(0, count - 1);
+    for await (const chunk of cmd.stdin.chunks()) {
+      const part = chunk.subarray(Math.min(skip, chunk.length));
+      skip -= chunk.length - part.length;
+      if (part.length > 0) await cmd.write(part);
+    }
+    return;
+  }
+
+  if (count === 0) {
+    for await (const _ of cmd.stdin.chunks()) {
+      // Read to its end, as tail does, so whatever writes into it is not cut off.
+    }
+    return;
+  }
+  const window = new Uint8Array(count);
+  let held = 0;
+  for await (const chunk of cmd.stdin.chunks()) {
+    if (chunk.length >= count) {
+      window.set(chunk.subarray(chunk.length - count));
+      held = count;
+    } else if (held + chunk.length <= count) {
+      window.set(chunk, held);
+      held += chunk.length;
+    } else {
+      const keep = count - chunk.length;
+      window.copyWithin(0, held - keep, held);
+      window.set(chunk, keep);
+      held = count;
+    }
+  }
+  if (cmd.interrupted) return;
+  if (held > 0) await cmd.write(window.slice(0, held));
 };
 
 tail.spec = {
@@ -342,7 +383,7 @@ tail.spec = {
   ],
   flags: [
     { name: 'n', type: 'string' as const, description: 'output the last NUM lines, or use +NUM for starting at line NUM (-NUM works too)' },
-    { name: 'c', type: 'string' as const, description: 'output the last NUM bytes, or use +NUM for starting at byte NUM' },
+    { name: 'c', type: 'string' as const, description: 'output the last NUM bytes, or use +NUM for starting at byte NUM; the bytes as they are, so a binary file can be cut' },
     {
       name: 'f',
       type: 'bool' as const,

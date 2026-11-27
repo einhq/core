@@ -29,6 +29,8 @@ export type ModuleUi = {
   /** Its stylesheet's, when its sources import CSS. */
   css?: string;
   routes: ModuleRoute[];
+  /** Its workers' scripts, by name (`mod.json` `ui.workers`): `{ "solver": "/file/var/cache/ui/<module>/solver-<hash>.js" }`. */
+  workers?: Record<string, string>;
   /** Which of its routes opens a node of a type (`mod.json` `ui.open`): `{ "person": "/people/{name}" }`. */
   open?: Record<string, string>;
   /** Which nodes a share link may open, and how (`mod.json` `ui.shareLinks`): `{ "album": { "shows": "node" } }`. */

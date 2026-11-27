@@ -15,14 +15,21 @@
  * A module's aliases resolve through its `deno.jsonc`, the workspace member generated from its
  * `mod.json` — core's map does not carry them. `--config` names the workspace *root*,
  * which is what makes the member configs visible regardless of the cwd this is run from.
+ *
+ * A module's Web Workers (`ui.workers`) are a program of their own, checked with the `webworker`
+ * library (`scripts/ui-workers.ts`); the files only they reach are left out of the pages' program,
+ * and a file pages and workers share is in both.
  */
 
 import { walk } from '@std/fs/walk';
 import { fromFileUrl, join, resolve } from '@std/path';
 import { repoModules, UI_SOURCE_DIR } from '../src/modules/repo.ts';
+import { checkWorkers, localGraph, workerScripts } from './ui-workers.ts';
 
 const repoRoot = fromFileUrl(new URL('..', import.meta.url));
-const sources: string[] = [];
+const config = join(repoRoot, 'deno.jsonc');
+let sources: string[] = [];
+const workers: string[] = [];
 
 const collect = async (root: string) => {
   for await (const entry of walk(root, { includeDirs: false, exts: ['.ts', '.tsx'] })) {
@@ -36,6 +43,7 @@ const moduleDirs = Deno.args[0] ? [resolve(Deno.args[0])] : repoModules().map((m
 
 // Each module's pages: the files its `mod.json` `ui.routes` names are under its `ui/`.
 for (const dir of moduleDirs) {
+  workers.push(...await workerScripts(dir));
   const uiRoot = join(dir, 'ui');
   try {
     if (!(await Deno.stat(uiRoot)).isDirectory) continue;
@@ -46,18 +54,22 @@ for (const dir of moduleDirs) {
   await collect(uiRoot);
 }
 
-sources.sort();
-if (sources.length === 0) {
+const workerFiles = workers.length ? await localGraph(config, workers) : new Set<string>();
+sources = sources.filter((file) => !workerFiles.has(file)).sort();
+if (sources.length === 0 && workers.length === 0) {
   console.log('no UI source files found');
   Deno.exit(0);
 }
 
-const check = new Deno.Command(Deno.execPath(), {
-  args: ['check', '--config', join(repoRoot, 'deno.jsonc'), ...sources],
-  stdout: 'inherit',
-  stderr: 'inherit',
-});
-const { code } = await check.output();
-// Only on success: a closing "checked" line after a failure reads as a pass under `| tail -1`.
-console.log(code === 0 ? `${sources.length} UI source files checked` : `UI type-check failed (${sources.length} files)`);
+let code = 0;
+if (sources.length > 0) {
+  code = (await new Deno.Command(Deno.execPath(), { args: ['check', '--config', config, ...sources], stdout: 'inherit', stderr: 'inherit' }).output()).code;
+  // Only on success: a closing "checked" line after a failure reads as a pass under `| tail -1`.
+  console.log(code === 0 ? `${sources.length} UI source files checked` : `UI type-check failed (${sources.length} files)`);
+}
+if (workers.length > 0) {
+  const workerCode = await checkWorkers(repoRoot, workers.sort());
+  console.log(workerCode === 0 ? `${workers.length} UI workers checked` : `UI worker type-check failed (${workers.length} workers)`);
+  code ||= workerCode;
+}
 Deno.exit(code);

@@ -33,3 +33,38 @@ export type UnzipAnswer = {
   skipped: number;
   failed: { entry: string; error: string }[];
 };
+
+/** What `tar -x` answers in JSON: what it wrote where, the files it left as they were, and each entry or name it did not expand. */
+export type TarAnswer = {
+  ok: boolean;
+  /** The archive's path, or `-` for stdin. */
+  archive: string;
+  /** The directory the entries were expanded into. */
+  directory: string;
+  /** Files written. */
+  files: number;
+  /** Directories made; those already there are not counted. */
+  directories: number;
+  /** Softlinks and hard links made. */
+  links: number;
+  /** Bytes written. */
+  bytes: number;
+  /** Files and links already there as the archive has them, left as they were. */
+  skipped: number;
+  /** Each entry not expanded, and each name given that no entry matched, with why. */
+  failed: { entry: string; error: string }[];
+};
+
+/** One entry `tar -t` lists in JSON. */
+export type TarListEntry = {
+  path: string;
+  type: 'file' | 'directory' | 'symlink' | 'hardlink' | 'other';
+  /** A file's bytes; 0 for anything else. */
+  size: number;
+  /** Its permission bits, as a number. */
+  mode: number;
+  /** Its modification time, ISO 8601. */
+  mtime: string;
+  /** What a symlink points at, or the entry a hard link names. */
+  linkname?: string;
+};

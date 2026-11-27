@@ -163,6 +163,15 @@ Deno.test('module UI validation', async (t) => {
     assertEquals(checkUi(mod('m', { ui: bad })).errors.length, 3);
   });
 
+  await t.step('ui.workers names each worker with a script inside the module, beside pages that start them', () => {
+    const routes = { '/things': 'ui/pages/things.tsx' };
+    assertEquals(checkUi(mod('m', { ui: { routes, workers: { solver: 'ui/solver/worker.ts', 'glue_2': 'lib/glue.js' } } })).errors, []);
+    const bad = { routes, workers: { 'no name': 'ui/w.ts', outside: '../other/w.ts', page: 'ui/w.tsx' } };
+    assertEquals(checkUi(mod('m', { ui: bad })).errors.length, 3);
+    assertEquals(checkUi(mod('m', { ui: { workers: { solver: 'ui/solver/worker.ts' } } })).errors.length, 1);
+    assertEquals(checkUi(mod('m', { ui: { routes, workers: ['ui/w.ts'] } } as unknown as Partial<ModuleManifest>)).errors.length, 1);
+  });
+
   await t.step('ui.shareLinks names a type or a folder, and whether a link shows the node or an account', () => {
     const ok = { shareLinks: { album: { shows: 'node' }, '/archive/boards/': { shows: 'account', noun: 'board' } } } as ModuleManifest['ui'];
     assertEquals(checkUi(mod('m', { ui: ok })).errors, []);

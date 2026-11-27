@@ -148,7 +148,12 @@ export const searchableKinds = signal<SearchableKind[]>([]);
 export const moduleRoutePaths = signal<ReadonlySet<string>>(new Set());
 
 let manifestPromise: Promise<UiManifest | null> | null = null;
+/** The manifest `loadUiManifest` last read, as the reader is given it. */
+let loadedManifest: UiManifest | null = null;
 const bundles = new Map<string, Promise<ModuleBundle>>();
+
+/** The manifest last read, without waiting: a module's page is drawn only once it has been. */
+export const currentUiManifest = (): UiManifest | null => loadedManifest;
 
 /**
  * The manifest without the modules kept to groups the reader is in none of (`mod groups`), unless
@@ -179,6 +184,7 @@ export const loadUiManifest = (): Promise<UiManifest | null> => {
     })
     .then((manifest) => {
       if (!manifest) manifestPromise = null;
+      else loadedManifest = manifest;
       // Bundles built against another shell read names this one may not lend. ui-build
       // rebuilds them at every boot, so this is a shell deployed without restarting EiN.
       const runtime = uiRuntime().id;

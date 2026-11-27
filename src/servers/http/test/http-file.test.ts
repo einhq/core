@@ -128,6 +128,22 @@ Deno.test({
       assertEquals(other.status, 401);
     });
 
+    await t.step("a script of the UI build goes out with the page's policy, so a worker made from it may load and fetch from EiN", async () => {
+      const res = await fetch(`${baseUrl}/file/var/cache/ui/visitor-test.js`, { headers: { cookie } });
+      await res.body?.cancel();
+      assertEquals(res.headers.get('content-type'), 'text/javascript');
+      const policy = res.headers.get('content-security-policy') ?? '';
+      assertEquals(policy.includes('sandbox'), false, policy);
+      assertStringIncludes(policy, "script-src 'self' 'wasm-unsafe-eval'");
+      assertStringIncludes(policy, "connect-src 'self'");
+      // Its stylesheets and the rest stay sandboxed, as any file opened on its own.
+      await vfs.create(ADMIN_ACCESS, 'file', '/var/cache/ui', 'visitor-test.html', { props: { mode: 0o644 }, attrs: { mimetype: 'text/html', size: 0 } });
+      const page = await fetch(`${baseUrl}/file/var/cache/ui/visitor-test.html`, { headers: { cookie } });
+      await page.body?.cancel();
+      assertEquals(page.headers.get('content-type'), 'text/plain; charset=utf-8');
+      assertStringIncludes(page.headers.get('content-security-policy') ?? '', 'sandbox');
+    });
+
     await t.step('HEAD returns the GET headers without a body', async () => {
       const res = await fetch(`${baseUrl}/file/tmp/pixel.png`, {
         method: 'HEAD',

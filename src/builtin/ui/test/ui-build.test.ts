@@ -54,7 +54,7 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
   };
 
   const routes: Record<string, string> = { '/things': 'ui/pages/things.tsx', '/things/:id': 'ui/pages/thing.tsx' };
-  const putModJson = (name: string, extra: Record<string, string> = {}) =>
+  const putModJson = (name: string, extra: Record<string, string> = {}, workers?: Record<string, string>) =>
     put(
       `${modules}/${name}/mod.json`,
       JSON.stringify({
@@ -62,7 +62,7 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
         version: '0.1.0',
         imports: { [`@${name}/greet`]: './lib/greet.ts' },
         exports: { './api': './lib/api.ts' },
-        ui: { routes: { ...routes, ...extra } },
+        ui: { routes: { ...routes, ...extra }, ...(workers ? { workers } : {}) },
         nodeTypes: [
           { type: 'thing', label: 'Thing', category: 'content', root: '/archive/things', searchable: true, description: 'A thing.' },
           {
@@ -173,6 +173,67 @@ Deno.test({ name: 'ui-build', sanitizeResources: false, sanitizeOps: false }, as
     await t.step('an unchanged module is not rebuilt', async () => {
       assertEquals((await build('uifix')).uifix.state, 'cached');
       assertEquals((await build('--all')).uifix.state, 'cached');
+    });
+
+    await t.step('a worker is a script of its own, with what it imports of the module, that runs in a worker', async () => {
+      await putModJson('uifix', {}, { solver: 'ui/solver/worker.ts' });
+      await put(`${root}/ui/solver/twice.ts`, 'export const twice = (text: string): string => `${text}, ${text}`;\n');
+      await put(
+        `${root}/ui/solver/worker.ts`,
+        [
+          imp('{ greet }', '@uifix/greet'),
+          imp('{ twice }', './twice.ts'),
+          `const scope = self as unknown as { onmessage: (event: MessageEvent<string>) => void; postMessage: (text: string) => void };`,
+          `export const glue = () => import(${JSON.stringify('/file/usr/modules/uifix/glue.js')});`,
+          `scope.onmessage = (event) => scope.postMessage(twice(greet(event.data)));`,
+        ].join('\n'),
+      );
+      const outcome = (await build('uifix')).uifix;
+      assertEquals(outcome.state, 'built', outcome.error);
+      const entry = (JSON.parse(await read('/var/cache/ui/manifest.json')) as UiManifest).modules.uifix;
+      const url = entry.workers?.solver ?? '';
+      assert(/^\/file\/var\/cache\/ui\/uifix\/solver-[0-9a-f]{12}\.js$/.test(url), url);
+      const node = await vfs.get(ADMIN_ACCESS, url.replace(/^\/file/, ''));
+      assertEquals([node.attrs.mimetype, node.attrs.immutable], ['text/javascript', true]);
+      assertEquals((await build('uifix')).uifix.state, 'cached');
+      // A script EiN serves is the browser's to load when the worker imports it.
+      assertStringIncludes(await read(url.replace(/^\/file/, '')), 'import("/file/usr/modules/uifix/glue.js")');
+
+      const file = await Deno.makeTempFile({ suffix: '.js' });
+      const worker = await Deno.writeTextFile(file, await read(url.replace(/^\/file/, ''))).then(() => new Worker(`file://${file}`, { type: 'module' }));
+      try {
+        const answer = new Promise<string>((resolve, reject) => {
+          worker.onmessage = (event) => resolve(event.data);
+          worker.onerror = (event) => reject(new Error(event.message));
+        });
+        worker.postMessage('Anna Andersson');
+        assertEquals(await answer, 'Hello Anna Andersson, Hello Anna Andersson');
+      } finally {
+        worker.terminate();
+        await Deno.remove(file);
+      }
+    });
+
+    await t.step('the shell lends a worker nothing, and a worker has no stylesheet', async () => {
+      const worker = `${root}/ui/solver/worker.ts`;
+      const source = await read(worker);
+      await put(worker, `${imp('{ Text }', '@mantine/core')}\nexport const text = Text;\n`);
+      const lent = (await build('uifix')).uifix;
+      assertEquals(lent.state, 'failed');
+      assertStringIncludes(lent.error ?? '', `'@mantine/core' is not the module's own; a worker imports its module's own files`);
+      await put(worker, `import ${JSON.stringify('../pages/things.module.css')};\n`);
+      const styled = (await build('uifix')).uifix;
+      assertEquals(styled.state, 'failed');
+      assertStringIncludes(styled.error ?? '', `ui.workers['solver']: ui/pages/things.module.css is not a script`);
+      await put(worker, source);
+    });
+
+    await t.step('a worker no longer named goes with its script', async () => {
+      const url = (JSON.parse(await read('/var/cache/ui/manifest.json')) as UiManifest).modules.uifix.workers!.solver;
+      await putModJson('uifix');
+      assertEquals((await build('uifix')).uifix.state, 'built');
+      assertEquals((JSON.parse(await read('/var/cache/ui/manifest.json')) as UiManifest).modules.uifix.workers, undefined);
+      assertEquals(await vfs.exists(ADMIN_ACCESS, url.replace(/^\/file/, '')), false);
     });
 
     await t.step('a route may sit under a shell route', async () => {

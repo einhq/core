@@ -83,6 +83,8 @@ import { relationsGuard } from './node/relations-guard.ts';
 import { star } from './node/star.ts';
 import { trash } from './node/trash.ts';
 import { unzip } from './node/unzip.ts';
+import { tar } from './node/tar.ts';
+import { gunzip, gzip } from './node/gzip.ts';
 import { stat } from './node/stat.ts';
 import { basename } from './utils/basename.ts';
 import { clear } from './utils/clear.ts';
@@ -314,6 +316,9 @@ export const COMMAND_NAMES: CmdFunction[] = [
   uniq,
   xargs,
   unzip,
+  tar,
+  gzip,
+  gunzip,
   wc,
   mime,
   find,

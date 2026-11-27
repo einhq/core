@@ -1,10 +1,10 @@
 /**
  * Type-check one module: what its own check runs on a push (its `.github/workflows/test.yml`).
  *
- * Three programs, as core's `deno task check` has: the module's server-side files, its pages
- * (scripts/check-ui.ts), and its `#!ts` bins (scripts/check-module-bins.ts). The pages are checked
- * apart because a browser file checked beside server code takes Node's `setTimeout`, whose
- * `Timeout` is not the browser's `number`.
+ * Three programs, as core's `deno task check` has: the module's server-side files, its pages and
+ * workers (scripts/check-ui.ts), and its `#!ts` bins (scripts/check-module-bins.ts). The pages are
+ * checked apart because a browser file checked beside server code takes Node's `setTimeout`, whose
+ * `Timeout` is not the browser's `number`; its workers are the UI's wherever they are.
  *
  * The modules it depends on must be beside it in `modules/`, as scripts/module-deps.ts puts them:
  * its files import theirs.
@@ -14,6 +14,7 @@
 
 import { walk } from '@std/fs/walk';
 import { fromFileUrl, join, resolve } from '@std/path';
+import { workerScripts } from './ui-workers.ts';
 
 const repoRoot = fromFileUrl(new URL('..', import.meta.url));
 if (!Deno.args[0]) {
@@ -22,11 +23,12 @@ if (!Deno.args[0]) {
 }
 const moduleDir = resolve(Deno.args[0]);
 
+const workers = new Set(await workerScripts(moduleDir));
 const sources: string[] = [];
 for await (
   const entry of walk(moduleDir, { includeDirs: false, exts: ['.ts', '.tsx'], skip: [/\/\.git\//, /\/node_modules\//] })
 ) {
-  if (!entry.path.startsWith(join(moduleDir, 'ui') + '/')) sources.push(entry.path);
+  if (!entry.path.startsWith(join(moduleDir, 'ui') + '/') && !workers.has(entry.path)) sources.push(entry.path);
 }
 sources.sort();
 

@@ -33,6 +33,7 @@ adds to the machinery core already has.
 | `ui.routes`         | browser   | its pages, by route                                                                                                 | `ui-build`                |
 | `ui.open`           | browser   | which route opens a node of a type                                                                                  | `ui-build`                |
 | `ui.shareLinks`     | browser   | which nodes a share link may open, and whether it shows them as an account sees them                                | `ui-build`                |
+| `ui.workers`        | browser   | Web Workers its pages start, by name                                                                                | `ui-build`                |
 
 "Acts at" says when the field matters. `mod setup` runs for every module at each boot, in
 dependency order, so a `mod setup` field takes effect on the next deploy. "Runtime" means core
@@ -303,6 +304,24 @@ inside the running EiN whenever the modules change, and the shell loads the bund
 one of the routes is opened. A path two modules give is refused. How the shell shows a route — as
 the page, in a dialog, in the drawer or full screen — is the navigation's choice (`ui/nav.json`,
 below), not the route's. [Module system](modules.md#module-system) has the details.
+
+### `ui.workers`
+
+Web Workers for the module's pages: each worker's name, with its script relative to the module
+root, TypeScript or JavaScript. It needs `ui.routes`, whose pages start the workers.
+
+```json
+"ui": { "routes": { "/solver": "ui/pages/solver.tsx" }, "workers": { "solver": "ui/solver/worker.ts" } }
+```
+
+A name is letters, digits, `-` and `_`. `ui-build` bundles each worker into one ES module of its
+own, with what it imports of the module's files and of its dependencies' exports; the shell lends
+a worker nothing, so no React, Mantine or kit, and it imports no CSS. A page starts one with
+`moduleWorker('<module>', 'solver')` from `@ein/ui/lib`, a dedicated worker of type `module`. Its
+script goes out with the page's policy, not a file's sandbox, so the worker may `import()` scripts
+from EiN, `fetch` and `XMLHttpRequest` its files (a range, synchronously) with the reader's session,
+and compile WebAssembly. `deno task check` checks a TypeScript worker with the `webworker` library
+instead of `dom` (`scripts/ui-workers.ts`).
 
 ### `ui.open`
 

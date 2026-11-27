@@ -90,6 +90,9 @@ const insideModule = (field: string, value: unknown): string | undefined => {
  */
 const ROUTE_PATH = /^(\/(:?[A-Za-z0-9_.~-]+))+$/;
 
+/** A worker's name in `ui.workers` (as module-build checks it). */
+const WORKER_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
 /** Validate the UI contribution without assuming a repository layout. */
 export const checkUi = (manifest: ModuleManifest): ValidationResult => {
   const errors: string[] = [];
@@ -108,6 +111,20 @@ export const checkUi = (manifest: ModuleManifest): ValidationResult => {
         const problem = insideModule(`ui.routes['${path}']`, page);
         if (problem) errors.push(`${manifest.name}: ${problem}`);
         else if (!(page as string).endsWith('.tsx')) errors.push(`${manifest.name}: ui.routes['${path}'] must be a .tsx page: ${page}`);
+      }
+    }
+  }
+  const workers = (manifest.ui as { workers?: unknown } | undefined)?.workers;
+  if (workers !== undefined) {
+    if (typeof workers !== 'object' || workers === null || Array.isArray(workers)) {
+      errors.push(`${manifest.name}: ui.workers must map a worker's name to its script`);
+    } else {
+      if (routes === undefined) errors.push(`${manifest.name}: ui.workers needs ui.routes, whose pages start them`);
+      for (const [name, script] of Object.entries(workers)) {
+        if (!WORKER_NAME.test(name)) errors.push(`${manifest.name}: ui.workers: '${name}' is not a name of letters, digits, - and _`);
+        const problem = insideModule(`ui.workers['${name}']`, script);
+        if (problem) errors.push(`${manifest.name}: ${problem}`);
+        else if (!/\.(ts|js|mjs)$/.test(script as string)) errors.push(`${manifest.name}: ui.workers['${name}'] must be a .ts or .js script: ${script}`);
       }
     }
   }

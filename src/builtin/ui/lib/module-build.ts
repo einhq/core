@@ -17,7 +17,15 @@
  * - what a module it lists in its `dependencies` exports (`@<dep>/<export>`), with that file's
  *   own imports, by the same rules: the dependency's files are bundled into this module's pages,
  *   so a change to them builds this module again;
- * - anything at all with `import type`, which is erased before bundling.
+ * - anything at all with `import type`, which is erased before bundling;
+ * - a script EiN serves, by its path under `/file/` (`import('/file/usr/modules/<m>/glue.js')`),
+ *   which is not bundled: the browser loads it when the import runs.
+ *
+ * A module may also give its pages Web Workers, each a script of its own named in `ui.workers`
+ * (`"workers": { "solver": "ui/solver/worker.ts" }`), TypeScript or JavaScript. A worker is
+ * bundled alone into one ES module for a dedicated worker, and imports by the same rules but for
+ * the first: the shell lends a worker nothing, as a worker has no page to read it from. A page
+ * starts one with the kit's `moduleWorker`.
  *
  * No npm and no network: a build is the module's own few files, so it is quick and needs little
  * memory.
@@ -56,7 +64,7 @@ type Manifest = {
   name: string;
   imports?: Record<string, string>;
   exports?: Record<string, string>;
-  ui?: { routes?: Record<string, string>; open?: Record<string, string>; shareLinks?: ModuleUi['shareLinks'] };
+  ui?: { routes?: Record<string, string>; open?: Record<string, string>; shareLinks?: ModuleUi['shareLinks']; workers?: Record<string, string> };
   nodeTypes?: Partial<NodeTypeDoc>[];
 };
 
@@ -152,15 +160,38 @@ const routesOf = (manifest: Manifest): [string, string][] => {
   });
 };
 
+/** A worker's name: what `moduleWorker` asks for, and the start of its script's file name. */
+const WORKER_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** The module's workers as `[name, script]`, by name; a malformed one is an error (`mod setup` refuses them first). */
+const workersOf = (manifest: Manifest): [string, string][] => {
+  const workers = manifest.ui?.workers;
+  if (workers === undefined) return [];
+  if (!workers || typeof workers !== 'object' || Array.isArray(workers)) throw new Error("ui.workers must map a worker's name to its script");
+  return Object.entries(workers).sort(([a], [b]) => a.localeCompare(b)).map(([name, file]) => {
+    if (!WORKER_NAME.test(name)) throw new Error(`ui.workers: '${name}' is not a name of letters, digits, - and _`);
+    const script = typeof file === 'string' && /\.(ts|js|mjs)$/.test(file) ? inside(file) : undefined;
+    if (!script) throw new Error(`ui.workers['${name}']: '${file}' is not a .ts or .js file inside the module`);
+    return [name, script];
+  });
+};
+
+/** Where EiN serves its files: a specifier under it is the browser's to load, not the bundle's. */
+const SERVED = '/file/';
+
+/** Scripts a bundle is made of; anything else a source imports is a stylesheet. */
+const SCRIPT = /\.(tsx?|jsx?|mjs)$/;
+
 /**
- * The module's UI sources, module-relative path → text: the pages and everything they import
- * of the module's own, and the aliases they reached it by.
+ * The module's UI sources for one bundle, module-relative path → text: its entries (the pages, or
+ * a worker's script) and everything they import of the module's own, and the aliases they reached
+ * it by. `lent` is what the shell lends the bundle: nothing, to a worker.
  */
 const collectSources = async (
   reader: Reader,
   modulePath: string,
   manifest: Manifest,
-  routes: [string, string][],
+  entries: { file: string; from: string }[],
   lent: Set<string>,
 ): Promise<{ sources: Map<string, string>; aliases: Map<string, string> }> => {
   const sources = new Map<string, string>();
@@ -211,10 +242,10 @@ const collectSources = async (
     const text = await reader.maybeText(`${owner.path}/${rel}`);
     if (text === undefined) throw new Error(`${from}: ${staged} does not exist`);
     sources.set(staged, text);
-    if (!/\.(tsx?|jsx?|mjs)$/.test(rel)) return;
+    if (!SCRIPT.test(rel)) return;
 
     for (const spec of specifiersOf(text)) {
-      if (lent.has(spec)) continue;
+      if (lent.has(spec) || spec.startsWith(SERVED)) continue;
       if (isRelative(spec)) {
         const next = inside(join(dirname(rel), spec));
         if (!next) throw new Error(`${staged}: '${spec}' leaves the module`);
@@ -231,13 +262,16 @@ const collectSources = async (
         continue;
       }
       throw new Error(
-        `${staged}: '${spec}' is neither lent by the shell nor the module's own; a module's pages import ` +
-          `the shell's packages, the kit (@ein/ui/*) and their own files, and use 'import type' for types`,
+        lent.size > 0
+          ? `${staged}: '${spec}' is neither lent by the shell nor the module's own; a module's pages import ` +
+            `the shell's packages, the kit (@ein/ui/*) and their own files, and use 'import type' for types`
+          : `${staged}: '${spec}' is not the module's own; a worker imports its module's own files and what ` +
+            `its dependencies export, as the shell lends a worker nothing, and uses 'import type' for types`,
       );
     }
   };
 
-  for (const [path, page] of routes) await visit(page, `mod.json ui.routes['${path}']`);
+  for (const { file, from } of entries) await visit(file, from);
 
   return { sources, aliases };
 };
@@ -251,7 +285,7 @@ const stagedPath = (module: string, rel: string): string => rel.endsWith('.modul
 
 /** A source with its relative specifiers pointed at renamed CSS modules. */
 const rewriteCssModules = (module: string, rel: string, text: string): string => {
-  if (!/\.(tsx?|jsx?|mjs)$/.test(rel)) return text;
+  if (!SCRIPT.test(rel)) return text;
   return text.replace(/(['"])(\.{1,2}\/[^'"]*\.module\.css)\1/g, (_whole, quote: string, spec: string) => {
     const file = spec.split('/').pop()!;
     return `${quote}${spec.slice(0, -file.length)}${module}-${file}${quote}`;
@@ -330,6 +364,62 @@ const readBuild = async (reader: Reader, module: string): Promise<ModuleBuild | 
 
 const fileUrl = (path: string): string => `/file${path}`;
 
+/** Write a bundle's sources under `<dir>/m/` and its import map, of `aliases` and `imports`, to `<dir>/deno.json`. */
+const stageSources = async (
+  dir: string,
+  module: string,
+  sources: Map<string, string>,
+  aliases: Map<string, string>,
+  imports: Record<string, string>,
+): Promise<string> => {
+  for (const [rel, text] of sources) {
+    const file = join(dir, 'm', stagedPath(module, rel));
+    await Deno.mkdir(dirname(file), { recursive: true });
+    await Deno.writeTextFile(file, rewriteCssModules(module, rel, text));
+  }
+  const importMap = { ...imports };
+  for (const [alias, target] of aliases) importMap[alias] = `./m/${stagedPath(module, target)}`;
+  const config = join(dir, 'deno.json');
+  await Deno.writeTextFile(
+    config,
+    JSON.stringify({ compilerOptions: { jsx: 'react-jsx', jsxImportSource: 'react' }, imports: importMap, lock: false, nodeModulesDir: 'none' }, null, 2),
+  );
+  return config;
+};
+
+/** `deno bundle` one entry into an ES module for the browser, at `output` (`--output`) or in `outdir`. */
+const bundle = async (config: string, entry: string, out: { output: string } | { outdir: string }): Promise<void> => {
+  const result = await new Deno.Command(Deno.execPath(), {
+    args: [
+      'bundle',
+      '--config',
+      config,
+      '--platform',
+      'browser',
+      '--format',
+      'esm',
+      // Not --minify: it renames CSS-module classes to one or two letters, unique within a
+      // bundle but not between them, and every module's stylesheet is in the same page.
+      // A module's own few files cost little unminified.
+      '--no-npm',
+      '--no-remote',
+      '--external',
+      `${SERVED}*`,
+      ...('output' in out ? ['--output', out.output] : ['--outdir', out.outdir]),
+      entry,
+    ],
+    stdout: 'piped',
+    stderr: 'piped',
+    env: { NO_COLOR: '1' },
+  }).output();
+  if (!result.success) {
+    throw new Error(`deno bundle failed:\n${new TextDecoder().decode(result.stderr).replace(/^.*experimental.*\n/m, '').trim()}`);
+  }
+};
+
+/** A worker's sources, as `collectSources` gives them for its script alone. */
+type WorkerSources = { name: string; script: string; sources: Map<string, string>; aliases: Map<string, string> };
+
 /**
  * Build one module's bundle unless an identical one is stored.
  */
@@ -349,7 +439,15 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
     const routes = routesOf(manifest);
     const runtime = uiRuntime();
     const shared = sharedSpecifiers();
-    const { sources, aliases } = await collectSources(reader, modulePath, manifest, routes, new Set(Object.keys(shared)));
+    const pages = routes.map(([path, page]) => ({ file: page, from: `mod.json ui.routes['${path}']` }));
+    const { sources, aliases } = await collectSources(reader, modulePath, manifest, pages, new Set(Object.keys(shared)));
+    const workers: WorkerSources[] = [];
+    for (const [name, script] of workersOf(manifest)) {
+      const collected = await collectSources(reader, modulePath, manifest, [{ file: script, from: `mod.json ui.workers['${name}']` }], new Set());
+      const sheet = [...collected.sources.keys()].find((rel) => !SCRIPT.test(rel));
+      if (sheet) throw new Error(`ui.workers['${name}']: ${sheet} is not a script; a worker has no page to style`);
+      workers.push({ name, script, ...collected });
+    }
 
     const search = searchableOf(manifest);
     const types = typesOf(manifest);
@@ -363,64 +461,41 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
       types,
       [...aliases].sort(),
       [...sources].sort(([a], [b]) => a.localeCompare(b)),
+      workers.map((worker) => [worker.name, [...worker.aliases].sort(), [...worker.sources].sort(([a], [b]) => a.localeCompare(b))]),
     ]));
     const previous = await readBuild(reader, module);
-    if (previous?.key === key && await cmd.sys.vfs.exists(cmd.access, previous.url.replace(/^\/file/, ''))) {
+    const stored = async (url: string) => await cmd.sys.vfs.exists(cmd.access, url.replace(/^\/file/, ''));
+    if (previous?.key === key && await stored(previous.url) && (await Promise.all(Object.values(previous.workers ?? {}).map(stored))).every(Boolean)) {
       return { state: 'cached' };
     }
 
-    // Stage: the module's files under m/, the shims under shared/, an import map over both. Each
-    // build has a directory of its own: another instance or checkout on the host may be building
-    // the same sources at the same time.
+    // Stage: the module's files under m/, the shims under shared/, an import map over both; each
+    // worker the same under workers/<name>/, without shims. Each build has a directory of its own:
+    // another instance or checkout on the host may be building the same sources at the same time.
     await Deno.mkdir(STAGE_ROOT, { recursive: true });
     const stage = await Deno.makeTempDir({ dir: STAGE_ROOT, prefix: `${module}-` });
     staged = stage;
-    for (const [rel, text] of sources) {
-      const file = join(stage, 'm', stagedPath(module, rel));
-      await Deno.mkdir(dirname(file), { recursive: true });
-      await Deno.writeTextFile(file, rewriteCssModules(module, rel, text));
-    }
-    const importMap: Record<string, string> = {};
+    const shims: Record<string, string> = {};
     await Deno.mkdir(join(stage, 'shared'), { recursive: true });
     Object.entries(shared).forEach(([specifier, names], index) => {
       const file = `./shared/${index}.${names === '*' ? 'cjs' : 'mjs'}`;
       Deno.writeTextFileSync(join(stage, file), shimSource(specifier, names));
-      importMap[specifier] = file;
+      shims[specifier] = file;
     });
-    for (const [alias, target] of aliases) importMap[alias] = `./m/${stagedPath(module, target)}`;
-    await Deno.writeTextFile(
-      join(stage, 'deno.json'),
-      JSON.stringify({ compilerOptions: { jsx: 'react-jsx', jsxImportSource: 'react' }, imports: importMap, lock: false, nodeModulesDir: 'none' }, null, 2),
-    );
+    const config = await stageSources(stage, module, sources, aliases, shims);
 
     const generated = generateEntry(module, routes);
     await Deno.writeTextFile(join(stage, 'entry.tsx'), generated.entry);
-
     const out = join(stage, 'out');
-    const result = await new Deno.Command(Deno.execPath(), {
-      args: [
-        'bundle',
-        '--config',
-        join(stage, 'deno.json'),
-        '--platform',
-        'browser',
-        '--format',
-        'esm',
-        // Not --minify: it renames CSS-module classes to one or two letters, unique within a
-        // bundle but not between them, and every module's stylesheet is in the same page.
-        // A module's own few files cost little unminified.
-        '--no-npm',
-        '--no-remote',
-        '--outdir',
-        out,
-        join(stage, 'entry.tsx'),
-      ],
-      stdout: 'piped',
-      stderr: 'piped',
-      env: { NO_COLOR: '1' },
-    }).output();
-    if (!result.success) {
-      throw new Error(`deno bundle failed:\n${new TextDecoder().decode(result.stderr).replace(/^.*experimental.*\n/m, '').trim()}`);
+    await bundle(config, join(stage, 'entry.tsx'), { outdir: out });
+
+    const workerOut = new Map<string, Uint8Array>();
+    for (const worker of workers) {
+      const dir = join(stage, 'workers', worker.name);
+      const workerConfig = await stageSources(dir, module, worker.sources, worker.aliases, {});
+      const output = join(dir, 'out.js');
+      await bundle(workerConfig, join(dir, 'm', worker.script), { output });
+      workerOut.set(worker.name, await Deno.readFile(output));
     }
 
     const js = await Deno.readFile(join(out, 'entry.js'));
@@ -436,11 +511,19 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
       cssName = `${cssHash.slice(0, 12)}.css`;
       await writeVfsFile(cmd, dir, cssName, css, { mimetype: 'text/css', sha256: cssHash, immutable: true });
     }
+    const workerUrls: Record<string, string> = {};
+    for (const [name, bytes] of workerOut) {
+      const hash = await sha256(bytes);
+      const fileName = `${name}-${hash.slice(0, 12)}.js`;
+      await writeVfsFile(cmd, dir, fileName, bytes, { mimetype: 'text/javascript', sha256: hash, immutable: true });
+      workerUrls[name] = fileUrl(`${dir}/${fileName}`);
+    }
     const build: ModuleBuild = {
       key,
       url: fileUrl(`${dir}/${jsName}`),
       ...(cssName ? { css: fileUrl(`${dir}/${cssName}`) } : {}),
       routes: generated.routes,
+      ...(workers.length ? { workers: workerUrls } : {}),
       ...(manifest.ui?.open ? { open: manifest.ui.open } : {}),
       ...(manifest.ui?.shareLinks ? { shareLinks: manifest.ui.shareLinks } : {}),
       ...(search.length ? { search } : {}),
@@ -449,10 +532,12 @@ export const buildModuleUi = async (cmd: Command, modulePath: string): Promise<B
     await writeVfsFile(cmd, dir, 'build.json', new TextEncoder().encode(`${JSON.stringify(build, null, 2)}\n`), { mimetype: 'application/json' });
 
     // Earlier builds' files go; a page open since then reloads into the new one.
+    const kept = new Set([jsName, cssName, 'build.json', ...Object.values(workerUrls).map((url) => url.slice(url.lastIndexOf('/') + 1))]);
     for (const child of await cmd.sys.vfs.children(cmd.access, dir)) {
-      if (![jsName, cssName, 'build.json'].includes(child.name)) await cmd.sys.vfs.unlink(cmd.access, `${dir}/${child.name}`, dir);
+      if (!kept.has(child.name)) await cmd.sys.vfs.unlink(cmd.access, `${dir}/${child.name}`, dir);
     }
-    return { state: 'built', bytes: js.length + (css?.length ?? 0), ms: Math.round(performance.now() - started) };
+    const workerBytes = [...workerOut.values()].reduce((sum, bytes) => sum + bytes.length, 0);
+    return { state: 'built', bytes: js.length + (css?.length ?? 0) + workerBytes, ms: Math.round(performance.now() - started) };
   } catch (error) {
     return { state: 'failed', error: error instanceof Error ? error.message : String(error) };
   } finally {
@@ -515,6 +600,7 @@ export const writeUiManifest = async (cmd: Command, modules: string[]): Promise<
       url: build.url,
       ...(build.css ? { css: build.css } : {}),
       routes: build.routes,
+      ...(build.workers ? { workers: build.workers } : {}),
       ...(build.open ? { open: build.open } : {}),
       ...(build.shareLinks ? { shareLinks: build.shareLinks } : {}),
       ...(build.search ? { search: build.search } : {}),

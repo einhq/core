@@ -138,15 +138,21 @@ manifest is written, for the module later by name. They are bundled inside the r
 
 - it follows the imports from the pages and allows only what the shell lends,
   the module's own files — CSS and CSS modules included — through relative paths or its own
-  `imports`/`exports`, and anything at all behind `import type`; no npm and no network, so a build is
+  `imports`/`exports`, anything at all behind `import type`, and a script EiN serves by its
+  `/file/` path, which is left for the browser to load; no npm and no network, so a build is
   the module's few files (device: 66 KB, under three seconds on fry);
 - it stages them with a one-line shim per lent specifier and runs `deno bundle`, unminified: the
   minifier renames CSS-module classes to letters that are unique within a bundle but collide
   between modules' stylesheets in one page, and staging prefixes each CSS module with the module's
   name for the same reason;
-- the JS and CSS go to `/var/cache/ui/<module>/<sha256>.js|css` (served with an `immutable`
-  Cache-Control), the routes to `/var/cache/ui/manifest.json`, and the key it was built from to
-  `build.json`, so an unchanged module is not rebuilt.
+- each of its `ui.workers` is bundled the same way on its own, from its script, but with nothing
+  lent and no CSS: a worker has no shell to read React or the kit from;
+- the JS and CSS go to `/var/cache/ui/<module>/<sha256>.js|css`, a worker's to
+  `<name>-<sha256>.js` (served with an `immutable` Cache-Control), the routes and the workers' URLs
+  to `/var/cache/ui/manifest.json`, and the key it was built from to `build.json`, so an unchanged
+  module is not rebuilt. A script there goes out with the page's policy rather than a file's
+  sandbox ([get-file.ts](../../src/servers/http/handlers/get-file.ts)): a worker takes its script's
+  policy as its own, and the kit's `moduleWorker` starts one by the module's name and its own.
 
 `ui-build` also writes the installation's third-party notices to `/var/cache/ui/licences.txt`, which
 the manifest names and About EiN links to: the image's (`public/licences.txt`, core's packages and
@@ -255,7 +261,7 @@ is reloaded, failing as a module that could not load.
 
 **Describing what a module brings.** A command describes itself (`CmdSpec`) and a setting where it is registered (`config.options`), but a node type is a free-form string and an environment variable is read wherever it is needed, so neither has a location of its own. A module describes its node types in `nodeTypes` (`{ type, label, category, description, root? }`) and the environment variables it reads, other than its settings, in `environment` (`{ key, kind, description, default? }`), the same shapes core uses for its own ([src/lib/reference/](../../src/lib/reference/)). Apart from completion (above), nothing registers them: `docs node-types` and `docs env` read the installed manifests at each call, so the documentation follows whatever is in `/usr/modules`. A malformed entry is a warning at `mod setup` (`checkReference`), like a malformed setting.
 
-**Validation.** `mod setup` checks `coreApi` against `MODULE_API_VERSION`, every entry in `dependencies`, that `exports` and `imports` stay inside the module and every export exists, that the module is installed under its own name, and the shape and containment of `ui.routes` before touching anything, and refuses rather than half-installing — setup puts bins on PATH and starts services the moment it runs. `ui-build` additionally verifies that the route directory holds a page and that the pages import nothing they may not.
+**Validation.** `mod setup` checks `coreApi` against `MODULE_API_VERSION`, every entry in `dependencies`, that `exports` and `imports` stay inside the module and every export exists, that the module is installed under its own name, and the shape and containment of `ui.routes` and `ui.workers` before touching anything, and refuses rather than half-installing — setup puts bins on PATH and starts services the moment it runs. `ui-build` additionally verifies that the route directory holds a page and that the pages and workers import nothing they may not.
 
 ## Installing a module from its repository
 

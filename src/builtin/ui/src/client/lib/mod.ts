@@ -14,6 +14,7 @@ export * from './text-match.ts';
 export * from './natural-search.ts';
 export { mediaItemFrom, type MediaRef } from './media-item.ts';
 export { davUrl, fileUrl } from './file-url.ts';
+export { moduleWorker } from './module-worker.ts';
 export { fetchInvitation, type NodeInvitation, type NodeSocketMode, type NodeSocketOptions, nodeSocketUrl, openNodeSocket, parseInvitationLink } from './node-socket.ts';
 export { displayUrl, documentViewUrl, gridSrcSet, gridUrl, imageSrcSet, posterUrl, renditionName, thumbnailUrl, VIDEO_SOURCE_TYPE, WAVEFORM_ASPECT } from './derivatives.ts';
 export * from './card-layout.ts';

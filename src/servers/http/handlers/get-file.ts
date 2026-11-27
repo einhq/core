@@ -29,6 +29,11 @@ type GetFileOptions = {
    * display's, is one of them.
    */
   site?: boolean;
+  /**
+   * A file of `ui-build`'s under `/var/cache/ui`. Its scripts go out with the page's policy: a Web
+   * Worker takes the policy of its script as its own, and a module's worker may do what its page may.
+   */
+  uiCache?: boolean;
   /** Where a read of an original is recorded as a download, with the client's address. */
   downloads?: DownloadLog;
   from?: string;
@@ -52,12 +57,13 @@ const RENDITION_PATH = /^(.+)\/thumbnails\/([^/]+)$/;
 const FILE_POLICY = "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'";
 
 /**
- * What a page of the site, the shell among them, may load: scripts from EiN itself and Google's Cast
- * sender (cast-sender.ts loads it from www.gstatic.com), so injected markup runs nothing, and only
- * EiN's own pages may frame it. `'wasm-unsafe-eval'` lets a module's page compile WebAssembly
- * without letting any script `eval` text. Pictures may come from anywhere, since a map's tiles come
- * from whatever server its layer names; styles may be inline, as Mantine writes them. A page may
- * connect to another server, such as another EiN whose invitation it was handed (`/__invite/`).
+ * What a page of the site, the shell among them, may load, and a module's worker too: scripts from
+ * EiN itself and Google's Cast sender (cast-sender.ts loads it from www.gstatic.com), so injected
+ * markup runs nothing, and only EiN's own pages may frame it. `'wasm-unsafe-eval'` lets a module's
+ * page or worker compile WebAssembly without letting any script `eval` text. Pictures may come
+ * from anywhere, since a map's tiles come from whatever server its layer names; styles may be
+ * inline, as Mantine writes them. A page may connect to another server, such as another EiN whose
+ * invitation it was handed (`/__invite/`).
  */
 const PAGE_POLICY = [
   "default-src 'self'",
@@ -124,9 +130,9 @@ export async function handleGetFile(config: HttpServerConfig, req: Request, url:
   const ticket = url.searchParams.get('ticket');
   if (ticket !== null) return await ticketFile(config, req, url, vfsPath, ticket);
   const { responseHeaders, access, sessionPath } = await getSession(config, req.headers, { create: opts.createSession === true });
-  const site = opts.site || vfsPath.startsWith(`${UI_CACHE_PATH}/`);
-  if (!site && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
-  return await serveFile(config, req, vfsPath, access, responseHeaders, { ...opts, sessionPath, original: url.searchParams.has('original') });
+  const uiCache = vfsPath.startsWith(`${UI_CACHE_PATH}/`);
+  if (!opts.site && !uiCache && await refusesGuest(config, access)) return new Response('sign in first', { status: 401, headers: responseHeaders });
+  return await serveFile(config, req, vfsPath, access, responseHeaders, { ...opts, uiCache, sessionPath, original: url.searchParams.has('original') });
 }
 
 /**
@@ -217,6 +223,7 @@ export async function serveFile(
     if (isPageType((node.attrs.mimetype ?? '').split(';')[0].trim().toLowerCase())) responseHeaders.set('Content-Security-Policy', PAGE_POLICY);
   } else {
     setFileHeaders(responseHeaders, node.attrs.mimetype);
+    if (opts.uiCache && responseHeaders.get('Content-Type') === 'text/javascript') responseHeaders.set('Content-Security-Policy', PAGE_POLICY);
   }
 
   const etag = node.attrs.sha256 ? `"${node.attrs.sha256}"` : undefined;

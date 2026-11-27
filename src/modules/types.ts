@@ -130,6 +130,13 @@ export type ModuleManifest = {
      * link). `noun` is what the sharing dialog calls it. A node no module names gets no link.
      */
     shareLinks?: Record<string, ShareLinkKind>;
+    /**
+     * Web Workers for its pages, by name, each with its script relative to the module root,
+     * TypeScript or JavaScript: `{ "solver": "ui/solver/worker.ts" }`. `ui-build` bundles each into an ES
+     * module of its own, with what it imports of the module's files and its dependencies' exports
+     * (the shell lends a worker nothing), and a page starts one with the kit's `moduleWorker`.
+     */
+    workers?: Record<string, string>;
   };
 };
 
@@ -146,7 +153,7 @@ export const MOD_JSON_NAME = 'mod.json';
  * no module in the tree names is additive until the first official release. Modules
  * declare the range they accept as `coreApi`.
  */
-export const MODULE_API_VERSION = '0.15.75';
+export const MODULE_API_VERSION = '0.15.77';
 
 /** The settings a module declares. */
 export const manifestConfigOptions = (manifest: ModuleManifest): ConfigOption[] => manifest.config?.options ?? [];
