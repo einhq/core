@@ -18,8 +18,21 @@ const ALLOWED_FILES: Record<string, string> = {
   'src/client/testing.ts': "`@ein/testing`, the contract's harness for module tests; only tests import it",
 };
 
-/** Exports kept although nothing outside tests uses them, as `path: name`, each with the reason. */
-const ALLOWED_EXPORTS: Record<string, string> = {};
+/**
+ * Exports kept although nothing outside tests uses them, as `path: name`, each with the reason. A
+ * module's entry counts only where the module is checked out.
+ */
+const GAMES_KIT = 'the games kit that game modules outside EiN build on (doom, quake, duke3d, retro)';
+const ALLOWED_EXPORTS: Record<string, string> = {
+  'modules/games/lib/net.ts: FRAME_HEADER': `${GAMES_KIT}: a hosted game's service drops a frame shorter than it`,
+  'modules/games/lib/net.ts: Ring': `${GAMES_KIT}: a hosted game's service and its server's worker share it`,
+  'modules/games/lib/png.ts: pngDataUrl': `${GAMES_KIT}: a module's list command answers each game's cover with it`,
+  'modules/games/ui/card.tsx: DemoCard': `${GAMES_KIT}: a module's dashboard card`,
+  'modules/games/ui/page.tsx: GamePage': `${GAMES_KIT}: a module's play route`,
+  'modules/games/ui/page.tsx: gamePageHandle': `${GAMES_KIT}: a module's play route's handle`,
+  'modules/games/ui/worker.ts: fetchFile': `${GAMES_KIT}: a module's page fetches a game's files with it`,
+  'modules/games/ui/worker.ts: startWorkerGame': `${GAMES_KIT}: starts an engine in a worker`,
+};
 
 /** Files whose exports are a published interface, so every one counts as used: the module contract. */
 const CONTRACT = new Set([...CONTRACT_ENTRIES, 'src/client/testing.ts'].map((path) => join(REPO_ROOT, path)));
@@ -46,7 +59,8 @@ Deno.test('every export of a reached file is used', () => {
   const offenders = found
     .filter(({ path, name }) => !Object.hasOwn(ALLOWED_EXPORTS, `${path}: ${name}`))
     .map(({ path, name, fix }) => `${path}: ${name} — ${fix === 'unexport' ? 'only its own file uses it; drop the export' : 'nothing uses it but tests; delete it'}`);
-  const stale = Object.keys(ALLOWED_EXPORTS).filter((key) => !found.some(({ path, name }) => `${path}: ${name}` === key));
+  const present = (key: string) => graph.sources.includes(join(REPO_ROOT, key.slice(0, key.indexOf(': '))));
+  const stale = Object.keys(ALLOWED_EXPORTS).filter((key) => present(key) && !found.some(({ path, name }) => `${path}: ${name}` === key));
 
   assertEquals(offenders, [], `unused exports; fix them, or allow one in ALLOWED_EXPORTS with a reason:\n  ${offenders.join('\n  ')}`);
   assertEquals(stale, [], `ALLOWED_EXPORTS lists exports that are used or gone:\n  ${stale.join('\n  ')}`);

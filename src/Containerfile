@@ -49,7 +49,7 @@ FROM --platform=$BUILDPLATFORM docker.io/denoland/deno:bin-2.9.6 AS build-deno
 # their 2x files, and the diagrams' fonts. It is the same on every platform, so it is cut once, on
 # the builder's.
 FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-20261027-slim AS guide
-ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/b0003f5bd37a02bf07635f641606c23c42969e12.tar.gz
+ARG DOCS_URL=https://github.com/einhq/einhq.github.io/archive/a24e381ff6803aa48ad4ca4e4a8c336486af4f03.tar.gz
 ADD ${DOCS_URL} /site.tar.gz
 WORKDIR /site
 RUN tar -xzf /site.tar.gz --strip-components=1 \
